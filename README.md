@@ -214,7 +214,7 @@ cargo test -- --nocapture
 To regenerate FHIR models from specifications:
 ```bash
 cargo build -p helios-fhir-gen --features R6
-./target/debug/fhir_gen --all
+./target/debug/helios-fhir-gen --all
 ```
 
 # Contributing

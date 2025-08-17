@@ -16,7 +16,7 @@
 //! ## Example Usage
 //!
 //! ```ignore
-//! use fhir_gen::process_fhir_version;
+//! use helios_fhir_gen::process_fhir_version;
 //! use helios_fhir::FhirVersion;
 //! use std::path::PathBuf;
 //!
@@ -68,7 +68,7 @@ use std::path::PathBuf;
 /// # Example
 ///
 /// ```ignore
-/// use fhir_gen::process_single_version;
+/// use helios_fhir_gen::process_single_version;
 /// use helios_fhir::FhirVersion;
 /// use std::path::PathBuf;
 ///
@@ -136,7 +136,7 @@ fn process_single_version(version: &FhirVersion, output_path: impl AsRef<Path>) 
 /// # Examples
 ///
 /// ```ignore
-/// use fhir_gen::process_fhir_version;
+/// use helios_fhir_gen::process_fhir_version;
 /// use helios_fhir::FhirVersion;
 /// use std::path::PathBuf;
 ///
@@ -476,7 +476,7 @@ fn generate_resource_enum(resources: Vec<String>) -> String {
 /// # Examples
 ///
 /// ```ignore
-/// # use fhir_gen::make_rust_safe;
+/// # use helios_fhir_gen::make_rust_safe;
 /// assert_eq!(make_rust_safe("birthDate"), "birth_date");
 /// assert_eq!(make_rust_safe("type"), "r#type");
 /// assert_eq!(make_rust_safe("abstract"), "r#abstract");
@@ -517,7 +517,7 @@ fn make_rust_safe(input: &str) -> String {
 /// # Examples
 ///
 /// ```ignore
-/// # use fhir_gen::capitalize_first_letter;
+/// # use helios_fhir_gen::capitalize_first_letter;
 /// assert_eq!(capitalize_first_letter("patient"), "Patient");
 /// assert_eq!(capitalize_first_letter("humanName"), "HumanName");
 /// ```

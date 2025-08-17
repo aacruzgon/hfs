@@ -61,7 +61,7 @@ The build script (`build.rs`) will automatically fetch the latest R6 specificati
 
 ## Command Line Interface
 
-The **fhir_gen** binary provides a simple command-line interface for code generation:
+The **helios-fhir-gen** binary provides a simple command-line interface for code generation:
 
 ### Basic Usage
 
@@ -83,7 +83,7 @@ cargo run -p helios-fhir-gen --all
 ```
 FHIR Generator - Process FHIR definitions
 
-Usage: fhir_gen [OPTIONS] [VERSION]
+Usage: helios-fhir-gen [OPTIONS] [VERSION]
 
 Arguments:
   [VERSION]  FHIR version to process
@@ -119,8 +119,8 @@ Generated code is written to `crates/fhir/src/` with version-specific modules:
 
 ### Development Workflow
 
-1. **Initial Setup**: Run `fhir_gen --all` to generate all version code
-2. **Version-Specific Development**: Use `fhir_gen R5` for focused development
+1. **Initial Setup**: Run `helios-fhir-gen --all` to generate all version code
+2. **Version-Specific Development**: Use `helios-fhir-gen R5` for focused development
 3. **Testing**: Generated code integrates with the broader test suite
 4. **CI/CD**: Include generation step in automated builds
 
@@ -242,7 +242,7 @@ Areas for potential enhancement:
 
 ## Dependencies
 
-**fhir_gen** maintains minimal dependencies:
+**helios-fhir-gen** maintains minimal dependencies:
 
 - `serde` and `serde_json` - JSON parsing and serialization
 - `clap` - Command-line argument parsing  
@@ -252,7 +252,7 @@ This lean dependency set ensures fast compilation and reduces the risk of depend
 
 ## Status and Future
 
-**fhir_gen** is a mature, stable component that successfully generates working Rust code for all supported FHIR versions. Future development focuses on:
+**helios-fhir-gen** is a mature, stable component that successfully generates working Rust code for all supported FHIR versions. Future development focuses on:
 
 - **Specification updates** as new FHIR versions are released
 - **Generation performance** improvements for faster development cycles

@@ -47,10 +47,10 @@ The crate combines:
 
 ### Code Generation Process
 
-The FHIR types are generated from official HL7 specification files by the `fhir_gen` crate:
+The FHIR types are generated from official HL7 specification files by the `helios-fhir-gen` crate:
 
 1. **Source**: Official FHIR StructureDefinition JSON files from HL7
-2. **Processing**: `fhir_gen` parses specifications and generates Rust code
+2. **Processing**: `helios-fhir-gen` parses specifications and generates Rust code
 3. **Output**: Complete type-safe Rust implementations in version-specific modules
 4. **Integration**: Generated code uses hand-coded infrastructure types
 

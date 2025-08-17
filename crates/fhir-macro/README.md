@@ -252,7 +252,7 @@ fn evaluate_expression(resource: &Patient, path: &str) -> EvaluationResult {
 
 ### Code Generation Integration
 
-The `fhir_gen` crate automatically applies these derives:
+The `helios-fhir-gen` crate automatically applies these derives:
 
 ```rust
 // In crates/fhir_gen/src/lib.rs:

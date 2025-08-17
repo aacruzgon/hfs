@@ -8,13 +8,13 @@
 //!
 //! ```bash
 //! # Generate code for default version (R4)
-//! fhir_gen
+//! helios-fhir-gen
 //!
 //! # Generate code for a specific version
-//! fhir_gen R5
+//! helios-fhir-gen R5
 //!
 //! # Generate code for all versions
-//! fhir_gen --all
+//! helios-fhir-gen --all
 //! ```
 //!
 //! ## Output
@@ -76,8 +76,8 @@ fn main() {
             println!("  R6   - FHIR Release 6");
             println!("  --all  - Process all versions\n");
             println!("Usage examples:");
-            println!("  fhir_gen R5");
-            println!("  fhir_gen --all\n");
+            println!("  helios-fhir-gen R5");
+            println!("  helios-fhir-gen --all\n");
             e.exit();
         }
     };
