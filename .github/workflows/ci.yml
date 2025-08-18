@@ -28,6 +28,18 @@ jobs:
         toolchain: ${{ matrix.rust }}
         components: rustfmt, clippy
 
+
+    - name: Configure Rust to use LLD
+      run: |
+        mkdir -p ~/.cargo
+        if ! grep -q "link-arg=-fuse-ld=lld" ~/.cargo/config.toml 2>/dev/null; then
+          cat >> ~/.cargo/config.toml << EOF
+          [target.x86_64-unknown-linux-gnu]
+          linker = "clang"
+          rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+          EOF
+        fi
+
     - name: Cache cargo registry
       uses: actions/cache@v3
       with:
@@ -39,7 +51,7 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-cargo-
 
-    - name: Build the FHIR model code generator for all versions (This will download R6 from https://build.fhir.org/
+    - name: Build the FHIR model code generator for all versions (This will download the latest R6 from https://build.fhir.org/
       run: |
         echo "Build the FHIR model code generator for all versions..."
         cargo build -p helios-fhir-gen --all-features

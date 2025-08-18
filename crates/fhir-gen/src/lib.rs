@@ -379,8 +379,7 @@ fn generate_code(bundle: Bundle, output_path: impl AsRef<Path>) -> io::Result<()
                 .create(true)
                 .append(true)
                 .open(output_path.as_ref())?;
-            writeln!(file, "{}", resource_enum)?;
-
+            write!(file, "{}", resource_enum)?;
             // Add From<T> implementations for base types ONCE after all types are defined
             writeln!(
                 file,
@@ -388,10 +387,10 @@ fn generate_code(bundle: Bundle, output_path: impl AsRef<Path>) -> io::Result<()
             )?;
             writeln!(file, "impl From<bool> for Element<bool, Extension> {{")?;
             writeln!(file, "    fn from(value: bool) -> Self {{")?;
-            writeln!(
-                file,
-                "        Self {{ value: Some(value), ..Default::default() }}"
-            )?;
+            writeln!(file, "        Self {{")?;
+            writeln!(file, "            value: Some(value),")?;
+            writeln!(file, "            ..Default::default()")?;
+            writeln!(file, "        }}")?;
             writeln!(file, "    }}")?;
             writeln!(file, "}}")?;
 
@@ -400,10 +399,10 @@ fn generate_code(bundle: Bundle, output_path: impl AsRef<Path>) -> io::Result<()
                 "impl From<std::primitive::i32> for Element<std::primitive::i32, Extension> {{"
             )?;
             writeln!(file, "    fn from(value: std::primitive::i32) -> Self {{")?;
-            writeln!(
-                file,
-                "        Self {{ value: Some(value), ..Default::default() }}"
-            )?;
+            writeln!(file, "        Self {{")?;
+            writeln!(file, "            value: Some(value),")?;
+            writeln!(file, "            ..Default::default()")?;
+            writeln!(file, "        }}")?;
             writeln!(file, "    }}")?;
             writeln!(file, "}}")?;
 
@@ -412,10 +411,10 @@ fn generate_code(bundle: Bundle, output_path: impl AsRef<Path>) -> io::Result<()
                 "impl From<std::string::String> for Element<std::string::String, Extension> {{"
             )?;
             writeln!(file, "    fn from(value: std::string::String) -> Self {{")?;
-            writeln!(
-                file,
-                "        Self {{ value: Some(value), ..Default::default() }}"
-            )?;
+            writeln!(file, "        Self {{")?;
+            writeln!(file, "            value: Some(value),")?;
+            writeln!(file, "            ..Default::default()")?;
+            writeln!(file, "        }}")?;
             writeln!(file, "    }}")?;
             writeln!(file, "}}")?;
             writeln!(file, "// --- End From<T> Implementations ---")?;
@@ -1001,7 +1000,36 @@ fn generate_element_definition(
             rust_field_name
         };
 
-        output.push_str(&format!("    pub {}: {},\n", clean_field_name, type_str));
+        // Check if the line would be too long (rustfmt's default max line width is 100)
+        // Account for "    pub " (8 chars) + ": " (2 chars) + "," (1 char) = 11 extra chars
+        let line_length = 8 + clean_field_name.len() + 2 + type_str.len() + 1;
+
+        if line_length > 100 {
+            // For Option<Vec<...>>, rustfmt prefers a specific format
+            if type_str.starts_with("Option<Vec<") && type_str.ends_with(">>") {
+                // Extract the inner type
+                let inner_type = &type_str[11..type_str.len() - 2];
+                output.push_str(&format!(
+                    "    pub {}: Option<\n        Vec<{}>,\n    >,\n",
+                    clean_field_name, inner_type
+                ));
+            } else if type_str.starts_with("Option<") && type_str.ends_with(">") {
+                // For other Option<...> types that are too long
+                let inner_type = &type_str[7..type_str.len() - 1];
+                output.push_str(&format!(
+                    "    pub {}:\n        Option<{}>,\n",
+                    clean_field_name, inner_type
+                ));
+            } else {
+                // Break other long type declarations across multiple lines
+                output.push_str(&format!(
+                    "    pub {}:\n        {},\n",
+                    clean_field_name, type_str
+                ));
+            }
+        } else {
+            output.push_str(&format!("    pub {}: {},\n", clean_field_name, type_str));
+        }
     }
 }
 
