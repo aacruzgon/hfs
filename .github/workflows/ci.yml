@@ -17,7 +17,7 @@ jobs:
     runs-on: self-hosted 
     strategy:
       matrix:
-        rust: [stable]
+        rust: [stable, beta, nightly]
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -27,6 +27,15 @@ jobs:
       with:
         toolchain: ${{ matrix.rust }}
         components: rustfmt, clippy
+
+    - name: Configure Rust to use LLD
+      run: |
+        mkdir -p ~/.cargo
+        if ! grep -q "link-arg=-fuse-ld=lld" ~/.cargo/config.toml 2>/dev/null; then
+          echo "[target.x86_64-unknown-linux-gnu]" >> ~/.cargo/config.toml
+          echo 'linker = "clang"' >> ~/.cargo/config.toml
+          echo 'rustflags = ["-C", "link-arg=-fuse-ld=lld"]' >> ~/.cargo/config.toml
+        fi
 
     - name: Cache cargo registry
       uses: actions/cache@v3
@@ -39,10 +48,20 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-cargo-
 
+    - name: Build the FHIR model code generator for all versions (This will download the latest R6 from https://build.fhir.org/
+      run: |
+        echo "Build the FHIR model code generator for all versions..."
+        cargo build -p helios-fhir-gen --all-features
+
+    - name: Generate all FHIR model code 
+      run: |
+        echo "Generate all FHIR model code..."
+        ./target/debug/helios-fhir-gen --all 
+ 
     - name: Run tests with all features
       run: |
         echo "Running tests with all features..."
-        cargo test --all-features --verbose
+        cargo test --all-features 
  
   lint:
     name: Linting
@@ -72,7 +91,7 @@ jobs:
     - name: Run clippy
       run: |
         cargo clippy --version
-        cargo clippy --all-targets --all-features -- -D warnings -A clippy::items_after_test_module -A clippy::large_enum_variant -A clippy::question_mark -A clippy::collapsible_match -A clippy::field_reassign_with_default
+        cargo clippy --all-targets --all-features -- -D warnings -A clippy::items_after_test_module -A clippy::large_enum_variant -A clippy::question_mark -A clippy::collapsible_match -A clippy::collapsible_if -A clippy::field_reassign_with_default
 
   security:
     name: Security Audit

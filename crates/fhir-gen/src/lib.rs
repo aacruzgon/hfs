@@ -3,6 +3,7 @@
 //! This crate provides functionality to generate Rust code from FHIR StructureDefinitions.
 //! It transforms official FHIR specification JSON files into idiomatic Rust types with
 //! proper serialization/deserialization support.
+
 //!
 //! ## Overview
 //!
@@ -16,7 +17,7 @@
 //! ## Example Usage
 //!
 //! ```ignore
-//! use fhir_gen::process_fhir_version;
+//! use helios_fhir_gen::process_fhir_version;
 //! use helios_fhir::FhirVersion;
 //! use std::path::PathBuf;
 //!
@@ -68,7 +69,7 @@ use std::path::PathBuf;
 /// # Example
 ///
 /// ```ignore
-/// use fhir_gen::process_single_version;
+/// use helios_fhir_gen::process_single_version;
 /// use helios_fhir::FhirVersion;
 /// use std::path::PathBuf;
 ///
@@ -136,7 +137,7 @@ fn process_single_version(version: &FhirVersion, output_path: impl AsRef<Path>) 
 /// # Examples
 ///
 /// ```ignore
-/// use fhir_gen::process_fhir_version;
+/// use helios_fhir_gen::process_fhir_version;
 /// use helios_fhir::FhirVersion;
 /// use std::path::PathBuf;
 ///
@@ -379,8 +380,7 @@ fn generate_code(bundle: Bundle, output_path: impl AsRef<Path>) -> io::Result<()
                 .create(true)
                 .append(true)
                 .open(output_path.as_ref())?;
-            writeln!(file, "{}", resource_enum)?;
-
+            write!(file, "{}", resource_enum)?;
             // Add From<T> implementations for base types ONCE after all types are defined
             writeln!(
                 file,
@@ -388,10 +388,10 @@ fn generate_code(bundle: Bundle, output_path: impl AsRef<Path>) -> io::Result<()
             )?;
             writeln!(file, "impl From<bool> for Element<bool, Extension> {{")?;
             writeln!(file, "    fn from(value: bool) -> Self {{")?;
-            writeln!(
-                file,
-                "        Self {{ value: Some(value), ..Default::default() }}"
-            )?;
+            writeln!(file, "        Self {{")?;
+            writeln!(file, "            value: Some(value),")?;
+            writeln!(file, "            ..Default::default()")?;
+            writeln!(file, "        }}")?;
             writeln!(file, "    }}")?;
             writeln!(file, "}}")?;
 
@@ -400,10 +400,10 @@ fn generate_code(bundle: Bundle, output_path: impl AsRef<Path>) -> io::Result<()
                 "impl From<std::primitive::i32> for Element<std::primitive::i32, Extension> {{"
             )?;
             writeln!(file, "    fn from(value: std::primitive::i32) -> Self {{")?;
-            writeln!(
-                file,
-                "        Self {{ value: Some(value), ..Default::default() }}"
-            )?;
+            writeln!(file, "        Self {{")?;
+            writeln!(file, "            value: Some(value),")?;
+            writeln!(file, "            ..Default::default()")?;
+            writeln!(file, "        }}")?;
             writeln!(file, "    }}")?;
             writeln!(file, "}}")?;
 
@@ -412,10 +412,10 @@ fn generate_code(bundle: Bundle, output_path: impl AsRef<Path>) -> io::Result<()
                 "impl From<std::string::String> for Element<std::string::String, Extension> {{"
             )?;
             writeln!(file, "    fn from(value: std::string::String) -> Self {{")?;
-            writeln!(
-                file,
-                "        Self {{ value: Some(value), ..Default::default() }}"
-            )?;
+            writeln!(file, "        Self {{")?;
+            writeln!(file, "            value: Some(value),")?;
+            writeln!(file, "            ..Default::default()")?;
+            writeln!(file, "        }}")?;
             writeln!(file, "    }}")?;
             writeln!(file, "}}")?;
             writeln!(file, "// --- End From<T> Implementations ---")?;
@@ -476,7 +476,7 @@ fn generate_resource_enum(resources: Vec<String>) -> String {
 /// # Examples
 ///
 /// ```ignore
-/// # use fhir_gen::make_rust_safe;
+/// # use helios_fhir_gen::make_rust_safe;
 /// assert_eq!(make_rust_safe("birthDate"), "birth_date");
 /// assert_eq!(make_rust_safe("type"), "r#type");
 /// assert_eq!(make_rust_safe("abstract"), "r#abstract");
@@ -517,7 +517,7 @@ fn make_rust_safe(input: &str) -> String {
 /// # Examples
 ///
 /// ```ignore
-/// # use fhir_gen::capitalize_first_letter;
+/// # use helios_fhir_gen::capitalize_first_letter;
 /// assert_eq!(capitalize_first_letter("patient"), "Patient");
 /// assert_eq!(capitalize_first_letter("humanName"), "HumanName");
 /// ```
@@ -772,8 +772,8 @@ fn process_elements(
         for choice in choice_fields {
             let base_name = choice
                 .path
-                .split('.')
-                .last()
+                .rsplit('.')
+                .next()
                 .unwrap()
                 .trim_end_matches("[x]");
 
@@ -842,7 +842,7 @@ fn process_elements(
         ));
 
         for element in &group {
-            if let Some(field_name) = element.path.split('.').last() {
+            if let Some(field_name) = element.path.rsplit('.').next() {
                 if !field_name.contains("[x]") {
                     generate_element_definition(element, &type_name, output, cycles, elements);
                 } else {
@@ -884,7 +884,7 @@ fn generate_element_definition(
     cycles: &std::collections::HashSet<(String, String)>,
     elements: &[ElementDefinition],
 ) {
-    if let Some(field_name) = element.path.split('.').last() {
+    if let Some(field_name) = element.path.rsplit('.').next() {
         let rust_field_name = make_rust_safe(field_name);
 
         let mut serde_attrs = Vec::new();
@@ -1001,7 +1001,36 @@ fn generate_element_definition(
             rust_field_name
         };
 
-        output.push_str(&format!("    pub {}: {},\n", clean_field_name, type_str));
+        // Check if the line would be too long (rustfmt's default max line width is 100)
+        // Account for "    pub " (8 chars) + ": " (2 chars) + "," (1 char) = 11 extra chars
+        let line_length = 8 + clean_field_name.len() + 2 + type_str.len() + 1;
+
+        if line_length > 100 {
+            // For Option<Vec<...>>, rustfmt prefers a specific format
+            if type_str.starts_with("Option<Vec<") && type_str.ends_with(">>") {
+                // Extract the inner type
+                let inner_type = &type_str[11..type_str.len() - 2];
+                output.push_str(&format!(
+                    "    pub {}: Option<\n        Vec<{}>,\n    >,\n",
+                    clean_field_name, inner_type
+                ));
+            } else if type_str.starts_with("Option<") && type_str.ends_with(">") {
+                // For other Option<...> types that are too long
+                let inner_type = &type_str[7..type_str.len() - 1];
+                output.push_str(&format!(
+                    "    pub {}:\n        Option<{}>,\n",
+                    clean_field_name, inner_type
+                ));
+            } else {
+                // Break other long type declarations across multiple lines
+                output.push_str(&format!(
+                    "    pub {}:\n        {},\n",
+                    clean_field_name, type_str
+                ));
+            }
+        } else {
+            output.push_str(&format!("    pub {}: {},\n", clean_field_name, type_str));
+        }
     }
 }
 

@@ -211,10 +211,12 @@ cargo test -- --nocapture
 ```
 
 ## Code Generation
-To regenerate FHIR models from specifications:
+To regenerate FHIR models from HL7 specifications:
 ```bash
-cargo build -p helios-fhir-gen --features R6
-./target/debug/fhir_gen --all
+# This will download the latest R6 (build) specifications from https://build.fhir.org/
+cargo build -p helios-fhir-gen --all-features
+# This will generate all FHIR code models (r4.rs, r4b.rs, r5, and r6) 
+./target/debug/helios-fhir-gen --all
 ```
 
 # Contributing

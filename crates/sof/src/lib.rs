@@ -5,6 +5,7 @@
 //! enabling the transformation of FHIR resources into tabular data using declarative
 //! ViewDefinitions. It supports all major FHIR versions (R4, R4B, R5, R6) through
 //! a version-agnostic abstraction layer.
+
 //!
 //! There are three consumers of this crate:
 //! - [sof_cli](../sof_cli/index.html) - A command-line interface for the SQL-on-FHIR implementation,

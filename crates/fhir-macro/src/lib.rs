@@ -4,6 +4,7 @@
 //! (Fast Healthcare Interoperability Resources) implementations in Rust. It contains the
 //! core macro functionality that powers serialization, deserialization, and FHIRPath
 //! evaluation across the entire FHIR ecosystem.
+
 //!
 //! ## Overview
 //!
@@ -112,20 +113,17 @@ use syn::{
 /// ```
 fn get_effective_field_name(field: &syn::Field) -> String {
     for attr in &field.attrs {
-        if attr.path().is_ident("fhir_serde") {
-            if let Ok(list) =
+        if attr.path().is_ident("fhir_serde")
+            && let Ok(list) =
                 attr.parse_args_with(Punctuated::<Meta, token::Comma>::parse_terminated)
-            {
-                for meta in list {
-                    if let Meta::NameValue(nv) = meta {
-                        if nv.path.is_ident("rename") {
-                            if let syn::Expr::Lit(expr_lit) = nv.value {
-                                if let Lit::Str(lit_str) = expr_lit.lit {
-                                    return lit_str.value();
-                                }
-                            }
-                        }
-                    }
+        {
+            for meta in list {
+                if let Meta::NameValue(nv) = meta
+                    && nv.path.is_ident("rename")
+                    && let syn::Expr::Lit(expr_lit) = nv.value
+                    && let Lit::Str(lit_str) = expr_lit.lit
+                {
+                    return lit_str.value();
                 }
             }
         }
@@ -172,16 +170,15 @@ fn get_effective_field_name(field: &syn::Field) -> String {
 /// ```
 fn is_flattened(field: &syn::Field) -> bool {
     for attr in &field.attrs {
-        if attr.path().is_ident("fhir_serde") {
-            if let Ok(list) =
+        if attr.path().is_ident("fhir_serde")
+            && let Ok(list) =
                 attr.parse_args_with(Punctuated::<Meta, token::Comma>::parse_terminated)
-            {
-                for meta in list {
-                    if let Meta::Path(path) = meta {
-                        if path.is_ident("flatten") {
-                            return true;
-                        }
-                    }
+        {
+            for meta in list {
+                if let Meta::Path(path) = meta
+                    && path.is_ident("flatten")
+                {
+                    return true;
                 }
             }
         }
@@ -686,20 +683,17 @@ fn generate_serialize_impl(data: &Data, name: &Ident) -> proc_macro2::TokenStrea
                 // Get the rename attribute if present
                 let mut rename = None;
                 for attr in &variant.attrs {
-                    if attr.path().is_ident("fhir_serde") {
-                        if let Ok(list) =
+                    if attr.path().is_ident("fhir_serde")
+                        && let Ok(list) =
                             attr.parse_args_with(Punctuated::<Meta, token::Comma>::parse_terminated)
-                        {
-                            for meta in list {
-                                if let Meta::NameValue(nv) = meta {
-                                    if nv.path.is_ident("rename") {
-                                        if let syn::Expr::Lit(expr_lit) = nv.value {
-                                            if let Lit::Str(lit_str) = expr_lit.lit {
-                                                rename = Some(lit_str.value());
-                                            }
-                                        }
-                                    }
-                                }
+                    {
+                        for meta in list {
+                            if let Meta::NameValue(nv) = meta
+                                && nv.path.is_ident("rename")
+                                && let syn::Expr::Lit(expr_lit) = nv.value
+                                && let Lit::Str(lit_str) = expr_lit.lit
+                            {
+                                rename = Some(lit_str.value());
                             }
                         }
                     }

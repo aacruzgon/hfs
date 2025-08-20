@@ -514,7 +514,7 @@ pub fn evaluate(
         }
     }
 
-    let result = match expr {
+    match expr {
         Expression::Term(term) => evaluate_term(term, context, current_item),
         Expression::Invocation(left_expr, invocation) => {
             // Check for special handling of the 'extension' function
@@ -899,8 +899,7 @@ pub fn evaluate(
             // Return Ok(Empty) as it's not an error, just not evaluated yet.
             Ok(EvaluationResult::Empty)
         }
-    };
-    result // Return the result
+    }
 }
 
 /// Normalizes a vector of results according to FHIRPath singleton evaluation rules.
@@ -1011,7 +1010,7 @@ fn evaluate_term(
     context: &EvaluationContext,
     current_item: Option<&EvaluationResult>,
 ) -> Result<EvaluationResult, EvaluationError> {
-    let result = match term {
+    match term {
         Term::Invocation(invocation) => {
             // Explicitly handle $this first and return
             if *invocation == Invocation::This {
@@ -1162,8 +1161,7 @@ fn evaluate_term(
             }
         }
         Term::Parenthesized(expr) => evaluate(expr, context, current_item), // Propagate Result
-    };
-    result // Return the result
+    }
 }
 
 /// Converts a FHIR resource to an EvaluationResult
@@ -1285,7 +1283,7 @@ fn evaluate_invocation(
     context: &EvaluationContext, // The overall evaluation context (for variables etc.)
     current_item_for_args: Option<&EvaluationResult>, // Context for $this in function arguments
 ) -> Result<EvaluationResult, EvaluationError> {
-    let result = match invocation {
+    match invocation {
         Invocation::Member(name) => {
             // Handle member access on the invocation_base
             // Special handling for boolean literals that might be parsed as identifiers
@@ -1794,8 +1792,7 @@ fn evaluate_invocation(
                 Ok(EvaluationResult::Empty)
             }
         }
-    };
-    result // Return the result
+    }
 }
 
 // --- Helper functions for lambda evaluation ---

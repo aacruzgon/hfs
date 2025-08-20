@@ -1001,23 +1001,23 @@ pub fn extract_namespace_and_type_with_context(
                     clean_name.to_lowercase()
                 };
 
-                return Ok((Some("FHIR".to_string()), normalized_type));
+                Ok((Some("FHIR".to_string()), normalized_type))
             }
             // Use context-aware resource checking instead of hard-coded lists
             else if is_resource_type_for_version(&clean_name, &context.fhir_version) {
                 // Resource types default to FHIR namespace when unqualified since FHIR resources have FHIR type info
-                return Ok((
+                Ok((
                     Some("FHIR".to_string()),
                     capitalize_first_letter(&clean_name),
-                ));
+                ))
             }
             // For complex types and unknown types, make an educated guess based on capitalization
             else if is_likely_system_type {
                 // Capitalized types are likely System types
-                return Ok((Some("System".to_string()), clean_name));
+                Ok((Some("System".to_string()), clean_name))
             } else {
                 // Lowercase types are likely FHIR types
-                return Ok((Some("FHIR".to_string()), clean_name));
+                Ok((Some("FHIR".to_string()), clean_name))
             }
         }
     }
@@ -1189,7 +1189,7 @@ pub fn extract_namespace_and_type(
                     clean_name.to_lowercase()
                 };
 
-                return Ok((Some("FHIR".to_string()), normalized_type));
+                Ok((Some("FHIR".to_string()), normalized_type))
             }
             // Check if the clean_name is a known FHIR resource type
             else if fhir_resource_types
@@ -1197,10 +1197,10 @@ pub fn extract_namespace_and_type(
                 .any(|&t| t.eq_ignore_ascii_case(&clean_name))
             {
                 // Unqualified resource types default to FHIR namespace
-                return Ok((
+                Ok((
                     Some("FHIR".to_string()),
                     capitalize_first_letter(&clean_name),
-                ));
+                ))
             }
             // Check if the clean_name is a known FHIR complex type
             else if fhir_complex_types
@@ -1208,18 +1208,18 @@ pub fn extract_namespace_and_type(
                 .any(|&t| t.eq_ignore_ascii_case(&clean_name))
             {
                 // Unqualified complex types default to FHIR namespace
-                return Ok((
+                Ok((
                     Some("FHIR".to_string()),
                     capitalize_first_letter(&clean_name),
-                ));
+                ))
             }
             // For types we're not confident about, make an educated guess based on capitalization
             else if is_likely_system_type {
                 // Capitalized types are likely System types
-                return Ok((Some("System".to_string()), clean_name));
+                Ok((Some("System".to_string()), clean_name))
             } else {
                 // Lowercase types are likely FHIR types
-                return Ok((Some("FHIR".to_string()), clean_name));
+                Ok((Some("FHIR".to_string()), clean_name))
             }
         }
     }

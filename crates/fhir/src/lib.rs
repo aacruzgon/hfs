@@ -4,6 +4,7 @@
 //! generated FHIR specification implementations. It contains hand-coded types that
 //! enable the generated code to handle FHIR's complex requirements for precision,
 //! extensions, and cross-version compatibility.
+
 //!
 //! ## Architecture
 //!
