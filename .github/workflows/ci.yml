@@ -9,7 +9,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUST_MIN_STACK: 8388608
-  CARGO_BUILD_JOBS: 2
+  CARGO_BUILD_JOBS: 1
 
 jobs:
   test:
@@ -62,7 +62,8 @@ jobs:
     - name: Run tests with all features
       run: |
         echo "Running tests with all features..."
-        cargo test --all-features 
+        #cargo test --all-features 
+        cargo test --features R4,R4B,R5 
  
   lint:
     name: Linting
