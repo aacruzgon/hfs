@@ -5,7 +5,7 @@
 
 use chrono::{DateTime, Utc};
 use helios_sof::{ContentType, SofParameters};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use tracing::debug;
 
 /// Query parameters for ViewDefinition/$run endpoint
@@ -72,16 +72,6 @@ pub struct ValidatedRunParams {
 
 /// Parameters for ViewDefinition/$run operation - now using proper FHIR Parameters
 pub type RunParameters = SofParameters;
-
-/// FHIR Reference type
-#[derive(Debug, Deserialize, Serialize)]
-pub struct Reference {
-    /// Reference string (e.g., "ViewDefinition/123")
-    pub reference: Option<String>,
-
-    /// Display text
-    pub display: Option<String>,
-}
 
 /// Validate and parse query parameters into structured format
 ///
