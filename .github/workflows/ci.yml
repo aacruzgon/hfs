@@ -1,4 +1,4 @@
-name: HFS CI/CD
+name: HFS Continuous Integration
 
 on:
   push:
