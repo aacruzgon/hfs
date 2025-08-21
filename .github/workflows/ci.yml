@@ -123,8 +123,8 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@v1
         with:
-        toolchain: stable
-        components: llvm-tools-preview
+          toolchain: stable
+          components: llvm-tools-preview
 
       - name: Configure Rust to use LLD
         run: |
@@ -145,9 +145,9 @@ jobs:
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
         with:
-        files: lcov.info
-        fail_ci_if_error: true
-        token: ${{ secrets.CODECOV_TOKEN }}
+          files: lcov.info
+          fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}
 
   build:
     name: Build Release
