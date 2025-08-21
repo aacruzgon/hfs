@@ -140,6 +140,8 @@ jobs:
 
     - name: Generate code coverage
       run: |
+          export CARGO_TARGET_DIR=/dev/shm/cargo-target
+          mkdir -p /dev/shm/cargo-target
           export TMPDIR=~/tmp
           mkdir -p ~/tmp
           cargo llvm-cov --workspace --lcov --output-path lcov.info
