@@ -17,7 +17,7 @@ R6 = ["helios-fhir/R6"]
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }
-helios-fhir = { workspace = true }
+helios-fhir = { path = "../fhir", version = "0.1.0" }
 clap = { version = "4.4", features = ["derive"] }
 
 [build-dependencies]
