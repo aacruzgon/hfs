@@ -1,4 +1,4 @@
-name: HFS CI/CD
+name: HFS Continuous Integration
 
 on:
   push:
@@ -149,11 +149,13 @@ jobs:
         with:
           files: lcov.info
           fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}
 
   build:
     name: Build Release
     runs-on: ${{ matrix.os }}
     needs: [test, lint, security]
+    if: startsWith(github.ref, 'refs/tags/v')
     strategy:
       matrix:
         include:
@@ -203,3 +205,71 @@ jobs:
           !target/release/build/
           !target/release/deps/
           !target/release/incremental/
+
+  release:
+    name: Create GitHub Release
+    runs-on: [self-hosted, Linux] 
+    needs: [build]
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download build artifacts
+      uses: actions/download-artifact@v3
+      with:
+        path: ./artifacts
+
+    - name: Create release archives
+      run: |
+        mkdir -p releases
+        cd artifacts
+        for dir in */; do
+          if [[ "$dir" == *"ubuntu"* ]]; then
+            tar -czf ../releases/${dir%/}-linux.tar.gz -C "$dir" .
+          elif [[ "$dir" == *"windows"* ]]; then
+            cd "$dir" && zip -r ../../releases/${dir%/}-windows.zip . && cd ..
+          elif [[ "$dir" == *"macos"* ]]; then
+            tar -czf ../releases/${dir%/}-macos.tar.gz -C "$dir" .
+          fi
+        done
+
+    - name: Generate changelog
+      id: changelog
+      run: |
+        if [ -f CHANGELOG.md ]; then
+          # Extract changelog for this version
+          sed -n "/^## \[$(echo ${{ github.ref_name }} | sed 's/v//')\]/,/^## \[/p" CHANGELOG.md | head -n -1 > current_changelog.md
+          echo "changelog_exists=true" >> $GITHUB_OUTPUT
+        else
+          echo "## What's Changed" > current_changelog.md
+          echo "changelog_exists=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: releases/*
+        body_path: current_changelog.md
+        draft: false
+        prerelease: ${{ contains(github.ref_name, '-') }}
+        generate_release_notes: ${{ steps.changelog.outputs.changelog_exists == 'false' }}
+
+  publish:
+    name: Publish to crates.io
+    runs-on: [self-hosted, Linux] 
+    needs: [release]
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@v1
+      with:
+        toolchain: stable
+
+    - name: Publish to crates.io
+      run: cargo publish --token ${{ secrets.CRATES_IO_TOKEN }}
