@@ -1,0 +1,31 @@
+# Configuration for cargo-release
+# This file configures how releases are performed for the HFS workspace
+
+# Don't create individual commits for each crate version bump
+consolidate-commits = true
+
+# Use a single tag for the entire workspace
+tag-prefix = "v"
+tag-name = "{{prefix}}{{version}}"
+
+# Commit message for version bumps
+pre-release-commit-message = "chore: Release version {{version}}"
+
+# Tag message
+tag-message = "Release version {{version}}"
+
+# Push automatically 
+push = true
+
+# Sign commits and tags if GPG is configured
+sign-commit = true 
+sign-tag = true
+
+# Shared version across all workspace members
+shared-version = true
+
+# Publish to crates.io automatically
+publish = true 
+
+# Dependencies should use the exact version
+dependent-version = "=={{version}}"

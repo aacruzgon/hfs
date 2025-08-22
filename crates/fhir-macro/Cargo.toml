@@ -1,9 +1,11 @@
 [package]
 name = "helios-fhir-macro"
-version = "0.1.1"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
 description = "The helios-fhirpath-support crate serves as a bridge module that provides essential types and traits for integration between the FHIRPath evaluator, it's associated functions, and also the FHIR model code in the fhir module, and it's generated code that is created by fhir_macro."
-license = "MIT"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
 homepage = "https://github.com/HeliosSoftware/hfs/tree/main/crates/fhir-macro"
 readme = "README.md"
 
@@ -17,4 +19,4 @@ proc-macro2 = "1.0"
 serde = { version = "1.0", features = ["derive"] } # Use specific version, ensure workspace = true if needed elsewhere
 serde_json = "1.0" # Use specific version, ensure workspace = true if needed elsewhere
 heck = "0.5" # For case conversion
-helios-fhirpath-support = { path = "../fhirpath-support", version = "0.1.2" }
+helios-fhirpath-support = { path = "../fhirpath-support", version = "0.1.3" }
