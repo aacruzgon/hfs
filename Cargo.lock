@@ -1140,7 +1140,7 @@ dependencies = [
 
 [[package]]
 name = "helios-fhir-macro"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "heck",
  "helios-fhirpath-support",
