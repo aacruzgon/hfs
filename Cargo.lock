@@ -1128,7 +1128,7 @@ dependencies = [
 
 [[package]]
 name = "helios-fhir-gen"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "clap",
  "helios-fhir",
@@ -1153,7 +1153,7 @@ dependencies = [
 
 [[package]]
 name = "helios-fhirpath"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "axum 0.7.9",
  "axum-test 17.3.0",
