@@ -271,5 +271,51 @@ jobs:
       with:
         toolchain: stable
 
-    - name: Publish to crates.io
-      run: cargo publish --token ${{ secrets.CRATES_IO_TOKEN }}
+    - name: Configure Rust to use LLD
+      run: |
+        mkdir -p ~/.cargo
+        if ! grep -q "link-arg=-fuse-ld=lld" ~/.cargo/config.toml 2>/dev/null; then
+          echo "[target.x86_64-unknown-linux-gnu]" >> ~/.cargo/config.toml
+          echo 'linker = "clang"' >> ~/.cargo/config.toml
+          echo 'rustflags = ["-C", "link-arg=-fuse-ld=lld"]' >> ~/.cargo/config.toml
+        fi
+
+    - name: Publish crates in dependency order
+      env:
+        CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+      run: |
+        set -e
+        
+        # Function to publish a crate
+        publish_crate() {
+          local crate_dir=$1
+          local crate_name=$2
+          echo "Publishing $crate_name..."
+          cd "$crate_dir"
+          
+          # Check if already published
+          if cargo search "$crate_name" | grep -q "^$crate_name "; then
+            echo "$crate_name is already published, skipping..."
+          else
+            cargo publish --no-verify
+            echo "Waiting for crates.io to index $crate_name..."
+            sleep 30
+          fi
+          cd - > /dev/null
+        }
+        
+        # Publish in dependency order
+        publish_crate "crates/fhirpath-support" "helios-fhirpath-support"
+        publish_crate "crates/fhir-macro" "helios-fhir-macro"
+        publish_crate "crates/fhir" "helios-fhir"
+        
+        # Wait longer after first batch to avoid rate limit
+        echo "Waiting to avoid rate limit..."
+        sleep 60
+        
+        publish_crate "crates/fhir-gen" "helios-fhir-gen"
+        publish_crate "crates/fhirpath" "helios-fhirpath"
+        publish_crate "crates/hfs" "helios-hfs"
+        
+        # Final crate depends on multiple others
+        publish_crate "crates/sof" "helios-sof"
