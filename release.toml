@@ -9,7 +9,7 @@ tag-prefix = "v"
 tag-name = "{{prefix}}{{version}}"
 
 # Commit message for version bumps
-pre-release-commit-message = "Release version {{version}}"
+pre-release-commit-message = "Release version {{version}} [skip ci]"
 
 # Tag message
 tag-message = "Release version {{version}}"
