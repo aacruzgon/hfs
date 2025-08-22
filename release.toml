@@ -27,5 +27,5 @@ shared-version = true
 # Publish to crates.io automatically
 publish = true 
 
-# Dependencies should use the exact version
-dependent-version = "=={{version}}"
+# Dependencies should be upgraded to match the new version
+dependent-version = "upgrade"
