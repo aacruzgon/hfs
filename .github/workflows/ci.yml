@@ -163,10 +163,16 @@ jobs:
         include:
           - os: Linux
             runner: [self-hosted, Linux]
+            target: x86_64-unknown-linux-gnu
+            archive_ext: tar.gz
         #      - os: macOS
-          #        runner: [self-hosted, macOS]
+          #        runner: [self-hosted, macOS, aarch64]
+          #        target: aarch64-apple-darwin
+          #        archive_ext: tar.gz
         #      - os: Windows 
           #        runner: [self-hosted, Windows]
+          #        target: x86_64-pc-windows-msvc
+          #        archive_ext: zip
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -201,7 +207,7 @@ jobs:
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: rust-binary-${{ matrix.os }}
+        name: hfs-${{ matrix.target }}
         path: |
           target/release/
           !target/release/build/
@@ -229,12 +235,14 @@ jobs:
         mkdir -p releases
         cd artifacts
         for dir in */; do
-          if [[ "$dir" == *"Linux"* ]] || [[ "$dir" == *"ubuntu"* ]]; then
-            tar -czf ../releases/${dir%/}.tar.gz -C "$dir" .
-          elif [[ "$dir" == *"Windows"* ]] || [[ "$dir" == *"windows"* ]]; then
-            cd "$dir" && zip -r ../../releases/${dir%/}.zip . && cd ..
-          elif [[ "$dir" == *"macOS"* ]] || [[ "$dir" == *"macos"* ]]; then
-            tar -czf ../releases/${dir%/}.tar.gz -C "$dir" .
+          # Extract target from directory name (format: hfs-{target}/)
+          if [[ "$dir" =~ hfs-(.+)/ ]]; then
+            target="${BASH_REMATCH[1]}"
+            if [[ "$target" == *"windows"* ]]; then
+              cd "$dir" && zip -r ../../releases/hfs-${target}.zip . && cd ..
+            else
+              tar -czf ../releases/hfs-${target}.tar.gz -C "$dir" .
+            fi
           fi
         done
 
