@@ -1,4 +1,4 @@
-name: HFS Continuous Delivery
+name: HFS Continuous Delivery (Native)
 
 on:
   workflow_dispatch:
@@ -19,10 +19,10 @@ jobs:
       with:
         script: |
           const fs = require('fs');
-          // Determine the tag based on trigger type
-          const tag = context.eventName === 'workflow_dispatch' 
-            ? '${{ inputs.tag }}' 
-            : context.ref.replace('refs/tags/', '');
+          // Use the input tag for manual dispatch
+          const tag = '${{ inputs.tag }}';
+          
+          console.log(`Fetching release for tag: ${tag}`);
           
           const { data: release } = await github.rest.repos.getReleaseByTag({
             owner: context.repo.owner,
@@ -30,14 +30,14 @@ jobs:
             tag: tag
           });
           
-          // Find the Linux binary (using Rust target triple naming)
+          // Find the Linux binary (adjust the pattern as needed)
           const asset = release.assets.find(asset => 
             asset.name.includes('x86_64-unknown-linux-gnu') && 
             asset.name.endsWith('.tar.gz')
           );
           
           if (!asset) {
-            throw new Error('Linux binary (x86_64-unknown-linux-gnu.tar.gz) not found in release assets');
+            throw new Error('Linux binary not found in release assets');
           }
           
           const { data } = await github.rest.repos.getReleaseAsset({
@@ -57,94 +57,77 @@ jobs:
         tar -xzf release-binary.tar.gz
         chmod +x fhirpath-server
         
-    - name: Deploy to server via SSH
-      uses: appleboy/ssh-action@v1.0.3
-      with:
-        host: ${{ secrets.DEPLOY_HOST }}
-        username: ${{ secrets.DEPLOY_USER }}
-        key: ${{ secrets.DEPLOY_SSH_KEY }}
-        port: ${{ secrets.DEPLOY_PORT || 22 }}
-        script: |
-          # Create deployment directory
-          sudo mkdir -p /opt/fhirpath-server
-          
-          # Stop existing service (if running)
-          sudo systemctl stop fhirpath-server || true
-          
-          # Backup current version
-          sudo cp /opt/fhirpath-server/fhirpath-server \
-             /opt/fhirpath-server/fhirpath-server.backup || true
-
-    - name: Upload new binary
-      uses: appleboy/scp-action@v0.1.7
-      with:
-        host: ${{ secrets.DEPLOY_HOST }}
-        username: ${{ secrets.DEPLOY_USER }}
-        key: ${{ secrets.DEPLOY_SSH_KEY }}
-        port: ${{ secrets.DEPLOY_PORT || 22 }}
-        source: fhirpath-server
-        target: /tmp/
-
-    - name: Install and start service
-      uses: appleboy/ssh-action@v1.0.3
-      with:
-        host: ${{ secrets.DEPLOY_HOST }}
-        username: ${{ secrets.DEPLOY_USER }}
-        key: ${{ secrets.DEPLOY_SSH_KEY }}
-        port: ${{ secrets.DEPLOY_PORT || 22 }}
-        script: |
-          # Move binary to final location
-          sudo mv /tmp/fhirpath-server /opt/fhirpath-server/
-          sudo chown root:root /opt/fhirpath-server/fhirpath-server
-          sudo chmod +x /opt/fhirpath-server/fhirpath-server
-          
-          # Create systemd service file if it doesn't exist
-          if [ ! -f /etc/systemd/system/fhirpath-server.service ]; then
-            sudo tee /etc/systemd/system/fhirpath-server.service > /dev/null <<EOF
-          [Unit]
-          Description=FHIRPath Server
-          After=network.target
-          
-          [Service]
-          Type=simple
-          User=nobody
-          Group=nogroup
-          ExecStart=/opt/fhirpath-server/fhirpath-server
-          Restart=always
-          RestartSec=5
-          Environment="RUST_MIN_STACK=8388608"
-          
-          [Install]
-          WantedBy=multi-user.target
-          EOF
-            sudo systemctl daemon-reload
-            sudo systemctl enable fhirpath-server
-          fi
-          
-          # Start the service
-          sudo systemctl start fhirpath-server
-          sudo systemctl status fhirpath-server
-
-    - name: Verify deployment
-      uses: appleboy/ssh-action@v1.0.3
-      with:
-        host: ${{ secrets.DEPLOY_HOST }}
-        username: ${{ secrets.DEPLOY_USER }}
-        key: ${{ secrets.DEPLOY_SSH_KEY }}
-        port: ${{ secrets.DEPLOY_PORT || 22 }}
-        script: |
-          # Wait a moment for service to start
-          sleep 5
-          
-          # Check if service is running
-          if sudo systemctl is-active --quiet fhirpath-server; then
-            echo "✅ Deployment successful - service is running"
-            sudo systemctl status fhirpath-server
-          else
-            echo "❌ Deployment failed - service is not running"
-            sudo journalctl -u fhirpath-server --lines=20
-            exit 1
-          fi
-
-
-
+    - name: Deploy binary and create service
+      env:
+        DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || 22 }}
+      run: |
+        # Create temporary SSH key file
+        mkdir -p ~/.ssh
+        echo "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+        chmod 700 ~/.ssh
+        chmod 600 ~/.ssh/deploy_key
+        
+        # Define SSH command with proper options
+        SSH_CMD="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p $DEPLOY_PORT $DEPLOY_USER@$DEPLOY_HOST"
+        SCP_CMD="scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -P $DEPLOY_PORT"
+        
+        # Create deployment directory on remote
+        $SSH_CMD "sudo mkdir -p /opt/fhirpath-server"
+        
+        # Stop existing service (if running)
+        $SSH_CMD "sudo systemctl stop fhirpath-server || true"
+        
+        # Backup current version
+        $SSH_CMD "sudo cp /opt/fhirpath-server/fhirpath-server \
+           /opt/fhirpath-server/fhirpath-server.backup || true"
+        
+        # Copy new binary to remote
+        $SCP_CMD fhirpath-server $DEPLOY_USER@$DEPLOY_HOST:/tmp/
+        
+        # Move binary to final location and set permissions
+        $SSH_CMD "sudo mv /tmp/fhirpath-server /opt/fhirpath-server/ && \
+                  sudo chown root:root /opt/fhirpath-server/fhirpath-server && \
+                  sudo chmod +x /opt/fhirpath-server/fhirpath-server"
+        
+        # Create systemd service file if it doesn't exist
+        $SSH_CMD "if [ ! -f /etc/systemd/system/fhirpath-server.service ]; then
+          sudo tee /etc/systemd/system/fhirpath-server.service > /dev/null <<'EOF'
+        [Unit]
+        Description=FHIRPath Server
+        After=network.target
+        
+        [Service]
+        Type=simple
+        User=nobody
+        Group=nogroup
+        ExecStart=/opt/fhirpath-server/fhirpath-server
+        Restart=always
+        RestartSec=5
+        Environment="RUST_MIN_STACK=8388608"
+        
+        [Install]
+        WantedBy=multi-user.target
+        EOF
+          sudo systemctl daemon-reload
+          sudo systemctl enable fhirpath-server
+        fi"
+        
+        # Start the service
+        $SSH_CMD "sudo systemctl start fhirpath-server"
+        
+        # Verify deployment
+        sleep 5
+        if $SSH_CMD "sudo systemctl is-active --quiet fhirpath-server"; then
+          echo "✅ Deployment successful - service is running"
+          $SSH_CMD "sudo systemctl status fhirpath-server"
+        else
+          echo "❌ Deployment failed - service is not running"
+          $SSH_CMD "sudo journalctl -u fhirpath-server --lines=20"
+          exit 1
+        fi
+        
+        # Clean up SSH key
+        rm -f ~/.ssh/deploy_key
