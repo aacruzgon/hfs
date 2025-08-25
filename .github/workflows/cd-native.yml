@@ -65,12 +65,33 @@ jobs:
         DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || 22 }}
       run: |
         # Create temporary SSH key file
-        echo "$DEPLOY_SSH_KEY" > deploy_key
-        chmod 600 deploy_key
+        mkdir -p ~/.ssh
+        echo "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+        chmod 700 ~/.ssh
+        chmod 600 ~/.ssh/deploy_key
+        
+        # Debug: Check if key file exists and has content
+        if [ ! -s ~/.ssh/deploy_key ]; then
+          echo "ERROR: SSH key file is empty or doesn't exist"
+          exit 1
+        fi
         
         # Define SSH command with proper options
-        SSH_CMD="ssh -i deploy_key -o StrictHostKeyChecking=no -p $DEPLOY_PORT $DEPLOY_USER@$DEPLOY_HOST"
-        SCP_CMD="scp -i deploy_key -o StrictHostKeyChecking=no -P $DEPLOY_PORT"
+        SSH_CMD="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p $DEPLOY_PORT $DEPLOY_USER@$DEPLOY_HOST"
+        SCP_CMD="scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -P $DEPLOY_PORT"
+        
+        # Test SSH connection
+        echo "Testing SSH connection to $DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PORT..."
+        if ! $SSH_CMD "echo 'SSH connection successful'"; then
+          echo "ERROR: Failed to establish SSH connection"
+          echo "Please check:"
+          echo "1. DEPLOY_SSH_KEY secret contains the private key (including -----BEGIN and -----END lines)"
+          echo "2. DEPLOY_USER is correct"
+          echo "3. DEPLOY_HOST is correct"
+          echo "4. DEPLOY_PORT is correct (default: 22)"
+          echo "5. The public key is in the server's ~/.ssh/authorized_keys"
+          exit 1
+        fi
         
         # Create deployment directory on remote
         $SSH_CMD "sudo mkdir -p /opt/fhirpath-server"
@@ -128,4 +149,4 @@ jobs:
         fi
         
         # Clean up SSH key
-        rm -f deploy_key
+        rm -f ~/.ssh/deploy_key
