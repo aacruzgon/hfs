@@ -103,7 +103,7 @@ jobs:
         Type=simple
         User=nobody
         Group=nogroup
-        ExecStart=/opt/fhirpath-server/fhirpath-server
+        ExecStart=/opt/fhirpath-server/fhirpath-server --host 0.0.0.0
         Restart=always
         RestartSec=5
         Environment="RUST_MIN_STACK=8388608"
