@@ -145,3 +145,6 @@ jobs:
             sudo journalctl -u fhirpath-server --lines=20
             exit 1
           fi
+
+
+
