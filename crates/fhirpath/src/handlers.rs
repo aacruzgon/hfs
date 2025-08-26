@@ -413,13 +413,20 @@ fn detect_fhir_version(resource: &Value) -> FhirVersion {
             for profile in profiles {
                 if let Some(url) = profile.as_str() {
                     // Check for version indicators in profile URLs
+                    #[cfg(feature = "R4B")]
                     if url.contains("/R4B/") || url.contains("/4.3.") {
                         return FhirVersion::R4B;
-                    } else if url.contains("/R5/") || url.contains("/5.0.") {
+                    }
+                    #[cfg(feature = "R5")]
+                    if url.contains("/R5/") || url.contains("/5.0.") {
                         return FhirVersion::R5;
-                    } else if url.contains("/R6/") || url.contains("/6.0.") {
+                    }
+                    #[cfg(feature = "R6")]
+                    if url.contains("/R6/") || url.contains("/6.0.") {
                         return FhirVersion::R6;
-                    } else if url.contains("/R4/") || url.contains("/4.0.") {
+                    }
+                    #[cfg(feature = "R4")]
+                    if url.contains("/R4/") || url.contains("/4.0.") {
                         return FhirVersion::R4;
                     }
                 }
@@ -430,8 +437,18 @@ fn detect_fhir_version(resource: &Value) -> FhirVersion {
     // Check for version-specific fields
     // R5+ has meta.versionId as a distinct element
     // R4B has some specific elements in certain resources
-    // For now, default to R4 as it's the most common
-    FhirVersion::R4
+    // For now, default to R4 if available, otherwise first available version
+    #[cfg(feature = "R4")]
+    return FhirVersion::R4;
+    
+    #[cfg(all(not(feature = "R4"), feature = "R4B"))]
+    return FhirVersion::R4B;
+    
+    #[cfg(all(not(feature = "R4"), not(feature = "R4B"), feature = "R5"))]
+    return FhirVersion::R5;
+    
+    #[cfg(all(not(feature = "R4"), not(feature = "R4B"), not(feature = "R5"), feature = "R6"))]
+    return FhirVersion::R6;
 }
 
 /// Parse FHIR resource based on version
