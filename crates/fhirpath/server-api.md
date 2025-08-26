@@ -33,6 +33,16 @@ The API takes a FHIR Parameters resource as the input, and returns a FHIR Parame
 
 The engine should evaluate the context expression against the test resource, and then run the expression against each item returned (If no context expression is provided, just evaluate the expression on the test resource).
 
+### Available Endpoints
+
+- `POST /` - Auto-detects FHIR version from the resource
+- `POST /r4` - Forces R4 processing (if compiled with R4 feature)
+- `POST /r4b` - Forces R4B processing (if compiled with R4B feature)
+- `POST /r5` - Forces R5 processing (if compiled with R5 feature)
+- `POST /r6` - Forces R6 processing (if compiled with R6 feature)
+
+Version-specific endpoints are useful when you want to ensure your resource is processed with a specific FHIR version, overriding the auto-detection.
+
 ### Input Parameters Resource:
 | Parameter Name | Description | Type | Cardinality |
 |----------------|-------------|------|:-----------:|

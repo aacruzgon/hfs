@@ -1,4 +1,4 @@
-name: HFS Continuous Delivery (Native)
+name: HFS Continuous Delivery
 
 on:
   workflow_dispatch:

@@ -194,6 +194,177 @@ pub async fn evaluate_fhirpath(
     Ok((StatusCode::OK, Json(response)).into_response())
 }
 
+/// Helper function to evaluate FHIRPath with a specific version
+async fn evaluate_fhirpath_with_version(
+    params: FhirPathParameters,
+    version: FhirVersion,
+) -> Result<Response, FhirPathError> {
+    info!("Handling FHIRPath evaluation request for version {:?}", version);
+
+    // Extract parameters
+    let extracted = extract_parameters(params)?;
+    debug!("Extracted parameters: {:?}", extracted);
+
+    // Get expression
+    let expression = extracted.expression.clone().ok_or_else(|| {
+        FhirPathError::InvalidInput("Missing required parameter: expression".to_string())
+    })?;
+
+    // Get resource
+    let resource_json = extracted.resource.clone().ok_or_else(|| {
+        FhirPathError::InvalidInput("Missing required parameter: resource".to_string())
+    })?;
+
+    // Parse resource with specific version
+    let fhir_resource = parse_fhir_resource(resource_json.clone(), version)?;
+
+    // Create evaluation context
+    let mut context = EvaluationContext::new(vec![fhir_resource]);
+
+    // Set variables
+    for var in &extracted.variables {
+        set_variable_from_json(&mut context, &var.name, &var.value)?;
+    }
+
+    // Set terminology server if provided
+    if let Some(ts) = &extracted.terminology_server {
+        context.set_variable_result("terminologyServer", EvaluationResult::string(ts.clone()));
+    }
+
+    // Generate parse debug information if needed
+    let (parse_debug_tree, parse_debug) = if extracted.validate {
+        use chumsky::Parser as ChumskyParser;
+
+        match crate::parser::parser().parse(expression.as_str()) {
+            Ok(parsed) => {
+                // Create a type context with the resource type
+                let mut type_context = TypeContext::new();
+
+                // Try to infer the root resource type from the resource JSON
+                if let Some(resource_type) =
+                    resource_json.get("resourceType").and_then(|rt| rt.as_str())
+                {
+                    type_context = type_context.with_root_type(InferredType::fhir(resource_type));
+                }
+
+                // Add any variables from the context
+                for var in &extracted.variables {
+                    // Simple type inference for variables - could be improved
+                    let var_type = match &var.value {
+                        Value::Bool(_) => InferredType::system("Boolean"),
+                        Value::Number(n) => {
+                            if n.is_i64() {
+                                InferredType::system("Integer")
+                            } else {
+                                InferredType::system("Decimal")
+                            }
+                        }
+                        Value::String(_) => InferredType::system("String"),
+                        _ => InferredType::system("Any"),
+                    };
+                    type_context.variables.insert(var.name.clone(), var_type);
+                }
+
+                let debug_tree = expression_to_debug_tree(&parsed, &type_context);
+                let debug_text = generate_parse_debug(&parsed);
+                (Some(debug_tree), Some(debug_text))
+            }
+            Err(e) => {
+                warn!("Parse error during validation: {:?}", e);
+                (None, Some(format!("Parse error: {:?}", e)))
+            }
+        }
+    } else {
+        (None, None)
+    };
+
+    // Prepare results collection
+    let mut results = Vec::new();
+
+    // Clear any previous trace outputs
+    context.clear_trace_outputs();
+
+    // Evaluate with context if provided
+    if let Some(context_expr) = &extracted.context {
+        // Evaluate context expression
+        let context_results = match evaluate_expression(context_expr, &context) {
+            Ok(r) => r,
+            Err(e) => {
+                return create_error_response(&expression, &extracted, e);
+            }
+        };
+
+        // Parse the main expression once
+        use chumsky::Parser as ChumskyParser;
+        let parsed_expr = match crate::parser::parser().parse(expression.as_str()) {
+            Ok(parsed) => parsed,
+            Err(e) => {
+                return create_error_response(
+                    &expression,
+                    &extracted,
+                    format!("Parse error: {:?}", e),
+                );
+            }
+        };
+
+        // For each context result, evaluate the main expression
+        let context_items = match context_results {
+            EvaluationResult::Collection { items, .. } => items,
+            single_value => vec![single_value],
+        };
+
+        for (context_index, context_value) in context_items.into_iter().enumerate() {
+            // Clear trace outputs before each evaluation
+            context.clear_trace_outputs();
+
+            // Evaluate expression with context value as current item
+            match crate::evaluator::evaluate(&parsed_expr, &context, Some(&context_value)) {
+                Ok(result) => {
+                    let context_path = format!("{}[{}]", context_expr, context_index);
+                    // Get trace outputs collected during this evaluation
+                    let trace_outputs = context.get_trace_outputs();
+                    results.push(create_result_parameter(
+                        context_path,
+                        result,
+                        trace_outputs,
+                    )?);
+                }
+                Err(e) => {
+                    warn!("Evaluation error for context {}: {}", context_index, e);
+                }
+            }
+        }
+    } else {
+        // Evaluate without context
+        match evaluate_expression(&expression, &context) {
+            Ok(result) => {
+                // Get trace outputs collected during evaluation
+                let trace_outputs = context.get_trace_outputs();
+                results.push(create_result_parameter(
+                    "Resource".to_string(),
+                    result,
+                    trace_outputs,
+                )?);
+            }
+            Err(e) => {
+                return create_error_response(&expression, &extracted, e);
+            }
+        }
+    }
+
+    // Build response
+    let response = build_evaluation_response(
+        &expression,
+        &extracted,
+        results,
+        parse_debug_tree,
+        parse_debug,
+        resource_json,
+    );
+
+    Ok((StatusCode::OK, Json(response)).into_response())
+}
+
 /// Handler for health check endpoint
 pub async fn health_check() -> impl IntoResponse {
     Json(json!({
@@ -202,12 +373,64 @@ pub async fn health_check() -> impl IntoResponse {
     }))
 }
 
-/// Detect FHIR version from resource
-fn detect_fhir_version(_resource: &Value) -> FhirVersion {
-    // Simple heuristic - could be improved
-    // Check for version-specific fields or meta information
+/// Handler for R4-specific evaluation
+#[cfg(feature = "R4")]
+pub async fn evaluate_fhirpath_r4(
+    Json(params): Json<FhirPathParameters>,
+) -> Result<Response, FhirPathError> {
+    evaluate_fhirpath_with_version(params, FhirVersion::R4).await
+}
 
-    // Default to R4 for now
+/// Handler for R4B-specific evaluation
+#[cfg(feature = "R4B")]
+pub async fn evaluate_fhirpath_r4b(
+    Json(params): Json<FhirPathParameters>,
+) -> Result<Response, FhirPathError> {
+    evaluate_fhirpath_with_version(params, FhirVersion::R4B).await
+}
+
+/// Handler for R5-specific evaluation
+#[cfg(feature = "R5")]
+pub async fn evaluate_fhirpath_r5(
+    Json(params): Json<FhirPathParameters>,
+) -> Result<Response, FhirPathError> {
+    evaluate_fhirpath_with_version(params, FhirVersion::R5).await
+}
+
+/// Handler for R6-specific evaluation
+#[cfg(feature = "R6")]
+pub async fn evaluate_fhirpath_r6(
+    Json(params): Json<FhirPathParameters>,
+) -> Result<Response, FhirPathError> {
+    evaluate_fhirpath_with_version(params, FhirVersion::R6).await
+}
+
+/// Detect FHIR version from resource
+fn detect_fhir_version(resource: &Value) -> FhirVersion {
+    // Try to detect version from meta.profile or other version-specific markers
+    if let Some(meta) = resource.get("meta") {
+        if let Some(profiles) = meta.get("profile").and_then(|p| p.as_array()) {
+            for profile in profiles {
+                if let Some(url) = profile.as_str() {
+                    // Check for version indicators in profile URLs
+                    if url.contains("/R4B/") || url.contains("/4.3.") {
+                        return FhirVersion::R4B;
+                    } else if url.contains("/R5/") || url.contains("/5.0.") {
+                        return FhirVersion::R5;
+                    } else if url.contains("/R6/") || url.contains("/6.0.") {
+                        return FhirVersion::R6;
+                    } else if url.contains("/R4/") || url.contains("/4.0.") {
+                        return FhirVersion::R4;
+                    }
+                }
+            }
+        }
+    }
+
+    // Check for version-specific fields
+    // R5+ has meta.versionId as a distinct element
+    // R4B has some specific elements in certain resources
+    // For now, default to R4 as it's the most common
     FhirVersion::R4
 }
 

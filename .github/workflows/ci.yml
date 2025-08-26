@@ -202,7 +202,7 @@ jobs:
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
     - name: Build release
-      run: cargo build --release
+      run: cargo build --features R4,R4B,R5 --release
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4

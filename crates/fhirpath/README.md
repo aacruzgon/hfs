@@ -663,7 +663,11 @@ fhirpath-server \
 
 ##### POST / - Evaluate FHIRPath Expression
 
-Accepts a FHIR Parameters resource and returns evaluation results.
+Accepts a FHIR Parameters resource and returns evaluation results. Auto-detects the FHIR version from the resource.
+
+##### POST /r4, /r4b, /r5, /r6 - Version-Specific Evaluation
+
+Forces evaluation with a specific FHIR version (if compiled with the corresponding feature). Useful when you want to ensure your resource is processed with a specific FHIR version, overriding auto-detection.
 
 **Request Body** (FHIR Parameters):
 ```json
@@ -758,7 +762,28 @@ Response:
 
 ##### Basic Evaluation
 ```bash
+# Auto-detect FHIR version
 curl -X POST http://localhost:3000 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "resourceType": "Parameters",
+    "parameter": [
+      {
+        "name": "expression",
+        "valueString": "Patient.birthDate"
+      },
+      {
+        "name": "resource",
+        "resource": {
+          "resourceType": "Patient",
+          "birthDate": "1974-12-25"
+        }
+      }
+    ]
+  }'
+
+# Force R4 processing
+curl -X POST http://localhost:3000/r4 \
   -H "Content-Type: application/json" \
   -d '{
     "resourceType": "Parameters",

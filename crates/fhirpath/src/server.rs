@@ -20,6 +20,23 @@
 //! POST /
 //!   Body: FHIR Parameters resource with expression and resource
 //!   Returns: FHIR Parameters resource with evaluation results
+//!   Note: Auto-detects FHIR version from resource
+//!
+//! POST /r4 (if compiled with R4 feature)
+//!   Body: FHIR Parameters resource with expression and R4 resource
+//!   Returns: FHIR Parameters resource with evaluation results
+//!
+//! POST /r4b (if compiled with R4B feature)
+//!   Body: FHIR Parameters resource with expression and R4B resource
+//!   Returns: FHIR Parameters resource with evaluation results
+//!
+//! POST /r5 (if compiled with R5 feature)
+//!   Body: FHIR Parameters resource with expression and R5 resource
+//!   Returns: FHIR Parameters resource with evaluation results
+//!
+//! POST /r6 (if compiled with R6 feature)
+//!   Body: FHIR Parameters resource with expression and R6 resource
+//!   Returns: FHIR Parameters resource with evaluation results
 //!
 //! GET /health
 //!   Returns: Health check status
@@ -209,10 +226,31 @@ pub async fn run_server(config: ServerConfig) -> Result<(), Box<dyn std::error::
 /// Create the axum application with all routes
 pub fn create_app(config: &ServerConfig) -> Router {
     let mut app = Router::new()
-        // Main evaluation endpoint
+        // Main evaluation endpoint (auto-detects version)
         .route("/", post(evaluate_fhirpath))
         // Health check endpoint
         .route("/health", get(health_check));
+
+    // Add version-specific endpoints based on enabled features
+    #[cfg(feature = "R4")]
+    {
+        app = app.route("/r4", post(crate::handlers::evaluate_fhirpath_r4));
+    }
+
+    #[cfg(feature = "R4B")]
+    {
+        app = app.route("/r4b", post(crate::handlers::evaluate_fhirpath_r4b));
+    }
+
+    #[cfg(feature = "R5")]
+    {
+        app = app.route("/r5", post(crate::handlers::evaluate_fhirpath_r5));
+    }
+
+    #[cfg(feature = "R6")]
+    {
+        app = app.route("/r6", post(crate::handlers::evaluate_fhirpath_r6));
+    }
 
     // Add CORS if enabled
     if config.enable_cors {
@@ -523,5 +561,158 @@ mod tests {
         // This would normally be handled in run_server with a fallback to 127.0.0.1
         // Just verify the app can be created
         let _app = create_app(&config);
+    }
+
+    #[cfg(feature = "R4")]
+    #[tokio::test]
+    async fn test_r4_endpoint_exists() {
+        let config = ServerConfig::default();
+        let app = create_app(&config);
+
+        // Create a minimal Parameters resource for testing
+        let parameters = json!({
+            "resourceType": "Parameters",
+            "parameter": []
+        });
+
+        let request = Request::builder()
+            .method("POST")
+            .uri("/r4")
+            .header("Content-Type", "application/json")
+            .body(Body::from(parameters.to_string()))
+            .unwrap();
+
+        let response = app.oneshot(request).await.unwrap();
+        // We expect it to process the request (might fail due to missing parameters, but endpoint exists)
+        assert!(
+            response.status() == StatusCode::OK || response.status() == StatusCode::BAD_REQUEST
+        );
+    }
+
+    #[cfg(feature = "R4B")]
+    #[tokio::test]
+    async fn test_r4b_endpoint_exists() {
+        let config = ServerConfig::default();
+        let app = create_app(&config);
+
+        let parameters = json!({
+            "resourceType": "Parameters",
+            "parameter": []
+        });
+
+        let request = Request::builder()
+            .method("POST")
+            .uri("/r4b")
+            .header("Content-Type", "application/json")
+            .body(Body::from(parameters.to_string()))
+            .unwrap();
+
+        let response = app.oneshot(request).await.unwrap();
+        assert!(
+            response.status() == StatusCode::OK || response.status() == StatusCode::BAD_REQUEST
+        );
+    }
+
+    #[cfg(feature = "R5")]
+    #[tokio::test]
+    async fn test_r5_endpoint_exists() {
+        let config = ServerConfig::default();
+        let app = create_app(&config);
+
+        let parameters = json!({
+            "resourceType": "Parameters",
+            "parameter": []
+        });
+
+        let request = Request::builder()
+            .method("POST")
+            .uri("/r5")
+            .header("Content-Type", "application/json")
+            .body(Body::from(parameters.to_string()))
+            .unwrap();
+
+        let response = app.oneshot(request).await.unwrap();
+        assert!(
+            response.status() == StatusCode::OK || response.status() == StatusCode::BAD_REQUEST
+        );
+    }
+
+    #[cfg(feature = "R6")]
+    #[tokio::test]
+    async fn test_r6_endpoint_exists() {
+        let config = ServerConfig::default();
+        let app = create_app(&config);
+
+        let parameters = json!({
+            "resourceType": "Parameters",
+            "parameter": []
+        });
+
+        let request = Request::builder()
+            .method("POST")
+            .uri("/r6")
+            .header("Content-Type", "application/json")
+            .body(Body::from(parameters.to_string()))
+            .unwrap();
+
+        let response = app.oneshot(request).await.unwrap();
+        assert!(
+            response.status() == StatusCode::OK || response.status() == StatusCode::BAD_REQUEST
+        );
+    }
+
+    #[tokio::test]
+    async fn test_version_endpoints_conditional_compilation() {
+        // Test that endpoints are only available when features are enabled
+        let config = ServerConfig::default();
+        let app = create_app(&config);
+
+        // Test R4 endpoint
+        #[cfg(not(feature = "R4"))]
+        {
+            let request = Request::builder()
+                .method("POST")
+                .uri("/r4")
+                .body(Body::empty())
+                .unwrap();
+            let response = app.clone().oneshot(request).await.unwrap();
+            assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        }
+
+        // Test R4B endpoint
+        #[cfg(not(feature = "R4B"))]
+        {
+            let request = Request::builder()
+                .method("POST")
+                .uri("/r4b")
+                .body(Body::empty())
+                .unwrap();
+            let response = app.clone().oneshot(request).await.unwrap();
+            assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        }
+
+        // Test R5 endpoint
+        #[cfg(not(feature = "R5"))]
+        {
+            let request = Request::builder()
+                .method("POST")
+                .uri("/r5")
+                .body(Body::empty())
+                .unwrap();
+            let response = app.clone().oneshot(request).await.unwrap();
+            assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        }
+
+        // Test R6 endpoint
+        #[cfg(not(feature = "R6"))]
+        {
+            let request = Request::builder()
+                .method("POST")
+                .uri("/r6")
+                .body(Body::empty())
+                .unwrap();
+            let response = app.oneshot(request).await.unwrap();
+            assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        }
     }
 }
