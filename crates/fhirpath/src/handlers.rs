@@ -372,7 +372,8 @@ async fn evaluate_fhirpath_with_version(
 pub async fn health_check() -> impl IntoResponse {
     Json(json!({
         "status": "ok",
-        "service": "fhirpath-server"
+        "service": "fhirpath-server",
+        "version": env!("CARGO_PKG_VERSION")
     }))
 }
 

@@ -16,6 +16,7 @@ async fn test_health_endpoint() {
     let json: serde_json::Value = response.json();
     assert_eq!(json["status"], "ok");
     assert_eq!(json["service"], "sof-server");
+    assert_eq!(json["version"], env!("CARGO_PKG_VERSION"));
 }
 
 #[tokio::test]
