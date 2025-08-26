@@ -38,16 +38,16 @@ jobs:
             tag: tag
           });
           
-          // Find the Linux binary for the selected server
-          const serverName = '${{ inputs.server }}';
+          // Extract version number (remove 'v' prefix)
+          const version = tag.startsWith('v') ? tag.substring(1) : tag;
+          
+          // Find the Linux combined archive
           const asset = release.assets.find(asset => 
-            asset.name.includes(serverName) &&
-            asset.name.includes('x86_64-unknown-linux-gnu') && 
-            asset.name.endsWith('.tar.gz')
+            asset.name === `hfs-${version}-x86_64-unknown-linux-gnu.tar.gz`
           );
           
           if (!asset) {
-            throw new Error('Linux binary not found in release assets');
+            throw new Error(`Linux archive not found. Expected: hfs-${version}-x86_64-unknown-linux-gnu.tar.gz`);
           }
           
           const { data } = await github.rest.repos.getReleaseAsset({
@@ -65,6 +65,8 @@ jobs:
     - name: Extract binary
       run: |
         tar -xzf release-binary.tar.gz
+        # The archive contains target/release/ structure
+        mv target/release/${{ inputs.server }} .
         chmod +x ${{ inputs.server }}
         
     - name: Deploy binary and create service

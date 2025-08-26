@@ -233,31 +233,21 @@ jobs:
     - name: Create release archives
       run: |
         mkdir -p releases
+        # Extract version from tag (remove 'v' prefix)
+        version="${{ github.ref_name }}"
+        version="${version#v}"
+        
         cd artifacts
         for dir in */; do
           # Extract target from directory name (format: hfs-{target}/)
           if [[ "$dir" =~ hfs-(.+)/ ]]; then
             target="${BASH_REMATCH[1]}"
             
-            # Create individual archives for each server binary
-            for server in fhirpath-server sof-server; do
-              if [ -f "$dir/target/release/$server" ]; then
-                echo "Creating archive for $server on $target"
-                if [[ "$target" == *"windows"* ]]; then
-                  # For Windows, create a zip with just the server exe
-                  cd "$dir/target/release" && zip -r ../../../../releases/${server}-${target}.zip $server.exe && cd ../../../..
-                else
-                  # For Linux/macOS, create a tar.gz with just the server binary
-                  tar -czf releases/${server}-${target}.tar.gz -C "$dir/target/release" $server
-                fi
-              fi
-            done
-            
-            # Also create the complete archive with all binaries (for backward compatibility)
+            # Create combined archive with version in filename
             if [[ "$target" == *"windows"* ]]; then
-              cd "$dir" && zip -r ../../releases/hfs-${target}.zip . && cd ..
+              cd "$dir" && zip -r ../../releases/hfs-${version}-${target}.zip . && cd ..
             else
-              tar -czf ../releases/hfs-${target}.tar.gz -C "$dir" .
+              tar -czf ../releases/hfs-${version}-${target}.tar.gz -C "$dir" .
             fi
           fi
         done
