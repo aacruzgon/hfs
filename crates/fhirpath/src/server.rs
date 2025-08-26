@@ -665,7 +665,7 @@ mod tests {
     async fn test_version_endpoints_conditional_compilation() {
         // Test that endpoints are only available when features are enabled
         let config = ServerConfig::default();
-        let app = create_app(&config);
+        let _app = create_app(&config);
 
         // Test R4 endpoint
         #[cfg(not(feature = "R4"))]
@@ -675,7 +675,7 @@ mod tests {
                 .uri("/r4")
                 .body(Body::empty())
                 .unwrap();
-            let response = app.clone().oneshot(request).await.unwrap();
+            let response = _app.clone().oneshot(request).await.unwrap();
             assert_eq!(response.status(), StatusCode::NOT_FOUND);
         }
 
@@ -687,7 +687,7 @@ mod tests {
                 .uri("/r4b")
                 .body(Body::empty())
                 .unwrap();
-            let response = app.clone().oneshot(request).await.unwrap();
+            let response = _app.clone().oneshot(request).await.unwrap();
             assert_eq!(response.status(), StatusCode::NOT_FOUND);
         }
 
@@ -699,7 +699,7 @@ mod tests {
                 .uri("/r5")
                 .body(Body::empty())
                 .unwrap();
-            let response = app.clone().oneshot(request).await.unwrap();
+            let response = _app.clone().oneshot(request).await.unwrap();
             assert_eq!(response.status(), StatusCode::NOT_FOUND);
         }
 
@@ -711,7 +711,7 @@ mod tests {
                 .uri("/r6")
                 .body(Body::empty())
                 .unwrap();
-            let response = app.oneshot(request).await.unwrap();
+            let response = _app.oneshot(request).await.unwrap();
             assert_eq!(response.status(), StatusCode::NOT_FOUND);
         }
     }
