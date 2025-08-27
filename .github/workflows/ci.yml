@@ -213,6 +213,9 @@ jobs:
           !target/release/build/
           !target/release/deps/
           !target/release/incremental/
+          !target/release/*.d
+          !target/release/*.rlib
+          !target/release/*.so
 
   release:
     name: Create GitHub Release

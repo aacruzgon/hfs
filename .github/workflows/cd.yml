@@ -64,35 +64,16 @@ jobs:
 
     - name: Extract binary
       run: |
-        echo "Extracting archive..."
-        tar -xzf release-binary.tar.gz
+        # Extract into a clean directory to avoid conflicts
+        mkdir -p extracted
+        tar -xzf release-binary.tar.gz -C extracted
         
-        echo "Archive contents:"
-        find . -type f -name "${{ inputs.server }}" 2>/dev/null | head -20
-        
-        echo "Directory structure:"
-        ls -la
-        
-        # The archive should contain target/release/ structure
-        if [ -f "target/release/${{ inputs.server }}" ]; then
-          echo "Found binary at target/release/${{ inputs.server }}"
-          mv target/release/${{ inputs.server }} .
-        else
-          echo "Binary not found at expected location. Searching..."
-          # Maybe the archive structure is different
-          binary_path=$(find . -type f -name "${{ inputs.server }}" 2>/dev/null | head -1)
-          if [ -n "$binary_path" ]; then
-            echo "Found binary at: $binary_path"
-            mv "$binary_path" .
-          else
-            echo "ERROR: Could not find ${{ inputs.server }} anywhere in the archive"
-            echo "Full archive contents:"
-            find . -type f | head -50
-            exit 1
-          fi
-        fi
-        
+        # Move the specific server binary to current directory
+        mv extracted/${{ inputs.server }} .
         chmod +x ${{ inputs.server }}
+        
+        # Clean up
+        rm -rf extracted
         
     - name: Deploy binary and create service
       env:
