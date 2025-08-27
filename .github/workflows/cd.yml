@@ -117,7 +117,7 @@ jobs:
           SERVICE_EXEC_START="/opt/$SERVER_NAME/$SERVER_NAME --host 0.0.0.0"
         else
           SERVICE_DESCRIPTION="SQL-on-FHIR Server"
-          SERVICE_EXEC_START="/opt/$SERVER_NAME/$SERVER_NAME"
+          SERVICE_EXEC_START="/opt/$SERVER_NAME/$SERVER_NAME --host 0.0.0.0"
         fi
         
         $SSH_CMD "if [ ! -f /etc/systemd/system/$SERVER_NAME.service ]; then
