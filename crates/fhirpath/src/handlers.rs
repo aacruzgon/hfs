@@ -189,6 +189,7 @@ pub async fn evaluate_fhirpath(
         parse_debug_tree,
         parse_debug,
         resource_json,
+        fhir_version,
     );
 
     Ok((StatusCode::OK, Json(response)).into_response())
@@ -363,6 +364,7 @@ async fn evaluate_fhirpath_with_version(
         parse_debug_tree,
         parse_debug,
         resource_json,
+        version,
     );
 
     Ok((StatusCode::OK, Json(response)).into_response())
@@ -843,6 +845,7 @@ fn build_evaluation_response(
     parse_debug_tree: Option<Value>,
     parse_debug: Option<String>,
     resource: Value,
+    fhir_version: FhirVersion,
 ) -> Value {
     let mut parameters = Vec::new();
 
@@ -850,7 +853,7 @@ fn build_evaluation_response(
     let mut param_parts = vec![
         json!({
             "name": "evaluator",
-            "valueString": format!("Helios Software FHIRPath-{}", env!("CARGO_PKG_VERSION"))
+            "valueString": format!("Helios Software-{} ({:?})", env!("CARGO_PKG_VERSION"), fhir_version)
         }),
         json!({
             "name": "expression",
@@ -920,6 +923,8 @@ fn build_evaluation_response(
 mod tests {
     use super::*;
     use helios_fhirpath_support::{EvaluationResult, TypeInfoResult};
+    use serde_json::json;
+    use crate::models::ExtractedParameters;
 
     #[test]
     fn test_uri_uses_value_uri() {
@@ -982,5 +987,86 @@ mod tests {
         assert_eq!(json_result["name"], "instant");
         assert_eq!(json_result["valueInstant"], "2023-01-01T12:00:00Z");
         assert!(json_result.get("valueDateTime").is_none());
+    }
+
+    #[test]
+    fn test_evaluator_format_r4() {
+        let params = ExtractedParameters {
+            expression: Some("Patient.name".to_string()),
+            context: None,
+            resource: Some(json!({"resourceType": "Patient"})),
+            variables: vec![],
+            validate: false,
+            terminology_server: None,
+        };
+        
+        let response = build_evaluation_response(
+            "Patient.name",
+            &params,
+            vec![],
+            None,
+            None,
+            json!({"resourceType": "Patient"}),
+            FhirVersion::R4,
+        );
+        
+        // Extract the evaluator value
+        let evaluator_value = response["parameter"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|p| p["name"] == "parameters")
+            .unwrap()["part"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|p| p["name"] == "evaluator")
+            .unwrap()["valueString"]
+            .as_str()
+            .unwrap();
+        
+        assert!(evaluator_value.starts_with("Helios Software-"));
+        assert!(evaluator_value.ends_with(" (R4)"));
+    }
+
+    #[cfg(feature = "R5")]
+    #[test]
+    fn test_evaluator_format_r5() {
+        let params = ExtractedParameters {
+            expression: Some("Patient.name".to_string()),
+            context: None,
+            resource: Some(json!({"resourceType": "Patient"})),
+            variables: vec![],
+            validate: false,
+            terminology_server: None,
+        };
+        
+        let response = build_evaluation_response(
+            "Patient.name",
+            &params,
+            vec![],
+            None,
+            None,
+            json!({"resourceType": "Patient"}),
+            FhirVersion::R5,
+        );
+        
+        // Extract the evaluator value
+        let evaluator_value = response["parameter"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|p| p["name"] == "parameters")
+            .unwrap()["part"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|p| p["name"] == "evaluator")
+            .unwrap()["valueString"]
+            .as_str()
+            .unwrap();
+        
+        assert!(evaluator_value.starts_with("Helios Software-"));
+        assert!(evaluator_value.ends_with(" (R5)"));
     }
 }
