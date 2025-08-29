@@ -10,8 +10,9 @@
   - Add performance tests - Done
   - Unify the SofParameters and FhirPathParameters into something else - VersionIndependentParameters? - Done
   - Setup build process for fhirpath-server - Done
-  - Setup hosting for fhirpath-server
-  - Integrate into https://fhirpath-lab.com/FhirPath
+  - Setup hosting for fhirpath-server - Done
+  - Integrate into https://fhirpath-lab.com/FhirPath - Done
+  - Fix feedback from Brian
   - Get listed here:  https://confluence.hl7.org/spaces/FHIRI/pages/161060129/FHIRPath+Implementations
 
 - SQL On FHIR

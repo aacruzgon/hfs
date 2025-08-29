@@ -1,0 +1,1375 @@
+{
+  "resourceType": "ClinicalDocument",
+  "realmCode": {
+    "code": "US"
+  },
+  "typeId": {
+    "extension": "POCD_HD000040",
+    "root": "2.16.840.1.113883.1.3"
+  },
+  "templateId": [
+    {
+      "root": "2.16.840.1.113883.10.20.22.1.2",
+      "extension": "2024-05-01"
+    },
+    {
+      "root": "2.16.840.1.113883.10.20.22.1.1"
+    }
+  ],
+  "id": {
+    "assigningAuthorityName": "DCI",
+    "root": "2.16.840.1.113883.3.4808"
+  },
+  "code": {
+    "code": "34133-9",
+    "codeSystem": "2.16.840.1.113883.6.1",
+    "codeSystemName": "LOINC",
+    "displayName": "Summarization of Episode Note DCI"
+  },
+  "title": "DCI Continuity of Care Document",
+  "effectiveTime": {
+    "value": "20160414095027"
+  },
+  "confidentialityCode": {
+    "code": "R",
+    "codeSystem": "2.16.840.1.113883.5.25",
+    "codeSystemName": "ConfidentialityCode"
+  },
+  "languageCode": {
+    "code": "en-US"
+  },
+  "recordTarget": {
+    "patientRole": {
+      "id": [
+        {
+          "extension": "337993",
+          "root": "2.16.840.1.113883.3.4808"
+        },
+        {
+          "extension": "         ",
+          "root": "2.16.840.1.113883.4.1"
+        }
+      ],
+      "addr": {
+        "use": "HP",
+        "state": "CA",
+        "city": "OROVILLE",
+        "postalCode": "21014",
+        "streetAddressLine": "302 Cumming Ave RR 2",
+        "country": "US"
+      },
+      "telecom": {
+        "use": "HP",
+        "value": "4105550305"
+      },
+      "patient": {
+        "name": {
+          "use": "L",
+          "given": "BARBARA",
+          "family": "DCI"
+        },
+        "administrativeGenderCode": {
+          "code": "F",
+          "codeSystem": "2.16.840.1.113883.5.1",
+          "displayName": "Female"
+        },
+        "birthTime": {
+          "value": "19811208"
+        },
+        "maritalStatusCode": {
+          "code": "M   ",
+          "codeSystem": "2.16.840.1.113883.5.2",
+          "codeSystemName": "MaritalStatusCode",
+          "displayName": "MARRIED   "
+        },
+        "raceCode": {
+          "code": "null      ",
+          "codeSystem": "2.16.840.1.113883.6.238",
+          "codeSystemName": "Race & Ethnicity - CDC",
+          "displayName": "null      "
+        },
+        "ethnicGroupCode": {
+          "code": "2186-5",
+          "codeSystem": "2.16.840.1.113883.6.238",
+          "codeSystemName": "Race & Ethnicity - CDC",
+          "displayName": "Hispanic or Latino "
+        },
+        "languageCommunication": {
+          "languageCode": {
+            "code": "english"
+          },
+          "preferenceInd": {
+            "value": "true"
+          }
+        }
+      }
+    }
+  },
+  "author": {
+    "time": {
+      "value": "20160414"
+    },
+    "assignedAuthor": {
+      "id": {
+        "extension": "111111",
+        "root": "2.16.840.1.113883.4.6"
+      },
+      "addr": {
+        "streetAddressLine": "302 Cumming Ave RR 2",
+        "city": "OROVILLE",
+        "state": "CA",
+        "postalCode": "21014",
+        "country": "US"
+      },
+      "telecom": {
+        "use": "WP",
+        "value": "4105550305"
+      },
+      "assignedPerson": {
+        "name": {
+          "prefix": "Dr",
+          "given": "Colon",
+          "family": "Wilma"
+        }
+      }
+    }
+  },
+  "custodian": {
+    "assignedCustodian": {
+      "representedCustodianOrganization": {
+        "id": {
+          "extension": "99999999",
+          "root": "2.16.840.1.113883.4.6"
+        },
+        "name": {},
+        "telecom": {
+          "use": "WP",
+          "value": "tel: +1-(410)555-5544"
+        },
+        "addr": {
+          "use": "WP",
+          "streetAddressLine": "8333 Clairemont Blvd",
+          "city": "Bel Air",
+          "state": "MD",
+          "postalCode": "21014",
+          "country": "US"
+        }
+      }
+    }
+  },
+  "component": {
+    "structuredBody": {
+      "component": [
+        {
+          "section": {
+            "templateId": [
+              {
+                "root": "2.16.840.1.113883.10.20.22.2.5.1"
+              },
+              {
+                "root": "2.16.840.1.113883.10.20.22.2.5"
+              }
+            ],
+            "code": {
+              "code": "11450-4",
+              "codeSystem": "2.16.840.1.113883.6.1",
+              "codeSystemName": "LOINC",
+              "displayName": "Problem List"
+            },
+            "title": "Problems",
+            "text": {
+              "table": {
+                "width": "100%",
+                "border": "1",
+                "thead": {
+                  "tr": {
+                    "th": [
+                      "Condition",
+                      "Effective Date",
+                      "Resolved Date",
+                      "Status"
+                    ]
+                  }
+                },
+                "tbody": {
+                  "tr": [
+                    {
+                      "td": [
+                        {
+                          "ID": "problem920000584281",
+                          "_text": "Burn Of Third Degree Of Unspecified Thigh, Subsequent Encounter"
+                        },
+                        "06/25/2015",
+                        "",
+                        "Active"
+                      ]
+                    },
+                    {
+                      "td": [
+                        {
+                          "ID": "problem920000584280",
+                          "_text": "Burn Of Second Degree Of Female Genital Region, Initial Encounter"
+                        },
+                        "06/25/2015",
+                        "",
+                        "Active"
+                      ]
+                    },
+                    {
+                      "td": [
+                        {
+                          "ID": "problem920000584278",
+                          "_text": "Burns on lower body"
+                        },
+                        "06/18/2015",
+                        "06/25/2015",
+                        "Resolved"
+                      ]
+                    },
+                    {
+                      "td": [
+                        {
+                          "ID": "problem920000584276",
+                          "_text": "Cerebral Palsy, Unspecified"
+                        },
+                        "08/29/1982",
+                        "",
+                        "Active"
+                      ]
+                    }
+                  ]
+                }
+              }
+            },
+            "entry": [
+              {
+                "act": {
+                  "classCode": "ACT",
+                  "moodCode": "EVN",
+                  "templateId": {
+                    "root": "2.16.840.1.113883.10.20.22.4.3"
+                  },
+                  "id": {
+                    "extension": "920000584281",
+                    "root": "2c92a6bc-4614-f58f-0146-155c72be4d6c"
+                  },
+                  "code": {
+                    "nullFlavor": "NI"
+                  },
+                  "statusCode": {
+                    "code": "completed"
+                  },
+                  "effectiveTime": {
+                    "low": {
+                      "value": "20160413003547Z"
+                    }
+                  },
+                  "entryRelationship": {
+                    "typeCode": "SUBJ",
+                    "observation": {
+                      "classCode": "OBS",
+                      "moodCode": "EVN",
+                      "templateId": {
+                        "root": "2.16.840.1.113883.10.20.22.4.4"
+                      },
+                      "id": {
+                        "root": "ff5f915d-5258-4547-91ad-ddf934e24c58"
+                      },
+                      "code": {
+                        "code": "55607006",
+                        "codeSystem": "2.16.840.1.113883.6.96",
+                        "codeSystemName": "SNOMED",
+                        "displayName": "Problem"
+                      },
+                      "text": {
+                        "reference": {
+                          "value": "#problem920000584281"
+                        }
+                      },
+                      "statusCode": {
+                        "code": "completed"
+                      },
+                      "effectiveTime": {
+                        "low": {
+                          "value": "20150625"
+                        }
+                      },
+                      "value": {
+                        "xsi:type": "CD",
+                        "nullFlavor": "OTH",
+                        "translation": {
+                          "code": "T24.319D",
+                          "codeSystem": "2.16.840.1.113883.6.3",
+                          "codeSystemName": "ICD-10-CM"
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "act": {
+                  "classCode": "ACT",
+                  "moodCode": "EVN",
+                  "templateId": {
+                    "root": "2.16.840.1.113883.10.20.22.4.3"
+                  },
+                  "id": {
+                    "extension": "920000584280",
+                    "root": "2c92a6bc-4614-f58f-0146-155c72be4d6c"
+                  },
+                  "code": {
+                    "nullFlavor": "NI"
+                  },
+                  "statusCode": {
+                    "code": "completed"
+                  },
+                  "effectiveTime": {
+                    "low": {
+                      "value": "20160413003543Z"
+                    }
+                  },
+                  "entryRelationship": {
+                    "typeCode": "SUBJ",
+                    "observation": {
+                      "classCode": "OBS",
+                      "moodCode": "EVN",
+                      "templateId": {
+                        "root": "2.16.840.1.113883.10.20.22.4.4"
+                      },
+                      "id": {
+                        "root": "70211e95-0e6a-43f2-91b5-b85eba3616b1"
+                      },
+                      "code": {
+                        "code": "55607006",
+                        "codeSystem": "2.16.840.1.113883.6.96",
+                        "codeSystemName": "SNOMED",
+                        "displayName": "Problem"
+                      },
+                      "text": {
+                        "reference": {
+                          "value": "#problem920000584280"
+                        }
+                      },
+                      "statusCode": {
+                        "code": "completed"
+                      },
+                      "effectiveTime": {
+                        "low": {
+                          "value": "20150625"
+                        }
+                      },
+                      "value": {
+                        "xsi:type": "CD",
+                        "nullFlavor": "OTH",
+                        "translation": {
+                          "code": "T21.27XA",
+                          "codeSystem": "2.16.840.1.113883.6.3",
+                          "codeSystemName": "ICD-10-CM"
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "act": {
+                  "classCode": "ACT",
+                  "moodCode": "EVN",
+                  "templateId": {
+                    "root": "2.16.840.1.113883.10.20.22.4.3"
+                  },
+                  "id": {
+                    "extension": "920000584278",
+                    "root": "2c92a6bc-4614-f58f-0146-155c72be4d6c"
+                  },
+                  "code": {
+                    "nullFlavor": "NI"
+                  },
+                  "statusCode": {
+                    "code": "completed"
+                  },
+                  "effectiveTime": {
+                    "low": {
+                      "value": "20160413034835Z"
+                    },
+                    "high": {
+                      "value": "20150625"
+                    }
+                  },
+                  "entryRelationship": {
+                    "typeCode": "SUBJ",
+                    "observation": {
+                      "classCode": "OBS",
+                      "moodCode": "EVN",
+                      "templateId": {
+                        "root": "2.16.840.1.113883.10.20.22.4.4"
+                      },
+                      "id": {
+                        "root": "10f0ec87-bac6-4357-ab1b-9c3c31008d62"
+                      },
+                      "code": {
+                        "code": "55607006",
+                        "codeSystem": "2.16.840.1.113883.6.96",
+                        "codeSystemName": "SNOMED",
+                        "displayName": "Problem"
+                      },
+                      "text": {
+                        "reference": {
+                          "value": "#problem920000584278"
+                        }
+                      },
+                      "statusCode": {
+                        "code": "completed"
+                      },
+                      "effectiveTime": {
+                        "low": {
+                          "value": "20150618"
+                        },
+                        "high": {
+                          "value": "20150625"
+                        }
+                      },
+                      "value": {
+                        "xsi:type": "CD",
+                        "nullFlavor": "OTH",
+                        "translation": {
+                          "code": "T21.07XA",
+                          "codeSystem": "2.16.840.1.113883.6.3",
+                          "codeSystemName": "ICD-10-CM"
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "act": {
+                  "classCode": "ACT",
+                  "moodCode": "EVN",
+                  "templateId": {
+                    "root": "2.16.840.1.113883.10.20.22.4.3"
+                  },
+                  "id": {
+                    "extension": "920000584276",
+                    "root": "2c92a6bc-4614-f58f-0146-155c72be4d6c"
+                  },
+                  "code": {
+                    "nullFlavor": "NI"
+                  },
+                  "statusCode": {
+                    "code": "completed"
+                  },
+                  "effectiveTime": {
+                    "low": {
+                      "value": "20160413033854Z"
+                    }
+                  },
+                  "entryRelationship": {
+                    "typeCode": "SUBJ",
+                    "observation": {
+                      "classCode": "OBS",
+                      "moodCode": "EVN",
+                      "templateId": {
+                        "root": "2.16.840.1.113883.10.20.22.4.4"
+                      },
+                      "id": {
+                        "root": "f2705276-28ee-4f28-9384-21fdf0705ba5"
+                      },
+                      "code": {
+                        "code": "55607006",
+                        "codeSystem": "2.16.840.1.113883.6.96",
+                        "codeSystemName": "SNOMED",
+                        "displayName": "Problem"
+                      },
+                      "text": {
+                        "reference": {
+                          "value": "#problem920000584276"
+                        }
+                      },
+                      "statusCode": {
+                        "code": "completed"
+                      },
+                      "effectiveTime": {
+                        "low": {
+                          "value": "19820829"
+                        }
+                      },
+                      "value": {
+                        "xsi:type": "CD",
+                        "nullFlavor": "OTH",
+                        "translation": {
+                          "code": "G80.9",
+                          "codeSystem": "2.16.840.1.113883.6.3",
+                          "codeSystemName": "ICD-10-CM"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "section": {
+            "templateId": [
+              {
+                "root": "2.16.840.1.113883.10.20.22.2.1.1"
+              },
+              {
+                "root": "2.16.840.1.113883.10.20.22.2.1"
+              }
+            ],
+            "code": {
+              "code": "10160-0",
+              "codeSystem": "2.16.840.1.113883.6.1",
+              "codeSystemName": "LOINC",
+              "displayName": "History of medication use"
+            },
+            "title": "Medications",
+            "text": {
+              "table": {
+                "width": "100%",
+                "border": "1",
+                "thead": {
+                  "tr": {
+                    "th": [
+                      "Medication",
+                      "Instructions",
+                      "Date Range",
+                      "Status",
+                      "comments"
+                    ]
+                  }
+                },
+                "tbody": {
+                  "tr": [
+                    {
+                      "td": [
+                        {
+                          "ID": "medication920000875889",
+                          "_text": "SENOKOT  187 MG | 2 Tablet(s) | PO | QHS  (06/01/2015 - present)"
+                        },
+                        "187 MG | 2 Tablet(s) | PO | QHS",
+                        "06/01/2015-",
+                        "Completed",
+                        {
+                          "ID": "medcommentsmedication920000875889",
+                          "_text": "Taken in clinic | "
+                        }
+                      ]
+                    },
+                    {
+                      "td": [
+                        {
+                          "ID": "medication920000875890",
+                          "_text": "CLOTRIMAZOLE  1 % | 1 GM | VA | BID  (06/01/2015 - present)"
+                        },
+                        "1 % | 1 GM | VA | BID",
+                        "06/01/2015-",
+                        "Completed",
+                        {
+                          "ID": "medcommentsmedication920000875890",
+                          "_text": "Taken in clinic | "
+                        }
+                      ]
+                    },
+                    {
+                      "td": [
+                        {
+                          "ID": "medication920000875891",
+                          "_text": "TYLENOL WITH CODEINE #3  300-30 MG | 1 Tablet(s) | PO | QD-PRN  (06/25/2015 - present)"
+                        },
+                        "300-30 MG | 1 Tablet(s) | PO | QD-PRN",
+                        "06/25/2015-",
+                        "Completed",
+                        {
+                          "ID": "medcommentsmedication920000875891",
+                          "_text": "Taken in clinic | "
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            },
+            "entry": [
+              {
+                "typeCode": "DRIV",
+                "substanceAdministration": {
+                  "classCode": "SBADM",
+                  "moodCode": "INT",
+                  "templateId": {
+                    "root": "2.16.840.1.113883.10.20.22.4.16"
+                  },
+                  "id": {
+                    "root": "a0e312da-2007-4f4b-b8ed-3973e93b948d"
+                  },
+                  "text": {
+                    "reference": {
+                      "value": "#medication920000875889"
+                    }
+                  },
+                  "statusCode": {
+                    "code": "completed"
+                  },
+                  "effectiveTime": [
+                    {
+                      "xsi:type": "IVL_TS",
+                      "low": {
+                        "value": "20150601"
+                      },
+                      "high": {
+                        "nullFlavor": "NI"
+                      }
+                    },
+                    {
+                      "xsi:type": "PIVL_TS",
+                      "operator": "A",
+                      "period": {
+                        "unit": "d",
+                        "value": "1"
+                      }
+                    },
+                    {
+                      "xsi:type": "EIVL_TS",
+                      "operator": "A",
+                      "event": {
+                        "code": "HS"
+                      }
+                    }
+                  ],
+                  "routeCode": {
+                    "displayName": "PO"
+                  },
+                  "doseQuantity": {
+                    "unit": "MG",
+                    "value": "374"
+                  },
+                  "consumable": {
+                    "manufacturedProduct": {
+                      "classCode": "MANU",
+                      "templateId": {
+                        "root": "2.16.840.1.113883.10.20.22.4.23"
+                      },
+                      "manufacturedMaterial": {
+                        "code": {
+                          "nullFlavor": "OTH",
+                          "originalText": {
+                            "reference": {
+                              "value": "#medication920000875889"
+                            }
+                          },
+                          "translation": [
+                            {
+                              "code": "35356057820",
+                              "codeSystem": "2.16.840.1.113883.6.69",
+                              "codeSystemName": "NDC",
+                              "displayName": "SENOKOT"
+                            },
+                            {
+                              "code": "019286",
+                              "codeSystem": "2.16.840.1.113883.6.253",
+                              "codeSystemName": "MDDID",
+                              "displayName": "SENOKOT"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  "entryRelationship": {
+                    "typeCode": "REFR",
+                    "observation": {
+                      "classCode": "OBS",
+                      "moodCode": "EVN",
+                      "templateId": {
+                        "root": "2.16.840.1.113883.10.20.1.47"
+                      },
+                      "code": {
+                        "code": "33999-4",
+                        "codeSystem": "2.16.840.1.113883.6.1",
+                        "codeSystemName": "LOINC",
+                        "displayName": "Status"
+                      },
+                      "value": {
+                        "xsi:type": "CE",
+                        "code": "55561003",
+                        "codeSystem": "2.16.840.1.113883.6.96",
+                        "displayName": "Active"
+                      }
+                    }
+                  },
+                  "precondition": {
+                    "typeCode": "PRCN",
+                    "criterion": {
+                      "templateId": {
+                        "root": "2.16.840.1.113883.10.20.22.4.25"
+                      },
+                      "code": {
+                        "code": "ASSERTION",
+                        "codeSystem": "2.16.840.1.113883.5.4"
+                      },
+                      "value": {
+                        "xsi:type": "CE"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "typeCode": "DRIV",
+                "substanceAdministration": {
+                  "classCode": "SBADM",
+                  "moodCode": "INT",
+                  "templateId": {
+                    "root": "2.16.840.1.113883.10.20.22.4.16"
+                  },
+                  "id": {
+                    "root": "5e328ab0-2c51-4391-823d-ea8a3743e0cf"
+                  },
+                  "text": {
+                    "reference": {
+                      "value": "#medication920000875890"
+                    }
+                  },
+                  "statusCode": {
+                    "code": "completed"
+                  },
+                  "effectiveTime": [
+                    {
+                      "xsi:type": "IVL_TS",
+                      "low": {
+                        "value": "20150601"
+                      },
+                      "high": {
+                        "nullFlavor": "NI"
+                      }
+                    },
+                    {
+                      "xsi:type": "PIVL_TS",
+                      "operator": "A",
+                      "period": {
+                        "unit": "d",
+                        "value": ".5"
+                      }
+                    }
+                  ],
+                  "routeCode": {
+                    "displayName": "VA"
+                  },
+                  "doseQuantity": {
+                    "unit": "GM",
+                    "value": "1"
+                  },
+                  "consumable": {
+                    "manufacturedProduct": {
+                      "classCode": "MANU",
+                      "templateId": {
+                        "root": "2.16.840.1.113883.10.20.22.4.23"
+                      },
+                      "manufacturedMaterial": {
+                        "code": {
+                          "nullFlavor": "OTH",
+                          "originalText": {
+                            "reference": {
+                              "value": "#medication920000875890"
+                            }
+                          },
+                          "translation": [
+                            {
+                              "code": "00472022041",
+                              "codeSystem": "2.16.840.1.113883.6.69",
+                              "codeSystemName": "NDC",
+                              "displayName": "CLOTRIMAZOLE"
+                            },
+                            {
+                              "code": "004781",
+                              "codeSystem": "2.16.840.1.113883.6.253",
+                              "codeSystemName": "MDDID",
+                              "displayName": "CLOTRIMAZOLE"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  "entryRelationship": {
+                    "typeCode": "REFR",
+                    "observation": {
+                      "classCode": "OBS",
+                      "moodCode": "EVN",
+                      "templateId": {
+                        "root": "2.16.840.1.113883.10.20.1.47"
+                      },
+                      "code": {
+                        "code": "33999-4",
+                        "codeSystem": "2.16.840.1.113883.6.1",
+                        "codeSystemName": "LOINC",
+                        "displayName": "Status"
+                      },
+                      "value": {
+                        "xsi:type": "CE",
+                        "code": "55561003",
+                        "codeSystem": "2.16.840.1.113883.6.96",
+                        "displayName": "Active"
+                      }
+                    }
+                  },
+                  "precondition": {
+                    "typeCode": "PRCN",
+                    "criterion": {
+                      "templateId": {
+                        "root": "2.16.840.1.113883.10.20.22.4.25"
+                      },
+                      "code": {
+                        "code": "ASSERTION",
+                        "codeSystem": "2.16.840.1.113883.5.4"
+                      },
+                      "value": {
+                        "xsi:type": "CE"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "typeCode": "DRIV",
+                "substanceAdministration": {
+                  "classCode": "SBADM",
+                  "moodCode": "INT",
+                  "templateId": {
+                    "root": "2.16.840.1.113883.10.20.22.4.16"
+                  },
+                  "id": {
+                    "root": "51737098-eecb-42b0-821a-2717d23861b0"
+                  },
+                  "text": {
+                    "reference": {
+                      "value": "#medication920000875891"
+                    }
+                  },
+                  "statusCode": {
+                    "code": "completed"
+                  },
+                  "effectiveTime": [
+                    {
+                      "xsi:type": "IVL_TS",
+                      "low": {
+                        "value": "20150625"
+                      },
+                      "high": {
+                        "nullFlavor": "NI"
+                      }
+                    },
+                    {
+                      "xsi:type": "PIVL_TS",
+                      "operator": "A",
+                      "period": {
+                        "unit": "d",
+                        "value": "1"
+                      }
+                    }
+                  ],
+                  "routeCode": {
+                    "displayName": "PO"
+                  },
+                  "doseQuantity": {
+                    "unit": "Tablet(s)",
+                    "value": "1"
+                  },
+                  "consumable": {
+                    "manufacturedProduct": {
+                      "classCode": "MANU",
+                      "templateId": {
+                        "root": "2.16.840.1.113883.10.20.22.4.23"
+                      },
+                      "manufacturedMaterial": {
+                        "code": {
+                          "nullFlavor": "OTH",
+                          "originalText": {
+                            "reference": {
+                              "value": "#medication920000875891"
+                            }
+                          },
+                          "translation": [
+                            {
+                              "code": "50458051380",
+                              "codeSystem": "2.16.840.1.113883.6.69",
+                              "codeSystemName": "NDC",
+                              "displayName": "TYLENOL WITH CODEINE #3"
+                            },
+                            {
+                              "code": "022591",
+                              "codeSystem": "2.16.840.1.113883.6.253",
+                              "codeSystemName": "MDDID",
+                              "displayName": "TYLENOL WITH CODEINE #3"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  "entryRelationship": {
+                    "typeCode": "REFR",
+                    "observation": {
+                      "classCode": "OBS",
+                      "moodCode": "EVN",
+                      "templateId": {
+                        "root": "2.16.840.1.113883.10.20.1.47"
+                      },
+                      "code": {
+                        "code": "33999-4",
+                        "codeSystem": "2.16.840.1.113883.6.1",
+                        "codeSystemName": "LOINC",
+                        "displayName": "Status"
+                      },
+                      "value": {
+                        "xsi:type": "CE",
+                        "code": "55561003",
+                        "codeSystem": "2.16.840.1.113883.6.96",
+                        "displayName": "Active"
+                      }
+                    }
+                  },
+                  "precondition": {
+                    "typeCode": "PRCN",
+                    "criterion": {
+                      "templateId": {
+                        "root": "2.16.840.1.113883.10.20.22.4.25"
+                      },
+                      "code": {
+                        "code": "ASSERTION",
+                        "codeSystem": "2.16.840.1.113883.5.4"
+                      },
+                      "value": {
+                        "xsi:type": "CE"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "section": {
+            "templateId": [
+              {
+                "root": "2.16.840.1.113883.10.20.22.2.38.1"
+              },
+              {
+                "root": "2.16.840.1.113883.10.20.22.2.38"
+              }
+            ],
+            "code": {
+              "code": "10160-0",
+              "codeSystem": "2.16.840.1.113883.6.1",
+              "codeSystemName": "LOINC",
+              "displayName": "History of medication use"
+            },
+            "title": "Medications Administered",
+            "text": {
+              "table": {
+                "width": "100%",
+                "border": "1",
+                "thead": {
+                  "tr": {
+                    "th": [
+                      "Medication",
+                      "Start Date",
+                      "End Date",
+                      "Status"
+                    ]
+                  }
+                },
+                "tbody": {
+                  "tr": {
+                    "td": [
+                      {
+                        "ID": "medicationadmin1",
+                        "_text": "No Known Medication Administrations"
+                      },
+                      {
+                        "ID": "medicationadmin_desc1"
+                      },
+                      "",
+                      ""
+                    ]
+                  }
+                }
+              }
+            },
+            "entry": {
+              "typeCode": "DRIV",
+              "substanceAdministration": {
+                "classCode": "SBADM",
+                "moodCode": "EVN",
+                "negationInd": "true",
+                "text": {
+                  "reference": {
+                    "value": "#Medication_1"
+                  }
+                },
+                "consumable": {
+                  "manufacturedProduct": {
+                    "manufacturedLabeledDrug": {
+                      "code": {
+                        "code": "410942007",
+                        "codeSystem": "2.16.840.1.113883.6.96",
+                        "codeSystemName": "SNOMED CT",
+                        "displayName": "Drug or Medicament"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "section": {
+            "templateId": [
+              {
+                "root": "2.16.840.1.113883.10.20.22.2.2.1"
+              },
+              {
+                "root": "2.16.840.1.113883.10.20.22.2.2"
+              }
+            ],
+            "code": {
+              "code": "11369-6",
+              "codeSystem": "2.16.840.1.113883.6.1",
+              "codeSystemName": "LOINC",
+              "displayName": "History of immunizations"
+            },
+            "title": "IMMUNIZATIONS",
+            "text": {
+              "table": {
+                "width": "100%",
+                "border": "1",
+                "thead": {
+                  "tr": {
+                    "th": [
+                      "Date",
+                      "Vaccination",
+                      "Appointment",
+                      "Status/Event",
+                      "Comments"
+                    ]
+                  }
+                },
+                "tbody": {
+                  "tr": {
+                    "td": [
+                      {
+                        "ID": "immunization1",
+                        "_text": "No Known Immunizations"
+                      },
+                      {
+                        "ID": "immunizationsig1"
+                      },
+                      "",
+                      "",
+                      {
+                        "content": {
+                          "ID": "vacComment1"
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "entry": {
+              "typeCode": "DRIV",
+              "substanceAdministration": {
+                "classCode": "SBADM",
+                "moodCode": "EVN",
+                "negationInd": "false",
+                "templateId": {
+                  "root": "2.16.840.1.113883.10.20.22.4.52"
+                },
+                "id": {
+                  "nullFlavor": "NA"
+                },
+                "statusCode": {
+                  "code": "completed"
+                },
+                "effectiveTime": {},
+                "consumable": {
+                  "manufacturedProduct": {
+                    "classCode": "MANU",
+                    "templateId": {
+                      "root": "2.16.840.1.113883.10.20.22.4.54"
+                    },
+                    "manufacturedMaterial": {
+                      "code": {
+                        "codeSystem": "2.16.840.1.113883.12.292",
+                        "codeSystemName": "CVX",
+                        "originalText": {
+                          "reference": {
+                            "value": "#immunization1"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "section": {
+            "templateId": [
+              {
+                "root": "2.16.840.1.113883.10.20.22.2.6.1"
+              },
+              {
+                "root": "2.16.840.1.113883.10.20.22.2.6"
+              }
+            ],
+            "code": {
+              "code": "48765-2",
+              "codeSystem": "2.16.840.1.113883.6.1",
+              "codeSystemName": "LOINC",
+              "displayName": "Allergies, adverse reactions, alerts"
+            },
+            "title": "Allergies/Adverse Reactions",
+            "text": {
+              "table": {
+                "width": "100%",
+                "border": "1",
+                "thead": {
+                  "tr": {
+                    "th": [
+                      "Substance",
+                      "Reaction",
+                      "Effective Date",
+                      "Resolved Date",
+                      "Severity",
+                      "Status",
+                      "Notes"
+                    ]
+                  }
+                },
+                "tbody": {
+                  "tr": {
+                    "td": [
+                      {
+                        "ID": "allergy1",
+                        "_text": "No Known Allergies"
+                      },
+                      {
+                        "ID": "reaction1"
+                      },
+                      "",
+                      "",
+                      "",
+                      "",
+                      {
+                        "ID": "allergynote1"
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "entry": {
+              "act": {
+                "entryRelationship": {
+                  "observation": {
+                    "classCode": "OBS",
+                    "moodCode": "EVN",
+                    "negationInd": "true",
+                    "code": {
+                      "code": "106190000",
+                      "codeSystem": "2.16.840.1.113883.6.1",
+                      "displayName": "Allergy"
+                    },
+                    "effectiveTime": {
+                      "low": {
+                        "nullFlavor": "NI"
+                      },
+                      "high": {
+                        "nullFlavor": "NI"
+                      }
+                    },
+                    "value": {
+                      "xsi:type": "CD"
+                    },
+                    "participant": {
+                      "typeCode": "CSM",
+                      "participantRole": {
+                        "classCode": "MANU",
+                        "playingEntity": {
+                          "classCode": "MMAT",
+                          "code": {
+                            "code": "413477004",
+                            "codeSystem": "2.16.840.1.113883.6.96",
+                            "codeSystemName": "SNOMED CT",
+                            "displayName": "Allergen or Pseudoallergen"
+                          }
+                        }
+                      }
+                    },
+                    "entryRelationship": {
+                      "inversionInd": "true",
+                      "typeCode": "MFST",
+                      "observation": {
+                        "classCode": "OBS",
+                        "moodCode": "EVN",
+                        "templateId": {
+                          "root": "2.16.840.1.113883.10.20.22.4.9"
+                        },
+                        "id": {
+                          "root": "2c92a296-461f-51ac-0146-2047dd110048"
+                        },
+                        "code": {
+                          "nullFlavor": "NA"
+                        },
+                        "text": {
+                          "reference": {
+                            "value": "#reaction1"
+                          }
+                        },
+                        "statusCode": {
+                          "code": "completed"
+                        },
+                        "effectiveTime": {
+                          "low": {
+                            "nullFlavor": "NI"
+                          },
+                          "high": {
+                            "nullFlavor": "NI"
+                          }
+                        },
+                        "value": {
+                          "xsi:type": "CD",
+                          "translation": {
+                            "nullFlavor": "NI"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "section": {
+            "nullFlavor": "NI",
+            "templateId": {
+              "root": "2.16.840.1.113883.10.20.22.2.4.1"
+            },
+            "code": {
+              "code": "8716-3",
+              "codeSystem": "2.16.840.1.113883.6.1",
+              "codeSystemName": "LOINC",
+              "displayName": "Vital Signs"
+            },
+            "title": "VITAL SIGNS",
+            "text": "No Information"
+          }
+        },
+        {
+          "section": {
+            "templateId": {
+              "root": "2.16.840.1.113883.10.20.22.2.17"
+            },
+            "code": {
+              "code": "29762-2",
+              "codeSystem": "2.16.840.1.113883.6.1",
+              "displayName": "Social History"
+            },
+            "title": "Social History",
+            "text": {
+              "table": {
+                "width": "100%",
+                "border": "1",
+                "thead": {
+                  "tr": {
+                    "th": [
+                      "Social History Element",
+                      "Description",
+                      "Effective Date"
+                    ]
+                  }
+                },
+                "tbody": {
+                  "tr": {
+                    "td": [
+                      {
+                        "content": "Smoking"
+                      },
+                      "Never as of 06/18/2015",
+                      "20150618000000"
+                    ]
+                  }
+                }
+              }
+            },
+            "entry": {
+              "typeCode": "DRIV",
+              "observation": {
+                "classCode": "OBS",
+                "moodCode": "EVN",
+                "templateId": {
+                  "root": "2.16.840.1.113883.10.20.22.4.78"
+                },
+                "id": {
+                  "root": "9b56c25d-9104-45ee-9fa4-e0f3afaa01c1"
+                },
+                "code": {
+                  "code": "ASSERTION",
+                  "codeSystem": "2.16.840.1.113883.5.4",
+                  "codeSystemName": "ActCode",
+                  "displayName": "Assertion",
+                  "originalText": {
+                    "reference": {
+                      "value": "#soc1"
+                    }
+                  }
+                },
+                "statusCode": {
+                  "code": "completed"
+                },
+                "effectiveTime": {
+                  "low": {},
+                  "high": {
+                    "value": "20150618000000"
+                  }
+                },
+                "value": {
+                  "xsi:type": "CD",
+                  "code": "266919005",
+                  "codeSystem": "2.16.840.1.113883.6.96",
+                  "displayName": "Never smoker"
+                }
+              }
+            }
+          }
+        },
+        {
+          "section": {
+            "templateId": {
+              "root": "2.16.840.1.113883.10.20.22.2.13"
+            },
+            "code": {
+              "code": "46239-0",
+              "codeSystem": "2.16.840.1.113883.6.1",
+              "codeSystemName": "LOINC",
+              "displayName": "REASON FOR VISIT + CHIEF COMPLAINT"
+            },
+            "title": "Reason for Visit/Chief Complaint",
+            "text": "Pain and Blistering on legs"
+          }
+        }
+      ]
+    }
+  }
+}
