@@ -4956,6 +4956,163 @@ fn call_function(
                 )),
             }
         }
+        "precision" => {
+            // Implements precision() : Integer
+            // Returns the number of significant digits in the input value
+
+            // Check for singleton input
+            if invocation_base.count() > 1 {
+                return Err(EvaluationError::SingletonEvaluationError(
+                    "precision requires a singleton input".to_string(),
+                ));
+            }
+
+            // Handle empty input
+            if invocation_base == &EvaluationResult::Empty {
+                return Ok(EvaluationResult::Empty);
+            }
+
+            // Check that no arguments are provided
+            if !args.is_empty() {
+                return Err(EvaluationError::InvalidArity(
+                    "Function 'precision' does not accept any arguments".to_string(),
+                ));
+            }
+
+            // Calculate precision based on the input type
+            match invocation_base {
+                EvaluationResult::Integer(i, _) => {
+                    // For integers, count the number of digits
+                    let digits = if *i == 0 {
+                        1 // Zero has 1 significant digit
+                    } else {
+                        i.abs().to_string().len() as i64
+                    };
+                    Ok(EvaluationResult::integer(digits))
+                }
+                EvaluationResult::Decimal(d, _) => {
+                    // For decimals, we need to count significant digits
+                    // The FHIRPath spec expects trailing zeros to be counted,
+                    // but the Decimal type may normalize or reformat the value
+                    
+                    // Convert to string to count digits
+                    let s = d.to_string();
+                    
+                    // Remove leading minus sign if present
+                    let s = s.trim_start_matches('-');
+                    
+                    // Handle special case of zero
+                    if d.is_zero() {
+                        return Ok(EvaluationResult::integer(1));
+                    }
+                    
+                    // Count all digits (excluding decimal point)
+                    let digit_count = s.chars().filter(|&ch| ch.is_ascii_digit()).count();
+                    
+                    Ok(EvaluationResult::integer(digit_count as i64))
+                }
+                EvaluationResult::Date(date_str, _) => {
+                    // For dates in format YYYY-MM-DD, precision is based on what's specified
+                    // YYYY = 4, YYYY-MM = 7, YYYY-MM-DD = 10
+                    Ok(EvaluationResult::integer(date_str.len() as i64))
+                }
+                EvaluationResult::DateTime(datetime_str, _) => {
+                    // For datetime values, precision is based on components:
+                    // YYYY = 4
+                    // YYYY-MM = 6 (not 7 - don't count separator)
+                    // YYYY-MM-DD = 8 (not 10 - don't count separators)
+                    // YYYY-MM-DDThh:mm = 12
+                    // YYYY-MM-DDThh:mm:ss = 14
+                    // YYYY-MM-DDThh:mm:ss.sss = 17 (14 + 3 millisecond digits)
+                    
+                    // Strip @ prefix if present
+                    let datetime_str = datetime_str.strip_prefix('@').unwrap_or(datetime_str);
+                    
+                    // Find the actual datetime part (before timezone)
+                    let datetime_part = if let Some(plus_pos) = datetime_str.find('+') {
+                        &datetime_str[..plus_pos]
+                    } else if let Some(minus_pos) = datetime_str.rfind('-') {
+                        // Need to check if this is timezone minus or date separator
+                        if minus_pos > 10 { // After the date part
+                            &datetime_str[..minus_pos]
+                        } else {
+                            datetime_str
+                        }
+                    } else if datetime_str.ends_with('Z') {
+                        &datetime_str[..datetime_str.len()-1]
+                    } else {
+                        datetime_str
+                    };
+                    
+                    // Count precision based on components, not string length
+                    let precision = if datetime_part.len() == 4 {
+                        4 // Just year: YYYY
+                    } else if datetime_part.len() == 7 {
+                        6 // Year-month: YYYY-MM (6 digits, not 7)
+                    } else if datetime_part.len() == 10 {
+                        8 // Year-month-day: YYYY-MM-DD (8 digits, not 10)
+                    } else if let Some(t_pos) = datetime_part.find('T') {
+                        // Has time component
+                        let time_part = &datetime_part[t_pos + 1..];
+                        let base_precision = 8; // Date part
+                        
+                        if time_part.len() >= 2 {
+                            // At least hour
+                            let mut time_precision = 2; // HH
+                            if time_part.len() >= 5 {
+                                time_precision = 4; // HH:MM (4 digits, not 5)
+                            }
+                            if time_part.len() >= 8 {
+                                time_precision = 6; // HH:MM:SS (6 digits, not 8)
+                            }
+                            if let Some(dot_pos) = time_part.find('.') {
+                                // Has fractional seconds
+                                let fraction_part = &time_part[dot_pos + 1..];
+                                time_precision += fraction_part.len();
+                            }
+                            base_precision + time_precision as i64
+                        } else {
+                            base_precision
+                        }
+                    } else {
+                        datetime_part.len() as i64 // Fallback
+                    };
+                    
+                    Ok(EvaluationResult::integer(precision))
+                }
+                EvaluationResult::Time(time_str, _) => {
+                    // For time values, precision is based on components:
+                    // HH = 2
+                    // HH:MM = 4 (not 5 - don't count separator)
+                    // HH:MM:SS = 6 (not 8 - don't count separators)
+                    // HH:MM:SS.sss = 9 (6 + 3 millisecond digits)
+                    
+                    // Remove the @T prefix if present
+                    let time_str = time_str.trim_start_matches("@T");
+                    
+                    // Count precision based on components
+                    let precision = if time_str.len() == 2 {
+                        2 // Just hour: HH
+                    } else if time_str.len() == 5 {
+                        4 // Hour:minute: HH:MM (4 digits, not 5)
+                    } else if time_str.len() == 8 {
+                        6 // Hour:minute:second: HH:MM:SS (6 digits, not 8)
+                    } else if let Some(dot_pos) = time_str.find('.') {
+                        // Has fractional seconds
+                        let fraction_part = &time_str[dot_pos + 1..];
+                        6 + fraction_part.len() // 6 for HH:MM:SS + fraction digits
+                    } else {
+                        // Fallback - count only digits
+                        time_str.chars().filter(|&ch| ch.is_ascii_digit()).count()
+                    };
+                    
+                    Ok(EvaluationResult::integer(precision as i64))
+                }
+                _ => Err(EvaluationError::TypeError(
+                    "precision can only be invoked on numeric, date, datetime, or time values".to_string(),
+                )),
+            }
+        }
         "toChars" => {
             // Check for singleton base
             if invocation_base.count() > 1 {
@@ -5209,6 +5366,7 @@ fn call_function(
                 "join",
                 "round",
                 "sqrt",
+                "precision",
                 "toChars",
                 "now",
                 "today",
