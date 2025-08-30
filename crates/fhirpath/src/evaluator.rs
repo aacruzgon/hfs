@@ -5304,6 +5304,155 @@ fn call_function(
             // It's the opposite of empty()
             Ok(EvaluationResult::boolean(!matches!(invocation_base, EvaluationResult::Empty)))
         }
+        "encode" => {
+            // encode(encoding) : String
+            // Encodes the string using the specified encoding
+            if invocation_base.count() > 1 {
+                return Err(EvaluationError::SingletonEvaluationError(
+                    "encode requires a singleton input".to_string(),
+                ));
+            }
+            
+            if args.len() != 1 {
+                return Err(EvaluationError::InvalidArity(
+                    "Function 'encode' expects 1 argument".to_string(),
+                ));
+            }
+            
+            // Get the string to encode
+            let input_str = match invocation_base {
+                EvaluationResult::String(s, _) => s,
+                EvaluationResult::Empty => return Ok(EvaluationResult::Empty),
+                _ => {
+                    return Err(EvaluationError::TypeError(
+                        "encode can only be applied to String values".to_string(),
+                    ))
+                }
+            };
+            
+            // Get the encoding type
+            let encoding = match &args[0] {
+                EvaluationResult::String(s, _) => s.as_str(),
+                _ => {
+                    return Err(EvaluationError::TypeError(
+                        "encode encoding argument must be a string".to_string(),
+                    ))
+                }
+            };
+            
+            // Perform the encoding
+            match encoding {
+                "base64" => {
+                    use base64::{Engine as _, engine::general_purpose};
+                    let encoded = general_purpose::STANDARD.encode(input_str.as_bytes());
+                    Ok(EvaluationResult::string(encoded))
+                }
+                "hex" => {
+                    let encoded = hex::encode(input_str.as_bytes());
+                    Ok(EvaluationResult::string(encoded))
+                }
+                "urlbase64" => {
+                    use base64::{Engine as _, engine::general_purpose};
+                    let encoded = general_purpose::URL_SAFE.encode(input_str.as_bytes());
+                    Ok(EvaluationResult::string(encoded))
+                }
+                _ => Err(EvaluationError::InvalidArgument(format!(
+                    "Unknown encoding: '{}'. Supported encodings are: base64, hex, urlbase64",
+                    encoding
+                ))),
+            }
+        }
+        "decode" => {
+            // decode(encoding) : String
+            // Decodes the string using the specified encoding
+            if invocation_base.count() > 1 {
+                return Err(EvaluationError::SingletonEvaluationError(
+                    "decode requires a singleton input".to_string(),
+                ));
+            }
+            
+            if args.len() != 1 {
+                return Err(EvaluationError::InvalidArity(
+                    "Function 'decode' expects 1 argument".to_string(),
+                ));
+            }
+            
+            // Get the string to decode
+            let input_str = match invocation_base {
+                EvaluationResult::String(s, _) => s,
+                EvaluationResult::Empty => return Ok(EvaluationResult::Empty),
+                _ => {
+                    return Err(EvaluationError::TypeError(
+                        "decode can only be applied to String values".to_string(),
+                    ))
+                }
+            };
+            
+            // Get the encoding type
+            let encoding = match &args[0] {
+                EvaluationResult::String(s, _) => s.as_str(),
+                _ => {
+                    return Err(EvaluationError::TypeError(
+                        "decode encoding argument must be a string".to_string(),
+                    ))
+                }
+            };
+            
+            // Perform the decoding
+            match encoding {
+                "base64" => {
+                    use base64::{Engine as _, engine::general_purpose};
+                    match general_purpose::STANDARD.decode(input_str) {
+                        Ok(decoded_bytes) => {
+                            match String::from_utf8(decoded_bytes) {
+                                Ok(decoded_str) => Ok(EvaluationResult::string(decoded_str)),
+                                Err(_) => Err(EvaluationError::InvalidArgument(
+                                    "Decoded base64 is not valid UTF-8".to_string(),
+                                )),
+                            }
+                        }
+                        Err(_) => Err(EvaluationError::InvalidArgument(
+                            "Invalid base64 string".to_string(),
+                        )),
+                    }
+                }
+                "hex" => {
+                    match hex::decode(input_str) {
+                        Ok(decoded_bytes) => {
+                            match String::from_utf8(decoded_bytes) {
+                                Ok(decoded_str) => Ok(EvaluationResult::string(decoded_str)),
+                                Err(_) => Err(EvaluationError::InvalidArgument(
+                                    "Decoded hex is not valid UTF-8".to_string(),
+                                )),
+                            }
+                        }
+                        Err(_) => Err(EvaluationError::InvalidArgument(
+                            "Invalid hex string".to_string(),
+                        )),
+                    }
+                }
+                "urlbase64" => {
+                    use base64::{Engine as _, engine::general_purpose};
+                    match general_purpose::URL_SAFE.decode(input_str) {
+                        Ok(decoded_bytes) => {
+                            match String::from_utf8(decoded_bytes) {
+                                Ok(decoded_str) => Ok(EvaluationResult::string(decoded_str)),
+                                Err(_) => Err(EvaluationError::InvalidArgument(
+                                    "Decoded urlbase64 is not valid UTF-8".to_string(),
+                                )),
+                            }
+                        }
+                        Err(_) => Err(EvaluationError::InvalidArgument(
+                            "Invalid urlbase64 string".to_string(),
+                        )),
+                    }
+                }
+                _ => Err(EvaluationError::InvalidArgument(format!(
+                    "Unknown encoding: '{}'. Supported encodings are: base64, hex, urlbase64",
+                    encoding
+                ))),
+            }
+        }
         // where, select, ofType are handled in evaluate_invocation
         // Add other standard functions here
         _ => {
@@ -5318,6 +5467,8 @@ fn call_function(
                 "repeat",
                 "aggregate",
                 "hasValue",
+                "encode",
+                "decode",
                 "trace",
                 "ofType",
                 "is",

@@ -291,6 +291,8 @@ The SQL on FHIR specification leverages FHIRPath to define flattened tabular vie
     *   [replaceMatches()](https://hl7.org/fhirpath/2025Jan/#replacematchesregex--string-substitution-string--string): ✅
     *   [length()](https://hl7.org/fhirpath/2025Jan/#length--integer): ✅
     *   [toChars()](https://hl7.org/fhirpath/2025Jan/#tochars--collection): ✅
+    *   [encode()](https://hl7.org/fhirpath/2025Jan/#encodeformat--string--string): ✅
+    *   [decode()](https://hl7.org/fhirpath/2025Jan/#decodeformat--string--string): ✅
 *   [Additional String Functions](https://hl7.org/fhirpath/2025Jan/#additional-string-functions) (STU): ❌ (All)
 *   [Math](https://hl7.org/fhirpath/2025Jan/#math) (STU): ✅
     *   [round()](https://hl7.org/fhirpath/2025Jan/#round-precision--integer--decimal): ✅
