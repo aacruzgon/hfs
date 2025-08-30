@@ -1124,7 +1124,7 @@ pub fn evaluate(
 /// A tuple containing the evaluation result and the potentially modified context
 fn evaluate_with_context(
     expr: &Expression,
-    mut context: EvaluationContext,
+    context: EvaluationContext,
     current_item: Option<&EvaluationResult>,
 ) -> Result<(EvaluationResult, EvaluationContext), EvaluationError> {
     // Handle the same special case as evaluate() for type resolution
@@ -1456,7 +1456,7 @@ fn evaluate_term(
 /// A tuple containing the evaluation result and the potentially modified context
 fn evaluate_term_with_context(
     term: &Term,
-    mut context: EvaluationContext,
+    context: EvaluationContext,
     current_item: Option<&EvaluationResult>,
 ) -> Result<(EvaluationResult, EvaluationContext), EvaluationError> {
     match term {
@@ -2411,7 +2411,7 @@ fn evaluate_where(
 fn evaluate_where_with_context(
     collection: &EvaluationResult,
     criteria_expr: &Expression,
-    mut context: EvaluationContext,
+    context: EvaluationContext,
 ) -> Result<(EvaluationResult, EvaluationContext), EvaluationError> {
     let (items_to_filter, input_was_unordered) = match collection {
         EvaluationResult::Collection {
@@ -2426,11 +2426,11 @@ fn evaluate_where_with_context(
     let mut filtered_items = Vec::new();
     
     // Create a child context for the where scope
-    let mut child_context = context.create_child_context();
+    let child_context = context.create_child_context();
     
     for item in items_to_filter {
         // Evaluate criteria with child context
-        let (criteria_result, updated_child) = evaluate_with_context(criteria_expr, child_context.clone(), Some(&item))?;
+        let (criteria_result, _updated_child) = evaluate_with_context(criteria_expr, child_context.clone(), Some(&item))?;
         // Note: For now we don't merge contexts from each iteration
         // This is a limitation but matches the current where() behavior
         
@@ -2548,7 +2548,7 @@ fn evaluate_select(
 fn evaluate_select_with_context(
     collection: &EvaluationResult,
     projection_expr: &Expression,
-    mut context: EvaluationContext,
+    context: EvaluationContext,
 ) -> Result<(EvaluationResult, EvaluationContext), EvaluationError> {
     let (items_to_project, input_was_unordered) = match collection {
         EvaluationResult::Collection {
@@ -2564,20 +2564,19 @@ fn evaluate_select_with_context(
     let mut result_is_unordered = input_was_unordered;
     
     // Create a child context for the select scope
-    let mut child_context = context.create_child_context();
+    let child_context = context.create_child_context();
     
     // Special handling for empty collections with variable references
     if items_to_project.is_empty() && expression_contains_variables(projection_expr) {
         // Evaluate the projection with no current item to allow variable access
-        let (projection_result, updated_child) = evaluate_with_context(projection_expr, child_context, None)?;
-        child_context = updated_child;
+        let (projection_result, _updated_child) = evaluate_with_context(projection_expr, child_context, None)?;
         if projection_result != EvaluationResult::Empty {
             projected_items.push(projection_result);
         }
     } else {
         for item in items_to_project {
             // Evaluate projection with child context
-            let (projection_result, updated_child) = evaluate_with_context(projection_expr, child_context.clone(), Some(&item))?;
+            let (projection_result, _updated_child) = evaluate_with_context(projection_expr, child_context.clone(), Some(&item))?;
             // Note: For now we don't merge contexts from each iteration
             // This is a limitation but matches the current select() behavior
             if let EvaluationResult::Collection {
@@ -5129,11 +5128,11 @@ fn call_function(
         }
         "lowBoundary" => {
             // Delegate to the dedicated function in boundary_functions.rs
-            crate::boundary_functions::low_boundary_function(invocation_base)
+            crate::boundary_functions::low_boundary_function(invocation_base, args)
         }
         "highBoundary" => {
             // Delegate to the dedicated function in boundary_functions.rs
-            crate::boundary_functions::high_boundary_function(invocation_base)
+            crate::boundary_functions::high_boundary_function(invocation_base, args)
         }
         "getResourceKey" => {
             // Delegate to the reference key functions module

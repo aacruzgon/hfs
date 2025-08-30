@@ -86,6 +86,10 @@ pub fn parse_datetime(datetime_str: &str) -> Option<DateTime<Utc>> {
 
 /// Compares two date values
 pub fn compare_dates(date1: &str, date2: &str) -> Option<Ordering> {
+    // Strip @ prefix if present (used in FHIRPath date literals)
+    let date1 = date1.strip_prefix('@').unwrap_or(date1);
+    let date2 = date2.strip_prefix('@').unwrap_or(date2);
+    
     let d1 = parse_date(date1)?;
     let d2 = parse_date(date2)?;
     Some(d1.cmp(&d2))
@@ -93,6 +97,12 @@ pub fn compare_dates(date1: &str, date2: &str) -> Option<Ordering> {
 
 /// Compares two time values
 pub fn compare_times(time1: &str, time2: &str) -> Option<Ordering> {
+    // Strip @ prefix and T prefix if present (used in FHIRPath time literals)
+    let time1 = time1.strip_prefix('@').unwrap_or(time1)
+                     .strip_prefix('T').unwrap_or(time1);
+    let time2 = time2.strip_prefix('@').unwrap_or(time2)
+                     .strip_prefix('T').unwrap_or(time2);
+    
     let t1 = parse_time(time1)?;
     let t2 = parse_time(time2)?;
     Some(t1.cmp(&t2))
@@ -100,6 +110,10 @@ pub fn compare_times(time1: &str, time2: &str) -> Option<Ordering> {
 
 /// Compares two datetime values
 pub fn compare_datetimes(dt1: &str, dt2: &str) -> Option<Ordering> {
+    // Strip @ prefix if present (used in FHIRPath date literals)
+    let dt1 = dt1.strip_prefix('@').unwrap_or(dt1);
+    let dt2 = dt2.strip_prefix('@').unwrap_or(dt2);
+    
     let d1 = parse_datetime(dt1)?;
     let d2 = parse_datetime(dt2)?;
     Some(d1.cmp(&d2))
@@ -361,6 +375,66 @@ mod tests {
         assert_eq!(
             to_datetime(&EvaluationResult::string("2015-01-01".to_string())),
             Some("2015-01-01T00:00:00".to_string())
+        );
+    }
+
+    #[test]
+    fn test_compare_datetimes_with_at_prefix() {
+        // Test that @ prefix is properly stripped
+        assert_eq!(
+            compare_datetimes("@2015-01-01T00:00:00Z", "@2015-01-01T00:00:00Z"),
+            Some(Ordering::Equal)
+        );
+        assert_eq!(
+            compare_datetimes("@2015-01-01T00:00:00Z", "2015-01-01T00:00:00Z"),
+            Some(Ordering::Equal)
+        );
+        assert_eq!(
+            compare_datetimes("2015-01-01T00:00:00Z", "@2015-01-01T00:00:00Z"),
+            Some(Ordering::Equal)
+        );
+        // Test actual comparison with different timezones
+        assert_eq!(
+            compare_datetimes("@2001-05-06T00:00:00.000+14:00", "@2001-05-06T10:10:10.999Z"),
+            Some(Ordering::Less)
+        );
+    }
+
+    #[test]
+    fn test_compare_dates_with_at_prefix() {
+        // Test that @ prefix is properly stripped
+        assert_eq!(
+            compare_dates("@2015-01-01", "@2015-01-01"),
+            Some(Ordering::Equal)
+        );
+        assert_eq!(
+            compare_dates("@2015-01-01", "2015-01-01"),
+            Some(Ordering::Equal)
+        );
+        assert_eq!(
+            compare_dates("2015-01-01", "@2015-01-01"),
+            Some(Ordering::Equal)
+        );
+    }
+
+    #[test]
+    fn test_compare_times_with_at_prefix() {
+        // Test that @ and T prefixes are properly stripped
+        assert_eq!(
+            compare_times("@T14:30:00", "@T14:30:00"),
+            Some(Ordering::Equal)
+        );
+        assert_eq!(
+            compare_times("@T14:30:00", "T14:30:00"),
+            Some(Ordering::Equal)
+        );
+        assert_eq!(
+            compare_times("T14:30:00", "@T14:30:00"),
+            Some(Ordering::Equal)
+        );
+        assert_eq!(
+            compare_times("@T14:30:00", "14:30:00"),
+            Some(Ordering::Equal)
         );
     }
 }
