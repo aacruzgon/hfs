@@ -5700,21 +5700,38 @@ fn apply_multiplicative(
             }
         }
         "div" | "mod" => {
-            // Handle div/mod: Int/Int -> Int, Dec/Dec -> Int/Dec, mixed -> Error
-            match (left, right) {
-                (EvaluationResult::Integer(l, _), EvaluationResult::Integer(r, _)) => {
-                    apply_integer_multiplicative(*l, op, *r) // Returns Result
-                }
-                (EvaluationResult::Decimal(l, _), EvaluationResult::Decimal(r, _)) => {
-                    apply_decimal_multiplicative(*l, op, *r) // Returns Result
-                }
-                // Handle empty operands
-                (EvaluationResult::Empty, _) | (_, EvaluationResult::Empty) => {
-                    Ok(EvaluationResult::Empty)
+            // Handle div/mod: Convert to appropriate type and perform operation
+            // Promote integers to decimals if needed
+            let left_val = match left {
+                EvaluationResult::Decimal(d, _) => Some((*d, true)), // (value, is_decimal)
+                EvaluationResult::Integer(i, _) => Some((Decimal::from(*i), false)),
+                EvaluationResult::Empty => return Ok(EvaluationResult::Empty),
+                _ => None,
+            };
+            let right_val = match right {
+                EvaluationResult::Decimal(d, _) => Some((*d, true)),
+                EvaluationResult::Integer(i, _) => Some((Decimal::from(*i), false)),
+                EvaluationResult::Empty => return Ok(EvaluationResult::Empty),
+                _ => None,
+            };
+            
+            match (left_val, right_val) {
+                (Some((l_val, l_is_dec)), Some((r_val, r_is_dec))) => {
+                    // If either operand is decimal, use decimal arithmetic
+                    if l_is_dec || r_is_dec {
+                        apply_decimal_multiplicative(l_val, op, r_val)
+                    } else {
+                        // Both are integers, use integer arithmetic
+                        match (left, right) {
+                            (EvaluationResult::Integer(l, _), EvaluationResult::Integer(r, _)) => {
+                                apply_integer_multiplicative(*l, op, *r)
+                            }
+                            _ => unreachable!() // We know they're both integers
+                        }
+                    }
                 }
                 _ => Err(EvaluationError::TypeError(format!(
-                    // Mixed types are invalid
-                    "Operator '{}' requires operands of the same numeric type (Integer or Decimal), found {} and {}",
+                    "Operator '{}' requires numeric operands, found {} and {}",
                     op,
                     left.type_name(),
                     right.type_name()
