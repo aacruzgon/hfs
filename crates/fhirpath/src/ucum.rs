@@ -6,7 +6,7 @@
 use octofhir_ucum::{
     analyse, is_comparable, unit_divide, unit_multiply, validate,
 };
-use octofhir_ucum::fhir::{are_equivalent, convert_quantity, FhirError, FhirQuantity};
+use octofhir_ucum::fhir::{convert_quantity, FhirError, FhirQuantity};
 use rust_decimal::Decimal;
 use std::str::FromStr;
 
@@ -79,7 +79,7 @@ pub fn quantities_are_equivalent(
     let value2_f64 = value2.to_string().parse::<f64>()
         .map_err(|e| format!("Failed to convert value2 to f64: {}", e))?;
     
-    let q1 = FhirQuantity::with_ucum_code(value1_f64, &ucum_unit1);
+    let _q1 = FhirQuantity::with_ucum_code(value1_f64, &ucum_unit1);
     let q2 = FhirQuantity::with_ucum_code(value2_f64, &ucum_unit2);
     
     // Check if units are comparable first
@@ -135,6 +135,7 @@ pub fn divide_units(numerator: &str, denominator: &str) -> Result<String, String
 }
 
 /// Gets the canonical form of a UCUM unit
+#[allow(dead_code)]
 pub fn get_canonical_unit(unit: &str) -> Result<String, String> {
     match analyse(unit) {
         Ok(analysis) => Ok(analysis.expression),
@@ -144,6 +145,7 @@ pub fn get_canonical_unit(unit: &str) -> Result<String, String> {
 
 /// Normalizes a unit string for display and comparison
 /// This handles special cases like calendar units that may have different representations
+#[allow(dead_code)]
 pub fn normalize_unit_string(unit: &str) -> String {
     // Remove unnecessary braces that may be added during processing
     let cleaned = unit.trim_start_matches('{').trim_end_matches('}');
@@ -186,6 +188,7 @@ pub fn calendar_to_ucum_unit(unit: &str) -> String {
 }
 
 /// Maps UCUM time units to calendar duration units for display
+#[allow(dead_code)]
 pub fn ucum_to_calendar_unit(unit: &str) -> String {
     match unit {
         "a" => "year".to_string(),

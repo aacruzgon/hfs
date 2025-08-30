@@ -5984,7 +5984,7 @@ fn add_duration_to_date(date_str: &str, value: Decimal, unit: &str) -> Result<Ev
 
 /// Adds a duration to a datetime string
 fn add_duration_to_datetime(dt_str: &str, value: Decimal, unit: &str) -> Result<EvaluationResult, EvaluationError> {
-    use chrono::{DateTime, FixedOffset};
+    use chrono::DateTime;
     
     // Store original timezone info if present
     let (has_tz, tz_str) = if dt_str.ends_with('Z') {
@@ -6053,7 +6053,7 @@ fn add_duration_to_datetime(dt_str: &str, value: Decimal, unit: &str) -> Result<
         if dt_str.contains('.') {
             format!("@{}.{:03}{}", 
                 new_dt.format("%Y-%m-%dT%H:%M:%S"),
-                new_dt.timestamp_subsec_millis(),
+                new_dt.and_utc().timestamp_subsec_millis(),
                 tz_str)
         } else {
             format!("@{}{}", new_dt.format("%Y-%m-%dT%H:%M:%S"), tz_str)
@@ -6063,7 +6063,7 @@ fn add_duration_to_datetime(dt_str: &str, value: Decimal, unit: &str) -> Result<
         if dt_str.contains('.') {
             format!("@{}.{:03}", 
                 new_dt.format("%Y-%m-%dT%H:%M:%S"),
-                new_dt.timestamp_subsec_millis())
+                new_dt.and_utc().timestamp_subsec_millis())
         } else {
             format!("@{}", new_dt.format("%Y-%m-%dT%H:%M:%S"))
         }
@@ -7538,11 +7538,6 @@ fn compare_equality(
                         None => EvaluationResult::boolean(false),
                     }
                 }
-                // Quantity equality (requires same units and equal values)
-                (
-                    EvaluationResult::Quantity(val_l, unit_l, _),
-                    EvaluationResult::Quantity(val_r, unit_r, _),
-                ) => EvaluationResult::boolean(unit_l == unit_r && val_l == val_r),
 
                 // Object vs Quantity for equality (no type_info)
                 (
