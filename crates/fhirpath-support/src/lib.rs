@@ -973,10 +973,10 @@ impl EvaluationResult {
             EvaluationResult::DateTime(dt, _) => dt.clone(), // Return stored string
             EvaluationResult::Time(t, _) => t.clone(), // Return stored string
             EvaluationResult::Quantity(val, unit, _) => {
-                // Format as "value 'unit'" per FHIRPath specification
-                // Use UCUM formatting for calendar units
+                // Format as "value unit" for toString()
+                // The FHIRPath spec for toString() doesn't require quotes around the unit
                 let formatted_unit = format_unit_for_display(unit);
-                format!("{} '{}'", val, formatted_unit)
+                format!("{} {}", val, formatted_unit)
             }
             EvaluationResult::Collection { items, .. } => {
                 // FHIRPath toString rules for collections
@@ -1287,19 +1287,24 @@ where
     value.to_evaluation_result()
 }
 
-/// Formats a unit for display, converting calendar units to UCUM format with curly braces
+/// Formats a unit for display in toString() output
 fn format_unit_for_display(unit: &str) -> String {
-    // Calendar units that should be displayed with UCUM curly brace format for toString()
-    match unit {
-        // Only word-based time units get converted to UCUM braces for display
-        // This matches the pattern where "week" becomes "{week}" but "wk" stays "wk"
-        "week" => "{week}".to_string(),
-        "year" => "{year}".to_string(),
-        "month" => "{month}".to_string(),
-        "day" => "{day}".to_string(),
-
-        // Short UCUM codes and other units - display as-is
-        // Note: "wk", "a", "mo", "d" etc. should NOT get braces when displaying
-        other => other.to_string(),
+    // FHIRPath spec formatting for units in toString():
+    // - Calendar word units (week, day, etc.): displayed without quotes
+    // - UCUM code units ('wk', 'mg', etc.): displayed with quotes
+    
+    // Calendar word units that don't need quotes
+    const CALENDAR_WORDS: &[&str] = &[
+        "year", "years", "month", "months", "week", "weeks",
+        "day", "days", "hour", "hours", "minute", "minutes",
+        "second", "seconds", "millisecond", "milliseconds"
+    ];
+    
+    if CALENDAR_WORDS.contains(&unit) {
+        // Calendar word units: display without quotes (R5 behavior, likely correct)
+        unit.to_string()
+    } else {
+        // UCUM code units: display with quotes
+        format!("'{}'", unit)
     }
 }

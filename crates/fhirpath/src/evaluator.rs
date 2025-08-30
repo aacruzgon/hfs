@@ -1,5 +1,5 @@
 use crate::parser::{Expression, Invocation, Literal, Term, TypeSpecifier};
-use chrono::{Local, Timelike};
+use chrono::{Local, Timelike, Duration, NaiveDate, NaiveDateTime, Datelike};
 use helios_fhir::{FhirResource, FhirVersion};
 use helios_fhirpath_support::{EvaluationError, EvaluationResult, IntoEvaluationResult};
 use regex::Regex;
@@ -1358,6 +1358,9 @@ fn evaluate_term(
                                 type_info: None,
                             }
                         });
+                    } else if var_name == "ucum" {
+                        // Return %ucum system variable - the UCUM system URI
+                        return Ok(EvaluationResult::string("http://unitsofmeasure.org".to_string()));
                     } else {
                         // Return other variable value or error if undefined
                         return match context.lookup_variable(var_name) {
@@ -3628,6 +3631,41 @@ fn call_function(
                 _ => EvaluationResult::boolean(false),
             })
         }
+        "comparable" => {
+            // comparable(quantity) checks if two quantities have comparable units
+            if args.len() != 1 {
+                return Err(EvaluationError::InvalidArity(
+                    "Function 'comparable' expects 1 argument".to_string(),
+                ));
+            }
+            
+            // Check for singleton base
+            if invocation_base.count() > 1 {
+                return Err(EvaluationError::SingletonEvaluationError(
+                    "comparable requires a singleton input".to_string(),
+                ));
+            }
+            
+            // Check for singleton argument
+            if args[0].count() > 1 {
+                return Err(EvaluationError::SingletonEvaluationError(
+                    "comparable requires a singleton argument".to_string(),
+                ));
+            }
+            
+            Ok(match (invocation_base, &args[0]) {
+                (EvaluationResult::Empty, _) | (_, EvaluationResult::Empty) => {
+                    EvaluationResult::Empty
+                }
+                (EvaluationResult::Quantity(_, unit1, _), EvaluationResult::Quantity(_, unit2, _)) => {
+                    EvaluationResult::boolean(crate::ucum::units_are_comparable(unit1, unit2))
+                }
+                _ => {
+                    // Non-quantity types are not comparable in the UCUM sense
+                    EvaluationResult::boolean(false)
+                }
+            })
+        }
         "length" => {
             // Returns the length of a string
             // Check for singleton first
@@ -5873,6 +5911,236 @@ fn call_function(
     }
 }
 
+/// Adds a duration to a date string
+fn add_duration_to_date(date_str: &str, value: Decimal, unit: &str) -> Result<EvaluationResult, EvaluationError> {
+    // Parse the date
+    let date = NaiveDate::parse_from_str(date_str, "%Y-%m-%d")
+        .or_else(|_| NaiveDate::parse_from_str(&format!("{}-01", date_str), "%Y-%m-%d"))
+        .or_else(|_| NaiveDate::parse_from_str(&format!("{}-01-01", date_str), "%Y-%m-%d"))
+        .map_err(|e| EvaluationError::TypeError(format!("Invalid date format: {}", e)))?;
+    
+    // Check if using UCUM codes for month/year - these are not allowed with Date
+    // But word units (month, year) are allowed
+    if unit == "mo" || unit == "a" {
+        return Err(EvaluationError::TypeError(format!(
+            "Cannot add UCUM unit '{}' to a Date. Use word units 'month' or 'year' instead",
+            unit
+        )));
+    }
+    
+    // Convert to UCUM unit for consistent handling
+    let ucum_unit = crate::ucum::calendar_to_ucum_unit(unit);
+    
+    // Convert value to i64 for duration calculation
+    let amount = value.trunc().to_string().parse::<i64>().unwrap_or(0);
+    
+    // Calculate new date based on unit
+    let new_date = match ucum_unit.as_str() {
+        "a" => {
+            // Add years by adjusting year component
+            let new_year = date.year() + amount as i32;
+            NaiveDate::from_ymd_opt(new_year, date.month(), date.day())
+                .unwrap_or(date)
+        }
+        "mo" => {
+            // Add months by adjusting month component
+            let mut year = date.year();
+            let mut month = date.month() as i32 + amount as i32;
+            while month > 12 {
+                month -= 12;
+                year += 1;
+            }
+            while month < 1 {
+                month += 12;
+                year -= 1;
+            }
+            // Handle day overflow (e.g., Jan 31 + 1 month = Feb 28/29)
+            let max_day = if month == 2 {
+                if year % 4 == 0 && (year % 100 != 0 || year % 400 == 0) {
+                    29
+                } else {
+                    28
+                }
+            } else if month == 4 || month == 6 || month == 9 || month == 11 {
+                30
+            } else {
+                31
+            };
+            let day = date.day().min(max_day);
+            NaiveDate::from_ymd_opt(year, month as u32, day)
+                .unwrap_or(date)
+        }
+        "wk" => date + Duration::weeks(amount),
+        "d" => date + Duration::days(amount),
+        "h" => date + Duration::hours(amount),
+        "min" => date + Duration::minutes(amount),
+        "s" => date + Duration::seconds(amount),
+        "ms" => date + Duration::milliseconds(amount),
+        _ => return Err(EvaluationError::TypeError(format!("Unsupported time unit: {}", unit))),
+    };
+    
+    Ok(EvaluationResult::date(new_date.format("%Y-%m-%d").to_string()))
+}
+
+/// Adds a duration to a datetime string
+fn add_duration_to_datetime(dt_str: &str, value: Decimal, unit: &str) -> Result<EvaluationResult, EvaluationError> {
+    use chrono::{DateTime, FixedOffset};
+    
+    // Store original timezone info if present
+    let (has_tz, tz_str) = if dt_str.ends_with('Z') {
+        (true, "Z".to_string())
+    } else if let Some(tz_pos) = dt_str.rfind(|c| c == '+' || c == '-') {
+        // Check if this is a timezone offset (not just a negative date)
+        if tz_pos > 10 && dt_str[tz_pos..].contains(':') {
+            (true, dt_str[tz_pos..].to_string())
+        } else {
+            (false, String::new())
+        }
+    } else {
+        (false, String::new())
+    };
+    
+    // Parse the datetime with timezone support
+    let dt = if has_tz {
+        // Try to parse as DateTime with timezone
+        DateTime::parse_from_rfc3339(dt_str)
+            .or_else(|_| DateTime::parse_from_str(dt_str, "%Y-%m-%dT%H:%M:%S%.f%:z"))
+            .or_else(|_| DateTime::parse_from_str(dt_str, "%Y-%m-%dT%H:%M:%S%:z"))
+            .map(|dt| dt.naive_local())
+            .map_err(|e| EvaluationError::TypeError(format!("Invalid datetime format: {}", e)))?
+    } else {
+        // Parse as naive datetime without timezone
+        NaiveDateTime::parse_from_str(dt_str, "%Y-%m-%dT%H:%M:%S%.f")
+            .or_else(|_| NaiveDateTime::parse_from_str(dt_str, "%Y-%m-%dT%H:%M:%S"))
+            .or_else(|_| NaiveDateTime::parse_from_str(dt_str, "%Y-%m-%dT%H:%M"))
+            .map_err(|e| EvaluationError::TypeError(format!("Invalid datetime format: {}", e)))?
+    };
+    
+    // Convert to UCUM unit for consistent handling
+    let ucum_unit = crate::ucum::calendar_to_ucum_unit(unit);
+    
+    // For sub-second precision, handle fractional values
+    let new_dt = if ucum_unit == "s" || ucum_unit == "ms" {
+        // Handle fractional seconds and milliseconds
+        let nanos = if ucum_unit == "ms" {
+            // Convert milliseconds to nanoseconds
+            (value * Decimal::from(1_000_000)).trunc().to_string().parse::<i64>().unwrap_or(0)
+        } else {
+            // Convert seconds to nanoseconds
+            (value * Decimal::from(1_000_000_000)).trunc().to_string().parse::<i64>().unwrap_or(0)
+        };
+        dt + Duration::nanoseconds(nanos)
+    } else {
+        // Convert value to i64 for other duration calculations
+        let amount = value.trunc().to_string().parse::<i64>().unwrap_or(0);
+        
+        // Calculate new datetime based on unit
+        match ucum_unit.as_str() {
+            "a" => dt + Duration::days(amount * 365), // Approximate year as 365 days
+            "mo" => dt + Duration::days(amount * 30), // Approximate month as 30 days
+            "wk" => dt + Duration::weeks(amount),
+            "d" => dt + Duration::days(amount),
+            "h" => dt + Duration::hours(amount),
+            "min" => dt + Duration::minutes(amount),
+            _ => return Err(EvaluationError::TypeError(format!("Unsupported time unit: {}", unit))),
+        }
+    };
+    
+    // Format the result, preserving timezone if it was present
+    // FHIRPath DateTime values include the @ prefix
+    let result = if has_tz {
+        // Include milliseconds if present
+        if dt_str.contains('.') {
+            format!("@{}.{:03}{}", 
+                new_dt.format("%Y-%m-%dT%H:%M:%S"),
+                new_dt.timestamp_subsec_millis(),
+                tz_str)
+        } else {
+            format!("@{}{}", new_dt.format("%Y-%m-%dT%H:%M:%S"), tz_str)
+        }
+    } else {
+        // No timezone
+        if dt_str.contains('.') {
+            format!("@{}.{:03}", 
+                new_dt.format("%Y-%m-%dT%H:%M:%S"),
+                new_dt.timestamp_subsec_millis())
+        } else {
+            format!("@{}", new_dt.format("%Y-%m-%dT%H:%M:%S"))
+        }
+    };
+    
+    Ok(EvaluationResult::datetime(result))
+}
+
+/// Adds a duration to a time string
+fn add_duration_to_time(time_str: &str, value: Decimal, unit: &str) -> Result<EvaluationResult, EvaluationError> {
+    use chrono::NaiveTime;
+    
+    // Parse the time - try multiple formats
+    let time = NaiveTime::parse_from_str(time_str, "%H:%M:%S%.f")
+        .or_else(|_| NaiveTime::parse_from_str(time_str, "%H:%M:%S"))
+        .or_else(|_| NaiveTime::parse_from_str(time_str, "%H:%M"))
+        .map_err(|e| EvaluationError::TypeError(format!("Invalid time format: {}", e)))?;
+    
+    // Convert to UCUM unit for consistent handling
+    let ucum_unit = crate::ucum::calendar_to_ucum_unit(unit);
+    
+    // Time arithmetic only supports time units (hours, minutes, seconds, milliseconds)
+    // Days and larger units don't make sense for time-of-day
+    match ucum_unit.as_str() {
+        "h" | "min" | "s" | "ms" => {},
+        _ => {
+            return Err(EvaluationError::TypeError(format!(
+                "Cannot add {} to Time. Only hour, minute, second, and millisecond units are supported",
+                unit
+            )));
+        }
+    }
+    
+    // Convert the time to total nanoseconds since midnight
+    let total_nanos = time.num_seconds_from_midnight() as i64 * 1_000_000_000 
+        + time.nanosecond() as i64;
+    
+    // Calculate the duration in nanoseconds
+    let duration_nanos = match ucum_unit.as_str() {
+        "h" => (value * Decimal::from(3_600_000_000_000i64)).trunc().to_string().parse::<i64>().unwrap_or(0),
+        "min" => (value * Decimal::from(60_000_000_000i64)).trunc().to_string().parse::<i64>().unwrap_or(0),
+        "s" => (value * Decimal::from(1_000_000_000)).trunc().to_string().parse::<i64>().unwrap_or(0),
+        "ms" => (value * Decimal::from(1_000_000)).trunc().to_string().parse::<i64>().unwrap_or(0),
+        _ => 0,
+    };
+    
+    // Add the duration (Time wraps around midnight)
+    let new_total_nanos = total_nanos + duration_nanos;
+    
+    // Handle wrap-around (86400 seconds = 24 hours in nanoseconds)
+    const DAY_NANOS: i64 = 86_400_000_000_000;
+    let wrapped_nanos = if new_total_nanos >= DAY_NANOS {
+        new_total_nanos % DAY_NANOS
+    } else if new_total_nanos < 0 {
+        (new_total_nanos % DAY_NANOS + DAY_NANOS) % DAY_NANOS
+    } else {
+        new_total_nanos
+    };
+    
+    // Convert back to time
+    let new_seconds = (wrapped_nanos / 1_000_000_000) as u32;
+    let new_nanos = (wrapped_nanos % 1_000_000_000) as u32;
+    let new_time = NaiveTime::from_num_seconds_from_midnight_opt(new_seconds, new_nanos)
+        .ok_or_else(|| EvaluationError::TypeError("Invalid time calculation".to_string()))?;
+    
+    // Format the result, preserving original precision
+    let result = if time_str.contains('.') {
+        format!("@T{}.{:03}", 
+            new_time.format("%H:%M:%S"),
+            new_time.nanosecond() / 1_000_000)
+    } else {
+        format!("@T{}", new_time.format("%H:%M:%S"))
+    };
+    
+    Ok(EvaluationResult::time(result))
+}
+
 /// Rounds a decimal value to the specified number of decimal places
 fn round_to_precision(value: Decimal, precision: u32) -> Decimal {
     // Calculate scaling factor (10^precision)
@@ -5961,63 +6229,31 @@ fn normalize_unit_for_equality(unit: &str) -> String {
     cleaned.to_string()
 }
 
-/// Converts calendar-based units to canonical format for internal consistency
+/// Converts calendar-based units to UCUM format for internal consistency
 fn convert_to_ucum_unit(unit: &str) -> String {
-    // Keep units as-is during parsing to preserve existing behavior
-    // Only apply minimal changes needed for the specific R4 test fixes
-    unit.to_string()
+    crate::ucum::calendar_to_ucum_unit(unit)
 }
 
 /// Checks if a string is a valid FHIRPath quantity unit (UCUM or time-based).
-/// Note: This is a simplified check. A full UCUM validator is complex.
 fn is_valid_fhirpath_quantity_unit(unit: &str) -> bool {
-    // Remove underscore
-    // Allow known time-based units
+    // First check if it's a calendar time unit that needs conversion
     const TIME_UNITS: &[&str] = &[
-        "year",
-        "month",
-        "week",
-        "day",
-        "hour",
-        "minute",
-        "second",
-        "millisecond",
-        "years",
-        "months",
-        "weeks",
-        "days",
-        "hours",
-        "minutes",
-        "seconds",
-        "milliseconds",
+        "year", "years",
+        "month", "months",
+        "week", "weeks",
+        "day", "days",
+        "hour", "hours",
+        "minute", "minutes",
+        "second", "seconds",
+        "millisecond", "milliseconds",
     ];
+    
     if TIME_UNITS.contains(&unit) {
         return true;
     }
-
-    // Basic check for UCUM units (non-empty, no whitespace, doesn't start with digit unless '1')
-    // This is NOT a full UCUM validation.
-    if unit.is_empty() {
-        return false; // Empty string is not a valid unit
-    }
-    // Check for whitespace
-    if unit.chars().any(|c| c.is_whitespace()) {
-        return false; // UCUM units generally don't contain whitespace
-    }
-    // Allow '1' as the default unit.
-    if unit == "1" {
-        return true;
-    }
-    // Check if it starts with a digit (generally not allowed after checking '1')
-    if unit.starts_with(|c: char| c.is_ascii_digit()) {
-        return false;
-    }
-
-    // For now, assume other non-empty strings without whitespace that don't start with a digit
-    // are potentially valid UCUM units for parsing purposes.
-    // A real implementation would need a proper UCUM validator.
-    // Let's make this slightly stricter: disallow common punctuation that's unlikely in simple UCUM
-    !unit.contains(|c: char| !c.is_ascii_alphanumeric() && !"[]{}/.%".contains(c))
+    
+    // Use the octofhir-ucum validator for actual UCUM units
+    crate::ucum::validate_unit(unit)
 }
 
 /// Evaluates an indexer expression
@@ -6113,9 +6349,36 @@ fn apply_multiplicative(
 ) -> Result<EvaluationResult, EvaluationError> {
     match op {
         "*" => {
-            // Handle multiplication: Int * Int = Int, otherwise Decimal
+            // Handle multiplication: Int * Int = Int, Quantity * Quantity = Quantity with combined units
             Ok(match (left, right) {
-                // Wrap result in Ok
+                // Quantity * Quantity = Quantity with multiplied units
+                (EvaluationResult::Quantity(val_l, unit_l, _), EvaluationResult::Quantity(val_r, unit_r, _)) => {
+                    match crate::ucum::multiply_units(unit_l, unit_r) {
+                        Ok(result_unit) => {
+                            EvaluationResult::quantity(*val_l * *val_r, result_unit)
+                        }
+                        Err(err) => {
+                            return Err(EvaluationError::TypeError(format!(
+                                "Cannot multiply quantities with units '{}' and '{}': {}",
+                                unit_l, unit_r, err
+                            )));
+                        }
+                    }
+                }
+                // Quantity * Number = Quantity with same unit
+                (EvaluationResult::Quantity(val, unit, _), EvaluationResult::Integer(n, _)) => {
+                    EvaluationResult::quantity(*val * Decimal::from(*n), unit.clone())
+                }
+                (EvaluationResult::Integer(n, _), EvaluationResult::Quantity(val, unit, _)) => {
+                    EvaluationResult::quantity(Decimal::from(*n) * *val, unit.clone())
+                }
+                (EvaluationResult::Quantity(val, unit, _), EvaluationResult::Decimal(d, _)) => {
+                    EvaluationResult::quantity(*val * *d, unit.clone())
+                }
+                (EvaluationResult::Decimal(d, _), EvaluationResult::Quantity(val, unit, _)) => {
+                    EvaluationResult::quantity(*d * *val, unit.clone())
+                }
+                // Regular numeric multiplication
                 (EvaluationResult::Integer(l, _), EvaluationResult::Integer(r, _)) => {
                     // Check for potential overflow before multiplying
                     l.checked_mul(*r)
@@ -6145,40 +6408,129 @@ fn apply_multiplicative(
             })
         }
         "/" => {
-            // Handle division: Always results in Decimal
-            let left_dec = match left {
-                EvaluationResult::Decimal(d, _) => Some(*d),
-                EvaluationResult::Integer(i, _) => Some(Decimal::from(*i)),
-                EvaluationResult::Quantity(val, _, _) => Some(*val), // Extract value from Quantity
-                _ => None,
-            };
-            let right_dec = match right {
-                EvaluationResult::Decimal(d, _) => Some(*d),
-                EvaluationResult::Integer(i, _) => Some(Decimal::from(*i)),
-                EvaluationResult::Quantity(val, _, _) => Some(*val), // Extract value from Quantity
-                _ => None,
-            };
-
-            if let (Some(l), Some(r)) = (left_dec, right_dec) {
-                if r.is_zero() {
-                    // Spec: Division by zero returns empty
-                    Ok(EvaluationResult::Empty)
-                } else {
-                    // Decimal division, then round to 8 decimal places for consistency with tests
-                    l.checked_div(r)
-                        .map(|d| EvaluationResult::decimal(round_to_precision(d, 8)))
-                        .ok_or(EvaluationError::ArithmeticOverflow) // Return error on overflow
+            // Handle division: Decimal or Quantity division
+            match (left, right) {
+                // Quantity / Quantity = Quantity with divided units (or unitless if units cancel)
+                (EvaluationResult::Quantity(val_l, unit_l, _), EvaluationResult::Quantity(val_r, unit_r, _)) => {
+                    if val_r.is_zero() {
+                        Ok(EvaluationResult::Empty)
+                    } else {
+                        match crate::ucum::divide_units(unit_l, unit_r) {
+                            Ok(result_unit) => {
+                                val_l.checked_div(*val_r)
+                                    .map(|d| {
+                                        let rounded = round_to_precision(d, 8);
+                                        if result_unit == "1" {
+                                            // Units cancelled out, return just the decimal
+                                            EvaluationResult::decimal(rounded)
+                                        } else {
+                                            EvaluationResult::quantity(rounded, result_unit)
+                                        }
+                                    })
+                                    .ok_or(EvaluationError::ArithmeticOverflow)
+                            }
+                            Err(err) => {
+                                Err(EvaluationError::TypeError(format!(
+                                    "Cannot divide quantities with units '{}' and '{}': {}",
+                                    unit_l, unit_r, err
+                                )))
+                            }
+                        }
+                    }
                 }
-            } else {
-                // Handle empty operands
-                if left == &EvaluationResult::Empty || right == &EvaluationResult::Empty {
-                    Ok(EvaluationResult::Empty)
-                } else {
-                    Err(EvaluationError::TypeError(format!(
-                        "Cannot divide {} by {}",
-                        left.type_name(),
-                        right.type_name()
-                    )))
+                // Quantity / Number = Quantity with same unit
+                (EvaluationResult::Quantity(val, unit, _), EvaluationResult::Integer(n, _)) => {
+                    if *n == 0 {
+                        Ok(EvaluationResult::Empty)
+                    } else {
+                        val.checked_div(Decimal::from(*n))
+                            .map(|d| EvaluationResult::quantity(round_to_precision(d, 8), unit.clone()))
+                            .ok_or(EvaluationError::ArithmeticOverflow)
+                    }
+                }
+                (EvaluationResult::Quantity(val, unit, _), EvaluationResult::Decimal(d, _)) => {
+                    if d.is_zero() {
+                        Ok(EvaluationResult::Empty)
+                    } else {
+                        val.checked_div(*d)
+                            .map(|res| EvaluationResult::quantity(round_to_precision(res, 8), unit.clone()))
+                            .ok_or(EvaluationError::ArithmeticOverflow)
+                    }
+                }
+                // Number / Quantity = Quantity with inverted unit
+                (EvaluationResult::Integer(n, _), EvaluationResult::Quantity(val, unit, _)) => {
+                    if val.is_zero() {
+                        Ok(EvaluationResult::Empty)
+                    } else {
+                        match crate::ucum::divide_units("1", unit) {
+                            Ok(result_unit) => {
+                                Decimal::from(*n).checked_div(*val)
+                                    .map(|d| EvaluationResult::quantity(round_to_precision(d, 8), result_unit))
+                                    .ok_or(EvaluationError::ArithmeticOverflow)
+                            }
+                            Err(err) => {
+                                Err(EvaluationError::TypeError(format!(
+                                    "Cannot divide number by quantity with unit '{}': {}",
+                                    unit, err
+                                )))
+                            }
+                        }
+                    }
+                }
+                (EvaluationResult::Decimal(d, _), EvaluationResult::Quantity(val, unit, _)) => {
+                    if val.is_zero() {
+                        Ok(EvaluationResult::Empty)
+                    } else {
+                        match crate::ucum::divide_units("1", unit) {
+                            Ok(result_unit) => {
+                                d.checked_div(*val)
+                                    .map(|res| EvaluationResult::quantity(round_to_precision(res, 8), result_unit))
+                                    .ok_or(EvaluationError::ArithmeticOverflow)
+                            }
+                            Err(err) => {
+                                Err(EvaluationError::TypeError(format!(
+                                    "Cannot divide decimal by quantity with unit '{}': {}",
+                                    unit, err
+                                )))
+                            }
+                        }
+                    }
+                }
+                // Regular numeric division
+                _ => {
+                    let left_dec = match left {
+                        EvaluationResult::Decimal(d, _) => Some(*d),
+                        EvaluationResult::Integer(i, _) => Some(Decimal::from(*i)),
+                        _ => None,
+                    };
+                    let right_dec = match right {
+                        EvaluationResult::Decimal(d, _) => Some(*d),
+                        EvaluationResult::Integer(i, _) => Some(Decimal::from(*i)),
+                        _ => None,
+                    };
+
+                    if let (Some(l), Some(r)) = (left_dec, right_dec) {
+                        if r.is_zero() {
+                            // Spec: Division by zero returns empty
+                            Ok(EvaluationResult::Empty)
+                        } else {
+                            // Decimal division, then round to 8 decimal places for consistency with tests
+                            l.checked_div(r)
+                                .map(|d| EvaluationResult::decimal(round_to_precision(d, 8)))
+                                .ok_or(EvaluationError::ArithmeticOverflow)
+                        }
+                    } else {
+                        // Handle empty operands
+                        if left == &EvaluationResult::Empty || right == &EvaluationResult::Empty {
+                            Ok(EvaluationResult::Empty)
+                        } else {
+                            Err(EvaluationError::TypeError(format!(
+                                "Cannot divide {} by {}",
+                                left.type_name(),
+                                right.type_name()
+                            )))
+                        }
+                    }
                 }
             }
         }
@@ -6278,17 +6630,86 @@ fn apply_additive(
                 (EvaluationResult::Integer(l, _), EvaluationResult::Decimal(r, _)) => {
                     EvaluationResult::decimal(Decimal::from(*l) + *r)
                 }
-                // Quantity addition (requires same units) - Added
+                // Quantity addition (requires comparable units)
                 (
                     EvaluationResult::Quantity(val_l, unit_l, _),
                     EvaluationResult::Quantity(val_r, unit_r, _),
                 ) => {
                     if unit_l == unit_r {
                         EvaluationResult::quantity(*val_l + *val_r, unit_l.clone())
+                    } else if crate::ucum::units_are_comparable(unit_l, unit_r) {
+                        // Convert right to left's unit and add
+                        match crate::ucum::convert_units(*val_r, unit_r, unit_l) {
+                            Ok(converted_val_r) => {
+                                EvaluationResult::quantity(*val_l + converted_val_r, unit_l.clone())
+                            }
+                            Err(_) => EvaluationResult::Empty
+                        }
                     } else {
-                        // Incompatible units for now, return empty
-                        // TODO: Implement UCUM conversion if needed
+                        // Incompatible units
                         EvaluationResult::Empty
+                    }
+                }
+                // Date/DateTime + Quantity (time duration)
+                (EvaluationResult::Date(date_str, _), EvaluationResult::Quantity(val, unit, _)) => {
+                    if crate::ucum::is_time_unit(unit) {
+                        add_duration_to_date(date_str, *val, unit)?
+                    } else {
+                        return Err(EvaluationError::TypeError(format!(
+                            "Cannot add Date and Quantity with non-time unit '{}'",
+                            unit
+                        )));
+                    }
+                }
+                (EvaluationResult::Quantity(val, unit, _), EvaluationResult::Date(date_str, _)) => {
+                    if crate::ucum::is_time_unit(unit) {
+                        add_duration_to_date(date_str, *val, unit)?
+                    } else {
+                        return Err(EvaluationError::TypeError(format!(
+                            "Cannot add Quantity with non-time unit '{}' and Date",
+                            unit
+                        )));
+                    }
+                }
+                (EvaluationResult::DateTime(dt_str, _), EvaluationResult::Quantity(val, unit, _)) => {
+                    if crate::ucum::is_time_unit(unit) {
+                        add_duration_to_datetime(dt_str, *val, unit)?
+                    } else {
+                        return Err(EvaluationError::TypeError(format!(
+                            "Cannot add DateTime and Quantity with non-time unit '{}'",
+                            unit
+                        )));
+                    }
+                }
+                (EvaluationResult::Quantity(val, unit, _), EvaluationResult::DateTime(dt_str, _)) => {
+                    if crate::ucum::is_time_unit(unit) {
+                        add_duration_to_datetime(dt_str, *val, unit)?
+                    } else {
+                        return Err(EvaluationError::TypeError(format!(
+                            "Cannot add Quantity with non-time unit '{}' and DateTime",
+                            unit
+                        )));
+                    }
+                }
+                // Time + Quantity (time duration)
+                (EvaluationResult::Time(time_str, _), EvaluationResult::Quantity(val, unit, _)) => {
+                    if crate::ucum::is_time_unit(unit) {
+                        add_duration_to_time(time_str, *val, unit)?
+                    } else {
+                        return Err(EvaluationError::TypeError(format!(
+                            "Cannot add Time and Quantity with non-time unit '{}'",
+                            unit
+                        )));
+                    }
+                }
+                (EvaluationResult::Quantity(val, unit, _), EvaluationResult::Time(time_str, _)) => {
+                    if crate::ucum::is_time_unit(unit) {
+                        add_duration_to_time(time_str, *val, unit)?
+                    } else {
+                        return Err(EvaluationError::TypeError(format!(
+                            "Cannot add Quantity with non-time unit '{}' and Time",
+                            unit
+                        )));
                     }
                 }
                 // Handle string concatenation with '+'
@@ -6502,6 +6923,42 @@ fn apply_additive(
                                 s, d
                             ))
                         })?
+                }
+                // Date - Quantity (time duration)
+                (EvaluationResult::Date(date_str, _), EvaluationResult::Quantity(val, unit, _)) => {
+                    if crate::ucum::is_time_unit(unit) {
+                        // Negate the value for subtraction
+                        add_duration_to_date(date_str, -*val, unit)?
+                    } else {
+                        return Err(EvaluationError::TypeError(format!(
+                            "Cannot subtract Quantity with non-time unit '{}' from Date",
+                            unit
+                        )));
+                    }
+                }
+                // DateTime - Quantity (time duration)
+                (EvaluationResult::DateTime(dt_str, _), EvaluationResult::Quantity(val, unit, _)) => {
+                    if crate::ucum::is_time_unit(unit) {
+                        // Negate the value for subtraction
+                        add_duration_to_datetime(dt_str, -*val, unit)?
+                    } else {
+                        return Err(EvaluationError::TypeError(format!(
+                            "Cannot subtract Quantity with non-time unit '{}' from DateTime",
+                            unit
+                        )));
+                    }
+                }
+                // Time - Quantity (time duration)
+                (EvaluationResult::Time(time_str, _), EvaluationResult::Quantity(val, unit, _)) => {
+                    if crate::ucum::is_time_unit(unit) {
+                        // Negate the value for subtraction
+                        add_duration_to_time(time_str, -*val, unit)?
+                    } else {
+                        return Err(EvaluationError::TypeError(format!(
+                            "Cannot subtract Quantity with non-time unit '{}' from Time",
+                            unit
+                        )));
+                    }
                 }
                 // Handle empty operands
                 (EvaluationResult::Empty, _) | (_, EvaluationResult::Empty) => {
@@ -6830,14 +7287,28 @@ fn compare_inequality(
             EvaluationResult::Quantity(val_r, unit_r, _),
         ) => {
             if unit_l == unit_r {
-                // Simple string comparison for now
+                // Same units, direct comparison
                 Some(val_l.cmp(val_r))
             } else {
-                // Incompatible units for comparison, return error
-                return Err(EvaluationError::TypeError(format!(
-                    "Cannot compare Quantities with different units: '{}' and '{}'",
-                    unit_l, unit_r
-                )));
+                // Check if units are comparable (same dimension)
+                if crate::ucum::units_are_comparable(unit_l, unit_r) {
+                    // Convert right value to left unit for comparison
+                    match crate::ucum::convert_units(*val_r, unit_r, unit_l) {
+                        Ok(converted_val_r) => Some(val_l.cmp(&converted_val_r)),
+                        Err(err) => {
+                            return Err(EvaluationError::TypeError(format!(
+                                "Cannot convert between units '{}' and '{}': {}",
+                                unit_r, unit_l, err
+                            )));
+                        }
+                    }
+                } else {
+                    // Incompatible units for comparison
+                    return Err(EvaluationError::TypeError(format!(
+                        "Cannot compare Quantities with incompatible units: '{}' and '{}'",
+                        unit_l, unit_r
+                    )));
+                }
             }
         }
         // Object vs Quantity
@@ -7022,6 +7493,27 @@ fn compare_equality(
                 }
                 (EvaluationResult::Integer(l, _), EvaluationResult::Decimal(r, _)) => {
                     EvaluationResult::boolean(Decimal::from(*l) == *r)
+                }
+                // Quantity comparison with unit conversion
+                (EvaluationResult::Quantity(val_l, unit_l, _), EvaluationResult::Quantity(val_r, unit_r, _)) => {
+                    if unit_l == unit_r {
+                        // Same unit, direct comparison
+                        EvaluationResult::boolean(val_l == val_r)
+                    } else if crate::ucum::units_are_comparable(unit_l, unit_r) {
+                        // Different but comparable units, convert and compare
+                        match crate::ucum::convert_units(*val_r, unit_r, unit_l) {
+                            Ok(converted_val_r) => {
+                                EvaluationResult::boolean(val_l == &converted_val_r)
+                            }
+                            Err(_) => {
+                                // If conversion fails, they're not equal
+                                EvaluationResult::boolean(false)
+                            }
+                        }
+                    } else {
+                        // Incompatible units, not equal
+                        EvaluationResult::boolean(false)
+                    }
                 }
                 // Attempt date/time comparison first if either operand could be date/time related
                 _ if (matches!(
@@ -7331,7 +7823,16 @@ fn compare_equality(
                 (
                     EvaluationResult::Quantity(val_l, unit_l, _),
                     EvaluationResult::Quantity(val_r, unit_r, _),
-                ) => EvaluationResult::boolean(unit_l == unit_r && val_l == val_r),
+                ) => {
+                    // Check if quantities are equivalent using UCUM conversion
+                    match crate::ucum::quantities_are_equivalent(*val_l, unit_l, *val_r, unit_r) {
+                        Ok(equivalent) => EvaluationResult::boolean(equivalent),
+                        Err(_) => {
+                            // If conversion fails, fall back to exact comparison
+                            EvaluationResult::boolean(unit_l == unit_r && val_l == val_r)
+                        }
+                    }
+                }
                 (
                     EvaluationResult::Object {
                         map: obj_l,
