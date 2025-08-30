@@ -218,8 +218,14 @@ pub fn compare_date_time_values(
         (EvaluationResult::String(s_val, _), EvaluationResult::DateTime(dt_val, _)) => {
             // Check if string is a date (not datetime)
             if !s_val.contains('T') && parse_date(s_val).is_some() {
-                // String is date, DateTime is datetime - indeterminate
-                None
+                // String is date, DateTime is datetime - compare them
+                // Convert date to datetime range for comparison
+                let d_normalized = normalize_date(s_val);
+                let d_start = format!("{}T00:00:00", d_normalized);
+                
+                // For comparisons, use the start of day
+                // This is consistent with FHIR's approach for < and > operators
+                return compare_datetimes(&d_start, dt_val);
             } else {
                 // Attempt to parse s_val as a datetime and compare with dt_val
                 compare_datetimes(s_val, dt_val)
@@ -228,8 +234,13 @@ pub fn compare_date_time_values(
         (EvaluationResult::DateTime(dt_val, _), EvaluationResult::String(s_val, _)) => {
             // Check if string is a date (not datetime)
             if !s_val.contains('T') && parse_date(s_val).is_some() {
-                // DateTime is datetime, String is date - indeterminate
-                None
+                // DateTime is datetime, String is date - compare them
+                // Convert date to datetime range for comparison
+                let d_normalized = normalize_date(s_val);
+                let d_start = format!("{}T00:00:00", d_normalized);
+                
+                // For comparisons, use the start of day
+                return compare_datetimes(dt_val, &d_start);
             } else {
                 // Attempt to parse s_val as a datetime and compare with dt_val
                 compare_datetimes(dt_val, s_val)

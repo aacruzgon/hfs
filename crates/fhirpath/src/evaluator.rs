@@ -6263,18 +6263,35 @@ fn compare_inequality(
                 // This means the comparison is indeterminate (e.g., date vs datetime)
                 return Ok(EvaluationResult::Empty);
             }
-            // Also check if these are string representations of date/time values
-            if let (EvaluationResult::String(s1, _), EvaluationResult::String(s2, _)) = (left, right) {
-                // Check if one is a date and the other is a datetime
-                let s1_is_date = !s1.contains('T') && crate::datetime_impl::parse_date(s1).is_some();
-                let s2_is_date = !s2.contains('T') && crate::datetime_impl::parse_date(s2).is_some();
-                let s1_is_datetime = s1.contains('T') && crate::datetime_impl::parse_datetime(s1).is_some();
-                let s2_is_datetime = s2.contains('T') && crate::datetime_impl::parse_datetime(s2).is_some();
-                
-                if (s1_is_date && s2_is_datetime) || (s1_is_datetime && s2_is_date) {
-                    // Mixed date and datetime comparison - indeterminate
-                    return Ok(EvaluationResult::Empty);
+            // Also check if we have String vs DateTime/Date/Time combinations
+            match (left, right) {
+                (EvaluationResult::String(_s, _), EvaluationResult::DateTime(_, _)) |
+                (EvaluationResult::DateTime(_, _), EvaluationResult::String(_s, _)) |
+                (EvaluationResult::String(_s, _), EvaluationResult::Date(_, _)) |
+                (EvaluationResult::Date(_, _), EvaluationResult::String(_s, _)) |
+                (EvaluationResult::String(_s, _), EvaluationResult::Time(_, _)) |
+                (EvaluationResult::Time(_, _), EvaluationResult::String(_s, _)) => {
+                    // String might be a date/time value, compare_date_time_values will handle it
+                    // Don't return Empty here - let it continue to try the comparison
                 }
+                (EvaluationResult::String(s1, _), EvaluationResult::String(s2, _)) => {
+                    // Check if one is a date and the other is a datetime
+                    let s1_is_date = !s1.contains('T') && crate::datetime_impl::parse_date(s1).is_some();
+                    let s2_is_date = !s2.contains('T') && crate::datetime_impl::parse_date(s2).is_some();
+                    let s1_is_datetime = s1.contains('T') && crate::datetime_impl::parse_datetime(s1).is_some();
+                    let s2_is_datetime = s2.contains('T') && crate::datetime_impl::parse_datetime(s2).is_some();
+                    
+                    if (s1_is_date && s2_is_datetime) || (s1_is_datetime && s2_is_date) {
+                        // Mixed date and datetime comparison
+                        // For <= and >= operators, this is indeterminate
+                        if op == "<=" || op == ">=" {
+                            return Ok(EvaluationResult::Empty);
+                        }
+                        // For < and > operators, we can make a comparison
+                        // Let it continue to the string comparison below
+                    }
+                }
+                _ => {}
             }
             // Otherwise, continue with other type comparisons
         }
