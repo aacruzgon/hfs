@@ -84,7 +84,7 @@ pub fn find_test_groups(root: &Node) -> Vec<(String, Vec<TestInfo>)> {
     groups
 }
 
-pub fn parse_test_xml(contents: &str) -> Result<Document, String> {
+pub fn parse_test_xml(contents: &str) -> Result<Document<'_>, String> {
     // Parse the XML with relaxed parsing options
     Document::parse_with_options(
         contents,

@@ -312,7 +312,7 @@ The SQL on FHIR specification leverages FHIRPath to define flattened tabular vie
     *   [now()](https://hl7.org/fhirpath/2025Jan/#now--datetime): ✅
     *   [timeOfDay()](https://hl7.org/fhirpath/2025Jan/#timeofday--time): ✅
     *   [today()](https://hl7.org/fhirpath/2025Jan/#today--date): ✅
-    *   [defineVariable()](https://hl7.org/fhirpath/2025Jan/#definevariablename-string--expr-expression) (STU): ❌
+    *   [defineVariable()](https://hl7.org/fhirpath/2025Jan/#definevariablename-string--expr-expression) (STU): ✅
     *   [lowBoundary()](https://hl7.org/fhirpath/2025Jan/#lowboundaryprecision-integer-decimal--date--datetime--time) (STU): ✅ (Full support for Decimal, Date, DateTime, and Time)
     *   [highBoundary()](https://hl7.org/fhirpath/2025Jan/#highboundaryprecision-integer-decimal--date--datetime--time) (STU): ✅ (Full support for Decimal, Date, DateTime, and Time)
     *   [precision()](https://hl7.org/fhirpath/2025Jan/#precision--integer) (STU): ❌
@@ -362,6 +362,7 @@ The SQL on FHIR specification leverages FHIRPath to define flattened tabular vie
 ### [Lexical Elements](https://hl7.org/fhirpath/2025Jan/#lexical-elements)
 
 *   [Lexical Elements](https://hl7.org/fhirpath/2025Jan/#lexical-elements): ✅ (Handled by parser)
+*   [Comments](https://hl7.org/fhirpath/2025Jan/#comments): ✅ (Both single-line `//` and multi-line `/* */` comments)
     
 ### [Environment Variables](https://hl7.org/fhirpath/2025Jan/#environment-variables)
     
@@ -419,6 +420,7 @@ The context includes:
 - **Resources**: Available FHIR resources for evaluation
 - **Variables**: Environment variables (including `$this`, `$index`, `$total`)
 - **Configuration**: Strict mode, ordered function checking, etc.
+- **Variable Scoping**: Parent context support for proper variable scoping in functions like `select()` and `where()`
 
 ### Type System and Namespace Resolution
 

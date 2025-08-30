@@ -257,6 +257,29 @@ impl fmt::Display for Literal {
 ///
 /// The parser returns detailed error information when it encounters syntax errors
 /// in the input, including the location and nature of the error.
+
+/// Parser that matches a custom whitespace including comments  
+fn custom_padded<T, P>(parser: P) -> impl Parser<char, T, Error = Simple<char>> + Clone 
+where
+    P: Parser<char, T, Error = Simple<char>> + Clone,
+    T: Clone,
+{
+    // First consume any leading whitespace/comments
+    let ws_or_comment = choice((
+        // Regular whitespace
+        text::whitespace().at_least(1).ignored(),
+        // Single-line comment: // ... newline or EOF
+        just("//").then(take_until(text::newline().or(end()))).ignored(),
+        // Multi-line comment: /* ... */
+        just("/*").then(take_until(just("*/"))).ignored(),
+    )).repeated().ignored();
+    
+    ws_or_comment.clone()
+        .then(parser)
+        .map(|(_, result)| result)
+        .then_ignore(ws_or_comment)
+}
+
 pub fn parser() -> impl Parser<char, Expression, Error = Simple<char>> + Clone {
     // Parser for escape sequences within string literals
     // Handles standard escape sequences like \n, \t, \r, etc., plus Unicode
@@ -294,6 +317,13 @@ pub fn parser() -> impl Parser<char, Expression, Error = Simple<char>> + Clone {
                 }),
         ),
     )));
+
+    // Helper macro to make a parser skip whitespace and comments
+    macro_rules! padded {
+        ($p:expr) => {
+            custom_padded($p)
+        };
+    }
 
     // LITERAL PARSERS
 
@@ -337,8 +367,8 @@ pub fn parser() -> impl Parser<char, Expression, Error = Simple<char>> + Clone {
                 emit(Simple::custom(span, format!("Invalid integer: {}", digits)));
                 Literal::Integer(0) // Default value on error
             }
-        })
-        .padded(); // Allow whitespace around integers
+        });
+    let integer = padded!(integer); // Allow whitespace around integers
 
     // Parser for decimal number literals
     //
@@ -688,10 +718,10 @@ pub fn parser() -> impl Parser<char, Expression, Error = Simple<char>> + Clone {
         quantity,                          // Try quantity first
         number,                            // Then number (requires '.')
         integer,                           // Then integer
-        datetime_literal.padded(),         // @Date T Time [TZ]
-        partial_datetime_literal.padded(), // @Date T
-        time_literal.padded(),             // @ T Time (will fail if TZ present)
-        date_literal.padded(),             // @Date
+        padded!(datetime_literal),         // @Date T Time [TZ]
+        padded!(partial_datetime_literal), // @Date T
+        padded!(time_literal),             // @ T Time (will fail if TZ present)
+        padded!(date_literal),             // @Date
     ))
     .map(Term::Literal);
 
@@ -769,9 +799,9 @@ pub fn parser() -> impl Parser<char, Expression, Error = Simple<char>> + Clone {
 
         // Try explicit namespace.type first, then fallback to standalone identifier
         choice((explicit_namespace_type.boxed(), standalone_type.boxed()))
-            .padded()
             .boxed()
     };
+    let qualified_identifier = padded!(qualified_identifier);
 
     // Helper function to remove backticks from identifiers if present
     fn clean_backtick_identifier(id: &str) -> String {
