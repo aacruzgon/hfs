@@ -955,16 +955,7 @@ pub fn parser() -> impl Parser<char, Expression, Error = Simple<char>> + Clone {
             .then(op_union.then(additive).repeated())
             .foldl(|left, (_, right)| Expression::Union(Box::new(left), Box::new(right)));
 
-        // Level 4: Type (is, as) - Left associative
-        let op_type = choice((text::keyword("is").to("is"), text::keyword("as").to("as"))).padded();
-        let type_expr = union
-            .clone()
-            .then(op_type.then(qualified_identifier.clone()).repeated()) // Type specifier follows 'is'/'as'
-            .foldl(|left, (op_str, type_spec)| {
-                Expression::Type(Box::new(left), op_str.to_string(), type_spec)
-            });
-
-        // Level 5: Inequality (<, <=, >, >=) - Left associative
+        // Level 4: Inequality (<, <=, >, >=) - Left associative
         let op_ineq = choice((
             just("<=").to("<="),
             just("<").to("<"),
@@ -972,11 +963,20 @@ pub fn parser() -> impl Parser<char, Expression, Error = Simple<char>> + Clone {
             just(">").to(">"),
         ))
         .padded();
-        let inequality = type_expr
+        let inequality = union
             .clone()
-            .then(op_ineq.then(type_expr).repeated())
+            .then(op_ineq.then(union).repeated())
             .foldl(|left, (op_str, right)| {
                 Expression::Inequality(Box::new(left), op_str.to_string(), Box::new(right))
+            });
+
+        // Level 5: Type (is, as) - Left associative
+        let op_type = choice((text::keyword("is").to("is"), text::keyword("as").to("as"))).padded();
+        let type_expr = inequality
+            .clone()
+            .then(op_type.then(qualified_identifier.clone()).repeated()) // Type specifier follows 'is'/'as'
+            .foldl(|left, (op_str, type_spec)| {
+                Expression::Type(Box::new(left), op_str.to_string(), type_spec)
             });
 
         // Level 6: Equality (=, ~, !=, !~) - Left associative
@@ -987,9 +987,9 @@ pub fn parser() -> impl Parser<char, Expression, Error = Simple<char>> + Clone {
             just("!~").to("!~"),
         ))
         .padded();
-        let equality = inequality
+        let equality = type_expr
             .clone()
-            .then(op_eq.then(inequality).repeated())
+            .then(op_eq.then(type_expr).repeated())
             .foldl(|left, (op_str, right)| {
                 Expression::Equality(Box::new(left), op_str.to_string(), Box::new(right))
             });
