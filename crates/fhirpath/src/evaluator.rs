@@ -2065,8 +2065,8 @@ fn evaluate_invocation(
                     };
 
                     if let Some(type_spec) = type_spec_opt {
-                        // Use the resource_type module to handle ofType
-                        crate::resource_type::of_type(invocation_base, &type_spec)
+                        // Use the resource_type module to handle ofType with context
+                        crate::resource_type::of_type_with_context(invocation_base, &type_spec, context)
                     } else {
                         Err(EvaluationError::InvalidArgument(format!(
                             "Invalid type specifier argument for ofType: {:?}",

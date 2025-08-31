@@ -85,6 +85,7 @@ pub trait IntoEvaluationResult {
     fn to_evaluation_result(&self) -> EvaluationResult;
 }
 
+
 /// Universal result type for FHIRPath expression evaluation.
 ///
 /// This enum represents any value that can result from evaluating a FHIRPath expression
