@@ -425,3 +425,218 @@ mod tests {
         assert_eq!(result, EvaluationResult::boolean(false));
     }
 }
+
+/// Implements the FHIRPath sort() function
+///
+/// The sort() function sorts a collection of items. It can take optional
+/// lambda expressions to specify sort keys. If no lambda is provided,
+/// it sorts by the natural order of the items.
+///
+/// For descending sort, the lambda can use unary minus (-) operator.
+/// Multiple sort keys are supported for multi-level sorting.
+pub fn sort_function(
+    invocation_base: &EvaluationResult,
+    args: &[crate::parser::Expression],
+    context: &EvaluationContext,
+) -> Result<EvaluationResult, EvaluationError> {
+    
+    // Convert to collection
+    let items = match invocation_base {
+        EvaluationResult::Empty => return Ok(EvaluationResult::Empty),
+        EvaluationResult::Collection { items, .. } => items.clone(),
+        single => vec![single.clone()],
+    };
+    
+    if items.is_empty() {
+        return Ok(EvaluationResult::Empty);
+    }
+    
+    // If no arguments, sort by natural order
+    if args.is_empty() {
+        let mut sorted_items = items;
+        sorted_items.sort_by(|a, b| compare_evaluation_results(a, b));
+        
+        return Ok(if sorted_items.len() == 1 {
+            sorted_items.into_iter().next().unwrap()
+        } else {
+            EvaluationResult::Collection {
+                items: sorted_items,
+                has_undefined_order: false,
+                type_info: None,
+            }
+        });
+    }
+    
+    // Process each sort key argument
+    let mut sort_keys: Vec<(bool, crate::parser::Expression)> = Vec::new();
+    for arg in args {
+        // Check if it's a descending sort (starts with unary minus)
+        let (is_descending, sort_expr) = if let crate::parser::Expression::Polarity('-', inner) = arg {
+            (true, inner.as_ref().clone())
+        } else {
+            (false, arg.clone())
+        };
+        sort_keys.push((is_descending, sort_expr));
+    }
+    
+    // Create items with all their sort keys evaluated
+    let mut items_with_keys: Vec<(Vec<(bool, EvaluationResult)>, EvaluationResult)> = Vec::new();
+    
+    for item in &items {
+        let mut keys = Vec::new();
+        
+        // Evaluate each sort expression for this item
+        for (is_descending, sort_expr) in &sort_keys {
+            // Set up context with $this as the current item
+            let mut sort_context = context.clone();
+            sort_context.this = Some(item.clone());
+            
+            // Evaluate the sort expression
+            let sort_key = crate::evaluator::evaluate(sort_expr, &sort_context, Some(item))?;
+            keys.push((*is_descending, sort_key));
+        }
+        
+        items_with_keys.push((keys, item.clone()));
+    }
+    
+    // Sort by the keys (multi-level sort)
+    items_with_keys.sort_by(|a, b| {
+        // Compare each sort key in order
+        for (key_a, key_b) in a.0.iter().zip(b.0.iter()) {
+            let is_descending = key_a.0;
+            
+            // Special handling for Empty values
+            // In FHIRPath, Empty sorts first regardless of sort direction
+            let ord = match (&key_a.1, &key_b.1) {
+                (EvaluationResult::Empty, EvaluationResult::Empty) => std::cmp::Ordering::Equal,
+                (EvaluationResult::Empty, _) => std::cmp::Ordering::Less,    // Empty always sorts first
+                (_, EvaluationResult::Empty) => std::cmp::Ordering::Greater, // Non-empty always sorts after empty
+                _ => {
+                    // Normal comparison for non-empty values
+                    let ord = compare_evaluation_results(&key_a.1, &key_b.1);
+                    // Apply descending if needed
+                    if is_descending {
+                        ord.reverse()
+                    } else {
+                        ord
+                    }
+                }
+            };
+            
+            // If not equal, return the comparison result
+            if ord != std::cmp::Ordering::Equal {
+                return ord;
+            }
+            // If equal, continue to next sort key
+        }
+        
+        // All keys are equal
+        std::cmp::Ordering::Equal
+    });
+    
+    // Extract the sorted items
+    let sorted_items: Vec<EvaluationResult> = items_with_keys.into_iter().map(|(_, item)| item).collect();
+    
+    Ok(if sorted_items.len() == 1 {
+        sorted_items.into_iter().next().unwrap()
+    } else {
+        EvaluationResult::Collection {
+            items: sorted_items,
+            has_undefined_order: false,
+            type_info: None,
+        }
+    })
+}
+
+/// Compare two EvaluationResults for sorting
+fn compare_evaluation_results(a: &EvaluationResult, b: &EvaluationResult) -> std::cmp::Ordering {
+    use rust_decimal::Decimal;
+    use std::cmp::Ordering;
+    
+    match (a, b) {
+        // Empty values sort first
+        (EvaluationResult::Empty, EvaluationResult::Empty) => Ordering::Equal,
+        (EvaluationResult::Empty, _) => Ordering::Less,
+        (_, EvaluationResult::Empty) => Ordering::Greater,
+        
+        // Boolean comparison
+        (EvaluationResult::Boolean(a, _), EvaluationResult::Boolean(b, _)) => a.cmp(b),
+        
+        // Numeric comparisons
+        (EvaluationResult::Integer(a, _), EvaluationResult::Integer(b, _)) => a.cmp(b),
+        (EvaluationResult::Integer64(a, _), EvaluationResult::Integer64(b, _)) => a.cmp(b),
+        (EvaluationResult::Decimal(a, _), EvaluationResult::Decimal(b, _)) => {
+            // Decimal doesn't implement Ord, so we need to handle it
+            if a < b { Ordering::Less }
+            else if a > b { Ordering::Greater }
+            else { Ordering::Equal }
+        }
+        
+        // Mixed numeric types - convert to Decimal for comparison
+        (EvaluationResult::Integer(a, _), EvaluationResult::Decimal(b, _)) => {
+            let a_dec = Decimal::from(*a);
+            if a_dec < *b { Ordering::Less }
+            else if a_dec > *b { Ordering::Greater }
+            else { Ordering::Equal }
+        }
+        (EvaluationResult::Decimal(a, _), EvaluationResult::Integer(b, _)) => {
+            let b_dec = Decimal::from(*b);
+            if a < &b_dec { Ordering::Less }
+            else if a > &b_dec { Ordering::Greater }
+            else { Ordering::Equal }
+        }
+        (EvaluationResult::Integer(a, _), EvaluationResult::Integer64(b, _)) => {
+            (*a as i64).cmp(b)
+        }
+        (EvaluationResult::Integer64(a, _), EvaluationResult::Integer(b, _)) => {
+            a.cmp(&(*b as i64))
+        }
+        
+        // String comparison
+        (EvaluationResult::String(a, _), EvaluationResult::String(b, _)) => a.cmp(b),
+        
+        // Date/Time comparisons
+        (EvaluationResult::Date(a, _), EvaluationResult::Date(b, _)) => a.cmp(b),
+        (EvaluationResult::DateTime(a, _), EvaluationResult::DateTime(b, _)) => a.cmp(b),
+        (EvaluationResult::Time(a, _), EvaluationResult::Time(b, _)) => a.cmp(b),
+        
+        // Quantity comparison (only if same unit)
+        (EvaluationResult::Quantity(val_a, unit_a, _), EvaluationResult::Quantity(val_b, unit_b, _)) => {
+            if unit_a == unit_b {
+                if val_a < val_b { Ordering::Less }
+                else if val_a > val_b { Ordering::Greater }
+                else { Ordering::Equal }
+            } else {
+                // Different units - sort by unit then value
+                match unit_a.cmp(unit_b) {
+                    Ordering::Equal => {
+                        if val_a < val_b { Ordering::Less }
+                        else if val_a > val_b { Ordering::Greater }
+                        else { Ordering::Equal }
+                    }
+                    other => other,
+                }
+            }
+        }
+        
+        // Different types - define a type ordering
+        _ => {
+            let type_order = |v: &EvaluationResult| match v {
+                EvaluationResult::Empty => 0,
+                EvaluationResult::Boolean(_, _) => 1,
+                EvaluationResult::Integer(_, _) => 2,
+                EvaluationResult::Integer64(_, _) => 3,
+                EvaluationResult::Decimal(_, _) => 4,
+                EvaluationResult::String(_, _) => 5,
+                EvaluationResult::Date(_, _) => 6,
+                EvaluationResult::DateTime(_, _) => 7,
+                EvaluationResult::Time(_, _) => 8,
+                EvaluationResult::Quantity(_, _, _) => 9,
+                EvaluationResult::Collection { .. } => 10,
+                EvaluationResult::Object { .. } => 11,
+            };
+            
+            type_order(a).cmp(&type_order(b))
+        }
+    }
+}

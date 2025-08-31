@@ -1361,6 +1361,18 @@ fn evaluate_term(
                     } else if var_name == "ucum" {
                         // Return %ucum system variable - the UCUM system URI
                         return Ok(EvaluationResult::string("http://unitsofmeasure.org".to_string()));
+                    } else if var_name == "sct" {
+                        // Return %sct system variable - the SNOMED CT system URI
+                        return Ok(EvaluationResult::string("http://snomed.info/sct".to_string()));
+                    } else if var_name == "loinc" {
+                        // Return %loinc system variable - the LOINC system URI
+                        return Ok(EvaluationResult::string("http://loinc.org".to_string()));
+                    } else if var_name == "vs-administrative-gender" {
+                        // Return %vs-administrative-gender system variable
+                        return Ok(EvaluationResult::string("http://hl7.org/fhir/ValueSet/administrative-gender".to_string()));
+                    } else if var_name == "ext-patient-birthTime" {
+                        // Return %ext-patient-birthTime extension URL
+                        return Ok(EvaluationResult::string("http://hl7.org/fhir/StructureDefinition/patient-birthTime".to_string()));
                     } else {
                         // Return other variable value or error if undefined
                         return match context.lookup_variable(var_name) {
@@ -1453,6 +1465,21 @@ fn evaluate_term(
                         type_info: None,
                     }
                 }) // Correctly placed Ok() wrapping
+            } else if name == "ucum" {
+                // Return %ucum system variable - the UCUM system URI
+                Ok(EvaluationResult::string("http://unitsofmeasure.org".to_string()))
+            } else if name == "sct" {
+                // Return %sct system variable - the SNOMED CT system URI
+                Ok(EvaluationResult::string("http://snomed.info/sct".to_string()))
+            } else if name == "loinc" {
+                // Return %loinc system variable - the LOINC system URI
+                Ok(EvaluationResult::string("http://loinc.org".to_string()))
+            } else if name == "vs-administrative-gender" {
+                // Return %vs-administrative-gender system variable
+                Ok(EvaluationResult::string("http://hl7.org/fhir/ValueSet/administrative-gender".to_string()))
+            } else if name == "ext-patient-birthTime" {
+                // Return %ext-patient-birthTime extension URL
+                Ok(EvaluationResult::string("http://hl7.org/fhir/StructureDefinition/patient-birthTime".to_string()))
             } else {
                 // Return variable value or error if undefined
                 // ExternalConstant name doesn't include %, but variables are stored with %
@@ -2314,6 +2341,10 @@ fn evaluate_invocation(
                     )
                 }
                 // Add other functions taking lambdas here (e.g., any)
+                "sort" => {
+                    // sort() can take an optional lambda for sort key
+                    crate::collection_functions::sort_function(invocation_base, args_exprs, context)
+                }
                 _ => {
                     // Default: Evaluate all standard function arguments first (without $this context), then call function
                     let mut evaluated_args = Vec::with_capacity(args_exprs.len());
@@ -5867,6 +5898,7 @@ fn call_function(
                 "contains",
                 "isDistinct",
                 "distinct",
+                "sort",
                 "skip",
                 "tail",
                 "take",
