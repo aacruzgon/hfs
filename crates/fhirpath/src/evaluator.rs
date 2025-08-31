@@ -4121,11 +4121,16 @@ fn call_function(
                     EvaluationResult::String(regex_pattern, _),
                     EvaluationResult::String(substitution, _),
                 ) => {
-                    match Regex::new(regex_pattern) {
-                        Ok(re) => {
-                            EvaluationResult::string(re.replace_all(s, substitution).to_string())
+                    // If pattern is empty, return original string unchanged
+                    if regex_pattern.is_empty() {
+                        EvaluationResult::string(s.clone())
+                    } else {
+                        match Regex::new(regex_pattern) {
+                            Ok(re) => {
+                                EvaluationResult::string(re.replace_all(s, substitution).to_string())
+                            }
+                            Err(e) => return Err(EvaluationError::InvalidRegex(e.to_string())), // Return Err
                         }
-                        Err(e) => return Err(EvaluationError::InvalidRegex(e.to_string())), // Return Err
                     }
                 }
                 // Handle empty cases
