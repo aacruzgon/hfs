@@ -202,6 +202,7 @@ fn get_polymorphic_fields(
         "Dosage",
         "Uri",
         "Url",
+        "Uuid",
         "Canonical",
         "Instant",
         "Markdown",
@@ -285,6 +286,10 @@ fn convert_fhir_field_to_fhirpath_type(value: &EvaluationResult, suffix: &str) -
                 "Url" => {
                     // Convert string to url type
                     EvaluationResult::fhir_string(s.clone(), "url")
+                }
+                "Uuid" => {
+                    // Convert string to uuid type
+                    EvaluationResult::fhir_string(s.clone(), "uuid")
                 }
                 "Canonical" => {
                     // Convert string to canonical type
@@ -561,9 +566,32 @@ pub fn apply_polymorphic_type_operation(
             }
         }
 
-        // All other cases are best handled based on the specific operator
+        // For proper type checking, delegate to resource_type module which has type hierarchy support
         match op {
             "is" => {
+                // First try using the resource_type module for proper type checking with hierarchy support
+                if let Some(ns) = _namespace {
+                    let type_spec = crate::parser::TypeSpecifier::QualifiedIdentifier(
+                        ns.to_string(),
+                        Some(type_name.to_string()),
+                    );
+                    // Create a minimal context for type checking
+                    let context = crate::EvaluationContext::new_empty_with_default_version();
+                    if let Ok(result) = crate::resource_type::is_of_type_with_context(value, &type_spec, &context) {
+                        return Ok(EvaluationResult::boolean(result));
+                    }
+                } else {
+                    let type_spec = crate::parser::TypeSpecifier::QualifiedIdentifier(
+                        type_name.to_string(),
+                        None,
+                    );
+                    let context = crate::EvaluationContext::new_empty_with_default_version();
+                    if let Ok(result) = crate::resource_type::is_of_type_with_context(value, &type_spec, &context) {
+                        return Ok(EvaluationResult::boolean(result));
+                    }
+                }
+                
+                // Fall back to original implementation if resource_type didn't handle it
                 match value {
                     EvaluationResult::Object {
                         map: obj,

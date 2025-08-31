@@ -786,15 +786,27 @@ fn check_type_match_with_cross_namespace(
 ) -> Result<bool, EvaluationError> {
     // Case-insensitive type name comparison
     let type_matches = value_type.eq_ignore_ascii_case(target_type);
+    
+    // Check FHIR type hierarchy - uuid is a subtype of uri
+    let type_hierarchy_matches = if value_namespace.as_deref() == Some("FHIR") && target_namespace.as_deref() == Some("FHIR") {
+        match (value_type.to_lowercase().as_str(), target_type.to_lowercase().as_str()) {
+            ("uuid", "uri") => true,  // uuid is a subtype of uri
+            _ => false,
+        }
+    } else {
+        false
+    };
+    
+    let type_or_hierarchy_matches = type_matches || type_hierarchy_matches;
 
     // If no target namespace is specified, match any namespace
     if target_namespace.is_none() {
-        return Ok(type_matches);
+        return Ok(type_or_hierarchy_matches);
     }
 
     // Special case: FHIR complex types should match their System equivalents
     // For example, FHIR.Quantity should match System.Quantity
-    if type_matches {
+    if type_or_hierarchy_matches {
         match (value_namespace, target_namespace) {
             (Some(value_ns), Some(target_ns)) => {
                 let namespace_matches = value_ns.eq_ignore_ascii_case(target_ns);

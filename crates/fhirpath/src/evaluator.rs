@@ -1827,6 +1827,27 @@ fn evaluate_invocation(
                     map: obj,
                     type_info: _,
                 } => {
+                    // In strict mode, check if this is a typed polymorphic field access
+                    if context.is_strict_mode {
+                        // Check if this field exists directly in the object
+                        let exists_directly = obj.contains_key(name.as_str());
+                        
+                        // Check if it would be found through polymorphic access
+                        let found_polymorphically = if !exists_directly {
+                            crate::polymorphic_access::access_polymorphic_element(obj, name.as_str()).is_some()
+                        } else {
+                            false
+                        };
+                        
+                        // If the field exists directly but could also be a polymorphic field name
+                        if exists_directly && could_be_typed_polymorphic_field(name.as_str(), obj) {
+                            return Err(EvaluationError::SemanticError(format!(
+                                "Cannot access typed polymorphic field '{}' directly in strict mode. Use the base name instead.",
+                                name
+                            )));
+                        }
+                    }
+                    
                     // Try direct access first
                     if let Some(result) = obj.get(name.as_str()) {
                         return Ok(result.clone()); // Direct access succeeded
@@ -8177,4 +8198,50 @@ fn expression_starts_with_resource_identifier(
         }
         _ => false,
     }
+}
+
+/// Checks if a field name could be a typed polymorphic field based on its pattern and the object structure
+fn could_be_typed_polymorphic_field(field_name: &str, obj: &HashMap<String, EvaluationResult>) -> bool {
+    // Extract potential base name
+    let base_name = extract_potential_polymorphic_base(field_name);
+    
+    // If we couldn't extract a base name, it's not a typed polymorphic field
+    if base_name == field_name {
+        return false;
+    }
+    
+    // Check if the base name is a known choice element
+    if !crate::polymorphic_access::is_choice_element(&base_name) {
+        return false;
+    }
+    
+    // Additional check: see if there are other fields with the same base name
+    // This helps confirm it's a polymorphic field
+    for key in obj.keys() {
+        if key != field_name && key.starts_with(&base_name) && key.len() > base_name.len() {
+            if let Some(c) = key.chars().nth(base_name.len()) {
+                if c.is_uppercase() {
+                    // Found another field with the same base, confirming it's polymorphic
+                    return true;
+                }
+            }
+        }
+    }
+    
+    // Even if we don't find other variants, if it matches the pattern and the base is a choice element, it's polymorphic
+    true
+}
+
+/// Extracts the potential base name from what might be a typed polymorphic field
+fn extract_potential_polymorphic_base(field_name: &str) -> String {
+    // Find the position where the type suffix might start (first uppercase after lowercase)
+    let chars: Vec<char> = field_name.chars().collect();
+    
+    for i in 1..chars.len() {
+        if chars[i].is_uppercase() && chars[i-1].is_lowercase() {
+            return field_name[..i].to_string();
+        }
+    }
+    
+    field_name.to_string()
 }
