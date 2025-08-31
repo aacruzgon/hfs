@@ -2,7 +2,7 @@ use crate::parser::{Expression, Invocation, Literal, Term, TypeSpecifier};
 use chrono::{Datelike, Duration, Local, NaiveDate, NaiveDateTime, Timelike};
 use helios_fhir::{FhirResource, FhirVersion};
 use helios_fhirpath_support::{EvaluationError, EvaluationResult, IntoEvaluationResult};
-use regex::Regex;
+use regex::{Regex, RegexBuilder};
 use rust_decimal::Decimal;
 use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
 use std::cell::RefCell;
@@ -4050,7 +4050,9 @@ fn call_function(
             Ok(match (invocation_base, &args[0]) {
                 // Wrap in Ok
                 (EvaluationResult::String(s, _), EvaluationResult::String(regex_pattern, _)) => {
-                    match Regex::new(regex_pattern) {
+                    match RegexBuilder::new(regex_pattern)
+                        .dot_matches_new_line(true)
+                        .build() {
                         Ok(re) => EvaluationResult::boolean(re.is_match(s)),
                         Err(e) => return Err(EvaluationError::InvalidRegex(e.to_string())), // Return Err
                     }
