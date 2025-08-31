@@ -2935,7 +2935,7 @@ fn call_function(
         }
         "not" => {
             // Delegate to the dedicated function in not_function.rs
-            crate::not_function::not_function(invocation_base)
+            crate::not_function::not_function(invocation_base, context)
         }
         "contains" => {
             // Validate argument count

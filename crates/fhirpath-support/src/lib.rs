@@ -1035,6 +1035,17 @@ impl EvaluationResult {
     /// assert_eq!(integer.to_boolean_for_logic().unwrap(), EvaluationResult::Boolean(true, None));
     /// ```
     pub fn to_boolean_for_logic(&self) -> Result<EvaluationResult, EvaluationError> {
+        // Default to R5 behavior for backward compatibility
+        self.to_boolean_for_logic_with_r4_compat(false)
+    }
+    
+    /// Converts this evaluation result to its boolean representation for logical operations
+    /// with R4 compatibility mode for integer handling
+    /// 
+    /// # Arguments
+    /// * `r4_compat` - If true, uses R4 semantics where 0 is false and non-zero is true.
+    ///                 If false, uses R5+ semantics where all integers are truthy.
+    pub fn to_boolean_for_logic_with_r4_compat(&self, r4_compat: bool) -> Result<EvaluationResult, EvaluationError> {
         match self {
             EvaluationResult::Boolean(b, type_info) => {
                 Ok(EvaluationResult::Boolean(*b, type_info.clone()))
@@ -1050,7 +1061,7 @@ impl EvaluationResult {
             EvaluationResult::Collection { items, .. } => {
                 match items.len() {
                     0 => Ok(EvaluationResult::Empty),
-                    1 => items[0].to_boolean_for_logic(), // Recursive conversion
+                    1 => items[0].to_boolean_for_logic_with_r4_compat(r4_compat), // Recursive conversion
                     n => Err(EvaluationError::SingletonEvaluationError(format!(
                         "Boolean logic requires singleton collection, found {} items",
                         n
@@ -1058,12 +1069,22 @@ impl EvaluationResult {
                 }
             }
             EvaluationResult::Integer(i, _) => {
-                // Integers have boolean semantics: 0 is false, non-zero is true
-                Ok(EvaluationResult::boolean(*i != 0))
+                if r4_compat {
+                    // R4/R4B: C-like semantics - 0 is false, non-zero is true
+                    Ok(EvaluationResult::boolean(*i != 0))
+                } else {
+                    // R5/R6: All integers are truthy (even 0)
+                    Ok(EvaluationResult::boolean(true))
+                }
             }
             EvaluationResult::Integer64(i, _) => {
-                // Integer64s have boolean semantics: 0 is false, non-zero is true
-                Ok(EvaluationResult::boolean(*i != 0))
+                if r4_compat {
+                    // R4/R4B: C-like semantics - 0 is false, non-zero is true
+                    Ok(EvaluationResult::boolean(*i != 0))
+                } else {
+                    // R5/R6: All integers are truthy (even 0)
+                    Ok(EvaluationResult::boolean(true))
+                }
             }
             // Per FHIRPath spec section 5.2: other types evaluate to Empty for logical operators
             EvaluationResult::Decimal(_, _)

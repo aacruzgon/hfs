@@ -40,6 +40,7 @@ use helios_fhirpath_support::EvaluationResult;
 /// ```
 pub fn not_function(
     invocation_base: &EvaluationResult,
+    context: &crate::EvaluationContext,
 ) -> Result<EvaluationResult, EvaluationError> {
     // Based on A.not() = (A implies false)
     // FHIRPath Spec 5.1.1 (Boolean evaluation of collections):
@@ -67,7 +68,16 @@ pub fn not_function(
 
     // Convert invocation_base to its 3-valued logic boolean form.
     // This handles singletons (Boolean, Integer, String, etc.) and empty/singleton collections.
-    let base_as_logic_bool = invocation_base.to_boolean_for_logic()?;
+    // Pass R4 compatibility flag based on FHIR version
+    use helios_fhir::FhirVersion;
+    let r4_compat = match context.fhir_version {
+        #[cfg(feature = "R4")]
+        FhirVersion::R4 => true,
+        #[cfg(feature = "R4B")]
+        FhirVersion::R4B => true,
+        _ => false,
+    };
+    let base_as_logic_bool = invocation_base.to_boolean_for_logic_with_r4_compat(r4_compat)?;
 
     // Apply negation based on the 3-valued logic result:
     // not(true) -> false
@@ -84,31 +94,44 @@ pub fn not_function(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::EvaluationContext;
+    use helios_fhir::FhirVersion;
 
     #[test]
     fn test_not_boolean() {
         // Test not() on Boolean values
+        let context = EvaluationContext::new_empty(FhirVersion::R5);
         let true_val = EvaluationResult::boolean(true);
-        let result = not_function(&true_val).unwrap();
+        let result = not_function(&true_val, &context).unwrap();
         assert_eq!(result, EvaluationResult::boolean(false));
 
         let false_val = EvaluationResult::boolean(false);
-        let result = not_function(&false_val).unwrap();
+        let result = not_function(&false_val, &context).unwrap();
         assert_eq!(result, EvaluationResult::boolean(true));
     }
 
     #[test]
     fn test_not_integer() {
         // Test not() on Integer values
-        // According to FHIRPath spec, integers have boolean semantics:
-        // 0 is falsy (so 0.not() = true), non-zero is truthy (so 1.not() = false)
+        // In R5, all integers are truthy (even 0)
+        let context_r5 = EvaluationContext::new_empty(FhirVersion::R5);
         let integer = EvaluationResult::integer(42);
-        let result = not_function(&integer).unwrap();
+        let result = not_function(&integer, &context_r5).unwrap();
         assert_eq!(result, EvaluationResult::boolean(false));
 
         let zero = EvaluationResult::integer(0);
-        let result = not_function(&zero).unwrap();
-        assert_eq!(result, EvaluationResult::boolean(true));
+        let result = not_function(&zero, &context_r5).unwrap();
+        assert_eq!(result, EvaluationResult::boolean(false)); // In R5, 0 is truthy
+        
+        // In R4, integers have C-like semantics: 0 is false, non-zero is true
+        let context_r4 = EvaluationContext::new_empty(FhirVersion::R4);
+        let integer = EvaluationResult::integer(42);
+        let result = not_function(&integer, &context_r4).unwrap();
+        assert_eq!(result, EvaluationResult::boolean(false));
+
+        let zero = EvaluationResult::integer(0);
+        let result = not_function(&zero, &context_r4).unwrap();
+        assert_eq!(result, EvaluationResult::boolean(true)); // In R4, 0 is falsy
     }
 
     #[test]
@@ -116,40 +139,43 @@ mod tests {
         // Test not() on String values
         // According to FHIRPath spec and implementation in to_boolean_for_logic,
         // only specific string values are treated as boolean, others as Empty
+        let context = EvaluationContext::new_empty(FhirVersion::R5);
 
         // "true" is considered Boolean(true)
         let true_string = EvaluationResult::string("true".to_string());
-        let result = not_function(&true_string).unwrap();
+        let result = not_function(&true_string, &context).unwrap();
         assert_eq!(result, EvaluationResult::boolean(false));
 
         // "false" is considered Boolean(false)
         let false_string = EvaluationResult::string("false".to_string());
-        let result = not_function(&false_string).unwrap();
+        let result = not_function(&false_string, &context).unwrap();
         assert_eq!(result, EvaluationResult::boolean(true));
 
         // Other strings evaluate to Empty in boolean logic
         let other_string = EvaluationResult::string("test".to_string());
-        let result = not_function(&other_string).unwrap();
+        let result = not_function(&other_string, &context).unwrap();
         assert_eq!(result, EvaluationResult::Empty);
     }
 
     #[test]
     fn test_not_empty() {
         // Test not() on Empty
+        let context = EvaluationContext::new_empty(FhirVersion::R5);
         let empty = EvaluationResult::Empty;
-        let result = not_function(&empty).unwrap();
+        let result = not_function(&empty, &context).unwrap();
         assert_eq!(result, EvaluationResult::Empty);
     }
 
     #[test]
     fn test_not_singleton_collection() {
         // Test not() on a singleton collection
+        let context = EvaluationContext::new_empty(FhirVersion::R5);
         let collection = EvaluationResult::Collection {
             items: vec![EvaluationResult::boolean(true)],
             has_undefined_order: false,
             type_info: None,
         };
-        let result = not_function(&collection).unwrap();
+        let result = not_function(&collection, &context).unwrap();
         assert_eq!(result, EvaluationResult::boolean(false));
 
         let collection = EvaluationResult::Collection {
@@ -157,19 +183,20 @@ mod tests {
             has_undefined_order: false,
             type_info: None,
         };
-        let result = not_function(&collection).unwrap();
+        let result = not_function(&collection, &context).unwrap();
         assert_eq!(result, EvaluationResult::boolean(true));
     }
 
     #[test]
     fn test_not_empty_collection() {
         // Test not() on an empty collection
+        let context = EvaluationContext::new_empty(FhirVersion::R5);
         let collection = EvaluationResult::Collection {
             items: vec![],
             has_undefined_order: false,
             type_info: None,
         };
-        let result = not_function(&collection).unwrap();
+        let result = not_function(&collection, &context).unwrap();
         assert_eq!(result, EvaluationResult::Empty);
     }
 
@@ -177,6 +204,7 @@ mod tests {
     fn test_not_multi_item_collection() {
         // Test not() on a multi-item collection
         // Should produce an error according to the implementation
+        let context = EvaluationContext::new_empty(FhirVersion::R5);
         let collection = EvaluationResult::Collection {
             items: vec![
                 EvaluationResult::boolean(true),
@@ -185,7 +213,7 @@ mod tests {
             has_undefined_order: false,
             type_info: None,
         };
-        let result = not_function(&collection);
+        let result = not_function(&collection, &context);
         assert!(result.is_err());
         if let Err(EvaluationError::TypeError(msg)) = result {
             assert!(msg.contains("not() on a collection with 2 items is an error"));
