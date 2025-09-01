@@ -577,7 +577,9 @@ pub fn apply_polymorphic_type_operation(
                     );
                     // Create a minimal context for type checking
                     let context = crate::EvaluationContext::new_empty_with_default_version();
-                    if let Ok(result) = crate::resource_type::is_of_type_with_context(value, &type_spec, &context) {
+                    if let Ok(result) =
+                        crate::resource_type::is_of_type_with_context(value, &type_spec, &context)
+                    {
                         return Ok(EvaluationResult::boolean(result));
                     }
                 } else {
@@ -586,11 +588,13 @@ pub fn apply_polymorphic_type_operation(
                         None,
                     );
                     let context = crate::EvaluationContext::new_empty_with_default_version();
-                    if let Ok(result) = crate::resource_type::is_of_type_with_context(value, &type_spec, &context) {
+                    if let Ok(result) =
+                        crate::resource_type::is_of_type_with_context(value, &type_spec, &context)
+                    {
                         return Ok(EvaluationResult::boolean(result));
                     }
                 }
-                
+
                 // Fall back to original implementation if resource_type didn't handle it
                 match value {
                     EvaluationResult::Object {

@@ -963,12 +963,13 @@ pub fn parser() -> impl Parser<char, Expression, Error = Simple<char>> + Clone {
             just(">").to(">"),
         ))
         .padded();
-        let inequality = union
-            .clone()
-            .then(op_ineq.then(union).repeated())
-            .foldl(|left, (op_str, right)| {
-                Expression::Inequality(Box::new(left), op_str.to_string(), Box::new(right))
-            });
+        let inequality =
+            union
+                .clone()
+                .then(op_ineq.then(union).repeated())
+                .foldl(|left, (op_str, right)| {
+                    Expression::Inequality(Box::new(left), op_str.to_string(), Box::new(right))
+                });
 
         // Level 5: Type (is, as) - Left associative
         let op_type = choice((text::keyword("is").to("is"), text::keyword("as").to("as"))).padded();

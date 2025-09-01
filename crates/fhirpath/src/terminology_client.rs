@@ -5,7 +5,7 @@
 //! validate-code, subsumes, and translate.
 
 use reqwest::Client;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashMap;
 
 use crate::error::{FhirPathError, FhirPathResult};
@@ -63,10 +63,10 @@ impl TerminologyClient {
         params: Option<HashMap<String, String>>,
     ) -> FhirPathResult<Value> {
         let url = format!("{}/ValueSet/$expand", self.base_url);
-        
+
         // Build query parameters
         let mut query_params = vec![("url".to_string(), value_set_url.to_string())];
-        
+
         if let Some(params) = params {
             for (key, value) in params {
                 query_params.push((key.clone(), value));
@@ -76,7 +76,12 @@ impl TerminologyClient {
         let response = self
             .client
             .get(&url)
-            .query(&query_params.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect::<Vec<_>>())
+            .query(
+                &query_params
+                    .iter()
+                    .map(|(k, v)| (k.as_str(), v.as_str()))
+                    .collect::<Vec<_>>(),
+            )
             .header("Accept", "application/fhir+json")
             .send()
             .await
@@ -111,7 +116,7 @@ impl TerminologyClient {
         params: Option<HashMap<String, String>>,
     ) -> FhirPathResult<Value> {
         let url = format!("{}/CodeSystem/$lookup", self.base_url);
-        
+
         let mut body = json!({
             "resourceType": "Parameters",
             "parameter": [
@@ -181,13 +186,11 @@ impl TerminologyClient {
         params: Option<HashMap<String, String>>,
     ) -> FhirPathResult<Value> {
         let url = format!("{}/ValueSet/$validate-code", self.base_url);
-        
-        let mut parameters = vec![
-            json!({
-                "name": "url",
-                "valueUri": value_set_url
-            })
-        ];
+
+        let mut parameters = vec![json!({
+            "name": "url",
+            "valueUri": value_set_url
+        })];
 
         // If we have a system, use coding parameter, otherwise use code parameter
         if let Some(system) = system {
@@ -236,7 +239,6 @@ impl TerminologyClient {
             "parameter": parameters
         });
 
-
         let response = self
             .client
             .post(&url)
@@ -252,8 +254,7 @@ impl TerminologyClient {
                 .json()
                 .await
                 .map_err(|e| FhirPathError::ParseError(e.to_string()))?;
-            
-            
+
             Ok(result)
         } else {
             let status = response.status();
@@ -281,7 +282,7 @@ impl TerminologyClient {
         params: Option<HashMap<String, String>>,
     ) -> FhirPathResult<Value> {
         let url = format!("{}/CodeSystem/$validate-code", self.base_url);
-        
+
         let mut parameters = vec![
             json!({
                 "name": "url",
@@ -290,7 +291,7 @@ impl TerminologyClient {
             json!({
                 "name": "code",
                 "valueCode": code
-            })
+            }),
         ];
 
         if let Some(display) = display {
@@ -356,7 +357,7 @@ impl TerminologyClient {
         params: Option<HashMap<String, String>>,
     ) -> FhirPathResult<Value> {
         let url = format!("{}/CodeSystem/$subsumes", self.base_url);
-        
+
         let mut parameters = vec![
             json!({
                 "name": "system",
@@ -369,7 +370,7 @@ impl TerminologyClient {
             json!({
                 "name": "codeB",
                 "valueCode": code_b
-            })
+            }),
         ];
 
         // Add additional parameters if provided
@@ -430,14 +431,12 @@ impl TerminologyClient {
         params: Option<HashMap<String, String>>,
     ) -> FhirPathResult<Value> {
         let url = format!("{}/ConceptMap/$translate", self.base_url);
-        
-        let mut parameters = vec![
-            json!({
-                "name": "url",
-                "valueUri": concept_map_url
-            })
-        ];
-        
+
+        let mut parameters = vec![json!({
+            "name": "url",
+            "valueUri": concept_map_url
+        })];
+
         // Create a coding parameter
         if !system.is_empty() {
             parameters.push(json!({
@@ -452,10 +451,12 @@ impl TerminologyClient {
             // For FHIR ConceptMaps, certain codes have known systems
             let inferred_system = match code {
                 "home" | "work" | "temp" | "old" | "billing" => "http://hl7.org/fhir/address-use",
-                "male" | "female" | "other" | "unknown" => "http://hl7.org/fhir/administrative-gender",
+                "male" | "female" | "other" | "unknown" => {
+                    "http://hl7.org/fhir/administrative-gender"
+                }
                 _ => "",
             };
-            
+
             if !inferred_system.is_empty() {
                 parameters.push(json!({
                     "name": "coding",
@@ -467,7 +468,7 @@ impl TerminologyClient {
             } else {
                 // Fallback to just code
                 parameters.push(json!({
-                    "name": "code", 
+                    "name": "code",
                     "valueCode": code
                 }));
             }
@@ -495,7 +496,6 @@ impl TerminologyClient {
             "parameter": parameters
         });
 
-
         let response = self
             .client
             .post(&url)
@@ -511,8 +511,7 @@ impl TerminologyClient {
                 .json()
                 .await
                 .map_err(|e| FhirPathError::ParseError(e.to_string()))?;
-            
-            
+
             Ok(result)
         } else {
             let status = response.status();
@@ -531,25 +530,16 @@ mod tests {
 
     #[test]
     fn test_terminology_client_creation() {
-        let client = TerminologyClient::new(
-            "https://tx.fhir.org/r4/".to_string(),
-            FhirVersion::R4,
-        );
+        let client = TerminologyClient::new("https://tx.fhir.org/r4/".to_string(), FhirVersion::R4);
         assert_eq!(client.base_url, "https://tx.fhir.org/r4");
     }
 
     #[test]
     fn test_base_url_normalization() {
-        let client = TerminologyClient::new(
-            "https://tx.fhir.org/r4/".to_string(),
-            FhirVersion::R4,
-        );
+        let client = TerminologyClient::new("https://tx.fhir.org/r4/".to_string(), FhirVersion::R4);
         assert_eq!(client.base_url, "https://tx.fhir.org/r4");
-        
-        let client2 = TerminologyClient::new(
-            "https://tx.fhir.org/r4".to_string(),
-            FhirVersion::R4,
-        );
+
+        let client2 = TerminologyClient::new("https://tx.fhir.org/r4".to_string(), FhirVersion::R4);
         assert_eq!(client2.base_url, "https://tx.fhir.org/r4");
     }
 }

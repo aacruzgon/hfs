@@ -2403,7 +2403,7 @@ fn generate_fhirpath_struct_impl(
 
         // Check if this field is flattened
         let is_field_flattened = is_flattened(field);
-        
+
         // Check if this field is a FHIR primitive type that needs special handling
         let fhir_type_name = extract_fhir_primitive_type_name(field_ty);
         // Generate code to handle the field based on whether it's Option
@@ -2676,7 +2676,7 @@ fn generate_fhirpath_enum_impl(
                     // For choice type enums that will be flattened, we need to return an object
                     // with the polymorphic field name as the key
                     let is_choice_type_enum = name.to_string().contains("Value");
-                    
+
                     if is_choice_type_enum {
                         quote! {
                             Self::#variant_name(value) => {
@@ -2710,7 +2710,7 @@ fn generate_fhirpath_enum_impl(
                                     },
                                     _ => result, // For other types, return as-is
                                 };
-                                
+
                                 // Wrap the result in an object with the field name as the key
                                 let mut map = std::collections::HashMap::new();
                                 map.insert(#fhir_field_name.to_string(), result);

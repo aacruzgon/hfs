@@ -419,6 +419,7 @@ mod tests {
             cors_origins: "http://example.com".to_string(),
             cors_methods: "GET,POST".to_string(),
             cors_headers: "Content-Type".to_string(),
+            terminology_server: None,
         };
 
         let config: ServerConfig = args.into();

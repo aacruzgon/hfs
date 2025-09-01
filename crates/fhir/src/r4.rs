@@ -7786,9 +7786,8 @@ pub struct MedicationKnowledgeAdministrationGuidelines {
     #[fhir_serde(flatten)]
     pub indication: Option<MedicationKnowledgeAdministrationGuidelinesIndication>,
     #[fhir_serde(rename = "patientCharacteristics")]
-    pub patient_characteristics: Option<
-        Vec<MedicationKnowledgeAdministrationGuidelinesPatientCharacteristics>,
-    >,
+    pub patient_characteristics:
+        Option<Vec<MedicationKnowledgeAdministrationGuidelinesPatientCharacteristics>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, FhirSerde, FhirPath, Default)]
@@ -8222,9 +8221,8 @@ pub struct MedicinalProduct {
     #[fhir_serde(rename = "crossReference")]
     pub cross_reference: Option<Vec<Identifier>>,
     #[fhir_serde(rename = "manufacturingBusinessOperation")]
-    pub manufacturing_business_operation: Option<
-        Vec<MedicinalProductManufacturingBusinessOperation>,
-    >,
+    pub manufacturing_business_operation:
+        Option<Vec<MedicinalProductManufacturingBusinessOperation>>,
     #[fhir_serde(rename = "specialDesignation")]
     pub special_designation: Option<Vec<MedicinalProductSpecialDesignation>>,
 }
@@ -8279,9 +8277,8 @@ pub struct MedicinalProductAuthorization {
     #[fhir_serde(rename = "legalBasis")]
     pub legal_basis: Option<CodeableConcept>,
     #[fhir_serde(rename = "jurisdictionalAuthorization")]
-    pub jurisdictional_authorization: Option<
-        Vec<MedicinalProductAuthorizationJurisdictionalAuthorization>,
-    >,
+    pub jurisdictional_authorization:
+        Option<Vec<MedicinalProductAuthorizationJurisdictionalAuthorization>>,
     pub holder: Option<Reference>,
     pub regulator: Option<Reference>,
     pub procedure: Option<MedicinalProductAuthorizationProcedure>,
@@ -8463,9 +8460,8 @@ pub struct MedicinalProductIngredientSpecifiedSubstanceStrength {
     pub measurement_point: Option<String>,
     pub country: Option<Vec<CodeableConcept>>,
     #[fhir_serde(rename = "referenceStrength")]
-    pub reference_strength: Option<
-        Vec<MedicinalProductIngredientSpecifiedSubstanceStrengthReferenceStrength>,
-    >,
+    pub reference_strength:
+        Option<Vec<MedicinalProductIngredientSpecifiedSubstanceStrengthReferenceStrength>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, FhirSerde, FhirPath, Default)]
@@ -8658,9 +8654,8 @@ pub struct MedicinalProductPharmaceuticalRouteOfAdministration {
     #[fhir_serde(rename = "maxTreatmentPeriod")]
     pub max_treatment_period: Option<Duration>,
     #[fhir_serde(rename = "targetSpecies")]
-    pub target_species: Option<
-        Vec<MedicinalProductPharmaceuticalRouteOfAdministrationTargetSpecies>,
-    >,
+    pub target_species:
+        Option<Vec<MedicinalProductPharmaceuticalRouteOfAdministrationTargetSpecies>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, FhirSerde, FhirPath, Default)]
@@ -12681,13 +12676,11 @@ pub struct SubstancePolymerRepeatRepeatUnit {
     pub repeat_unit: Option<String>,
     pub amount: Option<SubstanceAmount>,
     #[fhir_serde(rename = "degreeOfPolymerisation")]
-    pub degree_of_polymerisation: Option<
-        Vec<SubstancePolymerRepeatRepeatUnitDegreeOfPolymerisation>,
-    >,
+    pub degree_of_polymerisation:
+        Option<Vec<SubstancePolymerRepeatRepeatUnitDegreeOfPolymerisation>>,
     #[fhir_serde(rename = "structuralRepresentation")]
-    pub structural_representation: Option<
-        Vec<SubstancePolymerRepeatRepeatUnitStructuralRepresentation>,
-    >,
+    pub structural_representation:
+        Option<Vec<SubstancePolymerRepeatRepeatUnitStructuralRepresentation>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, FhirSerde, FhirPath, Default)]
@@ -16949,7 +16942,8 @@ pub mod type_hierarchy {
 
     /// Gets all subtypes of a given parent type
     pub fn get_subtypes(parent: &str) -> Vec<&'static str> {
-        get_type_parents().iter()
+        get_type_parents()
+            .iter()
             .filter_map(|(child, p)| {
                 if p.eq_ignore_ascii_case(parent) {
                     Some(*child)
@@ -16960,7 +16954,6 @@ pub mod type_hierarchy {
             .collect()
     }
 }
-
 
 // --- Complex Types Provider ---
 /// Marker struct for complex type information

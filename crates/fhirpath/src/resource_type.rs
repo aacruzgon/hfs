@@ -817,7 +817,7 @@ fn check_type_match(
             }
         }
     }
-    
+
     // Special handling for FHIR primitive types matching unqualified System types in is() operations
     if target_namespace.is_none() {
         if let Some(ns) = value_namespace {
@@ -851,7 +851,7 @@ fn check_type_match(
                     }
                     return Ok(true);
                 }
-                
+
                 // Other FHIR primitive types should match their unqualified equivalents
                 let direct_matches = [
                     ("boolean", "boolean"),
@@ -861,16 +861,18 @@ fn check_type_match(
                     ("time", "time"),
                     ("instant", "datetime"), // instant is a special datetime
                 ];
-                
+
                 for (fhir_type, system_type) in &direct_matches {
-                    if value_type.eq_ignore_ascii_case(fhir_type) && target_type.eq_ignore_ascii_case(system_type) {
+                    if value_type.eq_ignore_ascii_case(fhir_type)
+                        && target_type.eq_ignore_ascii_case(system_type)
+                    {
                         return Ok(true);
                     }
                 }
             }
         }
     }
-    
+
     // For Quantity types and their subtypes, we need to allow cross-namespace matching
     // because FHIR.Age should match System.Quantity
     let allow_cross_namespace = if target_type.eq_ignore_ascii_case("quantity") {
@@ -918,7 +920,7 @@ fn check_type_match(
     } else {
         false
     };
-    
+
     check_type_match_with_cross_namespace(
         value_namespace,
         value_type,
@@ -938,11 +940,12 @@ fn check_type_match_with_cross_namespace(
 ) -> Result<bool, EvaluationError> {
     // Case-insensitive type name comparison
     let type_matches = value_type.eq_ignore_ascii_case(target_type);
-    
+
     // Check FHIR type hierarchy using generated hierarchy
-    let type_hierarchy_matches = if allow_cross_namespace || 
-        (value_namespace.as_deref() == target_namespace.as_deref() && 
-         value_namespace.as_deref() == Some("FHIR")) {
+    let type_hierarchy_matches = if allow_cross_namespace
+        || (value_namespace.as_deref() == target_namespace.as_deref()
+            && value_namespace.as_deref() == Some("FHIR"))
+    {
         #[cfg(feature = "R4")]
         if helios_fhir::r4::type_hierarchy::is_subtype_of(value_type, target_type) {
             return Ok(true);
@@ -963,7 +966,7 @@ fn check_type_match_with_cross_namespace(
     } else {
         false
     };
-    
+
     let type_or_hierarchy_matches = type_matches || type_hierarchy_matches;
 
     // If no target namespace is specified, match any namespace
@@ -988,7 +991,7 @@ fn check_type_match_with_cross_namespace(
                     value_type_lower.as_str(),
                     "quantity" | "date" | "datetime" | "time"
                 );
-                
+
                 // Also check if it's a Quantity subtype (Age, Distance, Duration, Count)
                 let is_quantity_subtype = matches!(
                     value_type_lower.as_str(),
@@ -1021,7 +1024,8 @@ fn check_type_match_with_cross_namespace(
                             | "unsignedint"
                     );
 
-                let is_cross_matchable_type = is_complex_type || is_primitive_type || is_quantity_subtype;
+                let is_cross_matchable_type =
+                    is_complex_type || is_primitive_type || is_quantity_subtype;
 
                 let cross_namespace_match = is_cross_matchable_type
                     && ((value_ns.eq_ignore_ascii_case("FHIR")
@@ -1213,8 +1217,7 @@ pub fn extract_namespace_and_type_with_context(
                     "The type '{}' is unknown",
                     clean_name
                 )))
-            }
-            else if is_likely_system_type {
+            } else if is_likely_system_type {
                 // Capitalized types are likely System types
                 Ok((Some("System".to_string()), clean_name))
             } else {
@@ -1230,14 +1233,17 @@ fn is_primitive_type(type_name: &str) -> bool {
     // Known System primitive types
     let system_primitives = [
         "Boolean", "String", "Integer", "Decimal", "Date", "DateTime", "Time", "Quantity",
-        "boolean", "string", "integer", "decimal", "date", "datetime", "time", "quantity"
+        "boolean", "string", "integer", "decimal", "date", "datetime", "time", "quantity",
     ];
-    
+
     // Check against System primitives
-    if system_primitives.iter().any(|&t| t.eq_ignore_ascii_case(type_name)) {
+    if system_primitives
+        .iter()
+        .any(|&t| t.eq_ignore_ascii_case(type_name))
+    {
         return true;
     }
-    
+
     // Check against FHIR primitives using the existing function
     is_fhir_primitive_type(type_name)
 }
@@ -1248,12 +1254,12 @@ fn is_valid_type_name(type_name: &str, fhir_version: &FhirVersion) -> bool {
     if is_primitive_type(type_name) {
         return true;
     }
-    
+
     // Check if it's a valid resource type
     if is_resource_type_for_version(type_name, fhir_version) {
         return true;
     }
-    
+
     // Check if it's a valid complex type
     is_complex_type_for_version(type_name, fhir_version)
 }
@@ -1395,14 +1401,13 @@ pub fn extract_namespace_and_type_without_context(
             }
             // For non-primitive types, make an educated guess
             // But reject obviously invalid types (lowercase non-primitives that look like typos)
-            else if !is_likely_system_type && clean_name.chars().any(|c| c.is_digit(10)) {
+            else if !is_likely_system_type && clean_name.chars().any(|c| c.is_ascii_digit()) {
                 // Types with digits that aren't primitives are likely invalid (e.g., "string1")
                 Err(EvaluationError::InvalidTypeSpecifier(format!(
                     "The type '{}' is unknown",
                     clean_name
                 )))
-            }
-            else if is_likely_system_type {
+            } else if is_likely_system_type {
                 // Capitalized types are likely System types
                 Ok((Some("System".to_string()), clean_name))
             } else {

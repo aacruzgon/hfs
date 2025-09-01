@@ -1,7 +1,9 @@
 use crate::parser::{Expression, Invocation, Literal, Term, TypeSpecifier};
 use chrono::{Datelike, Duration, Local, NaiveDate, NaiveDateTime, Timelike};
 use helios_fhir::{FhirResource, FhirVersion};
-use helios_fhirpath_support::{EvaluationError, EvaluationResult, IntoEvaluationResult, TypeInfoResult};
+use helios_fhirpath_support::{
+    EvaluationError, EvaluationResult, IntoEvaluationResult, TypeInfoResult,
+};
 use regex::{Regex, RegexBuilder};
 use rust_decimal::Decimal;
 use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
@@ -537,11 +539,16 @@ impl EvaluationContext {
                 #[cfg(not(any(feature = "R4", feature = "R4B", feature = "R5", feature = "R6")))]
                 _ => "https://tx.fhir.org/r4/", // Fallback
             };
-            
+
             // TODO: Add proper logging when tracing is integrated
-            eprintln!("WARNING: Using default terminology server '{}' - DO NOT use in production!", default_url);
-            eprintln!("         Set FHIRPATH_TERMINOLOGY_SERVER environment variable or use --terminology-server option");
-            
+            eprintln!(
+                "WARNING: Using default terminology server '{}' - DO NOT use in production!",
+                default_url
+            );
+            eprintln!(
+                "         Set FHIRPATH_TERMINOLOGY_SERVER environment variable or use --terminology-server option"
+            );
+
             default_url.to_string()
         }
     }
@@ -1567,14 +1574,14 @@ fn evaluate_term(
                 // Return %terminologies object for terminology operations
                 use crate::terminology_functions::TerminologyFunctions;
                 let _terminology = TerminologyFunctions::new(context);
-                
+
                 // Create a special object that represents the terminology functions
                 let mut map = HashMap::new();
                 map.insert(
                     "_terminology_functions".to_string(),
                     EvaluationResult::string("true".to_string()),
                 );
-                
+
                 Ok(EvaluationResult::Object {
                     map,
                     type_info: Some(TypeInfoResult::new("System", "TerminologyFunctions")),
@@ -1914,14 +1921,18 @@ fn evaluate_invocation(
                     if context.is_strict_mode {
                         // Check if this field exists directly in the object
                         let exists_directly = obj.contains_key(name.as_str());
-                        
+
                         // Check if it would be found through polymorphic access
                         let _found_polymorphically = if !exists_directly {
-                            crate::polymorphic_access::access_polymorphic_element(obj, name.as_str()).is_some()
+                            crate::polymorphic_access::access_polymorphic_element(
+                                obj,
+                                name.as_str(),
+                            )
+                            .is_some()
                         } else {
                             false
                         };
-                        
+
                         // If the field exists directly but could also be a polymorphic field name
                         if exists_directly && could_be_typed_polymorphic_field(name.as_str(), obj) {
                             return Err(EvaluationError::SemanticError(format!(
@@ -1930,7 +1941,7 @@ fn evaluate_invocation(
                             )));
                         }
                     }
-                    
+
                     // Try direct access first
                     if let Some(result) = obj.get(name.as_str()) {
                         return Ok(result.clone()); // Direct access succeeded
@@ -2149,7 +2160,11 @@ fn evaluate_invocation(
 
                     if let Some(type_spec) = type_spec_opt {
                         // Use the resource_type module to handle ofType with context
-                        crate::resource_type::of_type_with_context(invocation_base, &type_spec, context)
+                        crate::resource_type::of_type_with_context(
+                            invocation_base,
+                            &type_spec,
+                            context,
+                        )
                     } else {
                         Err(EvaluationError::InvalidArgument(format!(
                             "Invalid type specifier argument for ofType: {:?}",
@@ -2468,86 +2483,117 @@ fn evaluate_invocation(
                 _ => {
                     // Check if this is a %terminologies function call
                     if let EvaluationResult::Object { type_info, .. } = invocation_base {
-                        if type_info.as_ref().map(|t| t.name.as_str()) == Some("TerminologyFunctions") {
+                        if type_info.as_ref().map(|t| t.name.as_str())
+                            == Some("TerminologyFunctions")
+                        {
                             // This is a method call on %terminologies
                             use crate::terminology_functions::TerminologyFunctions;
                             let terminology = TerminologyFunctions::new(context);
-                            
+
                             // Evaluate arguments
                             let mut evaluated_args = Vec::with_capacity(args_exprs.len());
                             for arg_expr in args_exprs {
-                                evaluated_args.push(evaluate(arg_expr, context, current_item_for_args)?);
+                                evaluated_args.push(evaluate(
+                                    arg_expr,
+                                    context,
+                                    current_item_for_args,
+                                )?);
                             }
-                            
+
                             // Call the appropriate terminology function
                             match name.as_str() {
                                 "expand" => {
                                     if evaluated_args.is_empty() || evaluated_args.len() > 2 {
-                                        return Err(EvaluationError::InvalidArity(
-                                            format!("expand() requires 1 or 2 arguments, got {}", evaluated_args.len())
-                                        ));
+                                        return Err(EvaluationError::InvalidArity(format!(
+                                            "expand() requires 1 or 2 arguments, got {}",
+                                            evaluated_args.len()
+                                        )));
                                     }
                                     let params = evaluated_args.get(1);
                                     terminology.expand(&evaluated_args[0], params)
                                 }
                                 "lookup" => {
                                     if evaluated_args.is_empty() || evaluated_args.len() > 2 {
-                                        return Err(EvaluationError::InvalidArity(
-                                            format!("lookup() requires 1 or 2 arguments, got {}", evaluated_args.len())
-                                        ));
+                                        return Err(EvaluationError::InvalidArity(format!(
+                                            "lookup() requires 1 or 2 arguments, got {}",
+                                            evaluated_args.len()
+                                        )));
                                     }
                                     let params = evaluated_args.get(1);
                                     terminology.lookup(&evaluated_args[0], params)
                                 }
                                 "validateVS" => {
                                     if evaluated_args.len() < 2 || evaluated_args.len() > 3 {
-                                        return Err(EvaluationError::InvalidArity(
-                                            format!("validateVS() requires 2 or 3 arguments, got {}", evaluated_args.len())
-                                        ));
+                                        return Err(EvaluationError::InvalidArity(format!(
+                                            "validateVS() requires 2 or 3 arguments, got {}",
+                                            evaluated_args.len()
+                                        )));
                                     }
                                     let params = evaluated_args.get(2);
-                                    terminology.validate_vs(&evaluated_args[0], &evaluated_args[1], params)
+                                    terminology.validate_vs(
+                                        &evaluated_args[0],
+                                        &evaluated_args[1],
+                                        params,
+                                    )
                                 }
                                 "validateCS" => {
                                     if evaluated_args.len() < 2 || evaluated_args.len() > 3 {
-                                        return Err(EvaluationError::InvalidArity(
-                                            format!("validateCS() requires 2 or 3 arguments, got {}", evaluated_args.len())
-                                        ));
+                                        return Err(EvaluationError::InvalidArity(format!(
+                                            "validateCS() requires 2 or 3 arguments, got {}",
+                                            evaluated_args.len()
+                                        )));
                                     }
                                     let params = evaluated_args.get(2);
-                                    terminology.validate_cs(&evaluated_args[0], &evaluated_args[1], params)
+                                    terminology.validate_cs(
+                                        &evaluated_args[0],
+                                        &evaluated_args[1],
+                                        params,
+                                    )
                                 }
                                 "subsumes" => {
                                     if evaluated_args.len() < 3 || evaluated_args.len() > 4 {
-                                        return Err(EvaluationError::InvalidArity(
-                                            format!("subsumes() requires 3 or 4 arguments, got {}", evaluated_args.len())
-                                        ));
+                                        return Err(EvaluationError::InvalidArity(format!(
+                                            "subsumes() requires 3 or 4 arguments, got {}",
+                                            evaluated_args.len()
+                                        )));
                                     }
                                     let params = evaluated_args.get(3);
-                                    terminology.subsumes(&evaluated_args[0], &evaluated_args[1], &evaluated_args[2], params)
+                                    terminology.subsumes(
+                                        &evaluated_args[0],
+                                        &evaluated_args[1],
+                                        &evaluated_args[2],
+                                        params,
+                                    )
                                 }
                                 "translate" => {
                                     if evaluated_args.len() < 2 || evaluated_args.len() > 3 {
-                                        return Err(EvaluationError::InvalidArity(
-                                            format!("translate() requires 2 or 3 arguments, got {}", evaluated_args.len())
-                                        ));
+                                        return Err(EvaluationError::InvalidArity(format!(
+                                            "translate() requires 2 or 3 arguments, got {}",
+                                            evaluated_args.len()
+                                        )));
                                     }
                                     let params = evaluated_args.get(2);
-                                    terminology.translate(&evaluated_args[0], &evaluated_args[1], params)
+                                    terminology.translate(
+                                        &evaluated_args[0],
+                                        &evaluated_args[1],
+                                        params,
+                                    )
                                 }
-                                _ => {
-                                    return Err(EvaluationError::InvalidOperation(format!(
-                                        "Unknown terminology function: {}",
-                                        name
-                                    )));
-                                }
+                                _ => Err(EvaluationError::InvalidOperation(format!(
+                                    "Unknown terminology function: {}",
+                                    name
+                                ))),
                             }
                         } else {
                             // Default: Evaluate all standard function arguments first (without $this context), then call function
                             let mut evaluated_args = Vec::with_capacity(args_exprs.len());
                             for arg_expr in args_exprs {
                                 // Use current_item_for_args when evaluating function arguments
-                                evaluated_args.push(evaluate(arg_expr, context, current_item_for_args)?);
+                                evaluated_args.push(evaluate(
+                                    arg_expr,
+                                    context,
+                                    current_item_for_args,
+                                )?);
                             }
                             // Call with updated signature (name, base, args)
                             call_function(name, invocation_base, &evaluated_args, context) // Pass context
@@ -2557,7 +2603,11 @@ fn evaluate_invocation(
                         let mut evaluated_args = Vec::with_capacity(args_exprs.len());
                         for arg_expr in args_exprs {
                             // Use current_item_for_args when evaluating function arguments
-                            evaluated_args.push(evaluate(arg_expr, context, current_item_for_args)?);
+                            evaluated_args.push(evaluate(
+                                arg_expr,
+                                context,
+                                current_item_for_args,
+                            )?);
                         }
                         // Call with updated signature (name, base, args)
                         call_function(name, invocation_base, &evaluated_args, context) // Pass context
@@ -2651,7 +2701,7 @@ fn evaluate_where(
     for (index, item) in items_to_filter.iter().enumerate() {
         // Set the current index for $index variable
         child_context.current_index = Some(index);
-        
+
         // Evaluate criteria with child context
         // Variables defined inside the criteria are scoped to this where
         let criteria_result = evaluate(criteria_expr, &child_context, Some(item))?;
@@ -2734,7 +2784,7 @@ fn evaluate_where_with_context(
     for (index, item) in items_to_filter.iter().enumerate() {
         // Set the current index for $index variable
         child_context.current_index = Some(index);
-        
+
         // Evaluate criteria with child context
         let (criteria_result, _updated_child) =
             evaluate_with_context(criteria_expr, child_context.clone(), Some(item))?;
@@ -2812,7 +2862,7 @@ fn evaluate_select(
         for (index, item) in items_to_project.iter().enumerate() {
             // Set the current index for $index variable
             child_context.current_index = Some(index);
-            
+
             // Evaluate projection with child context
             // Variables defined inside the projection are scoped to this select
             let projection_result = evaluate(projection_expr, &child_context, Some(item))?;
@@ -4258,7 +4308,8 @@ fn call_function(
                 (EvaluationResult::String(s, _), EvaluationResult::String(regex_pattern, _)) => {
                     match RegexBuilder::new(regex_pattern)
                         .dot_matches_new_line(true)
-                        .build() {
+                        .build()
+                    {
                         Ok(re) => EvaluationResult::boolean(re.is_match(s)),
                         Err(e) => return Err(EvaluationError::InvalidRegex(e.to_string())), // Return Err
                     }
@@ -4332,9 +4383,9 @@ fn call_function(
                         EvaluationResult::string(s.clone())
                     } else {
                         match Regex::new(regex_pattern) {
-                            Ok(re) => {
-                                EvaluationResult::string(re.replace_all(s, substitution).to_string())
-                            }
+                            Ok(re) => EvaluationResult::string(
+                                re.replace_all(s, substitution).to_string(),
+                            ),
                             Err(e) => return Err(EvaluationError::InvalidRegex(e.to_string())), // Return Err
                         }
                     }
@@ -4412,7 +4463,7 @@ fn call_function(
                     "Function 'memberOf' expects 1 argument (ValueSet URL)".to_string(),
                 ));
             }
-            
+
             // Get the ValueSet URL
             let value_set_url = match &args[0] {
                 EvaluationResult::String(url, _) => url,
@@ -4422,7 +4473,7 @@ fn call_function(
                     ));
                 }
             };
-            
+
             // Use the member_of function from terminology_functions
             crate::terminology_functions::member_of(invocation_base, value_set_url, context)
         }
@@ -7427,11 +7478,12 @@ fn apply_type_operation(
 
     if (op == "is" || op == "as") && is_fhir_type_for_poly {
         // First validate that the type is known - extract namespace and type will validate
-        let validation_result = crate::resource_type::extract_namespace_and_type_with_context(type_spec, context);
+        let validation_result =
+            crate::resource_type::extract_namespace_and_type_with_context(type_spec, context);
         if let Err(e) = validation_result {
             return Err(e);
         }
-        
+
         // Handle with polymorphic_access
         let poly_result = crate::polymorphic_access::apply_polymorphic_type_operation(
             actual_value,
@@ -7461,7 +7513,8 @@ fn apply_type_operation(
         }
         "as" => {
             // This path is for System types.
-            let cast_result = crate::resource_type::as_type_with_context(actual_value, type_spec, context)?;
+            let cast_result =
+                crate::resource_type::as_type_with_context(actual_value, type_spec, context)?;
             if context.is_strict_mode
                 && actual_value != &EvaluationResult::Empty
                 && cast_result == EvaluationResult::Empty
@@ -8412,20 +8465,23 @@ fn expression_starts_with_resource_identifier(
 }
 
 /// Checks if a field name could be a typed polymorphic field based on its pattern and the object structure
-fn could_be_typed_polymorphic_field(field_name: &str, obj: &HashMap<String, EvaluationResult>) -> bool {
+fn could_be_typed_polymorphic_field(
+    field_name: &str,
+    obj: &HashMap<String, EvaluationResult>,
+) -> bool {
     // Extract potential base name
     let base_name = extract_potential_polymorphic_base(field_name);
-    
+
     // If we couldn't extract a base name, it's not a typed polymorphic field
     if base_name == field_name {
         return false;
     }
-    
+
     // Check if the base name is a known choice element
     if !crate::polymorphic_access::is_choice_element(&base_name) {
         return false;
     }
-    
+
     // Additional check: see if there are other fields with the same base name
     // This helps confirm it's a polymorphic field
     for key in obj.keys() {
@@ -8438,7 +8494,7 @@ fn could_be_typed_polymorphic_field(field_name: &str, obj: &HashMap<String, Eval
             }
         }
     }
-    
+
     // Even if we don't find other variants, if it matches the pattern and the base is a choice element, it's polymorphic
     true
 }
@@ -8447,12 +8503,12 @@ fn could_be_typed_polymorphic_field(field_name: &str, obj: &HashMap<String, Eval
 fn extract_potential_polymorphic_base(field_name: &str) -> String {
     // Find the position where the type suffix might start (first uppercase after lowercase)
     let chars: Vec<char> = field_name.chars().collect();
-    
+
     for i in 1..chars.len() {
-        if chars[i].is_uppercase() && chars[i-1].is_lowercase() {
+        if chars[i].is_uppercase() && chars[i - 1].is_lowercase() {
             return field_name[..i].to_string();
         }
     }
-    
+
     field_name.to_string()
 }

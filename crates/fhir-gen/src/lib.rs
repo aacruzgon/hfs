@@ -101,13 +101,11 @@ fn process_single_version(version: &FhirVersion, output_path: impl AsRef<Path>) 
     // First pass: collect all bundles and extract global information
     let bundles: Vec<_> = visit_dirs(&version_dir)?
         .into_iter()
-        .filter_map(|file_path| {
-            match parse_structure_definitions(&file_path) {
-                Ok(bundle) => Some(bundle),
-                Err(e) => {
-                    eprintln!("Warning: Failed to parse {}: {}", file_path.display(), e);
-                    None
-                }
+        .filter_map(|file_path| match parse_structure_definitions(&file_path) {
+            Ok(bundle) => Some(bundle),
+            Err(e) => {
+                eprintln!("Warning: Failed to parse {}: {}", file_path.display(), e);
+                None
             }
         })
         .collect();
@@ -127,7 +125,12 @@ fn process_single_version(version: &FhirVersion, output_path: impl AsRef<Path>) 
     }
 
     // Generate global constructs once at the end
-    generate_global_constructs(&version_path, &global_type_hierarchy, &all_resources, &all_complex_types)?;
+    generate_global_constructs(
+        &version_path,
+        &global_type_hierarchy,
+        &all_resources,
+        &all_complex_types,
+    )?;
 
     Ok(())
 }
@@ -314,12 +317,14 @@ fn is_primitive_type(def: &StructureDefinition) -> bool {
     def.kind == "primitive-type"
 }
 
-/// Extracts type hierarchy and resource information from a bundle
-fn extract_bundle_info(bundle: &Bundle) -> Option<(
+type BundleInfo = (
     std::collections::HashMap<String, String>,
     Vec<String>,
-    Vec<String>
-)> {
+    Vec<String>,
+);
+
+/// Extracts type hierarchy and resource information from a bundle
+fn extract_bundle_info(bundle: &Bundle) -> Option<BundleInfo> {
     let mut type_hierarchy = std::collections::HashMap::new();
     let mut resources = Vec::new();
     let mut complex_types = Vec::new();
@@ -331,11 +336,11 @@ fn extract_bundle_info(bundle: &Bundle) -> Option<(
                     if is_valid_structure_definition(def) {
                         // Extract type hierarchy from baseDefinition
                         if let Some(base_def) = &def.base_definition {
-                            if let Some(parent) = base_def.split('/').last() {
+                            if let Some(parent) = base_def.split('/').next_back() {
                                 type_hierarchy.insert(def.name.clone(), parent.to_string());
                             }
                         }
-                        
+
                         if def.kind == "resource" && !def.r#abstract {
                             resources.push(def.name.clone());
                         } else if def.kind == "complex-type" && !def.r#abstract {
@@ -366,7 +371,7 @@ fn generate_global_constructs(
     if !all_resources.is_empty() {
         let resource_enum = generate_resource_enum(all_resources.to_vec());
         write!(file, "{}", resource_enum)?;
-        
+
         // Add From<T> implementations for base types
         writeln!(
             file,
@@ -406,20 +411,26 @@ fn generate_global_constructs(
         writeln!(file, "}}")?;
         writeln!(file, "// --- End From<T> Implementations ---")?;
     }
-    
+
     // Generate type hierarchy module
     if !type_hierarchy.is_empty() {
         let type_hierarchy_module = generate_type_hierarchy_module(type_hierarchy);
         write!(file, "{}", type_hierarchy_module)?;
     }
-    
+
     // Generate ComplexTypes struct and FhirComplexTypeProvider implementation
     if !all_complex_types.is_empty() {
         writeln!(file, "\n// --- Complex Types Provider ---")?;
         writeln!(file, "/// Marker struct for complex type information")?;
         writeln!(file, "pub struct ComplexTypes;")?;
-        writeln!(file, "\nimpl crate::FhirComplexTypeProvider for ComplexTypes {{")?;
-        writeln!(file, "    fn get_complex_type_names() -> Vec<&'static str> {{")?;
+        writeln!(
+            file,
+            "\nimpl crate::FhirComplexTypeProvider for ComplexTypes {{"
+        )?;
+        writeln!(
+            file,
+            "    fn get_complex_type_names() -> Vec<&'static str> {{"
+        )?;
         writeln!(file, "        vec![")?;
         for complex_type in all_complex_types {
             writeln!(file, "            \"{}\",", complex_type)?;
@@ -459,7 +470,11 @@ fn generate_global_constructs(
 /// - A Resource enum containing all resource types
 /// - From<T> implementations for primitive type conversions
 /// - Proper derive macros for serialization and FHIR-specific functionality
-fn generate_code(bundle: Bundle, output_path: impl AsRef<Path>, generate_globals: bool) -> io::Result<()> {
+fn generate_code(
+    bundle: Bundle,
+    output_path: impl AsRef<Path>,
+    _generate_globals: bool,
+) -> io::Result<()> {
     // First collect all ElementDefinitions across all StructureDefinitions
     let mut all_elements = Vec::new();
 
@@ -558,35 +573,41 @@ fn generate_resource_enum(resources: Vec<String>) -> String {
 /// # Returns
 ///
 /// Returns a string containing the type hierarchy module definition.
-fn generate_type_hierarchy_module(type_hierarchy: &std::collections::HashMap<String, String>) -> String {
+fn generate_type_hierarchy_module(
+    type_hierarchy: &std::collections::HashMap<String, String>,
+) -> String {
     let mut output = String::new();
-    
+
     output.push_str("\n// --- Type Hierarchy Module ---\n");
     output.push_str("/// Type hierarchy information extracted from FHIR specifications\n");
     output.push_str("pub mod type_hierarchy {\n");
     output.push_str("    use std::collections::HashMap;\n");
     output.push_str("    use std::sync::OnceLock;\n\n");
-    
+
     // Generate the static HashMap
     output.push_str("    /// Maps FHIR type names to their parent types\n");
     output.push_str("    static TYPE_PARENTS: OnceLock<HashMap<&'static str, &'static str>> = OnceLock::new();\n\n");
-    
-    output.push_str("    fn get_type_parents() -> &'static HashMap<&'static str, &'static str> {\n");
+
+    output
+        .push_str("    fn get_type_parents() -> &'static HashMap<&'static str, &'static str> {\n");
     output.push_str("        TYPE_PARENTS.get_or_init(|| {\n");
     output.push_str("            let mut m = HashMap::new();\n");
-    
+
     // Sort entries for consistent output
     let mut sorted_entries: Vec<_> = type_hierarchy.iter().collect();
     sorted_entries.sort_by_key(|(k, _)| k.as_str());
-    
+
     for (child, parent) in sorted_entries {
-        output.push_str(&format!("            m.insert(\"{}\", \"{}\");\n", child, parent));
+        output.push_str(&format!(
+            "            m.insert(\"{}\", \"{}\");\n",
+            child, parent
+        ));
     }
-    
+
     output.push_str("            m\n");
     output.push_str("        })\n");
     output.push_str("    }\n\n");
-    
+
     // Generate helper functions
     output.push_str("    /// Checks if a type is a subtype of another type\n");
     output.push_str("    pub fn is_subtype_of(child: &str, parent: &str) -> bool {\n");
@@ -604,12 +625,12 @@ fn generate_type_hierarchy_module(type_hierarchy: &std::collections::HashMap<Str
     output.push_str("        }\n");
     output.push_str("        false\n");
     output.push_str("    }\n\n");
-    
+
     output.push_str("    /// Gets the parent type of a given type\n");
     output.push_str("    pub fn get_parent_type(type_name: &str) -> Option<&'static str> {\n");
     output.push_str("        get_type_parents().get(type_name).copied()\n");
     output.push_str("    }\n\n");
-    
+
     output.push_str("    /// Gets all subtypes of a given parent type\n");
     output.push_str("    pub fn get_subtypes(parent: &str) -> Vec<&'static str> {\n");
     output.push_str("        get_type_parents().iter()\n");
@@ -622,7 +643,7 @@ fn generate_type_hierarchy_module(type_hierarchy: &std::collections::HashMap<Str
     output.push_str("            })\n");
     output.push_str("            .collect()\n");
     output.push_str("    }\n");
-    
+
     output.push_str("}\n\n");
     output
 }

@@ -30,7 +30,7 @@ impl TerminologyFunctions {
     pub fn new(context: &EvaluationContext) -> Self {
         let server_url = context.get_terminology_server_url();
         let client = TerminologyClient::new(server_url, context.fhir_version);
-        
+
         Self {
             client: Arc::new(client),
         }
@@ -50,7 +50,7 @@ impl TerminologyFunctions {
             _ => {
                 return Err(EvaluationError::TypeError(
                     "expand() requires a ValueSet URL as string".to_string(),
-                ))
+                ));
             }
         };
 
@@ -59,9 +59,8 @@ impl TerminologyFunctions {
 
         // Execute async operation in blocking context
         let client = self.client.clone();
-        let result = RUNTIME.block_on(async move {
-            client.expand(&value_set_url, params_map).await
-        });
+        let result =
+            RUNTIME.block_on(async move { client.expand(&value_set_url, params_map).await });
 
         match result {
             Ok(value) => json_to_evaluation_result(value),
@@ -88,9 +87,8 @@ impl TerminologyFunctions {
 
         // Execute async operation
         let client = self.client.clone();
-        let result = RUNTIME.block_on(async move {
-            client.lookup(&system, &code, params_map).await
-        });
+        let result =
+            RUNTIME.block_on(async move { client.lookup(&system, &code, params_map).await });
 
         match result {
             Ok(value) => json_to_evaluation_result(value),
@@ -116,7 +114,7 @@ impl TerminologyFunctions {
             _ => {
                 return Err(EvaluationError::TypeError(
                     "validateVS() requires a ValueSet URL as string".to_string(),
-                ))
+                ));
             }
         };
 
@@ -128,9 +126,13 @@ impl TerminologyFunctions {
 
         // Execute async operation
         let client = self.client.clone();
-        let system_opt = if system.is_empty() { None } else { Some(system.as_str()) };
+        let system_opt = if system.is_empty() {
+            None
+        } else {
+            Some(system.as_str())
+        };
         let display_opt = display.as_deref();
-        
+
         let result = RUNTIME.block_on(async move {
             client
                 .validate_vs(&value_set_url, system_opt, &code, display_opt, params_map)
@@ -161,7 +163,7 @@ impl TerminologyFunctions {
             _ => {
                 return Err(EvaluationError::TypeError(
                     "validateCS() requires a CodeSystem URL as string".to_string(),
-                ))
+                ));
             }
         };
 
@@ -174,7 +176,7 @@ impl TerminologyFunctions {
         // Execute async operation
         let client = self.client.clone();
         let display_opt = display.as_deref();
-        
+
         let result = RUNTIME.block_on(async move {
             client
                 .validate_cs(&code_system_url, &code, display_opt, params_map)
@@ -206,7 +208,7 @@ impl TerminologyFunctions {
             _ => {
                 return Err(EvaluationError::TypeError(
                     "subsumes() requires a system URL as string".to_string(),
-                ))
+                ));
             }
         };
 
@@ -220,7 +222,9 @@ impl TerminologyFunctions {
         // Execute async operation
         let client = self.client.clone();
         let result = RUNTIME.block_on(async move {
-            client.subsumes(&system_url, &code1, &code2, params_map).await
+            client
+                .subsumes(&system_url, &code1, &code2, params_map)
+                .await
         });
 
         match result {
@@ -261,7 +265,7 @@ impl TerminologyFunctions {
             _ => {
                 return Err(EvaluationError::TypeError(
                     "translate() requires a ConceptMap URL as string".to_string(),
-                ))
+                ));
             }
         };
 
@@ -270,17 +274,21 @@ impl TerminologyFunctions {
 
         // Extract target system from params if provided
         let mut params_map = extract_params_map(params)?;
-        let target_system = params_map
-            .as_mut()
-            .and_then(|m| m.remove("targetSystem"));
+        let target_system = params_map.as_mut().and_then(|m| m.remove("targetSystem"));
 
         // Execute async operation
         let client = self.client.clone();
         let target_system_ref = target_system.as_deref();
-        
+
         let result = RUNTIME.block_on(async move {
             client
-                .translate(&concept_map_url, &system, &code_str, target_system_ref, params_map)
+                .translate(
+                    &concept_map_url,
+                    &system,
+                    &code_str,
+                    target_system_ref,
+                    params_map,
+                )
                 .await
         });
 
@@ -299,7 +307,7 @@ fn extract_coding(coded: &EvaluationResult) -> Result<(String, String), Evaluati
     match coded {
         // Direct code string
         EvaluationResult::String(code, _) => Ok((String::new(), code.clone())),
-        
+
         // Coding object
         EvaluationResult::Object { map, .. } => {
             let system = map
@@ -322,7 +330,7 @@ fn extract_coding(coded: &EvaluationResult) -> Result<(String, String), Evaluati
 
             Ok((system, code))
         }
-        
+
         _ => Err(EvaluationError::TypeError(
             "Expected string code or Coding object".to_string(),
         )),
@@ -336,7 +344,7 @@ fn extract_coding_with_display(
     match coded {
         // Direct code string
         EvaluationResult::String(code, _) => Ok((String::new(), code.clone(), None)),
-        
+
         // Coding object
         EvaluationResult::Object { map, .. } => {
             let system = map
@@ -364,7 +372,7 @@ fn extract_coding_with_display(
 
             Ok((system, code, display))
         }
-        
+
         _ => Err(EvaluationError::TypeError(
             "Expected string code or Coding object".to_string(),
         )),
@@ -379,7 +387,7 @@ fn extract_params_map(
         None => Ok(None),
         Some(EvaluationResult::Object { map, .. }) => {
             let mut params_map = HashMap::new();
-            
+
             // Check if it's a Parameters resource
             if let Some(EvaluationResult::Collection { items, .. }) = map.get("parameter") {
                 // Extract parameters from Parameters resource format
@@ -404,7 +412,7 @@ fn extract_params_map(
                     }
                 }
             }
-            
+
             Ok(Some(params_map))
         }
         Some(_) => Err(EvaluationError::TypeError(
@@ -449,10 +457,7 @@ fn json_to_evaluation_result(value: Value) -> Result<EvaluationResult, Evaluatio
         }
         Value::String(s) => Ok(EvaluationResult::string(s)),
         Value::Array(arr) => {
-            let items: Result<Vec<_>, _> = arr
-                .into_iter()
-                .map(json_to_evaluation_result)
-                .collect();
+            let items: Result<Vec<_>, _> = arr.into_iter().map(json_to_evaluation_result).collect();
             Ok(EvaluationResult::Collection {
                 items: items?,
                 has_undefined_order: false,
@@ -481,7 +486,7 @@ pub fn member_of(
     context: &EvaluationContext,
 ) -> Result<EvaluationResult, EvaluationError> {
     let terminology = TerminologyFunctions::new(context);
-    
+
     // Call validateVS and extract the result
     let validation_result = terminology.validate_vs(
         &EvaluationResult::string(value_set_url.to_string()),
@@ -494,13 +499,10 @@ pub fn member_of(
         if let Some(EvaluationResult::Collection { items, .. }) = map.get("parameter") {
             for item in items {
                 if let EvaluationResult::Object { map: param_map, .. } = item {
-                    if param_map
-                        .get("name")
-                        .and_then(|n| match n {
-                            EvaluationResult::String(s, _) => Some(s.as_str()),
-                            _ => None,
-                        })
-                        == Some("result")
+                    if param_map.get("name").and_then(|n| match n {
+                        EvaluationResult::String(s, _) => Some(s.as_str()),
+                        _ => None,
+                    }) == Some("result")
                     {
                         // Return the boolean value
                         if let Some(EvaluationResult::Boolean(result, type_info)) =

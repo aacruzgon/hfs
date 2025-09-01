@@ -301,9 +301,8 @@ pub struct AdministrableProductDefinitionRouteOfAdministration {
     #[fhir_serde(rename = "maxTreatmentPeriod")]
     pub max_treatment_period: Option<Duration>,
     #[fhir_serde(rename = "targetSpecies")]
-    pub target_species: Option<
-        Vec<AdministrableProductDefinitionRouteOfAdministrationTargetSpecies>,
-    >,
+    pub target_species:
+        Option<Vec<AdministrableProductDefinitionRouteOfAdministrationTargetSpecies>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, FhirSerde, FhirPath, Default)]
@@ -1764,9 +1763,8 @@ pub struct CitationCitedArtifactContributorshipEntry {
     pub contribution_type: Option<Vec<CodeableConcept>>,
     pub role: Option<CodeableConcept>,
     #[fhir_serde(rename = "contributionInstance")]
-    pub contribution_instance: Option<
-        Vec<CitationCitedArtifactContributorshipEntryContributionInstance>,
-    >,
+    pub contribution_instance:
+        Option<Vec<CitationCitedArtifactContributorshipEntryContributionInstance>>,
     #[fhir_serde(rename = "correspondingContact")]
     pub corresponding_contact: Option<Boolean>,
     #[fhir_serde(rename = "listOrder")]
@@ -8779,9 +8777,8 @@ pub struct MedicationKnowledgeAdministrationGuidelines {
     #[fhir_serde(flatten)]
     pub indication: Option<MedicationKnowledgeAdministrationGuidelinesIndication>,
     #[fhir_serde(rename = "patientCharacteristics")]
-    pub patient_characteristics: Option<
-        Vec<MedicationKnowledgeAdministrationGuidelinesPatientCharacteristics>,
-    >,
+    pub patient_characteristics:
+        Option<Vec<MedicationKnowledgeAdministrationGuidelinesPatientCharacteristics>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, FhirSerde, FhirPath, Default)]
@@ -17330,7 +17327,8 @@ pub mod type_hierarchy {
 
     /// Gets all subtypes of a given parent type
     pub fn get_subtypes(parent: &str) -> Vec<&'static str> {
-        get_type_parents().iter()
+        get_type_parents()
+            .iter()
             .filter_map(|(child, p)| {
                 if p.eq_ignore_ascii_case(parent) {
                     Some(*child)
@@ -17341,7 +17339,6 @@ pub mod type_hierarchy {
             .collect()
     }
 }
-
 
 // --- Complex Types Provider ---
 /// Marker struct for complex type information
