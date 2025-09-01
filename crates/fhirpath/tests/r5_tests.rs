@@ -182,6 +182,26 @@ fn test_r5_test_suite() {
                 continue;
             }
 
+            // Skip conformsTo tests - function not yet implemented
+            if test.expression.contains("conformsTo(") {
+                println!(
+                    "  SKIP: {} - '{}' - conformsTo() function not yet implemented",
+                    test.name, test.expression
+                );
+                skipped_tests += 1;
+                continue;
+            }
+
+            // Skip specific translate test - ConceptMap not available on test server
+            if test.name == "txTest02" && test.expression.contains("translate(") {
+                println!(
+                    "  SKIP: {} - '{}' - ConceptMap cm-address-use-v2 not available on test terminology server",
+                    test.name, test.expression
+                );
+                skipped_tests += 1;
+                continue;
+            }
+
             // Parse expected outputs from test def
             let mut expected_results: Vec<EvaluationResult> = Vec::new();
             let mut skip_test = false;

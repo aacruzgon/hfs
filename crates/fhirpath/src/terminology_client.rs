@@ -16,6 +16,7 @@ use helios_fhir::FhirVersion;
 pub struct TerminologyClient {
     client: Client,
     base_url: String,
+    #[allow(dead_code)]
     fhir_version: FhirVersion,
 }
 
@@ -41,6 +42,7 @@ impl TerminologyClient {
     /// * `client` - Custom reqwest client (for authentication, timeouts, etc.)
     /// * `base_url` - The base URL of the terminology server
     /// * `fhir_version` - The FHIR version to use for requests
+    #[allow(dead_code)]
     pub fn with_client(client: Client, base_url: String, fhir_version: FhirVersion) -> Self {
         Self {
             client,

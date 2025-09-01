@@ -318,6 +318,7 @@ pub fn is_of_type_with_context(
 /// # Returns
 ///
 /// * `true` if the value is of the specified type, `false` otherwise
+#[allow(dead_code)]
 pub fn is_of_type_for_of_type(
     value: &EvaluationResult,
     type_spec: &TypeSpecifier,
@@ -567,6 +568,7 @@ pub fn is_of_type_for_of_type(
 /// # Returns
 ///
 /// * `true` if the value is of the specified type, `false` otherwise
+#[allow(dead_code)]
 pub fn is_of_type(
     value: &EvaluationResult,
     type_spec: &TypeSpecifier,
@@ -1260,6 +1262,7 @@ fn is_valid_type_name(type_name: &str, fhir_version: &FhirVersion) -> bool {
 /// Handles qualified names like "System.Boolean" or "FHIR.Patient"
 /// including backtick-quoted variants
 /// Note: This version cannot validate resource/complex types without FHIR version context
+#[allow(dead_code)]
 pub fn extract_namespace_and_type_without_context(
     type_spec: &TypeSpecifier,
 ) -> Result<(Option<String>, String), EvaluationError> {
@@ -1470,6 +1473,7 @@ pub fn is_fhir_domain_resource(resource_type: &str) -> bool {
 /// # Returns
 ///
 /// * The value as the specified type if possible, or Empty if not
+#[allow(dead_code)]
 pub fn as_type(
     value: &EvaluationResult,
     type_spec: &TypeSpecifier,
@@ -1511,6 +1515,7 @@ pub fn as_type_with_context(
 }
 
 /// Helper function to try converting a value to a target type for ofType operations
+#[allow(dead_code)]
 fn try_convert_for_of_type(
     value: &EvaluationResult,
     type_spec: &TypeSpecifier,
@@ -1721,6 +1726,7 @@ pub fn of_type_with_context(
 
 /// Filters a collection based on a type specifier (version without context)
 /// This version is deprecated - use of_type_with_context instead
+#[allow(dead_code)]
 pub fn of_type(
     collection: &EvaluationResult,
     type_spec: &TypeSpecifier,
