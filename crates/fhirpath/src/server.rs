@@ -98,6 +98,8 @@ pub struct ServerConfig {
     pub cors_methods: String,
     /// Allowed CORS headers (comma-separated list, "*" for any)
     pub cors_headers: String,
+    /// Terminology server URL (defaults based on FHIR version)
+    pub terminology_server: Option<String>,
 }
 
 impl Default for ServerConfig {
@@ -111,6 +113,7 @@ impl Default for ServerConfig {
             cors_methods: "GET,POST,OPTIONS".to_string(),
             cors_headers: "Accept,Accept-Language,Content-Type,Content-Language,Authorization"
                 .to_string(),
+            terminology_server: None,
         }
     }
 }
@@ -121,7 +124,7 @@ impl Default for ServerConfig {
     author,
     version,
     about = "FHIRPath HTTP server",
-    long_about = "HTTP server providing FHIRPath expression evaluation for fhirpath-lab integration\n\nEnvironment variables:\n  FHIRPATH_SERVER_PORT - Server port (default: 3000)\n  FHIRPATH_SERVER_HOST - Server host (default: 127.0.0.1)\n  FHIRPATH_LOG_LEVEL - Log level: error, warn, info, debug, trace (default: info)\n  FHIRPATH_ENABLE_CORS - Enable CORS: true/false (default: true)\n  FHIRPATH_CORS_ORIGINS - Allowed origins (comma-separated, * for any) (default: *)\n  FHIRPATH_CORS_METHODS - Allowed methods (comma-separated, * for any) (default: GET,POST,OPTIONS)\n  FHIRPATH_CORS_HEADERS - Allowed headers (comma-separated, * for any) (default: common headers)"
+    long_about = "HTTP server providing FHIRPath expression evaluation for fhirpath-lab integration\n\nEnvironment variables:\n  FHIRPATH_SERVER_PORT - Server port (default: 3000)\n  FHIRPATH_SERVER_HOST - Server host (default: 127.0.0.1)\n  FHIRPATH_LOG_LEVEL - Log level: error, warn, info, debug, trace (default: info)\n  FHIRPATH_ENABLE_CORS - Enable CORS: true/false (default: true)\n  FHIRPATH_CORS_ORIGINS - Allowed origins (comma-separated, * for any) (default: *)\n  FHIRPATH_CORS_METHODS - Allowed methods (comma-separated, * for any) (default: GET,POST,OPTIONS)\n  FHIRPATH_CORS_HEADERS - Allowed headers (comma-separated, * for any) (default: common headers)\n  FHIRPATH_TERMINOLOGY_SERVER - Terminology server URL (default: version-specific test servers)"
 )]
 pub struct ServerArgs {
     /// Port to bind the server to
@@ -169,6 +172,10 @@ pub struct ServerArgs {
         default_value = "Accept,Accept-Language,Content-Type,Content-Language,Authorization"
     )]
     pub cors_headers: String,
+
+    /// Terminology server URL (defaults based on FHIR version)
+    #[arg(long, env = "FHIRPATH_TERMINOLOGY_SERVER")]
+    pub terminology_server: Option<String>,
 }
 
 impl From<ServerArgs> for ServerConfig {
@@ -181,6 +188,7 @@ impl From<ServerArgs> for ServerConfig {
             cors_origins: args.cors_origins,
             cors_methods: args.cors_methods,
             cors_headers: args.cors_headers,
+            terminology_server: args.terminology_server,
         }
     }
 }

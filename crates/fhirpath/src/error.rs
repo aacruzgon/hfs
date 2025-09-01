@@ -38,6 +38,12 @@ pub enum FhirPathError {
 
     /// HTTP-specific error with status code
     HttpError(u16, String),
+
+    /// Network error (for terminology server operations)
+    NetworkError(String),
+
+    /// Terminology server error
+    TerminologyError(String),
 }
 
 impl fmt::Display for FhirPathError {
@@ -52,6 +58,8 @@ impl fmt::Display for FhirPathError {
             FhirPathError::NotImplemented(msg) => write!(f, "Not implemented: {}", msg),
             FhirPathError::ConfigError(msg) => write!(f, "Configuration error: {}", msg),
             FhirPathError::HttpError(code, msg) => write!(f, "HTTP {} error: {}", code, msg),
+            FhirPathError::NetworkError(msg) => write!(f, "Network error: {}", msg),
+            FhirPathError::TerminologyError(msg) => write!(f, "Terminology error: {}", msg),
         }
     }
 }
@@ -99,6 +107,8 @@ impl From<FhirPathError> for axum::response::Response {
                 StatusCode::from_u16(code).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
                 msg,
             ),
+            FhirPathError::NetworkError(msg) => (StatusCode::BAD_GATEWAY, msg),
+            FhirPathError::TerminologyError(msg) => (StatusCode::BAD_GATEWAY, msg),
             _ => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),
         };
 

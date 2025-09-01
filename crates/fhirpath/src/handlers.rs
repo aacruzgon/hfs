@@ -57,7 +57,7 @@ pub async fn evaluate_fhirpath(
 
     // Set terminology server if provided
     if let Some(ts) = &extracted.terminology_server {
-        context.set_variable_result("terminologyServer", EvaluationResult::string(ts.clone()));
+        context.set_terminology_server(ts.clone());
     }
 
     // Generate parse debug information if needed
@@ -232,7 +232,7 @@ async fn evaluate_fhirpath_with_version(
 
     // Set terminology server if provided
     if let Some(ts) = &extracted.terminology_server {
-        context.set_variable_result("terminologyServer", EvaluationResult::string(ts.clone()));
+        context.set_terminology_server(ts.clone());
     }
 
     // Generate parse debug information if needed

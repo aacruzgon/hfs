@@ -1,7 +1,7 @@
 use crate::parser::{Expression, Invocation, Literal, Term, TypeSpecifier};
 use chrono::{Datelike, Duration, Local, NaiveDate, NaiveDateTime, Timelike};
 use helios_fhir::{FhirResource, FhirVersion};
-use helios_fhirpath_support::{EvaluationError, EvaluationResult, IntoEvaluationResult};
+use helios_fhirpath_support::{EvaluationError, EvaluationResult, IntoEvaluationResult, TypeInfoResult};
 use regex::{Regex, RegexBuilder};
 use rust_decimal::Decimal;
 use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
@@ -76,6 +76,10 @@ pub struct EvaluationContext {
     /// Parent context for variable scoping
     /// When looking up variables, if not found in current context, search parent chain
     pub parent_context: Option<Box<EvaluationContext>>,
+
+    /// Terminology server URL for terminology operations
+    /// If not set, uses default servers based on FHIR version
+    pub terminology_server_url: Option<String>,
 }
 
 impl Clone for EvaluationContext {
@@ -93,6 +97,7 @@ impl Clone for EvaluationContext {
             current_index: self.current_index,
             trace_outputs: RefCell::new(Vec::new()), // New trace outputs for clone
             parent_context: self.parent_context.clone(),
+            terminology_server_url: self.terminology_server_url.clone(),
         }
     }
 }
@@ -155,6 +160,7 @@ impl EvaluationContext {
             current_index: None,            // Initialize current index
             trace_outputs: RefCell::new(Vec::new()), // Initialize trace outputs
             parent_context: None,           // No parent context by default
+            terminology_server_url: None,   // No terminology server by default
         }
     }
 
@@ -186,6 +192,7 @@ impl EvaluationContext {
             current_index: None,            // Initialize current index
             trace_outputs: RefCell::new(Vec::new()), // Initialize trace outputs
             parent_context: None,           // No parent context by default
+            terminology_server_url: None,   // No terminology server by default
         }
     }
 
@@ -214,6 +221,7 @@ impl EvaluationContext {
             current_index: None,            // Initialize current index
             trace_outputs: RefCell::new(Vec::new()), // Initialize trace outputs
             parent_context: None,           // No parent context by default
+            terminology_server_url: None,   // No terminology server by default
         }
     }
 
@@ -429,6 +437,7 @@ impl EvaluationContext {
             current_index: self.current_index, // Inherit current index from parent
             trace_outputs: RefCell::new(Vec::new()), // New trace outputs for child
             parent_context: Some(Box::new(self.clone())), // Clone entire parent context
+            terminology_server_url: self.terminology_server_url.clone(), // Inherit terminology server from parent
         }
     }
 
@@ -486,6 +495,54 @@ impl EvaluationContext {
 
         self.variables.insert(name, value);
         Ok(())
+    }
+
+    /// Sets the terminology server URL
+    ///
+    /// Configures the URL of the terminology server to use for terminology operations.
+    /// If not set, default servers will be used based on FHIR version.
+    ///
+    /// # Arguments
+    ///
+    /// * `url` - The terminology server URL
+    pub fn set_terminology_server(&mut self, url: String) {
+        self.terminology_server_url = Some(url);
+    }
+
+    /// Gets the terminology server URL with defaults
+    ///
+    /// Returns the configured terminology server URL, or the default server
+    /// based on FHIR version if none is configured. Logs a warning when
+    /// using default servers.
+    ///
+    /// # Returns
+    ///
+    /// The terminology server URL to use
+    pub fn get_terminology_server_url(&self) -> String {
+        if let Some(url) = &self.terminology_server_url {
+            url.clone()
+        } else if let Ok(url) = std::env::var("FHIRPATH_TERMINOLOGY_SERVER") {
+            // Check environment variable
+            url
+        } else {
+            // Use default servers based on FHIR version
+            let default_url = match self.fhir_version {
+                FhirVersion::R4 => "https://tx.fhir.org/r4/",
+                #[cfg(feature = "R4B")]
+                FhirVersion::R4B => "https://tx.fhir.org/r4/",
+                FhirVersion::R5 => "https://tx.fhir.org/r5/",
+                #[cfg(feature = "R6")]
+                FhirVersion::R6 => "https://tx.fhir.org/r5/", // R6 may use R5 server for now
+                #[cfg(not(any(feature = "R4", feature = "R5")))]
+                _ => "https://tx.fhir.org/r4/", // Fallback
+            };
+            
+            // TODO: Add proper logging when tracing is integrated
+            eprintln!("WARNING: Using default terminology server '{}' - DO NOT use in production!", default_url);
+            eprintln!("         Set FHIRPATH_TERMINOLOGY_SERVER environment variable or use --terminology-server option");
+            
+            default_url.to_string()
+        }
     }
 }
 
@@ -1505,6 +1562,22 @@ fn evaluate_term(
                 Ok(EvaluationResult::string(
                     "http://hl7.org/fhir/StructureDefinition/patient-birthTime".to_string(),
                 ))
+            } else if name == "terminologies" {
+                // Return %terminologies object for terminology operations
+                use crate::terminology_functions::TerminologyFunctions;
+                let _terminology = TerminologyFunctions::new(context);
+                
+                // Create a special object that represents the terminology functions
+                let mut map = HashMap::new();
+                map.insert(
+                    "_terminology_functions".to_string(),
+                    EvaluationResult::string("true".to_string()),
+                );
+                
+                Ok(EvaluationResult::Object {
+                    map,
+                    type_info: Some(TypeInfoResult::new("System", "TerminologyFunctions")),
+                })
             } else {
                 // Return variable value or error if undefined
                 // ExternalConstant name doesn't include %, but variables are stored with %
@@ -2392,14 +2465,102 @@ fn evaluate_invocation(
                     crate::collection_functions::sort_function(invocation_base, args_exprs, context)
                 }
                 _ => {
-                    // Default: Evaluate all standard function arguments first (without $this context), then call function
-                    let mut evaluated_args = Vec::with_capacity(args_exprs.len());
-                    for arg_expr in args_exprs {
-                        // Use current_item_for_args when evaluating function arguments
-                        evaluated_args.push(evaluate(arg_expr, context, current_item_for_args)?);
+                    // Check if this is a %terminologies function call
+                    if let EvaluationResult::Object { type_info, .. } = invocation_base {
+                        if type_info.as_ref().map(|t| t.name.as_str()) == Some("TerminologyFunctions") {
+                            // This is a method call on %terminologies
+                            use crate::terminology_functions::TerminologyFunctions;
+                            let terminology = TerminologyFunctions::new(context);
+                            
+                            // Evaluate arguments
+                            let mut evaluated_args = Vec::with_capacity(args_exprs.len());
+                            for arg_expr in args_exprs {
+                                evaluated_args.push(evaluate(arg_expr, context, current_item_for_args)?);
+                            }
+                            
+                            // Call the appropriate terminology function
+                            match name.as_str() {
+                                "expand" => {
+                                    if evaluated_args.is_empty() || evaluated_args.len() > 2 {
+                                        return Err(EvaluationError::InvalidArity(
+                                            format!("expand() requires 1 or 2 arguments, got {}", evaluated_args.len())
+                                        ));
+                                    }
+                                    let params = evaluated_args.get(1);
+                                    terminology.expand(&evaluated_args[0], params)
+                                }
+                                "lookup" => {
+                                    if evaluated_args.is_empty() || evaluated_args.len() > 2 {
+                                        return Err(EvaluationError::InvalidArity(
+                                            format!("lookup() requires 1 or 2 arguments, got {}", evaluated_args.len())
+                                        ));
+                                    }
+                                    let params = evaluated_args.get(1);
+                                    terminology.lookup(&evaluated_args[0], params)
+                                }
+                                "validateVS" => {
+                                    if evaluated_args.len() < 2 || evaluated_args.len() > 3 {
+                                        return Err(EvaluationError::InvalidArity(
+                                            format!("validateVS() requires 2 or 3 arguments, got {}", evaluated_args.len())
+                                        ));
+                                    }
+                                    let params = evaluated_args.get(2);
+                                    terminology.validate_vs(&evaluated_args[0], &evaluated_args[1], params)
+                                }
+                                "validateCS" => {
+                                    if evaluated_args.len() < 2 || evaluated_args.len() > 3 {
+                                        return Err(EvaluationError::InvalidArity(
+                                            format!("validateCS() requires 2 or 3 arguments, got {}", evaluated_args.len())
+                                        ));
+                                    }
+                                    let params = evaluated_args.get(2);
+                                    terminology.validate_cs(&evaluated_args[0], &evaluated_args[1], params)
+                                }
+                                "subsumes" => {
+                                    if evaluated_args.len() < 3 || evaluated_args.len() > 4 {
+                                        return Err(EvaluationError::InvalidArity(
+                                            format!("subsumes() requires 3 or 4 arguments, got {}", evaluated_args.len())
+                                        ));
+                                    }
+                                    let params = evaluated_args.get(3);
+                                    terminology.subsumes(&evaluated_args[0], &evaluated_args[1], &evaluated_args[2], params)
+                                }
+                                "translate" => {
+                                    if evaluated_args.len() < 2 || evaluated_args.len() > 3 {
+                                        return Err(EvaluationError::InvalidArity(
+                                            format!("translate() requires 2 or 3 arguments, got {}", evaluated_args.len())
+                                        ));
+                                    }
+                                    let params = evaluated_args.get(2);
+                                    terminology.translate(&evaluated_args[0], &evaluated_args[1], params)
+                                }
+                                _ => {
+                                    return Err(EvaluationError::InvalidOperation(format!(
+                                        "Unknown terminology function: {}",
+                                        name
+                                    )));
+                                }
+                            }
+                        } else {
+                            // Default: Evaluate all standard function arguments first (without $this context), then call function
+                            let mut evaluated_args = Vec::with_capacity(args_exprs.len());
+                            for arg_expr in args_exprs {
+                                // Use current_item_for_args when evaluating function arguments
+                                evaluated_args.push(evaluate(arg_expr, context, current_item_for_args)?);
+                            }
+                            // Call with updated signature (name, base, args)
+                            call_function(name, invocation_base, &evaluated_args, context) // Pass context
+                        }
+                    } else {
+                        // Default: Evaluate all standard function arguments first (without $this context), then call function
+                        let mut evaluated_args = Vec::with_capacity(args_exprs.len());
+                        for arg_expr in args_exprs {
+                            // Use current_item_for_args when evaluating function arguments
+                            evaluated_args.push(evaluate(arg_expr, context, current_item_for_args)?);
+                        }
+                        // Call with updated signature (name, base, args)
+                        call_function(name, invocation_base, &evaluated_args, context) // Pass context
                     }
-                    // Call with updated signature (name, base, args)
-                    call_function(name, invocation_base, &evaluated_args, context) // Pass context
                 }
             }
         }
@@ -4243,6 +4404,26 @@ fn call_function(
                     "join requires string items or a collection of strings".to_string(),
                 )),
             }
+        }
+        "memberOf" => {
+            if args.len() != 1 {
+                return Err(EvaluationError::InvalidArity(
+                    "Function 'memberOf' expects 1 argument (ValueSet URL)".to_string(),
+                ));
+            }
+            
+            // Get the ValueSet URL
+            let value_set_url = match &args[0] {
+                EvaluationResult::String(url, _) => url,
+                _ => {
+                    return Err(EvaluationError::TypeError(
+                        "memberOf requires a string ValueSet URL argument".to_string(),
+                    ));
+                }
+            };
+            
+            // Use the member_of function from terminology_functions
+            crate::terminology_functions::member_of(invocation_base, value_set_url, context)
         }
         "escape" => {
             // Implements escape(target : String) : String

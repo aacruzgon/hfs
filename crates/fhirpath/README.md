@@ -126,21 +126,64 @@ This expression identifies systolic blood pressure observations with values abov
 
 ### Terminology Service Integration
 
-FHIRPath provides access to terminology services through a %terminologies object.
+FHIRPath provides access to terminology services through a %terminologies object. This implementation supports all standard terminology operations.
 
-**Example (Terminology Service Call):**
-```fhirpath
-%terminologies.validateVS('http://hl7.org/fhir/ValueSet/observation-vitalsignresult', %context)
+**⚠️ IMPORTANT: Default Terminology Servers**
+By default, this implementation uses test terminology servers:
+- **R4/R4B**: `https://tx.fhir.org/r4/`
+- **R5**: `https://tx.fhir.org/r5/`
+
+**DO NOT USE THESE DEFAULT SERVERS IN PRODUCTION!** They are test servers with limited resources and no SLA.
+
+**Configuring a Terminology Server:**
+```bash
+# Via environment variable
+export FHIRPATH_TERMINOLOGY_SERVER=https://your-terminology-server.com/fhir
+
+# Via CLI option
+fhirpath-cli --terminology-server https://your-terminology-server.com/fhir ...
+
+# Via server option
+fhirpath-server --terminology-server https://your-terminology-server.com/fhir
 ```
 
-This expression validates that a code is in the vital sign's value set.
-
-**Example (Member Check):**
+**Supported %terminologies Functions:**
 ```fhirpath
+# Expand a ValueSet
+%terminologies.expand('http://hl7.org/fhir/ValueSet/administrative-gender')
+
+# Lookup code details
+%terminologies.lookup(Observation.code.coding.first())
+
+# Validate against ValueSet
+%terminologies.validateVS('http://hl7.org/fhir/ValueSet/observation-vitalsignresult', Observation.code.coding.first())
+
+# Validate against CodeSystem
+%terminologies.validateCS('http://loinc.org', Observation.code.coding.first())
+
+# Check code subsumption
+%terminologies.subsumes('http://snomed.info/sct', '73211009', '5935008')
+
+# Translate using ConceptMap
+%terminologies.translate('http://hl7.org/fhir/ConceptMap/cm-address-use-v2', Patient.address.use)
+```
+
+**memberOf Function:**
+```fhirpath
+# Check if a coding is member of a ValueSet
 Observation.code.coding.where(memberOf('http://hl7.org/fhir/ValueSet/observation-vitalsignresult'))
 ```
 
-This expression filters coding elements to only those that are members of the specified value set.
+**Example with Parameters:**
+```fhirpath
+# Expand with count limit
+%terminologies.expand('http://hl7.org/fhir/ValueSet/languages', {'count': '10'})
+
+# Validate with language parameter
+%terminologies.validateVS('http://hl7.org/fhir/ValueSet/condition-clinical', 
+                         Condition.clinicalStatus.coding.first(), 
+                         {'language': 'es'})
+```
 
 **Relevant Specification Link:**
 - [FHIRPath Terminology Services](https://www.hl7.org/fhir/fhirpath.html#txapi)

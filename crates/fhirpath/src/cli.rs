@@ -175,12 +175,7 @@ pub fn run_cli(args: Args) -> FhirPathResult<()> {
 
     // Set terminology server if provided
     if let Some(terminology_server) = &args.terminology_server {
-        // Note: This would need to be implemented in the evaluator
-        // For now, we'll just note it in the context
-        context.set_variable_result(
-            "terminologyServer",
-            EvaluationResult::string(terminology_server.clone()),
-        );
+        context.set_terminology_server(terminology_server.clone());
     }
 
     // Enable trace if requested
