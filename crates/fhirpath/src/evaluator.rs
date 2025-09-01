@@ -64,6 +64,10 @@ pub struct EvaluationContext {
     /// Used to pass the current aggregation result between iterations
     pub current_aggregate_total: Option<EvaluationResult>,
 
+    /// Holds the current index when iterating through collections in functions like select()
+    /// Used to provide the $index variable value
+    pub current_index: Option<usize>,
+
     /// Collects trace outputs during expression evaluation
     /// Each tuple contains (trace_name, traced_value)
     /// Uses RefCell for interior mutability to allow collection during evaluation
@@ -86,6 +90,7 @@ impl Clone for EvaluationContext {
             is_strict_mode: self.is_strict_mode,
             check_ordered_functions: self.check_ordered_functions,
             current_aggregate_total: self.current_aggregate_total.clone(),
+            current_index: self.current_index,
             trace_outputs: RefCell::new(Vec::new()), // New trace outputs for clone
             parent_context: self.parent_context.clone(),
         }
@@ -147,6 +152,7 @@ impl EvaluationContext {
             is_strict_mode: false,          // Default to non-strict mode
             check_ordered_functions: false, // Default to false
             current_aggregate_total: None,  // Initialize aggregate total
+            current_index: None,            // Initialize current index
             trace_outputs: RefCell::new(Vec::new()), // Initialize trace outputs
             parent_context: None,           // No parent context by default
         }
@@ -177,6 +183,7 @@ impl EvaluationContext {
             is_strict_mode: false,          // Default to non-strict mode
             check_ordered_functions: false, // Default to false
             current_aggregate_total: None,  // Initialize aggregate total
+            current_index: None,            // Initialize current index
             trace_outputs: RefCell::new(Vec::new()), // Initialize trace outputs
             parent_context: None,           // No parent context by default
         }
@@ -204,6 +211,7 @@ impl EvaluationContext {
             is_strict_mode: false,          // Default to non-strict mode
             check_ordered_functions: false, // Default to false
             current_aggregate_total: None,  // Initialize aggregate total
+            current_index: None,            // Initialize current index
             trace_outputs: RefCell::new(Vec::new()), // Initialize trace outputs
             parent_context: None,           // No parent context by default
         }
@@ -418,6 +426,7 @@ impl EvaluationContext {
             is_strict_mode: self.is_strict_mode,
             check_ordered_functions: self.check_ordered_functions,
             current_aggregate_total: self.current_aggregate_total.clone(),
+            current_index: self.current_index, // Inherit current index from parent
             trace_outputs: RefCell::new(Vec::new()), // New trace outputs for child
             parent_context: Some(Box::new(self.clone())), // Clone entire parent context
         }
@@ -2399,10 +2408,15 @@ fn evaluate_invocation(
             Ok(invocation_base.clone()) // Return the base it was invoked on
         }
         Invocation::Index => {
-            // $index should return the current index in a collection operation
-            // This is typically used in filter expressions
-            // For now, we return Empty as this requires tracking iteration state
-            Ok(EvaluationResult::Empty)
+            // $index returns the current index in a collection operation
+            // This is typically used in filter expressions like select() and where()
+            match context.current_index {
+                Some(index) => Ok(EvaluationResult::integer(index as i64)),
+                None => {
+                    // If no index is available, return empty (could also be an error)
+                    Ok(EvaluationResult::Empty)
+                }
+            }
         }
         Invocation::Total => {
             // $total has two meanings:
@@ -2470,12 +2484,15 @@ fn evaluate_where(
     let mut filtered_items = Vec::new();
 
     // Create a child context for the where scope
-    let child_context = context.create_child_context();
+    let mut child_context = context.create_child_context();
 
-    for item in items_to_filter {
+    for (index, item) in items_to_filter.iter().enumerate() {
+        // Set the current index for $index variable
+        child_context.current_index = Some(index);
+        
         // Evaluate criteria with child context
         // Variables defined inside the criteria are scoped to this where
-        let criteria_result = evaluate(criteria_expr, &child_context, Some(&item))?;
+        let criteria_result = evaluate(criteria_expr, &child_context, Some(item))?;
         // Check if criteria is boolean, otherwise error per spec
         match criteria_result {
             EvaluationResult::Boolean(true, _) => filtered_items.push(item.clone()),
@@ -2550,12 +2567,15 @@ fn evaluate_where_with_context(
     let mut filtered_items = Vec::new();
 
     // Create a child context for the where scope
-    let child_context = context.create_child_context();
+    let mut child_context = context.create_child_context();
 
-    for item in items_to_filter {
+    for (index, item) in items_to_filter.iter().enumerate() {
+        // Set the current index for $index variable
+        child_context.current_index = Some(index);
+        
         // Evaluate criteria with child context
         let (criteria_result, _updated_child) =
-            evaluate_with_context(criteria_expr, child_context.clone(), Some(&item))?;
+            evaluate_with_context(criteria_expr, child_context.clone(), Some(item))?;
         // Note: For now we don't merge contexts from each iteration
         // This is a limitation but matches the current where() behavior
 
@@ -2616,7 +2636,7 @@ fn evaluate_select(
     let mut result_is_unordered = input_was_unordered; // Start with input's order status
 
     // Create a child context for the select scope
-    let child_context = context.create_child_context();
+    let mut child_context = context.create_child_context();
 
     // Special handling for empty collections with variable references
     // This is needed for defineVariable to work properly
@@ -2627,10 +2647,13 @@ fn evaluate_select(
             projected_items.push(projection_result);
         }
     } else {
-        for item in items_to_project {
+        for (index, item) in items_to_project.iter().enumerate() {
+            // Set the current index for $index variable
+            child_context.current_index = Some(index);
+            
             // Evaluate projection with child context
             // Variables defined inside the projection are scoped to this select
-            let projection_result = evaluate(projection_expr, &child_context, Some(&item))?;
+            let projection_result = evaluate(projection_expr, &child_context, Some(item))?;
             if let EvaluationResult::Collection {
                 has_undefined_order: true,
                 type_info: None,
