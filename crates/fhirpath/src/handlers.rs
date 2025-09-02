@@ -824,6 +824,11 @@ fn create_error_response(
     _params: &ExtractedParameters,
     error: String,
 ) -> Result<Response, FhirPathError> {
+    // Check if this is an unsupported function error
+    if error.contains("Unsupported Function:") || error.contains("is not implemented") {
+        return Err(FhirPathError::NotImplemented(error));
+    }
+
     let response = json!({
         "resourceType": "OperationOutcome",
         "issue": [{

@@ -6239,7 +6239,10 @@ fn call_function(
             if !handled_functions.contains(&name) {
                 eprintln!("Warning: Unsupported function called: {}", name); // Keep this warning for truly unhandled functions
             }
-            Ok(EvaluationResult::Empty) // Return Ok(Empty) for unhandled but potentially valid functions
+            Err(EvaluationError::UnsupportedFunction(format!(
+                "Function '{}' is not implemented",
+                name
+            )))
         }
     }
 }

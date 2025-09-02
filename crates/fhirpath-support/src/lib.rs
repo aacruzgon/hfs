@@ -396,6 +396,13 @@ pub enum EvaluationError {
     ///
     /// Example: "Property 'invalidField' does not exist on type 'Patient'"
     SemanticError(String),
+    /// Unsupported function called.
+    ///
+    /// Occurs when a FHIRPath function is recognized but not yet implemented
+    /// in this evaluation engine.
+    ///
+    /// Example: "Function 'conformsTo' is not implemented"
+    UnsupportedFunction(String),
     /// Generic error for cases not covered by specific variants.
     ///
     /// Used for internal errors, edge cases, or temporary error conditions
@@ -436,6 +443,7 @@ impl std::fmt::Display for EvaluationError {
                 write!(f, "Singleton Evaluation Error: {}", msg)
             }
             EvaluationError::SemanticError(msg) => write!(f, "Semantic Error: {}", msg),
+            EvaluationError::UnsupportedFunction(msg) => write!(f, "Unsupported Function: {}", msg),
             EvaluationError::Other(msg) => write!(f, "Evaluation Error: {}", msg),
         }
     }
