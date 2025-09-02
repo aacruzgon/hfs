@@ -11,4 +11,4 @@ readme = "README.md"
 
 
 [dependencies]
-rust_decimal = { version = "1.37.1" }
+rust_decimal = { version = "1.0" }

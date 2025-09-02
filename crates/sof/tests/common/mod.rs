@@ -34,7 +34,7 @@ fn create_test_app() -> Router {
             post(run_view_definition_handler).get(run_view_definition_get_handler),
         )
         .route(
-            "/ViewDefinition/:id/$run",
+            "/ViewDefinition/{id}/$run",
             get(run_view_definition_by_id_handler),
         )
         .route("/health", get(health_check))
