@@ -1934,7 +1934,9 @@ fn evaluate_invocation(
                         };
 
                         // If the field exists directly but could also be a polymorphic field name
-                        if exists_directly && could_be_typed_polymorphic_field(name.as_str(), obj) {
+                        if exists_directly
+                            && could_be_typed_polymorphic_field(name.as_str(), obj, context)
+                        {
                             return Err(EvaluationError::SemanticError(format!(
                                 "Cannot access typed polymorphic field '{}' directly in strict mode. Use the base name instead.",
                                 name
@@ -8468,6 +8470,7 @@ fn expression_starts_with_resource_identifier(
 fn could_be_typed_polymorphic_field(
     field_name: &str,
     obj: &HashMap<String, EvaluationResult>,
+    context: &EvaluationContext,
 ) -> bool {
     // Extract potential base name
     let base_name = extract_potential_polymorphic_base(field_name);
@@ -8512,40 +8515,11 @@ fn could_be_typed_polymorphic_field(
         }
 
         // Even without other variants present, check if this looks like a typed polymorphic field
-        // by examining if the suffix is a known FHIR type
+        // by examining if the suffix is a valid FHIR type using our type checking infrastructure
         let suffix = &field_name[base_name.len()..];
-        let known_type_suffixes = [
-            "Quantity",
-            "CodeableConcept",
-            "String",
-            "Boolean",
-            "Integer",
-            "DateTime",
-            "Date",
-            "Time",
-            "Period",
-            "Ratio",
-            "Reference",
-            "SampledData",
-            "Attachment",
-            "Coding",
-            "Identifier",
-            "HumanName",
-            "Address",
-            "ContactPoint",
-            "Timing",
-            "Age",
-            "Range",
-            "Duration",
-            "Distance",
-            "Count",
-            "Money",
-            "SimpleQuantity",
-            "Annotation",
-            "Signature",
-        ];
 
-        if known_type_suffixes.contains(&suffix) {
+        // Use the new function to check if the suffix is a valid FHIR type
+        if crate::resource_type::is_valid_fhir_type_suffix(suffix, &context.fhir_version) {
             return true;
         }
     }

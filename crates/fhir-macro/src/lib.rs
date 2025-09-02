@@ -3088,10 +3088,7 @@ fn extract_type_suffix_from_field_name(field_name: &str) -> Option<(&str, &str)>
         // - Has at least 2 characters (to avoid false positives like "valueA")
         // - Contains only alphanumeric characters (and potentially numbers at the end like Integer64)
         if type_suffix.len() >= 2
-            && type_suffix
-                .chars()
-                .next()
-                .is_some_and(|c| c.is_uppercase())
+            && type_suffix.chars().next().is_some_and(|c| c.is_uppercase())
             && type_suffix.chars().all(|c| c.is_alphanumeric())
             && !base_name.is_empty()
         {

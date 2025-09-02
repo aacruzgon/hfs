@@ -1264,6 +1264,40 @@ fn is_valid_type_name(type_name: &str, fhir_version: &FhirVersion) -> bool {
     is_complex_type_for_version(type_name, fhir_version)
 }
 
+/// Checks if a given suffix is a valid FHIR type suffix for polymorphic fields
+///
+/// This function checks if a suffix (like "Quantity", "CodeableConcept", etc.) is a valid
+/// FHIR type that could be used as a suffix in polymorphic fields. It leverages the existing
+/// type checking infrastructure rather than hard-coding type names.
+///
+/// # Arguments
+///
+/// * `suffix` - The type suffix to check (e.g., "Quantity", "CodeableConcept")
+/// * `fhir_version` - The FHIR version to check against
+///
+/// # Returns
+///
+/// * `true` if the suffix is a valid FHIR type that could be used in polymorphic fields
+pub fn is_valid_fhir_type_suffix(suffix: &str, fhir_version: &FhirVersion) -> bool {
+    // First check if it's a primitive type (these can be suffixes)
+    if is_fhir_primitive_type(suffix) {
+        return true;
+    }
+
+    // Check if it's a complex type (these are commonly used as suffixes)
+    if is_complex_type_for_version(suffix, fhir_version) {
+        return true;
+    }
+
+    // Special case: SimpleQuantity is not a separate type but a profiled Quantity
+    // It's commonly used as a suffix in polymorphic fields (e.g., doseSimpleQuantity)
+    if suffix.eq_ignore_ascii_case("SimpleQuantity") {
+        return true;
+    }
+
+    false
+}
+
 /// Extract namespace and type name from a TypeSpecifier (version without context)
 /// Handles qualified names like "System.Boolean" or "FHIR.Patient"
 /// including backtick-quoted variants
