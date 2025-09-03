@@ -7,16 +7,7 @@
 - R6 build recently is not building - it worked on Sat the 16th
 
 - FHIRPath
-  - Implement fhirpath-server - Done
-  - Test fhirpath-server and fhirpath-cli - Done
-  - Are there unit tests for these two binaries - Done
-  - Add performance tests - Done
-  - Unify the SofParameters and FhirPathParameters into something else - VersionIndependentParameters? - Done
-  - Setup build process for fhirpath-server - Done
-  - Setup hosting for fhirpath-server - Done
-  - Integrate into https://fhirpath-lab.com/FhirPath - Done
-  - Fix feedback from Brian
-  - Get listed here:  https://confluence.hl7.org/spaces/FHIRI/pages/161060129/FHIRPath+Implementations
+  - FHIRPath Lab Debugger support
 
 - SQL On FHIR
   - source parameter - supporting both file path and AWS, and Google?
@@ -24,8 +15,6 @@
   - parquet file(s)
   - Chunked transfer encoding?
   - Python Bindings
-  - Setup build process for sof-server and sof-cli
-  - Setup hosting for sof-server
   - Submit here:  https://github.com/FHIR/sql-on-fhir-v2?tab=readme-ov-file#registering-your-implementation
 
 - Process on a pile of JSON
@@ -35,9 +24,6 @@
 - Test to see if invalid attributes in the FHIR JSON model are allowed/disallowed?
 
 - Modify fhir_gen to add Rust docs to r4.rs, others.
-
-- The cycle detection is over Box'ing types.  It only needs to be done on one, but not the other. e.g. Reference and Identifier - future item - Likely need a priority element to 
-  decide - could be helpful too in the future when we need to use it for Cassandra table separation
 
 - Temporarily using strings for Date, DateTime, etc.  After we can prove parsing works, we will go back and code these as proper types.
 

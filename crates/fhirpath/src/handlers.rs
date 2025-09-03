@@ -724,9 +724,16 @@ fn evaluation_result_to_result_value(result: EvaluationResult) -> FhirPathResult
                 "date".to_string()
             };
 
+            // Strip @ prefix if present
+            let date_value = if let Some(stripped) = d.strip_prefix('@') {
+                stripped
+            } else {
+                d.as_str()
+            };
+
             Ok(json!({
                 "name": type_name,
-                "valueDate": d
+                "valueDate": date_value
             }))
         }
         EvaluationResult::DateTime(dt, type_info) => {
@@ -742,9 +749,16 @@ fn evaluation_result_to_result_value(result: EvaluationResult) -> FhirPathResult
                 _ => "valueDateTime", // Default for dateTime type
             };
 
+            // Strip @ prefix if present
+            let datetime_value = if let Some(stripped) = dt.strip_prefix('@') {
+                stripped
+            } else {
+                dt.as_str()
+            };
+
             Ok(json!({
                 "name": type_name,
-                value_property: dt
+                value_property: datetime_value
             }))
         }
         EvaluationResult::Time(t, type_info) => {
@@ -754,9 +768,19 @@ fn evaluation_result_to_result_value(result: EvaluationResult) -> FhirPathResult
                 "time".to_string()
             };
 
+            // Strip @T prefix if present
+            let time_value = if let Some(stripped) = t.strip_prefix("@T") {
+                stripped
+            } else if let Some(stripped) = t.strip_prefix('@') {
+                // Also try stripping just @ if @T is not found
+                stripped
+            } else {
+                t.as_str()
+            };
+
             Ok(json!({
                 "name": type_name,
-                "valueTime": t
+                "valueTime": time_value
             }))
         }
         EvaluationResult::Quantity(value, unit, _) => Ok(json!({
