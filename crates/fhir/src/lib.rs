@@ -794,7 +794,10 @@ impl PrecisionTime {
             second: Some(second),
             millisecond: Some(millisecond),
             precision: TimePrecision::Millisecond,
-            original_string: Arc::from(format!("{:02}:{:02}:{:02}.{:03}", hour, minute, second, millisecond)),
+            original_string: Arc::from(format!(
+                "{:02}:{:02}:{:02}.{:03}",
+                hour, minute, second, millisecond
+            )),
         }
     }
 
@@ -1043,7 +1046,8 @@ impl PrecisionDateTime {
             let date = PrecisionDate::parse(date_part)?;
 
             // Check for timezone at the end
-            let (time_part, timezone_offset) = if let Some(stripped) = time_and_tz.strip_suffix('Z') {
+            let (time_part, timezone_offset) = if let Some(stripped) = time_and_tz.strip_suffix('Z')
+            {
                 (stripped, Some(0))
             } else if let Some(plus_pos) = time_and_tz.rfind('+') {
                 let tz_str = &time_and_tz[plus_pos + 1..];
@@ -1402,7 +1406,7 @@ impl IntoEvaluationResult for PrecisionInstant {
         // Return as datetime with instant type info
         EvaluationResult::DateTime(
             self.inner.original_string.to_string(),
-            Some(TypeInfoResult::new("FHIR", "instant"))
+            Some(TypeInfoResult::new("FHIR", "instant")),
         )
     }
 }
