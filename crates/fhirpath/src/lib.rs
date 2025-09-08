@@ -269,6 +269,7 @@ mod collection_functions;
 mod collection_navigation;
 mod contains_function;
 mod conversion_functions;
+mod json_utils;
 mod ucum;
 // Public for internal testing only - not part of the public API
 #[doc(hidden)]
