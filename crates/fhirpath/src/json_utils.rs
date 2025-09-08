@@ -5,7 +5,7 @@
 
 use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// Converts a FHIRPath Quantity to a JSON object with proper FHIR formatting.
 ///
@@ -24,10 +24,10 @@ use serde_json::{json, Value};
 /// - `code`: Unit code (only for UCUM units)
 pub fn quantity_to_json(value: &Decimal, unit: &str) -> Value {
     // Convert Decimal to f64 for proper numeric JSON representation
-    let numeric_value = value.to_f64().unwrap_or_else(|| {
-        value.to_string().parse::<f64>().unwrap_or(0.0)
-    });
-    
+    let numeric_value = value
+        .to_f64()
+        .unwrap_or_else(|| value.to_string().parse::<f64>().unwrap_or(0.0));
+
     // Check if this is a valid UCUM unit
     if crate::ucum::validate_unit(unit) {
         json!({
@@ -53,12 +53,12 @@ mod tests {
     fn test_quantity_to_json_ucum() {
         let value = Decimal::from_str("1.5865").unwrap();
         let json = quantity_to_json(&value, "cm");
-        
+
         assert_eq!(json["value"], 1.5865);
         assert_eq!(json["unit"], "cm");
         assert_eq!(json["system"], "http://unitsofmeasure.org");
         assert_eq!(json["code"], "cm");
-        
+
         // Verify value is numeric
         assert!(json["value"].is_f64());
     }
@@ -67,20 +67,20 @@ mod tests {
     fn test_quantity_to_json_non_ucum() {
         let value = Decimal::from_str("42.0").unwrap();
         let json = quantity_to_json(&value, "widgets");
-        
+
         assert_eq!(json["value"], 42.0);
         assert_eq!(json["unit"], "widgets");
-        
+
         // Should NOT have system/code for non-UCUM units
         assert!(json.get("system").is_none());
         assert!(json.get("code").is_none());
     }
-    
+
     #[test]
     fn test_quantity_to_json_precision() {
         let value = Decimal::from_str("1.58650000").unwrap();
         let json = quantity_to_json(&value, "mg");
-        
+
         // Should preserve significant precision
         assert_eq!(json["value"], 1.5865);
         assert_eq!(json["unit"], "mg");

@@ -620,9 +620,7 @@ fn convert_evaluation_result_to_json(result: &EvaluationResult) -> Value {
         EvaluationResult::Date(d, _) => json!(d),
         EvaluationResult::DateTime(dt, _) => json!(dt),
         EvaluationResult::Time(t, _) => json!(t),
-        EvaluationResult::Quantity(v, u, _) => {
-            crate::json_utils::quantity_to_json(v, u)
-        }
+        EvaluationResult::Quantity(v, u, _) => crate::json_utils::quantity_to_json(v, u),
         #[cfg(not(any(feature = "R4", feature = "R4B")))]
         EvaluationResult::Integer64(i, _) => json!(i),
         #[cfg(any(feature = "R4", feature = "R4B"))]
@@ -787,7 +785,7 @@ fn evaluation_result_to_result_value(result: EvaluationResult) -> FhirPathResult
         }
         EvaluationResult::Quantity(value, unit, _) => {
             let value_quantity = crate::json_utils::quantity_to_json(&value, &unit);
-            
+
             Ok(json!({
                 "name": "quantity",
                 "valueQuantity": value_quantity
@@ -1037,33 +1035,31 @@ mod tests {
     fn test_quantity_json_format() {
         use rust_decimal::Decimal;
         use std::str::FromStr;
-        
+
         // Test that Quantity results have numeric value and UCUM fields for UCUM units
-        let quantity = EvaluationResult::quantity(
-            Decimal::from_str("1.5865").unwrap(),
-            "cm".to_string()
-        );
-        
+        let quantity =
+            EvaluationResult::quantity(Decimal::from_str("1.5865").unwrap(), "cm".to_string());
+
         let json_value = convert_evaluation_result_to_json(&quantity);
-        
+
         // Check the structure for UCUM unit
         assert_eq!(json_value["value"], 1.5865);
         assert_eq!(json_value["unit"], "cm");
         assert_eq!(json_value["system"], "http://unitsofmeasure.org");
         assert_eq!(json_value["code"], "cm");
-        
+
         // Verify value is numeric
         assert!(json_value["value"].is_f64());
         assert!(!json_value["value"].is_string());
-        
+
         // Test non-UCUM unit
         let non_ucum_quantity = EvaluationResult::quantity(
             Decimal::from_str("100").unwrap(),
-            "custom_unit".to_string()
+            "custom_unit".to_string(),
         );
-        
+
         let non_ucum_json = convert_evaluation_result_to_json(&non_ucum_quantity);
-        
+
         // Check the structure for non-UCUM unit
         assert_eq!(non_ucum_json["value"], 100.0);
         assert_eq!(non_ucum_json["unit"], "custom_unit");
@@ -1076,33 +1072,32 @@ mod tests {
     fn test_quantity_value_quantity_format() {
         use rust_decimal::Decimal;
         use std::str::FromStr;
-        
+
         // Test that valueQuantity in server responses has correct format for UCUM units
-        let quantity = EvaluationResult::quantity(
-            Decimal::from_str("1.5865").unwrap(),
-            "cm".to_string()
-        );
-        
+        let quantity =
+            EvaluationResult::quantity(Decimal::from_str("1.5865").unwrap(), "cm".to_string());
+
         let result_value = evaluation_result_to_result_value(quantity).unwrap();
-        
+
         assert_eq!(result_value["name"], "quantity");
         assert_eq!(result_value["valueQuantity"]["value"], 1.5865);
         assert_eq!(result_value["valueQuantity"]["unit"], "cm");
-        assert_eq!(result_value["valueQuantity"]["system"], "http://unitsofmeasure.org");
+        assert_eq!(
+            result_value["valueQuantity"]["system"],
+            "http://unitsofmeasure.org"
+        );
         assert_eq!(result_value["valueQuantity"]["code"], "cm");
-        
+
         // Verify value is numeric
         assert!(result_value["valueQuantity"]["value"].is_f64());
         assert!(!result_value["valueQuantity"]["value"].is_string());
-        
+
         // Test non-UCUM unit
-        let non_ucum_quantity = EvaluationResult::quantity(
-            Decimal::from_str("42.0").unwrap(),
-            "widgets".to_string()
-        );
-        
+        let non_ucum_quantity =
+            EvaluationResult::quantity(Decimal::from_str("42.0").unwrap(), "widgets".to_string());
+
         let non_ucum_result = evaluation_result_to_result_value(non_ucum_quantity).unwrap();
-        
+
         assert_eq!(non_ucum_result["name"], "quantity");
         assert_eq!(non_ucum_result["valueQuantity"]["value"], 42.0);
         assert_eq!(non_ucum_result["valueQuantity"]["unit"], "widgets");

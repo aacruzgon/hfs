@@ -686,39 +686,41 @@ mod tests {
     fn test_result_to_json_quantity() {
         use rust_decimal::Decimal;
         use std::str::FromStr;
-        
+
         // Test Quantity with UCUM units
-        let result = EvaluationResult::quantity(
-            Decimal::from_str("1.5865").unwrap(),
-            "cm".to_string()
-        );
+        let result =
+            EvaluationResult::quantity(Decimal::from_str("1.5865").unwrap(), "cm".to_string());
         let json_str = result_to_json(&result).unwrap();
         let json: Value = serde_json::from_str(&json_str).unwrap();
-        
-        assert_eq!(json, json!({
-            "value": 1.5865,
-            "unit": "cm",
-            "system": "http://unitsofmeasure.org",
-            "code": "cm"
-        }));
-        
+
+        assert_eq!(
+            json,
+            json!({
+                "value": 1.5865,
+                "unit": "cm",
+                "system": "http://unitsofmeasure.org",
+                "code": "cm"
+            })
+        );
+
         // Verify that value is numeric, not a string
         assert!(json["value"].is_f64() || json["value"].is_i64());
         assert!(!json["value"].is_string());
-        
+
         // Test Quantity with non-UCUM unit (arbitrary unit)
-        let result_non_ucum = EvaluationResult::quantity(
-            Decimal::from_str("42.0").unwrap(),
-            "widgets".to_string()
-        );
+        let result_non_ucum =
+            EvaluationResult::quantity(Decimal::from_str("42.0").unwrap(), "widgets".to_string());
         let json_str_non_ucum = result_to_json(&result_non_ucum).unwrap();
         let json_non_ucum: Value = serde_json::from_str(&json_str_non_ucum).unwrap();
-        
-        assert_eq!(json_non_ucum, json!({
-            "value": 42.0,
-            "unit": "widgets"
-        }));
-        
+
+        assert_eq!(
+            json_non_ucum,
+            json!({
+                "value": 42.0,
+                "unit": "widgets"
+            })
+        );
+
         // Should NOT have system/code for non-UCUM units
         assert!(json_non_ucum.get("system").is_none());
         assert!(json_non_ucum.get("code").is_none());
