@@ -201,17 +201,26 @@ jobs:
             console.log('FhirPath Validator download completed');
 
       - name: Download FHIR Test Cases
-        run: |
-          echo "Downloading FHIR R5 test cases..."
-          curl -L -o tests-fhir-r5.xml "https://raw.githubusercontent.com/FHIR/fhir-test-cases/master/r5/fhirpath/tests-fhir-r5.xml"
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const https = require('https');
 
-          if not exist "tests-fhir-r5.xml" (
-            echo "Failed to download FHIR test cases"
-            exit /b 1
-          )
+            console.log('Downloading FHIR R5 test cases...');
 
-          echo "FHIR test cases downloaded successfully"
-          dir tests-fhir-r5.xml
+            const url = 'https://raw.githubusercontent.com/FHIR/fhir-test-cases/master/r5/fhirpath/tests-fhir-r5.xml';
+            
+            const response = await fetch(url);
+            if (!response.ok) {
+              throw new Error(`Failed to download FHIR test cases: ${response.status} ${response.statusText}`);
+            }
+            
+            const data = await response.text();
+            fs.writeFileSync('tests-fhir-r5.xml', data, 'utf8');
+            
+            console.log('FHIR test cases downloaded successfully');
+            console.log(`File size: ${fs.statSync('tests-fhir-r5.xml').size} bytes`);
 
       - name: Extract and Setup FhirPath Validator
         shell: powershell
@@ -254,15 +263,15 @@ jobs:
           $VALIDATOR_EXIT_CODE = $LASTEXITCODE
 
           if ($VALIDATOR_EXIT_CODE -eq 0) {
-            Write-Host " All FhirPath validation tests passed"
+            Write-Host "✅ All FhirPath validation tests passed"
           } elseif ($VALIDATOR_EXIT_CODE -eq 1) {
-            Write-Host " Some FhirPath validation tests failed"
+            Write-Host "❌ Some FhirPath validation tests failed"
             exit 1
           } elseif ($VALIDATOR_EXIT_CODE -eq 2) {
-            Write-Host " Fatal error occurred during FhirPath validation"
+            Write-Host "💥 Fatal error occurred during FhirPath validation"
             exit 1
           } else {
-            Write-Host " Unexpected exit code: $VALIDATOR_EXIT_CODE"
+            Write-Host "⚠️ Unexpected exit code: $VALIDATOR_EXIT_CODE"
             exit 1
           }
 
