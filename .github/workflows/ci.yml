@@ -2,11 +2,11 @@ name: HFS Continuous Integration
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
     tags:
       - 'v*'
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 env:
   CARGO_TERM_COLOR: always
@@ -16,117 +16,121 @@ env:
 jobs:
   test:
     name: Test Suite
-    runs-on: [self-hosted, Linux] 
+    runs-on: [self-hosted, Linux]
     strategy:
       matrix:
         rust: [stable, beta, nightly]
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@v1
-      with:
-        toolchain: ${{ matrix.rust }}
-        components: rustfmt, clippy
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.rust }}
+          components: rustfmt, clippy
+          override: true
 
-    - name: Configure Rust to use LLD
-      run: |
-        mkdir -p ~/.cargo
-        if ! grep -q "link-arg=-fuse-ld=lld" ~/.cargo/config.toml 2>/dev/null; then
-          echo "[target.x86_64-unknown-linux-gnu]" >> ~/.cargo/config.toml
-          echo 'linker = "clang"' >> ~/.cargo/config.toml
-          echo 'rustflags = ["-C", "link-arg=-fuse-ld=lld"]' >> ~/.cargo/config.toml
-        fi
+      - name: Configure Rust to use LLD
+        run: |
+          mkdir -p ~/.cargo
+          if ! grep -q "link-arg=-fuse-ld=lld" ~/.cargo/config.toml 2>/dev/null; then
+            echo "[target.x86_64-unknown-linux-gnu]" >> ~/.cargo/config.toml
+            echo 'linker = "clang"' >> ~/.cargo/config.toml
+            echo 'rustflags = ["-C", "link-arg=-fuse-ld=lld"]' >> ~/.cargo/config.toml
+          fi
 
-    - name: Cache cargo registry
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-          target
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-cargo-
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
 
-# R6 is currently broken - issue with TestScript
+      # R6 is currently broken - issue with TestScript
       #    - name: Build the FHIR model code generator for all versions (This will download the latest R6 from https://build.fhir.org/
-        #run: |
-          #echo "Build the FHIR model code generator for all versions..."
-          #cargo build -p helios-fhir-gen --all-features
+      #run: |
+      #echo "Build the FHIR model code generator for all versions..."
+      #cargo build -p helios-fhir-gen --all-features
 
-      #- name: Generate all FHIR model code 
-        #run: |
-          #echo "Generate all FHIR model code..."
-          #./target/debug/helios-fhir-gen --all 
- 
-    - name: Run tests with all features
-      run: |
-        echo "Running tests with all features..."
-        #cargo test --all-features 
-        cargo test --features R4,R4B,R5 
- 
+      #- name: Generate all FHIR model code
+      #run: |
+      #echo "Generate all FHIR model code..."
+      #./target/debug/helios-fhir-gen --all
+
+      - name: Run tests with all features
+        run: |
+          echo "Running tests with all features..."
+          #cargo test --all-features 
+          cargo test --features R4,R4B,R5
+
   lint:
     name: Linting
-    runs-on: [self-hosted, Linux] 
+    runs-on: [self-hosted, Linux]
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@v1
-      with:
-        toolchain: stable
-        components: rustfmt, clippy
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+          override: true
 
-    - name: Cache cargo registry
-      uses: actions/cache@v3
-      with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-          target
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo registry
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-    - name: Check formatting
-      run: cargo fmt --all -- --check
+      - name: Check formatting
+        run: cargo fmt --all -- --check
 
-    - name: Run clippy
-      run: | 
-        cargo clippy --all-targets --features R4,R4B,R5 -- -D warnings -A clippy::items_after_test_module -A clippy::large_enum_variant -A clippy::question_mark -A clippy::collapsible_match -A clippy::collapsible_if -A clippy::field_reassign_with_default -A clippy::doc-overindented-list-items
+      - name: Run clippy
+        run: |
+          cargo clippy --all-targets --features R4,R4B,R5 -- -D warnings -A clippy::items_after_test_module -A clippy::large_enum_variant -A clippy::question_mark -A clippy::collapsible_match -A clippy::collapsible_if -A clippy::field_reassign_with_default -A clippy::doc-overindented-list-items
 
   security:
     name: Security Audit
     runs-on: [self-hosted, Linux]
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@v1
-      with:
-        toolchain: stable
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
 
-    - name: Install cargo-audit
-      run: cargo install cargo-audit
+      - name: Install cargo-audit
+        run: cargo install cargo-audit
 
-    - name: Run security audit
-      run: cargo audit
+      - name: Run security audit
+        run: cargo audit
 
   coverage:
     name: Code Coverage
-    runs-on: [self-hosted, Linux] 
+    runs-on: [self-hosted, Linux]
     needs: [test, lint, security]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@v1
+        uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           components: llvm-tools-preview
+          override: true
 
       - name: Configure Rust to use LLD
         run: |
@@ -139,7 +143,7 @@ jobs:
 
       # Needed to pre-install this on the agent using: cargo install cargo-llvm-cov
       #- name: Install cargo-llvm-cov
-        #  uses: taiki-e/install-action@cargo-llvm-cov
+      #  uses: taiki-e/install-action@cargo-llvm-cov
 
       - name: Generate code coverage
         run: cargo llvm-cov --workspace --lcov --output-path lcov.info
@@ -151,6 +155,223 @@ jobs:
           files: lcov.info
           fail_ci_if_error: true
           token: ${{ secrets.CODECOV_TOKEN }}
+
+  fhirpath-validation:
+    name: FhirPath Validation
+    runs-on: [self-hosted, Windows]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Need full history for change detection
+
+      - name: Download FhirPath Validator
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            console.log('Fetching latest FhirPath Validator release...');
+
+            const { data: release } = await github.rest.repos.getLatestRelease({
+              owner: 'HeliosSoftware',
+              repo: 'Hl7.Fhir.FhirPath.Validator'
+            });
+
+            console.log(`Latest FhirPath Validator release: ${release.tag_name}`);
+
+            // Find the Windows executable archive
+            const asset = release.assets.find(asset => 
+              asset.name.includes('win-x64') && asset.name.endsWith('.zip')
+            );
+
+            if (!asset) {
+              console.log('Available assets:', release.assets.map(a => a.name));
+              throw new Error('Windows FhirPath validator archive not found');
+            }
+
+            console.log(`Downloading FhirPath Validator: ${asset.name}`);
+
+            const { data } = await github.rest.repos.getReleaseAsset({
+              owner: 'HeliosSoftware',
+              repo: 'Hl7.Fhir.FhirPath.Validator',
+              asset_id: asset.id,
+              headers: {
+                Accept: 'application/octet-stream'
+              }
+            });
+
+            fs.writeFileSync('fhirpath-validator.zip', Buffer.from(data));
+            console.log('FhirPath Validator download completed');
+
+      - name: Checkout FHIR Test Cases
+        uses: actions/checkout@v4
+        with:
+          repository: FHIR/fhir-test-cases
+          path: fhir-test-cases
+          ref: master
+
+      - name: Extract and Setup FhirPath Validator
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const { execSync } = require('child_process');
+
+            console.log('Extracting FhirPath Validator...');
+
+            // Create directory
+            const toolsDir = 'tools/fhirpath-validator';
+            fs.mkdirSync(toolsDir, { recursive: true });
+
+            // Extract using tar (available on Windows 10+)
+            try {
+              execSync(`tar -xf fhirpath-validator.zip -C ${toolsDir}`, { stdio: 'inherit' });
+            } catch (error) {
+              console.error('Failed to extract with tar, trying alternative method...');
+              throw error;
+            }
+
+            // Find the executable recursively
+            function findFile(dir, filename) {
+              const files = fs.readdirSync(dir);
+              for (const file of files) {
+                const fullPath = path.join(dir, file);
+                const stat = fs.statSync(fullPath);
+                if (stat.isDirectory()) {
+                  const found = findFile(fullPath, filename);
+                  if (found) return found;
+                } else if (file === filename) {
+                  return fullPath;
+                }
+              }
+              return null;
+            }
+
+            const validatorPath = findFile(toolsDir, 'Test.Fhir.R5.FhirPath.Validator.exe');
+
+            if (validatorPath) {
+              console.log(`Found validator at: ${validatorPath}`);
+              
+              // Copy to root for easier access
+              fs.copyFileSync(validatorPath, 'fhirpath-validator.exe');
+              console.log('Validator setup complete');
+              
+              // Verify it works
+              try {
+                execSync('.\\fhirpath-validator.exe --help', { stdio: 'pipe' });
+                console.log('Validator help command successful');
+              } catch (error) {
+                console.log('Validator help not available, but binary extracted');
+              }
+            } else {
+              console.log('Validator executable not found');
+              console.log('Directory contents:');
+              execSync(`dir /s ${toolsDir}`, { stdio: 'inherit' });
+              throw new Error('Validator executable not found');
+            }
+
+      - name: Configure Rust to use LLD
+        shell: cmd
+        run: |
+          if not exist "%USERPROFILE%\.cargo" mkdir "%USERPROFILE%\.cargo"
+          set "configPath=%USERPROFILE%\.cargo\config.toml"
+          if not exist "%configPath%" (
+            echo [target.x86_64-pc-windows-msvc] >> "%configPath%"
+            echo linker = "lld-link.exe" >> "%configPath%"
+          ) else (
+            findstr /C:"lld-link" "%configPath%" >nul || (
+              echo [target.x86_64-pc-windows-msvc] >> "%configPath%"
+              echo linker = "lld-link.exe" >> "%configPath%"
+            )
+          )
+
+      - name: Build fhirpath-server (R5)
+        shell: cmd
+        run: cargo build -p helios-fhirpath --features R5 --bin fhirpath-server
+
+      # For PS scripts, run with Bypass
+      - name: Start fhirpath-server (Windows)
+        shell: 'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& ''{0}''"'
+        run: |
+          $exe = Join-Path (Resolve-Path "target\debug").Path "fhirpath-server.exe"
+          Write-Host "Starting server: $exe"
+          $p = Start-Process -FilePath $exe -ArgumentList "--port 3000 --host 127.0.0.1" -PassThru
+          $pidFile = "$env:RUNNER_TEMP\fhirpath_server.pid"
+          $p.Id | Out-File -FilePath $pidFile -Encoding ascii
+          Write-Host "fhirpath-server PID: $($p.Id)"
+
+      - name: Wait for fhirpath-server to be ready (Windows)
+        shell: 'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& ''{0}''"'
+        run: |
+          $deadline = (Get-Date).AddSeconds(30)
+          do {
+            try {
+              $resp = Invoke-RestMethod -Uri http://127.0.0.1:3000/health -UseBasicParsing -TimeoutSec 2
+              if ($resp.status -eq 'ok') { Write-Host 'FHIRPath server is ready'; exit 0 }
+            } catch { }
+            Start-Sleep -Seconds 1
+          } while ((Get-Date) -lt $deadline)
+          Write-Warning 'FHIRPath server did not become ready in time'
+
+      - name: Run FhirPath Validation with FHIR Test Cases
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { execSync } = require('child_process');
+            const path = require('path');
+
+            console.log('Running FhirPath validation with FHIR R5 test cases...');
+
+            // Get absolute paths
+            const testFilePath = path.resolve('fhir-test-cases/r5/fhirpath/tests-fhir-r5.xml');
+            const basePath = path.resolve('fhir-test-cases/r5');
+            const knownFailuresPath = path.resolve('crates/fhirpath/tests/data/r5/known-test-failures.json');
+            const url = 'http://127.0.0.1:3000/r5';
+
+            console.log(`Test file path: ${testFilePath}`);
+            console.log(`Base path: ${basePath}`);
+            console.log(`Known failures file: ${knownFailuresPath}`);
+            console.log(`Server URL: ${url}`);
+
+            try {
+              // Run the validator as a console application with CLI arguments
+              const command = `fhirpath-validator.exe --fhir-test-file "${testFilePath}" --fhir-test-base-path "${basePath}" --known-failures "${knownFailuresPath}" --url "${url}"`;
+              console.log(`Executing: ${command}`);
+              
+              const result = execSync(command, { 
+                stdio: 'inherit',
+                encoding: 'utf8'
+              });
+              
+              console.log(' All FhirPath validation tests passed (excluding known failures)');
+            } catch (error) {
+              const exitCode = error.status;
+              
+              if (exitCode === 1) {
+                console.log(' Some FhirPath validation tests failed');
+                process.exit(1);
+              } else if (exitCode === 2) {
+                console.log(' Fatal error occurred during FhirPath validation');
+                process.exit(1);
+              } else {
+                console.log(` Unexpected exit code: ${exitCode}`);
+                process.exit(1);
+              }
+            }
+
+      - name: Cleanup fhirpath-server (Windows)
+        if: always()
+        shell: 'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& ''{0}''"'
+        run: |
+          $pidFile = "$env:RUNNER_TEMP\fhirpath_server.pid"
+          if (Test-Path $pidFile) {
+            $serverPid = Get-Content $pidFile | Select-Object -First 1
+            Write-Host "Stopping fhirpath-server PID $serverPid"
+            Stop-Process -Id $serverPid -Force -ErrorAction SilentlyContinue
+            Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
+          }
 
   build:
     name: Build Release
@@ -164,114 +385,116 @@ jobs:
             runner: [self-hosted, Linux]
             target: x86_64-unknown-linux-gnu
             archive_ext: tar.gz
-          - os: Windows 
+          - os: Windows
             runner: [self-hosted, Windows]
             target: x86_64-pc-windows-msvc
             archive_ext: zip
         #      - os: macOS
-          #        runner: [self-hosted, macOS, aarch64]
-          #        target: aarch64-apple-darwin
-          #        archive_ext: tar.gz
+        #        runner: [self-hosted, macOS, aarch64]
+        #        target: aarch64-apple-darwin
+        #        archive_ext: tar.gz
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@v1
-      with:
-        toolchain: stable
+      - name: Install Rust toolchain (Linux/macOS)
+        if: runner.os != 'Windows'
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
 
-# TODO - need to add all of the target types
-    - name: Configure Rust to use LLD
-      run: |
-        mkdir -p ~/.cargo
-        if ! grep -q "link-arg=-fuse-ld=lld" ~/.cargo/config.toml 2>/dev/null; then
-          echo "[target.x86_64-unknown-linux-gnu]" >> ~/.cargo/config.toml
-          echo 'linker = "clang"' >> ~/.cargo/config.toml
-          echo 'rustflags = ["-C", "link-arg=-fuse-ld=lld"]' >> ~/.cargo/config.toml
-        fi
+      # TODO - need to add all of the target types
+      - name: Configure Rust to use LLD (Linux only)
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p ~/.cargo
+          if ! grep -q "link-arg=-fuse-ld=lld" ~/.cargo/config.toml 2>/dev/null; then
+            echo "[target.x86_64-unknown-linux-gnu]" >> ~/.cargo/config.toml
+            echo 'linker = "clang"' >> ~/.cargo/config.toml
+            echo 'rustflags = ["-C", "link-arg=-fuse-ld=lld"]' >> ~/.cargo/config.toml
+          fi
 
-    - name: Cache cargo registry
-      uses: actions/cache@v3
-      with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-          target
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo registry
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-    - name: Build release
-      run: cargo build --features R4,R4B,R5 --release
+      - name: Build release
+        run: cargo build --features R4,R4B,R5 --release
 
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: hfs-${{ matrix.target }}
-        path: |
-          target/release/
-          !target/release/build/
-          !target/release/deps/
-          !target/release/incremental/
-          !target/release/*.d
-          !target/release/*.rlib
-          !target/release/*.so
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: hfs-${{ matrix.target }}
+          path: |
+            target/release/
+            !target/release/build/
+            !target/release/deps/
+            !target/release/incremental/
+            !target/release/*.d
+            !target/release/*.rlib
+            !target/release/*.so
 
   release:
     name: Create GitHub Release
-    runs-on: [self-hosted, Linux] 
+    runs-on: [self-hosted, Linux]
     needs: [build]
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Download build artifacts
-      uses: actions/download-artifact@v4
-      with:
-        path: ./artifacts
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
 
-    - name: Create release archives
-      run: |
-        mkdir -p releases
-        # Extract version from tag (remove 'v' prefix)
-        version="${{ github.ref_name }}"
-        version="${version#v}"
-        
-        cd artifacts
-        for dir in */; do
-          # Extract target from directory name (format: hfs-{target}/)
-          if [[ "$dir" =~ hfs-(.+)/ ]]; then
-            target="${BASH_REMATCH[1]}"
-            
-            # Create combined archive with version in filename
-            if [[ "$target" == *"windows"* ]]; then
-              cd "$dir" && zip -r ../../releases/hfs-${version}-${target}.zip . && cd ..
-            else
-              tar -czf ../releases/hfs-${version}-${target}.tar.gz -C "$dir" .
+      - name: Create release archives
+        run: |
+          mkdir -p releases
+          # Extract version from tag (remove 'v' prefix)
+          version="${{ github.ref_name }}"
+          version="${version#v}"
+
+          cd artifacts
+          for dir in */; do
+            # Extract target from directory name (format: hfs-{target}/)
+            if [[ "$dir" =~ hfs-(.+)/ ]]; then
+              target="${BASH_REMATCH[1]}"
+              
+              # Create combined archive with version in filename
+              if [[ "$target" == *"windows"* ]]; then
+                cd "$dir" && zip -r ../../releases/hfs-${version}-${target}.zip . && cd ..
+              else
+                tar -czf ../releases/hfs-${version}-${target}.tar.gz -C "$dir" .
+              fi
             fi
+          done
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          if [ -f CHANGELOG.md ]; then
+            # Extract changelog for this version
+            sed -n "/^## \[$(echo ${{ github.ref_name }} | sed 's/v//')\]/,/^## \[/p" CHANGELOG.md | head -n -1 > current_changelog.md
+            echo "changelog_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "## What's Changed" > current_changelog.md
+            echo "changelog_exists=false" >> $GITHUB_OUTPUT
           fi
-        done
 
-    - name: Generate changelog
-      id: changelog
-      run: |
-        if [ -f CHANGELOG.md ]; then
-          # Extract changelog for this version
-          sed -n "/^## \[$(echo ${{ github.ref_name }} | sed 's/v//')\]/,/^## \[/p" CHANGELOG.md | head -n -1 > current_changelog.md
-          echo "changelog_exists=true" >> $GITHUB_OUTPUT
-        else
-          echo "## What's Changed" > current_changelog.md
-          echo "changelog_exists=false" >> $GITHUB_OUTPUT
-        fi
-
-    - name: Create GitHub Release
-      uses: softprops/action-gh-release@v2
-      with:
-        files: releases/*
-        body_path: current_changelog.md
-        draft: false
-        prerelease: ${{ contains(github.ref_name, '-') }}
-        generate_release_notes: ${{ steps.changelog.outputs.changelog_exists == 'false' }}
-
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: releases/*
+          body_path: current_changelog.md
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          generate_release_notes: ${{ steps.changelog.outputs.changelog_exists == 'false' }}
