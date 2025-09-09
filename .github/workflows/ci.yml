@@ -367,9 +367,9 @@ jobs:
         run: |
           $pidFile = "$env:RUNNER_TEMP\fhirpath_server.pid"
           if (Test-Path $pidFile) {
-            $pid = Get-Content $pidFile | Select-Object -First 1
-            Write-Host "Stopping fhirpath-server PID $pid"
-            Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
+            $serverPid = Get-Content $pidFile | Select-Object -First 1
+            Write-Host "Stopping fhirpath-server PID $serverPid"
+            Stop-Process -Id $serverPid -Force -ErrorAction SilentlyContinue
             Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
           }
 
