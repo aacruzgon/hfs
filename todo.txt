@@ -1,9 +1,6 @@
 - Make repo public
   - Add a CONTRIBUTING.md file
 
-- We are using two different versions of axum and axum-test - can we consolodiate to one?  Are there other duplicate crates with different versions?
-- Upgrade to new version of rust_decimal
-
 - R6 build recently is not building - it worked on Sat the 16th
 
 - FHIRPath
