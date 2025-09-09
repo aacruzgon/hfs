@@ -273,16 +273,19 @@ jobs:
             }
 
       - name: Configure Rust to use LLD
-        shell: powershell
+        shell: cmd
         run: |
-          if (!(Test-Path "$env:USERPROFILE\.cargo")) {
-            New-Item -ItemType Directory -Path "$env:USERPROFILE\.cargo" -Force
-          }
-          $configPath = "$env:USERPROFILE\.cargo\config.toml"
-          if (!(Test-Path $configPath) -or !(Select-String -Path $configPath -Pattern "lld-link" -Quiet)) {
-            Add-Content -Path $configPath -Value "[target.x86_64-pc-windows-msvc]"
-            Add-Content -Path $configPath -Value 'linker = "lld-link.exe"'
-          }
+          if not exist "%USERPROFILE%\.cargo" mkdir "%USERPROFILE%\.cargo"
+          set "configPath=%USERPROFILE%\.cargo\config.toml"
+          if not exist "%configPath%" (
+            echo [target.x86_64-pc-windows-msvc] >> "%configPath%"
+            echo linker = "lld-link.exe" >> "%configPath%"
+          ) else (
+            findstr /C:"lld-link" "%configPath%" >nul || (
+              echo [target.x86_64-pc-windows-msvc] >> "%configPath%"
+              echo linker = "lld-link.exe" >> "%configPath%"
+            )
+          )
 
       - name: Build fhirpath-server (R5)
         shell: cmd
