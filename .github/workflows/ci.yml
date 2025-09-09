@@ -24,27 +24,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install Rust toolchain (non-Windows)
-        if: runner.os != 'Windows'
+      - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{ matrix.rust }}
           components: rustfmt, clippy
           override: true
-
-      - name: Install Rust toolchain (Windows)
-        if: runner.os == 'Windows'
-        shell: powershell
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $env:CARGO_HOME = "$env:USERPROFILE\.cargo"
-          $env:RUSTUP_HOME = "$env:USERPROFILE\.rustup"
-          Invoke-WebRequest -Uri https://win.rustup.rs/x86_64 -OutFile rustup-init.exe
-          .\rustup-init.exe -y --default-toolchain stable --profile minimal
-          echo "$env:USERPROFILE\.cargo\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          rustup toolchain install stable
-          rustup default stable
-          rustup component add rustfmt clippy
 
       - name: Configure Rust to use LLD
         run: |
@@ -90,27 +75,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install Rust toolchain (non-Windows)
-        if: runner.os != 'Windows'
+      - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           components: rustfmt, clippy
           override: true
-
-      - name: Install Rust toolchain (Windows)
-        if: runner.os == 'Windows'
-        shell: powershell
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $env:CARGO_HOME = "$env:USERPROFILE\.cargo"
-          $env:RUSTUP_HOME = "$env:USERPROFILE\.rustup"
-          Invoke-WebRequest -Uri https://win.rustup.rs/x86_64 -OutFile rustup-init.exe
-          .\rustup-init.exe -y --default-toolchain stable --profile minimal
-          echo "$env:USERPROFILE\.cargo\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          rustup toolchain install stable
-          rustup default stable
-          rustup component add rustfmt clippy
 
       - name: Cache cargo registry
         uses: actions/cache@v3
@@ -302,20 +272,6 @@ jobs:
               throw new Error('Validator executable not found');
             }
 
-      - name: Install Rust toolchain (for fhirpath-server)
-        shell: powershell
-        run: |
-          Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force
-          $ErrorActionPreference = 'Stop'
-          $env:CARGO_HOME = "$env:USERPROFILE\.cargo"
-          $env:RUSTUP_HOME = "$env:USERPROFILE\.rustup"
-          Invoke-WebRequest -Uri https://win.rustup.rs/x86_64 -OutFile rustup-init.exe
-          .\rustup-init.exe -y --default-toolchain stable --profile minimal
-          echo "$env:USERPROFILE\.cargo\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          rustup toolchain install stable
-          rustup default stable
-          rustup component add rustfmt clippy
-
       - name: Build fhirpath-server (R5)
         run: cargo build -p helios-fhirpath --features R5 --bin fhirpath-server
 
@@ -424,29 +380,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install Rust toolchain (non-Windows)
+      - name: Install Rust toolchain (Linux/macOS)
         if: runner.os != 'Windows'
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           override: true
 
-      - name: Install Rust toolchain (Windows)
-        if: runner.os == 'Windows'
-        shell: powershell
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $env:CARGO_HOME = "$env:USERPROFILE\.cargo"
-          $env:RUSTUP_HOME = "$env:USERPROFILE\.rustup"
-          Invoke-WebRequest -Uri https://win.rustup.rs/x86_64 -OutFile rustup-init.exe
-          .\rustup-init.exe -y --default-toolchain stable --profile minimal
-          echo "$env:USERPROFILE\.cargo\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          rustup toolchain install stable
-          rustup default stable
-          rustup component add rustfmt
-
       # TODO - need to add all of the target types
-      - name: Configure Rust to use LLD
+      - name: Configure Rust to use LLD (Linux only)
+        if: runner.os == 'Linux'
         run: |
           mkdir -p ~/.cargo
           if ! grep -q "link-arg=-fuse-ld=lld" ~/.cargo/config.toml 2>/dev/null; then
