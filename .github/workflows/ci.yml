@@ -272,11 +272,15 @@ jobs:
               throw new Error('Validator executable not found');
             }
 
+      - name: Set PowerShell execution policy
+        run: Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process -Force
+        shell: powershell
+
       - name: Build fhirpath-server (R5)
         run: cargo build -p helios-fhirpath --features R5 --bin fhirpath-server
 
       - name: Start fhirpath-server (Windows)
-        shell: powershell
+        shell: 'powershell -NoProfile -ExecutionPolicy Bypass -File {0}'
         run: |
           $exe = Join-Path (Resolve-Path "target\debug").Path "fhirpath-server.exe"
           Write-Host "Starting server: $exe"
@@ -286,7 +290,7 @@ jobs:
           Write-Host "fhirpath-server PID: $($p.Id)"
 
       - name: Wait for fhirpath-server to be ready (Windows)
-        shell: powershell
+        shell: 'powershell -NoProfile -ExecutionPolicy Bypass -File {0}'
         run: |
           $deadline = (Get-Date).AddSeconds(30)
           do {
@@ -346,7 +350,7 @@ jobs:
 
       - name: Cleanup fhirpath-server (Windows)
         if: always()
-        shell: powershell
+        shell: 'powershell -NoProfile -ExecutionPolicy Bypass -File {0}'
         run: |
           $pidFile = "$env:RUNNER_TEMP\fhirpath_server.pid"
           if (Test-Path $pidFile) {
