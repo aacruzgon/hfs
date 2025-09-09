@@ -274,13 +274,13 @@ jobs:
 
       - name: Build fhirpath-server (R5)
         shell: cmd
-        run: cargo build -p helios-fhirpath --features R5 --bin fhirpath-server
+        run: cargo build -p helios-fhirpath --features R5 --bin fhirpath-server --release
 
       # For PS scripts, run with Bypass
       - name: Start fhirpath-server (Windows)
         shell: 'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& ''{0}''"'
         run: |
-          $exe = Join-Path (Resolve-Path "target\debug").Path "fhirpath-server.exe"
+          $exe = Join-Path (Resolve-Path "target\release").Path "fhirpath-server.exe"
           Write-Host "Starting server: $exe"
           $p = Start-Process -FilePath $exe -ArgumentList "--port 3000 --host 127.0.0.1" -PassThru
           $pidFile = "$env:RUNNER_TEMP\fhirpath_server.pid"
