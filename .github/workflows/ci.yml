@@ -315,6 +315,10 @@ jobs:
           } while ((Get-Date) -lt $deadline)
           Write-Warning 'FHIRPath server did not become ready in time'
 
+      - name: Create FhirPath Results Directory
+        shell: cmd
+        run: mkdir fhirpath-results
+
       - name: Run FhirPath Validation with FHIR Test Cases
         uses: actions/github-script@v7
         with:
@@ -328,16 +332,18 @@ jobs:
             const testFilePath = path.resolve('fhir-test-cases/r5/fhirpath/tests-fhir-r5.xml');
             const basePath = path.resolve('fhir-test-cases/r5');
             const knownFailuresPath = path.resolve('crates/fhirpath/tests/data/r5/known-test-failures.json');
+            const resultsPath = path.resolve('fhirpath-results');
             const url = 'http://127.0.0.1:3000/r5';
 
             console.log(`Test file path: ${testFilePath}`);
             console.log(`Base path: ${basePath}`);
             console.log(`Known failures file: ${knownFailuresPath}`);
+            console.log(`Results path: ${resultsPath}`);
             console.log(`Server URL: ${url}`);
 
             try {
               // Run the validator as a console application with CLI arguments
-              const command = `fhirpath-validator.exe --fhir-test-file "${testFilePath}" --fhir-test-base-path "${basePath}" --known-failures "${knownFailuresPath}" --url "${url}"`;
+              const command = `fhirpath-validator.exe --fhir-test-file "${testFilePath}" --fhir-test-base-path "${basePath}" --known-failures "${knownFailuresPath}" --fhirpath-results-path "${resultsPath}" --url "${url}" --server`;
               console.log(`Executing: ${command}`);
               
               const result = execSync(command, { 
@@ -360,6 +366,14 @@ jobs:
                 process.exit(1);
               }
             }
+
+      - name: Upload FhirPath Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fhirpath-test-results
+          path: fhirpath-results/
+          retention-days: 7
 
       - name: Cleanup fhirpath-server (Windows)
         if: always()
