@@ -151,25 +151,25 @@ pub fn compare_date_time_values(
         }
 
         // Date vs DateTime comparison
-        // Per FHIRPath spec: "If one value is specified to a different level of precision than 
-        // the other and the result is not determined before running out of precision, then 
+        // Per FHIRPath spec: "If one value is specified to a different level of precision than
+        // the other and the result is not determined before running out of precision, then
         // the result is empty indicating that the result of the comparison is unknown"
         (EvaluationResult::Date(date_str, _), EvaluationResult::DateTime(dt_str, _)) => {
             // Strip @ prefix if present
             let date_str = date_str.strip_prefix('@').unwrap_or(date_str);
             let dt_str = dt_str.strip_prefix('@').unwrap_or(dt_str);
-            
+
             // Parse the date to get its precision
             let date_precision = PrecisionDate::parse(date_str)?;
-            
+
             // Parse the datetime to get the date portion
             let dt_precision = PrecisionDateTime::parse(dt_str)?;
-            
+
             // Compare at the date's precision level
             // First compare year
             let date_year = date_precision.year();
             let dt_year = dt_precision.date.year();
-            
+
             match date_year.cmp(&dt_year) {
                 Ordering::Less => return Some(Ordering::Less),
                 Ordering::Greater => return Some(Ordering::Greater),
@@ -186,7 +186,9 @@ pub fn compare_date_time_values(
                                         if let Some(dt_day) = dt_precision.date.day() {
                                             match date_day.cmp(&dt_day) {
                                                 Ordering::Less => return Some(Ordering::Less),
-                                                Ordering::Greater => return Some(Ordering::Greater),
+                                                Ordering::Greater => {
+                                                    return Some(Ordering::Greater);
+                                                }
                                                 Ordering::Equal => {
                                                     // Date and DateTime are equal up to the date's precision
                                                     // Since DateTime has more precision (time), the comparison is indeterminate
@@ -220,7 +222,10 @@ pub fn compare_date_time_values(
         }
         (EvaluationResult::DateTime(dt_str, _), EvaluationResult::Date(date_str, _)) => {
             // Flip the comparison for DateTime vs Date
-            match compare_date_time_values(&EvaluationResult::Date(date_str.clone(), None), &EvaluationResult::DateTime(dt_str.clone(), None)) {
+            match compare_date_time_values(
+                &EvaluationResult::Date(date_str.clone(), None),
+                &EvaluationResult::DateTime(dt_str.clone(), None),
+            ) {
                 Some(Ordering::Less) => Some(Ordering::Greater),
                 Some(Ordering::Greater) => Some(Ordering::Less),
                 Some(Ordering::Equal) => Some(Ordering::Equal),
