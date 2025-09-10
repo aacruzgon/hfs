@@ -633,19 +633,8 @@ fn test_r4_test_suite() {
                             );
                             failed_tests += 1;
                         } else {
-                            // Check if this is a contested test
-                            let contested_tests = ["testDateTimeGreaterThanDate", "testNow1"];
-
-                            if contested_tests.contains(&test.name.as_str()) {
-                                println!(
-                                    "  PASS (contested): {} - '{}' - {}",
-                                    test.name, test.expression, e
-                                );
-                                passed_tests += 1;
-                            } else {
-                                println!("  FAIL: {} - '{}' - {}", test.name, test.expression, e);
-                                failed_tests += 1;
-                            }
+                            println!("  FAIL: {} - '{}' - {}", test.name, test.expression, e);
+                            failed_tests += 1;
                         }
                     }
                 }
