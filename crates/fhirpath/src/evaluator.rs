@@ -7634,8 +7634,8 @@ fn compare_inequality(
             if is_date_time_left && is_date_time_right {
                 // Both are date/time types but comparison returned None
                 // This means the comparison is indeterminate (e.g., different precisions)
-                // According to FHIRPath spec: "If one value is specified to a different level of 
-                // precision than the other, the result is empty ({ }) to indicate that the result 
+                // According to FHIRPath spec: "If one value is specified to a different level of
+                // precision than the other, the result is empty ({ }) to indicate that the result
                 // of the comparison is unknown."
                 return Ok(EvaluationResult::Empty);
             }

@@ -154,7 +154,7 @@ pub fn compare_date_time_values(
         // Return None to indicate indeterminate comparison (different precisions)
         (EvaluationResult::Date(_, _), EvaluationResult::DateTime(_, _)) => None,
         (EvaluationResult::DateTime(_, _), EvaluationResult::Date(_, _)) => None,
-        
+
         // Date vs Time comparison - these are incomparable types
         // For ordering comparisons (used by <, >, <=, >=), return None
         // For equality comparisons, this will be handled differently in the evaluator

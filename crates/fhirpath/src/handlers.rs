@@ -230,7 +230,7 @@ async fn evaluate_fhirpath_with_version(
 
     // Create evaluation context
     let mut context = EvaluationContext::new(vec![fhir_resource]);
-    
+
     // Preserve underscore properties in context
     preserve_underscore_properties(&mut context, &resource_json);
 
@@ -531,9 +531,13 @@ fn preserve_underscore_properties(context: &mut EvaluationContext, resource_json
         if let Some(Value::String(resource_type)) = obj.get("resourceType") {
             // Clone the existing resource from context
             if let Some(existing_resource) = context.this.as_ref() {
-                if let EvaluationResult::Object { map: existing_map, type_info } = existing_resource {
+                if let EvaluationResult::Object {
+                    map: existing_map,
+                    type_info,
+                } = existing_resource
+                {
                     let mut enhanced_map = existing_map.clone();
-                    
+
                     // Add underscore properties from JSON
                     for (key, value) in obj {
                         if key.starts_with('_') {
@@ -543,14 +547,14 @@ fn preserve_underscore_properties(context: &mut EvaluationContext, resource_json
                             }
                         }
                     }
-                    
+
                     // Update context with enhanced resource
-                    let enhanced_resource = EvaluationResult::Object { 
-                        map: enhanced_map, 
-                        type_info: type_info.clone() 
+                    let enhanced_resource = EvaluationResult::Object {
+                        map: enhanced_map,
+                        type_info: type_info.clone(),
                     };
                     context.set_this(enhanced_resource.clone());
-                    
+
                     // Also set as a variable with the resource type name
                     context.set_variable_result(resource_type, enhanced_resource);
                 }
@@ -590,7 +594,10 @@ fn json_value_to_evaluation_result(value: &Value) -> FhirPathResult<EvaluationRe
                 let eval_val = json_value_to_evaluation_result(val)?;
                 map.insert(key.clone(), eval_val);
             }
-            Ok(EvaluationResult::Object { map, type_info: None })
+            Ok(EvaluationResult::Object {
+                map,
+                type_info: None,
+            })
         }
     }
 }
