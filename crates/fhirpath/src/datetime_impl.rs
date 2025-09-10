@@ -151,21 +151,15 @@ pub fn compare_date_time_values(
         }
 
         // Date vs DateTime comparison
-        // Per FHIRPath spec: When comparing dates to datetimes, compare at the date precision
-        (EvaluationResult::Date(d, _), EvaluationResult::DateTime(dt, _)) => {
-            let pd = PrecisionDate::parse(d)?;
-            let pdt = PrecisionDateTime::parse(dt)?;
-
-            // Compare just the date portions
-            pd.compare(&pdt.date)
-        }
-        (EvaluationResult::DateTime(dt, _), EvaluationResult::Date(d, _)) => {
-            let pdt = PrecisionDateTime::parse(dt)?;
-            let pd = PrecisionDate::parse(d)?;
-
-            // Compare just the date portions
-            pdt.date.compare(&pd)
-        }
+        // Return None to indicate indeterminate comparison (different precisions)
+        (EvaluationResult::Date(_, _), EvaluationResult::DateTime(_, _)) => None,
+        (EvaluationResult::DateTime(_, _), EvaluationResult::Date(_, _)) => None,
+        
+        // Date vs Time comparison - these are incomparable types
+        // For ordering comparisons (used by <, >, <=, >=), return None
+        // For equality comparisons, this will be handled differently in the evaluator
+        (EvaluationResult::Date(_, _), EvaluationResult::Time(_, _)) => None,
+        (EvaluationResult::Time(_, _), EvaluationResult::Date(_, _)) => None,
 
         // Handle string-based date/time formats
         (EvaluationResult::String(s1, _), EvaluationResult::String(s2, _)) => {
@@ -236,14 +230,8 @@ pub fn compare_date_time_values(
         (EvaluationResult::String(s_val, _), EvaluationResult::DateTime(dt_val, _)) => {
             // Check if string is a date (not datetime)
             if !s_val.contains('T') && parse_date(s_val).is_some() {
-                // String is date, DateTime is datetime - compare them
-                // Convert date to datetime range for comparison
-                let d_normalized = normalize_date(s_val);
-                let d_start = format!("{}T00:00:00", d_normalized);
-
-                // For comparisons, use the start of day
-                // This is consistent with FHIR's approach for < and > operators
-                compare_datetimes(&d_start, dt_val)
+                // String is date, DateTime is datetime - indeterminate
+                None
             } else {
                 // Attempt to parse s_val as a datetime and compare with dt_val
                 compare_datetimes(s_val, dt_val)
@@ -252,13 +240,8 @@ pub fn compare_date_time_values(
         (EvaluationResult::DateTime(dt_val, _), EvaluationResult::String(s_val, _)) => {
             // Check if string is a date (not datetime)
             if !s_val.contains('T') && parse_date(s_val).is_some() {
-                // DateTime is datetime, String is date - compare them
-                // Convert date to datetime range for comparison
-                let d_normalized = normalize_date(s_val);
-                let d_start = format!("{}T00:00:00", d_normalized);
-
-                // For comparisons, use the start of day
-                compare_datetimes(dt_val, &d_start)
+                // DateTime is datetime, String is date - indeterminate
+                None
             } else {
                 // Attempt to parse s_val as a datetime and compare with dt_val
                 compare_datetimes(dt_val, s_val)

@@ -2951,8 +2951,8 @@ fn test_operator_types_is() {
     ); // Assuming parser tags type
     assert_eq!(
         eval("{} is Integer", &context).unwrap(),
-        EvaluationResult::boolean(false)
-    ); // Empty is not Integer
+        EvaluationResult::Empty
+    ); // Empty is type returns Empty per FHIRPath semantics
     // Test 'System' namespace explicitly if needed by implementation
     assert_eq!(
         eval("1 is System.Integer", &context).unwrap(),

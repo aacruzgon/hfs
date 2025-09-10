@@ -230,6 +230,9 @@ async fn evaluate_fhirpath_with_version(
 
     // Create evaluation context
     let mut context = EvaluationContext::new(vec![fhir_resource]);
+    
+    // Preserve underscore properties in context
+    preserve_underscore_properties(&mut context, &resource_json);
 
     // Set variables
     for var in &extracted.variables {
@@ -520,6 +523,42 @@ fn set_variable_from_json(
     Ok(())
 }
 
+/// Preserve underscore properties in the evaluation context
+/// This is needed because FHIR deserialization loses underscore properties
+fn preserve_underscore_properties(context: &mut EvaluationContext, resource_json: &Value) {
+    // Get the resource type and create a variable for it
+    if let Value::Object(obj) = resource_json {
+        if let Some(Value::String(resource_type)) = obj.get("resourceType") {
+            // Clone the existing resource from context
+            if let Some(existing_resource) = context.this.as_ref() {
+                if let EvaluationResult::Object { map: existing_map, type_info } = existing_resource {
+                    let mut enhanced_map = existing_map.clone();
+                    
+                    // Add underscore properties from JSON
+                    for (key, value) in obj {
+                        if key.starts_with('_') {
+                            // Convert JSON value to EvaluationResult
+                            if let Ok(eval_result) = json_value_to_evaluation_result(value) {
+                                enhanced_map.insert(key.clone(), eval_result);
+                            }
+                        }
+                    }
+                    
+                    // Update context with enhanced resource
+                    let enhanced_resource = EvaluationResult::Object { 
+                        map: enhanced_map, 
+                        type_info: type_info.clone() 
+                    };
+                    context.set_this(enhanced_resource.clone());
+                    
+                    // Also set as a variable with the resource type name
+                    context.set_variable_result(resource_type, enhanced_resource);
+                }
+            }
+        }
+    }
+}
+
 /// Convert JSON value to EvaluationResult
 fn json_value_to_evaluation_result(value: &Value) -> FhirPathResult<EvaluationResult> {
     match value {
@@ -544,9 +583,14 @@ fn json_value_to_evaluation_result(value: &Value) -> FhirPathResult<EvaluationRe
                 arr.iter().map(json_value_to_evaluation_result).collect();
             Ok(EvaluationResult::collection(results?))
         }
-        Value::Object(_) => {
-            // For complex objects, store as JSON string
-            Ok(EvaluationResult::string(value.to_string()))
+        Value::Object(obj) => {
+            // Convert JSON object to EvaluationResult object
+            let mut map = std::collections::HashMap::new();
+            for (key, val) in obj {
+                let eval_val = json_value_to_evaluation_result(val)?;
+                map.insert(key.clone(), eval_val);
+            }
+            Ok(EvaluationResult::Object { map, type_info: None })
         }
     }
 }

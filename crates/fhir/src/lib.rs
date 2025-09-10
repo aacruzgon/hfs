@@ -1213,6 +1213,11 @@ impl PrecisionDateTime {
             return Some(self.to_chrono_datetime().cmp(&other.to_chrono_datetime()));
         }
 
+        // If one has timezone and the other doesn't, comparison is indeterminate
+        if self.timezone_offset.is_some() != other.timezone_offset.is_some() {
+            return None;
+        }
+
         // Otherwise, compare components with precision awareness
         match self.date.compare(&other.date) {
             Some(Ordering::Equal) => {

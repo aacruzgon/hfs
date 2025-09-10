@@ -7495,6 +7495,10 @@ fn apply_type_operation(
     // Fallback to crate::resource_type for System types, 'ofType', or if not handled by polymorphic_access
     match op {
         "is" => {
+            // If the value is Empty, the result of 'is' should be Empty
+            if actual_value == &EvaluationResult::Empty {
+                return Ok(EvaluationResult::Empty);
+            }
             let is_result =
                 crate::resource_type::is_of_type_with_context(actual_value, type_spec, context)?;
             Ok(EvaluationResult::boolean(is_result))
@@ -7629,7 +7633,39 @@ fn compare_inequality(
             );
             if is_date_time_left && is_date_time_right {
                 // Both are date/time types but comparison returned None
-                // This means the comparison is indeterminate (e.g., date vs datetime)
+                // Special handling for Date vs DateTime ordering comparisons
+                match (left, right) {
+                    (EvaluationResult::Date(d, _), EvaluationResult::DateTime(dt, _)) => {
+                        // Extract date portion from datetime and compare
+                        let dt_date = dt.split('T').next().unwrap_or(dt);
+                        if let Some(ordering) = crate::datetime_impl::compare_dates(d, dt_date) {
+                            let result = match op {
+                                "<" => ordering.is_lt(),
+                                "<=" => ordering.is_le(),
+                                ">" => ordering.is_gt(),
+                                ">=" => ordering.is_ge(),
+                                _ => false,
+                            };
+                            return Ok(EvaluationResult::boolean(result));
+                        }
+                    }
+                    (EvaluationResult::DateTime(dt, _), EvaluationResult::Date(d, _)) => {
+                        // Extract date portion from datetime and compare
+                        let dt_date = dt.split('T').next().unwrap_or(dt);
+                        if let Some(ordering) = crate::datetime_impl::compare_dates(dt_date, d) {
+                            let result = match op {
+                                "<" => ordering.is_lt(),
+                                "<=" => ordering.is_le(),
+                                ">" => ordering.is_gt(),
+                                ">=" => ordering.is_ge(),
+                                _ => false,
+                            };
+                            return Ok(EvaluationResult::boolean(result));
+                        }
+                    }
+                    _ => {}
+                }
+                // Other indeterminate comparisons return Empty
                 return Ok(EvaluationResult::Empty);
             }
             // Also check if we have String vs DateTime/Date/Time combinations
@@ -7923,11 +7959,14 @@ fn compare_equality(
                         EvaluationResult::boolean(false)
                     }
                 }
-                // Date vs DateTime are never equal (must come before generic datetime comparison)
-                (EvaluationResult::Date(_, _), EvaluationResult::DateTime(_, _))
-                | (EvaluationResult::DateTime(_, _), EvaluationResult::Date(_, _)) => {
+                // Date vs Time comparison - these are different types that can never be equal
+                (EvaluationResult::Date(_, _), EvaluationResult::Time(_, _))
+                | (EvaluationResult::Time(_, _), EvaluationResult::Date(_, _)) => {
                     EvaluationResult::boolean(false)
                 }
+                // Date vs DateTime comparison - removed explicit false case
+                // These will now fall through to the generic date/time comparison below
+                // which correctly returns Empty for indeterminate comparisons
                 // Attempt date/time comparison first if either operand could be date/time related
                 _ if (matches!(
                     l_cmp, // Use l_cmp
@@ -7948,7 +7987,10 @@ fn compare_equality(
                         Some(ordering) => {
                             EvaluationResult::boolean(ordering == std::cmp::Ordering::Equal)
                         }
-                        None => EvaluationResult::boolean(false),
+                        None => {
+                            // All indeterminate comparisons return Empty
+                            EvaluationResult::Empty
+                        }
                     }
                 }
 

@@ -239,9 +239,9 @@
 
 		<test name="testDateEqual" inputfile="patient-example.json"><expression>Patient.birthDate = @1974-12-25</expression><output type="boolean">true</output></test>
 		<test name="testDateNotEqual" inputfile="patient-example.json"><expression>Patient.birthDate != @1974-12-25T12:34:00</expression></test>
-		<test name="testDateNotEqualTimezoneOffsetBefore" inputfile="patient-example.json"><expression>Patient.birthDate != @1974-12-25T12:34:00-10:00</expression><output type="boolean">true</output></test>
-		<test name="testDateNotEqualTimezoneOffsetAfter" inputfile="patient-example.json"><expression>Patient.birthDate != @1974-12-25T12:34:00+10:00</expression><output type="boolean">true</output></test>
-		<test name="testDateNotEqualUTC" inputfile="patient-example.json"><expression>Patient.birthDate != @1974-12-25T12:34:00Z</expression><output type="boolean">true</output></test>
+		<test name="testDateNotEqualTimezoneOffsetBefore" inputfile="patient-example.json"><expression>Patient.birthDate != @1974-12-25T12:34:00-10:00</expression></test>
+		<test name="testDateNotEqualTimezoneOffsetAfter" inputfile="patient-example.json"><expression>Patient.birthDate != @1974-12-25T12:34:00+10:00</expression></test>
+		<test name="testDateNotEqualUTC" inputfile="patient-example.json"><expression>Patient.birthDate != @1974-12-25T12:34:00Z</expression></test>
 		<test name="testDateNotEqualTimeSecond" inputfile="patient-example.json"><expression>Patient.birthDate != @T12:14:15</expression><output type="boolean">true</output></test>
 		<test name="testDateNotEqualTimeMinute" inputfile="patient-example.json"><expression>Patient.birthDate != @T12:14</expression><output type="boolean">true</output></test>
     <test name="testDateNotEqualToday" inputfile="patient-example.json"><expression>Patient.birthDate &lt; today()</expression><output type="boolean">true</output></test>
@@ -633,7 +633,7 @@
     <test name="testEquality4" inputfile="patient-example.json"><expression>(1) = (1)</expression><output type="boolean">true</output></test>
     <test name="testEquality5" inputfile="patient-example.json"><expression>(1 | 2) = (1 | 2)</expression><output type="boolean">true</output></test>
     <test name="testEquality6" inputfile="patient-example.json"><expression>(1 | 2 | 3) = (1 | 2 | 3)</expression><output type="boolean">true</output></test>
-    <test name="testEquality7" inputfile="patient-example.json"><expression>(1 | 1) = (1 | 2 | {})</expression></test>
+    <test name="testEquality7" inputfile="patient-example.json"><expression>(1 | 1) = (1 | 2 | {})</expression><output type="boolean">false</output></test>
 		<test name="testEquality8" inputfile="patient-example.json"><expression>1 = 2</expression><output type="boolean">false</output></test>
 		<test name="testEquality9" inputfile="patient-example.json"><expression>'a' = 'a'</expression><output type="boolean">true</output></test>
 		<test name="testEquality10" inputfile="patient-example.json"><expression>'a' = 'A'</expression><output type="boolean">false</output></test>
