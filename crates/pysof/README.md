@@ -43,11 +43,13 @@ crates/pysof/
   - [x] Package skeleton with src layout
   - [x] `pyproject.toml` targeting Python 3.11
   - [x] README with quickstart, layout, roadmap
-  - [ ] Define Python public API surface in `pysof/__init__.py`
-  - [ ] Add `ruff` (lint) and `mypy` (types) configs
-  - [ ] Add `uv` scripts for fmt, lint, test
-  - [ ] Add minimal tests: import/package metadata/version
-  - [ ] Add CI workflow for Python 3.11: lint + tests
+  - [x] Define Python public API surface in `pysof/__init__.py`
+  - [x] Add `ruff` (lint) and `mypy` (types) configs
+  - [x] Add `uv` scripts for fmt, lint, test
+  - [x] Add minimal tests: import/package metadata/version
+  - [x] Add CI workflow for Python 3.11: lint + tests (Linux/Windows self-hosted)
+  - [ ] Install uv on self-hosted runners to enable CI execution
+  - [ ] Add macOS self-hosted runner support to CI
 
 - v1 (Rust bindings and wheels)
 
@@ -74,7 +76,8 @@ crates/pysof/
     - [ ] `validate_bundle(bundle: dict) -> bool` - Pre-validate Bundle structure
     - [ ] `parse_content_type(mime_type: str) -> str` - Parse MIME types to format strings
     - [ ] `get_supported_fhir_versions() -> List[str]` - List available FHIR versions
-  - [ ] Add wheel builds for Windows, macOS (x86_64, arm64), Linux (manylinux/musllinux)
+  - [ ] Add wheel builds for Windows, Linux (manylinux/musllinux)
+  - [ ] Add macOS wheel builds (x86_64, arm64) when self-hosted macOS runner available
   - [ ] Add integration tests mirroring Rust crate examples
   - [ ] Provide examples: in-memory, file-based, stdin/stdout-like workflows
 
@@ -94,6 +97,11 @@ crates/pysof/
     - [ ] Schema validation against FHIR specification
     - [ ] FHIRPath expression syntax validation
     - [ ] ViewDefinition linting and optimization suggestions
+
+- Infrastructure/DevOps
+  - [ ] Install uv package manager on self-hosted CI runners
+  - [ ] Set up macOS self-hosted runner (when needed for wheel distribution)
+  - [ ] Configure Python 3.11+ on all CI environments
 
 - Future (Server integration and ecosystem)
   - [ ] **HTTP Client Integration:**
