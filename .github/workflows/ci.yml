@@ -148,6 +148,15 @@ jobs:
       - name: Generate code coverage
         run: cargo llvm-cov --workspace --lcov --output-path lcov.info
 
+      # Upload coverage report as artifact
+      - name: Upload Coverage Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: lcov.info
+          retention-days: 7
+
       # Upload to Codecov
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
@@ -419,8 +428,8 @@ jobs:
           override: true
 
       # TODO - need to add all of the target types
-      - name: Configure Rust to use LLD (Linux only)
-        if: runner.os == 'Linux'
+      - name: Configure Rust to use LLD (Linux/MacOS)
+        if: runner.os != 'Windows'
         run: |
           mkdir -p ~/.cargo
           if ! grep -q "link-arg=-fuse-ld=lld" ~/.cargo/config.toml 2>/dev/null; then
@@ -428,6 +437,22 @@ jobs:
             echo 'linker = "clang"' >> ~/.cargo/config.toml
             echo 'rustflags = ["-C", "link-arg=-fuse-ld=lld"]' >> ~/.cargo/config.toml
           fi
+
+      - name: Configure Rust to use LLD (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          if not exist "%USERPROFILE%\.cargo" mkdir "%USERPROFILE%\.cargo"
+          set "configPath=%USERPROFILE%\.cargo\config.toml"
+          if not exist "%configPath%" (
+            echo [target.x86_64-pc-windows-msvc] >> "%configPath%"
+            echo linker = "lld-link.exe" >> "%configPath%"
+          ) else (
+            findstr /C:"lld-link" "%configPath%" >nul || (
+              echo [target.x86_64-pc-windows-msvc] >> "%configPath%"
+              echo linker = "lld-link.exe" >> "%configPath%"
+            )
+          )
 
       - name: Cache cargo registry
         uses: actions/cache@v3
@@ -438,7 +463,13 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Build release
+      - name: Build release (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: cargo build --features R4,R4B,R5 --release
+
+      - name: Build release (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
         run: cargo build --features R4,R4B,R5 --release
 
       - name: Upload build artifacts

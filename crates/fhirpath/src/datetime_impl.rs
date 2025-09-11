@@ -186,9 +186,7 @@ pub fn compare_date_time_values(
                                         if let Some(dt_day) = dt_precision.date.day() {
                                             match date_day.cmp(&dt_day) {
                                                 Ordering::Less => Some(Ordering::Less),
-                                                Ordering::Greater => {
-                                                    Some(Ordering::Greater)
-                                                }
+                                                Ordering::Greater => Some(Ordering::Greater),
                                                 Ordering::Equal => {
                                                     // Date and DateTime are equal up to the date's precision
                                                     // Since DateTime has more precision (time), the comparison is indeterminate
