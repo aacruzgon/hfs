@@ -10,7 +10,7 @@ Public API:
     validate_bundle: Pre-validate Bundle structure
     get_supported_fhir_versions: List available FHIR versions
     parse_content_type: Parse MIME types to format strings
-    
+
 Exception hierarchy:
     SofError: Base exception for all pysof errors
     InvalidViewDefinitionError: ViewDefinition validation errors
@@ -21,46 +21,46 @@ Exception hierarchy:
     IoError: File/IO related errors
 """
 
-from typing import List, Dict, Any, Optional, Union
+from typing import Any, cast
 
 try:
     # Import the Rust extension module
     from pysof._pysof import (
-        py_run_view_definition,
-        py_run_view_definition_with_options,
-        py_validate_view_definition,
-        py_validate_bundle,
-        py_parse_content_type,
-        py_get_supported_fhir_versions,
+        CsvError,
+        FhirPathError,
+        InvalidViewDefinitionError,
+        IoError,
+        SerializationError,
         # Exception classes
         SofError,
-        InvalidViewDefinitionError,
-        FhirPathError,
-        SerializationError,
         UnsupportedContentTypeError,
-        CsvError,
-        IoError,
+        py_get_supported_fhir_versions,
+        py_parse_content_type,
+        py_run_view_definition,
+        py_run_view_definition_with_options,
+        py_validate_bundle,
+        py_validate_view_definition,
     )
-    
+
     # Create Python-friendly wrapper functions
     def run_view_definition(
-        view: Dict[str, Any], 
-        bundle: Dict[str, Any], 
-        format: str, 
-        *, 
-        fhir_version: str = "R4"
+        view: dict[str, Any],
+        bundle: dict[str, Any],
+        format: str,
+        *,
+        fhir_version: str = "R4",
     ) -> bytes:
         """Transform FHIR Bundle data using a ViewDefinition.
-        
+
         Args:
             view: ViewDefinition resource as a Python dictionary
             bundle: FHIR Bundle resource as a Python dictionary
             format: Output format ("csv", "csv_with_header", "json", "ndjson", "parquet")
             fhir_version: FHIR version to use ("R4", "R4B", "R5", "R6"). Defaults to "R4"
-        
+
         Returns:
             Transformed data in the requested format as bytes
-        
+
         Raises:
             InvalidViewDefinitionError: ViewDefinition structure is invalid
             FhirPathError: FHIRPath expression evaluation failed
@@ -69,20 +69,20 @@ try:
             CsvError: CSV generation failed
             IoError: I/O operation failed
         """
-        return py_run_view_definition(view, bundle, format, fhir_version)
-    
+        return cast(bytes, py_run_view_definition(view, bundle, format, fhir_version))
+
     def run_view_definition_with_options(
-        view: Dict[str, Any],
-        bundle: Dict[str, Any],
+        view: dict[str, Any],
+        bundle: dict[str, Any],
         format: str,
         *,
-        since: Optional[str] = None,
-        limit: Optional[int] = None,
-        page: Optional[int] = None,
-        fhir_version: str = "R4"
+        since: str | None = None,
+        limit: int | None = None,
+        page: int | None = None,
+        fhir_version: str = "R4",
     ) -> bytes:
         """Transform FHIR Bundle data using a ViewDefinition with additional options.
-        
+
         Args:
             view: ViewDefinition resource as a Python dictionary
             bundle: FHIR Bundle resource as a Python dictionary
@@ -91,10 +91,10 @@ try:
             limit: Limit the number of results returned
             page: Page number for pagination (1-based)
             fhir_version: FHIR version to use ("R4", "R4B", "R5", "R6"). Defaults to "R4"
-        
+
         Returns:
             Transformed data in the requested format as bytes
-        
+
         Raises:
             InvalidViewDefinitionError: ViewDefinition structure is invalid
             FhirPathError: FHIRPath expression evaluation failed
@@ -103,129 +103,168 @@ try:
             CsvError: CSV generation failed
             IoError: I/O operation failed
         """
-        return py_run_view_definition_with_options(
-            view, bundle, format, 
-            since=since, limit=limit, page=page, fhir_version=fhir_version
+        return cast(
+            bytes,
+            py_run_view_definition_with_options(
+                view,
+                bundle,
+                format,
+                since=since,
+                limit=limit,
+                page=page,
+                fhir_version=fhir_version,
+            ),
         )
-    
-    def validate_view_definition(view: Dict[str, Any], *, fhir_version: str = "R4") -> bool:
+
+    def validate_view_definition(
+        view: dict[str, Any], *, fhir_version: str = "R4"
+    ) -> bool:
         """Validate a ViewDefinition structure without executing it.
-        
+
         Args:
             view: ViewDefinition resource as a Python dictionary
             fhir_version: FHIR version to use ("R4", "R4B", "R5", "R6"). Defaults to "R4"
-        
+
         Returns:
             True if valid
-        
+
         Raises:
             InvalidViewDefinitionError: ViewDefinition structure is invalid
             SerializationError: JSON parsing failed
         """
-        return py_validate_view_definition(view, fhir_version)
-    
-    def validate_bundle(bundle: Dict[str, Any], *, fhir_version: str = "R4") -> bool:
+        return cast(bool, py_validate_view_definition(view, fhir_version))
+
+    def validate_bundle(bundle: dict[str, Any], *, fhir_version: str = "R4") -> bool:
         """Validate a Bundle structure without executing transformations.
-        
+
         Args:
             bundle: FHIR Bundle resource as a Python dictionary
             fhir_version: FHIR version to use ("R4", "R4B", "R5", "R6"). Defaults to "R4"
-        
+
         Returns:
             True if valid
-        
+
         Raises:
             SerializationError: JSON parsing failed
         """
-        return py_validate_bundle(bundle, fhir_version)
-    
+        return cast(bool, py_validate_bundle(bundle, fhir_version))
+
     def parse_content_type(mime_type: str) -> str:
         """Parse MIME type string to format identifier.
-        
+
         Args:
             mime_type: MIME type string (e.g., "text/csv", "application/json")
-        
+
         Returns:
             Format identifier suitable for use with run_view_definition
-        
+
         Raises:
             UnsupportedContentTypeError: Unknown or unsupported MIME type
         """
-        return py_parse_content_type(mime_type)
-    
-    def get_supported_fhir_versions() -> List[str]:
+        return cast(str, py_parse_content_type(mime_type))
+
+    def get_supported_fhir_versions() -> list[str]:
         """Get list of supported FHIR versions compiled into this build.
-        
+
         Returns:
             List of supported FHIR version strings
         """
-        return py_get_supported_fhir_versions()
+        return cast(list[str], py_get_supported_fhir_versions())
 
 except ImportError as e:
     # Fallback for when the Rust extension is not available
     import warnings
-    warnings.warn(f"Rust extension module not available: {e}. Using placeholder functions.", ImportWarning)
-    
+
+    warnings.warn(
+        f"Rust extension module not available: {e}. Using placeholder functions.",
+        ImportWarning,
+        stacklevel=2,
+    )
+
     # Define placeholder exception classes
-    class SofError(Exception):
+    class SofError(Exception):  # type: ignore[no-redef]
         """Base exception for all pysof errors"""
+
         pass
-    
-    class InvalidViewDefinitionError(SofError):
+
+    class InvalidViewDefinitionError(SofError):  # type: ignore[no-redef]
         """ViewDefinition validation errors"""
+
         pass
-    
-    class FhirPathError(SofError):
+
+    class FhirPathError(SofError):  # type: ignore[no-redef]
         """FHIRPath expression evaluation errors"""
+
         pass
-    
-    class SerializationError(SofError):
+
+    class SerializationError(SofError):  # type: ignore[no-redef]
         """JSON/data serialization errors"""
+
         pass
-    
-    class UnsupportedContentTypeError(SofError):
+
+    class UnsupportedContentTypeError(SofError):  # type: ignore[no-redef]
         """Unsupported output format errors"""
+
         pass
-    
-    class CsvError(SofError):
+
+    class CsvError(SofError):  # type: ignore[no-redef]
         """CSV generation errors"""
+
         pass
-    
-    class IoError(SofError):
+
+    class IoError(SofError):  # type: ignore[no-redef]
         """File/IO related errors"""
+
         pass
-    
+
     # Define placeholder functions
-    def run_view_definition(view: Dict[str, Any], bundle: Dict[str, Any], format: str, *, fhir_version: str = "R4") -> bytes:
-        raise NotImplementedError("Rust extension module not available")
-    
-    def run_view_definition_with_options(view: Dict[str, Any], bundle: Dict[str, Any], format: str, *, since: Optional[str] = None, limit: Optional[int] = None, page: Optional[int] = None, fhir_version: str = "R4") -> bytes:
-        raise NotImplementedError("Rust extension module not available")
-    
-    def validate_view_definition(view: Dict[str, Any], *, fhir_version: str = "R4") -> bool:
-        raise NotImplementedError("Rust extension module not available")
-    
-    def validate_bundle(bundle: Dict[str, Any], *, fhir_version: str = "R4") -> bool:
-        raise NotImplementedError("Rust extension module not available")
-    
-    def parse_content_type(mime_type: str) -> str:
-        raise NotImplementedError("Rust extension module not available")
-    
-    def get_supported_fhir_versions() -> List[str]:
+    def run_view_definition(
+        view: dict[str, Any],
+        bundle: dict[str, Any],
+        format: str,
+        *,
+        fhir_version: str = "R4",
+    ) -> bytes:
         raise NotImplementedError("Rust extension module not available")
 
-__all__: List[str] = [
+    def run_view_definition_with_options(
+        view: dict[str, Any],
+        bundle: dict[str, Any],
+        format: str,
+        *,
+        since: str | None = None,
+        limit: int | None = None,
+        page: int | None = None,
+        fhir_version: str = "R4",
+    ) -> bytes:
+        raise NotImplementedError("Rust extension module not available")
+
+    def validate_view_definition(
+        view: dict[str, Any], *, fhir_version: str = "R4"
+    ) -> bool:
+        raise NotImplementedError("Rust extension module not available")
+
+    def validate_bundle(bundle: dict[str, Any], *, fhir_version: str = "R4") -> bool:
+        raise NotImplementedError("Rust extension module not available")
+
+    def parse_content_type(mime_type: str) -> str:
+        raise NotImplementedError("Rust extension module not available")
+
+    def get_supported_fhir_versions() -> list[str]:
+        raise NotImplementedError("Rust extension module not available")
+
+
+__all__: list[str] = [
     # Core functions
     "run_view_definition",
-    "run_view_definition_with_options", 
+    "run_view_definition_with_options",
     "validate_view_definition",
     "validate_bundle",
     "get_supported_fhir_versions",
     "parse_content_type",
-    
     # Exception classes
     "SofError",
-    "InvalidViewDefinitionError", 
+    "InvalidViewDefinitionError",
     "FhirPathError",
     "SerializationError",
     "UnsupportedContentTypeError",
@@ -244,5 +283,3 @@ def get_version() -> str:
 def get_status() -> str:
     """Return the current implementation status."""
     return "v1: Rust bindings available with full SOF transformation capabilities."
-
-
