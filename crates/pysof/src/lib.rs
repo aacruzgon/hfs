@@ -11,7 +11,6 @@ use helios_sof::{
 use pyo3::exceptions::{PyException, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
-use serde_json;
 
 // Custom Python exception types - using different names to avoid conflicts
 pyo3::create_exception!(
@@ -99,14 +98,14 @@ fn py_run_view_definition(
     let view_def_json: serde_json::Value = pythonize::depythonize(view_definition)?;
     let bundle_json: serde_json::Value = pythonize::depythonize(bundle)?;
 
-    let (sof_view_def, sof_bundle) = match fhir_version {
+    let parsed: PyResult<(SofViewDefinition, SofBundle)> = match fhir_version {
         #[cfg(feature = "R4")]
         "R4" => {
             let view_def: helios_fhir::r4::ViewDefinition =
                 serde_json::from_value(view_def_json).map_err(json_error_to_py_err)?;
             let bundle: helios_fhir::r4::Bundle =
                 serde_json::from_value(bundle_json).map_err(json_error_to_py_err)?;
-            (SofViewDefinition::R4(view_def), SofBundle::R4(bundle))
+            Ok((SofViewDefinition::R4(view_def), SofBundle::R4(bundle)))
         }
         #[cfg(feature = "R4B")]
         "R4B" => {
@@ -114,7 +113,7 @@ fn py_run_view_definition(
                 serde_json::from_value(view_def_json).map_err(json_error_to_py_err)?;
             let bundle: helios_fhir::r4b::Bundle =
                 serde_json::from_value(bundle_json).map_err(json_error_to_py_err)?;
-            (SofViewDefinition::R4B(view_def), SofBundle::R4B(bundle))
+            Ok((SofViewDefinition::R4B(view_def), SofBundle::R4B(bundle)))
         }
         #[cfg(feature = "R5")]
         "R5" => {
@@ -122,7 +121,7 @@ fn py_run_view_definition(
                 serde_json::from_value(view_def_json).map_err(json_error_to_py_err)?;
             let bundle: helios_fhir::r5::Bundle =
                 serde_json::from_value(bundle_json).map_err(json_error_to_py_err)?;
-            (SofViewDefinition::R5(view_def), SofBundle::R5(bundle))
+            Ok((SofViewDefinition::R5(view_def), SofBundle::R5(bundle)))
         }
         #[cfg(feature = "R6")]
         "R6" => {
@@ -130,15 +129,17 @@ fn py_run_view_definition(
                 serde_json::from_value(view_def_json).map_err(json_error_to_py_err)?;
             let bundle: helios_fhir::r6::Bundle =
                 serde_json::from_value(bundle_json).map_err(json_error_to_py_err)?;
-            (SofViewDefinition::R6(view_def), SofBundle::R6(bundle))
+            Ok((SofViewDefinition::R6(view_def), SofBundle::R6(bundle)))
         }
         _ => {
-            return Err(PyUnsupportedContentTypeError::new_err(format!(
+            Err(PyUnsupportedContentTypeError::new_err(format!(
                 "Unsupported FHIR version: {}",
                 fhir_version
             )))
         }
     };
+
+    let (sof_view_def, sof_bundle) = parsed?;
 
     // Execute transformation
     let result = run_view_definition(sof_view_def, sof_bundle, content_type)
@@ -170,6 +171,7 @@ fn py_run_view_definition(
 ///     IoError: I/O operation failed
 #[pyfunction]
 #[pyo3(signature = (view_definition, bundle, format, *, since = None, limit = None, page = None, fhir_version = "R4"))]
+#[allow(clippy::too_many_arguments)]
 fn py_run_view_definition_with_options(
     py: Python<'_>,
     view_definition: &Bound<'_, PyAny>,
@@ -194,7 +196,7 @@ fn py_run_view_definition_with_options(
                 serde_json::from_value(view_def_json).map_err(json_error_to_py_err)?;
             let bundle: helios_fhir::r4::Bundle =
                 serde_json::from_value(bundle_json).map_err(json_error_to_py_err)?;
-            (SofViewDefinition::R4(view_def), SofBundle::R4(bundle))
+            Ok((SofViewDefinition::R4(view_def), SofBundle::R4(bundle)))
         }
         #[cfg(feature = "R4B")]
         "R4B" => {
@@ -202,7 +204,7 @@ fn py_run_view_definition_with_options(
                 serde_json::from_value(view_def_json).map_err(json_error_to_py_err)?;
             let bundle: helios_fhir::r4b::Bundle =
                 serde_json::from_value(bundle_json).map_err(json_error_to_py_err)?;
-            (SofViewDefinition::R4B(view_def), SofBundle::R4B(bundle))
+            Ok((SofViewDefinition::R4B(view_def), SofBundle::R4B(bundle)))
         }
         #[cfg(feature = "R5")]
         "R5" => {
@@ -210,7 +212,7 @@ fn py_run_view_definition_with_options(
                 serde_json::from_value(view_def_json).map_err(json_error_to_py_err)?;
             let bundle: helios_fhir::r5::Bundle =
                 serde_json::from_value(bundle_json).map_err(json_error_to_py_err)?;
-            (SofViewDefinition::R5(view_def), SofBundle::R5(bundle))
+            Ok((SofViewDefinition::R5(view_def), SofBundle::R5(bundle)))
         }
         #[cfg(feature = "R6")]
         "R6" => {
@@ -218,15 +220,13 @@ fn py_run_view_definition_with_options(
                 serde_json::from_value(view_def_json).map_err(json_error_to_py_err)?;
             let bundle: helios_fhir::r6::Bundle =
                 serde_json::from_value(bundle_json).map_err(json_error_to_py_err)?;
-            (SofViewDefinition::R6(view_def), SofBundle::R6(bundle))
+            Ok((SofViewDefinition::R6(view_def), SofBundle::R6(bundle)))
         }
-        _ => {
-            return Err(PyUnsupportedContentTypeError::new_err(format!(
-                "Unsupported FHIR version: {}",
-                fhir_version
-            )))
-        }
-    };
+        _ => Err(PyUnsupportedContentTypeError::new_err(format!(
+            "Unsupported FHIR version: {}",
+            fhir_version
+        ))),
+    }?;
 
     // Parse options
     let mut options = RunOptions::default();
@@ -296,7 +296,7 @@ fn py_validate_view_definition(
             Ok(true)
         }
         _ => {
-            return Err(PyUnsupportedContentTypeError::new_err(format!(
+            Err(PyUnsupportedContentTypeError::new_err(format!(
                 "Unsupported FHIR version: {}",
                 fhir_version
             )))
@@ -347,7 +347,7 @@ fn py_validate_bundle(bundle: &Bound<'_, PyAny>, fhir_version: &str) -> PyResult
             Ok(true)
         }
         _ => {
-            return Err(PyUnsupportedContentTypeError::new_err(format!(
+            Err(PyUnsupportedContentTypeError::new_err(format!(
                 "Unsupported FHIR version: {}",
                 fhir_version
             )))
@@ -385,6 +385,7 @@ fn py_parse_content_type(mime_type: &str) -> PyResult<String> {
 /// Returns:
 ///     List[str]: List of supported FHIR version strings
 #[pyfunction]
+#[allow(clippy::vec_init_then_push)]
 fn py_get_supported_fhir_versions() -> PyResult<Vec<String>> {
     let mut versions = Vec::new();
 
