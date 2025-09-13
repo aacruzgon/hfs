@@ -2,12 +2,12 @@ name: py CI
 
 on:
   push:
-    branches: [main, epic/pysof]
+    branches: [main, develop]
     paths:
       - 'crates/pysof/**'
       - '.github/workflows/py-ci.yml'
   pull_request:
-    branches: [main, epic/pysof]
+    branches: [main, develop]
     paths:
       - 'crates/pysof/**'
       - '.github/workflows/py-ci.yml'
