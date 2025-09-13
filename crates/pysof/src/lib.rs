@@ -96,8 +96,8 @@ fn py_run_view_definition(
     let content_type = ContentType::from_string(format).map_err(rust_sof_error_to_py_err)?;
 
     // Parse ViewDefinition and Bundle based on FHIR version
-    let view_def_json: serde_json::Value = pythonize::depythonize_bound(view_definition.clone())?;
-    let bundle_json: serde_json::Value = pythonize::depythonize_bound(bundle.clone())?;
+    let view_def_json: serde_json::Value = pythonize::depythonize(view_definition)?;
+    let bundle_json: serde_json::Value = pythonize::depythonize(bundle)?;
 
     let (sof_view_def, sof_bundle) = match fhir_version {
         #[cfg(feature = "R4")]
@@ -144,7 +144,7 @@ fn py_run_view_definition(
     let result = run_view_definition(sof_view_def, sof_bundle, content_type)
         .map_err(rust_sof_error_to_py_err)?;
 
-    Ok(PyBytes::new_bound(py, &result).into())
+    Ok(PyBytes::new(py, &result).into())
 }
 
 /// Transform FHIR Bundle data using a ViewDefinition with additional options.
@@ -184,8 +184,8 @@ fn py_run_view_definition_with_options(
     let content_type = ContentType::from_string(format).map_err(rust_sof_error_to_py_err)?;
 
     // Parse ViewDefinition and Bundle based on FHIR version
-    let view_def_json: serde_json::Value = pythonize::depythonize_bound(view_definition.clone())?;
-    let bundle_json: serde_json::Value = pythonize::depythonize_bound(bundle.clone())?;
+    let view_def_json: serde_json::Value = pythonize::depythonize(view_definition)?;
+    let bundle_json: serde_json::Value = pythonize::depythonize(bundle)?;
 
     let (sof_view_def, sof_bundle) = match fhir_version {
         #[cfg(feature = "R4")]
@@ -246,7 +246,7 @@ fn py_run_view_definition_with_options(
     let result = run_view_definition_with_options(sof_view_def, sof_bundle, content_type, options)
         .map_err(rust_sof_error_to_py_err)?;
 
-    Ok(PyBytes::new_bound(py, &result).into())
+    Ok(PyBytes::new(py, &result).into())
 }
 
 /// Validate a ViewDefinition structure without executing it.
@@ -267,7 +267,7 @@ fn py_validate_view_definition(
     view_definition: &Bound<'_, PyAny>,
     fhir_version: &str,
 ) -> PyResult<bool> {
-    let view_def_json: serde_json::Value = pythonize::depythonize_bound(view_definition.clone())?;
+    let view_def_json: serde_json::Value = pythonize::depythonize(view_definition)?;
 
     // Try to parse ViewDefinition for the specified FHIR version
     match fhir_version {
@@ -318,7 +318,7 @@ fn py_validate_view_definition(
 #[pyfunction]
 #[pyo3(signature = (bundle, fhir_version = "R4"))]
 fn py_validate_bundle(bundle: &Bound<'_, PyAny>, fhir_version: &str) -> PyResult<bool> {
-    let bundle_json: serde_json::Value = pythonize::depythonize_bound(bundle.clone())?;
+    let bundle_json: serde_json::Value = pythonize::depythonize(bundle)?;
 
     // Try to parse Bundle for the specified FHIR version
     match fhir_version {
@@ -415,22 +415,22 @@ fn _pysof(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(py_get_supported_fhir_versions, m)?)?;
 
     // Add exception classes with the Python names (not Py prefixed)
-    m.add("SofError", m.py().get_type_bound::<PySofError>())?;
+    m.add("SofError", m.py().get_type::<PySofError>())?;
     m.add(
         "InvalidViewDefinitionError",
-        m.py().get_type_bound::<PyInvalidViewDefinitionError>(),
+        m.py().get_type::<PyInvalidViewDefinitionError>(),
     )?;
-    m.add("FhirPathError", m.py().get_type_bound::<PyFhirPathError>())?;
+    m.add("FhirPathError", m.py().get_type::<PyFhirPathError>())?;
     m.add(
         "SerializationError",
-        m.py().get_type_bound::<PySerializationError>(),
+        m.py().get_type::<PySerializationError>(),
     )?;
     m.add(
         "UnsupportedContentTypeError",
-        m.py().get_type_bound::<PyUnsupportedContentTypeError>(),
+        m.py().get_type::<PyUnsupportedContentTypeError>(),
     )?;
-    m.add("CsvError", m.py().get_type_bound::<PyCsvError>())?;
-    m.add("IoError", m.py().get_type_bound::<PyIoError>())?;
+    m.add("CsvError", m.py().get_type::<PyCsvError>())?;
+    m.add("IoError", m.py().get_type::<PyIoError>())?;
 
     Ok(())
 }
