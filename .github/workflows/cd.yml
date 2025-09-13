@@ -16,20 +16,15 @@ on:
           - sof-server
           - python-wheels
         default: 'fhirpath-server'
-      publish:
-        description: 'Publish Python wheels to PyPI (only for python-wheels)'
-        required: false
-        type: boolean
-        default: false
 
 jobs:
   deploy:
     name: Deploy ${{ inputs.server }} to server
     runs-on: [self-hosted, Linux]
-    if: ${{ inputs.server != 'python-wheels' }}
     
     steps:
     - name: Download release binary
+      if: ${{ inputs.server != 'python-wheels' }}
       uses: actions/github-script@v7
       with:
         script: |
@@ -70,6 +65,7 @@ jobs:
           console.log(`Downloaded: ${asset.name}`);
 
     - name: Extract binary
+      if: ${{ inputs.server != 'python-wheels' }}
       run: |
         # Extract into a clean directory to avoid conflicts
         mkdir -p extracted
@@ -83,6 +79,7 @@ jobs:
         rm -rf extracted
         
     - name: Deploy binary and create service
+      if: ${{ inputs.server != 'python-wheels' }}
       env:
         DEPLOY_HOST: ${{ inputs.server == 'fhirpath-server' && secrets.FHIRPATH_DEPLOY_HOST || secrets.SOF_DEPLOY_HOST }}
         DEPLOY_USER: ${{ inputs.server == 'fhirpath-server' && secrets.FHIRPATH_DEPLOY_USER || secrets.SOF_DEPLOY_USER }}
@@ -166,151 +163,55 @@ jobs:
         
         # Clean up SSH key
         rm -f ~/.ssh/deploy_key
+    
+    # Python wheels build and package
+    - name: Checkout code (Python wheels)
+      if: ${{ inputs.server == 'python-wheels' }}
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ inputs.tag }}
 
-  # Python wheel deployment jobs
-  build-python-wheels:
-    name: Build Python wheels on ${{ matrix.os }}
-    runs-on: ${{ matrix.runner }}
-    if: ${{ inputs.server == 'python-wheels' }}
-    strategy:
-      matrix:
-        include:
-          - os: Linux
-            runner: [self-hosted, Linux]
-            target: x86_64-unknown-linux-gnu
-            platform: linux_x86_64_gnu
+    - name: Restore virtual environment (Python wheels)
+      if: ${{ inputs.server == 'python-wheels' }}
+      uses: actions/cache@v4
+      with:
+        path: crates/pysof/.venv
+        key: pysof-venv-${{ runner.os }}-${{ hashFiles('crates/pysof/pyproject.toml', 'crates/pysof/uv.lock') }}
+        restore-keys: |
+          pysof-venv-${{ runner.os }}-
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    - name: Verify dependencies (Python wheels)
+      if: ${{ inputs.server == 'python-wheels' }}
+      working-directory: crates/pysof
+      run: |
+        # Verify that maturin is available from the cached venv
+        uv run maturin --version
 
-      - name: Restore virtual environment
-        uses: actions/cache@v4
-        with:
-          path: crates/pysof/.venv
-          key: pysof-venv-${{ runner.os }}-${{ hashFiles('crates/pysof/pyproject.toml', 'crates/pysof/uv.lock') }}
-          restore-keys: |
-            pysof-venv-${{ runner.os }}-
+    - name: Build wheel (Linux)
+      if: ${{ inputs.server == 'python-wheels' && runner.os == 'Linux' }}
+      working-directory: crates/pysof
+      run: |
+        uv run maturin build --release --target x86_64-unknown-linux-gnu --out dist
 
-      - name: Verify dependencies
-        working-directory: crates/pysof
-        run: |
-          # Verify that maturin is available from the cached venv
-          uv run maturin --version
+    - name: Create release archive (Python wheels)
+      if: ${{ inputs.server == 'python-wheels' }}
+      working-directory: crates/pysof
+      run: |
+        mkdir -p release
+        find dist -name "*.whl" -exec cp {} release/ \;
+        cd release
+        TAG="${{ inputs.tag }}"
+        VERSION="${TAG#v}"
+        tar -czf "hfs-${VERSION}-python-wheels.tar.gz" *.whl
+        cd ..
+        ls -la release/
 
-      - name: Build wheel (Linux)
-        if: runner.os == 'Linux'
-        working-directory: crates/pysof
-        run: |
-          uv run maturin build --release --target ${{ matrix.target }} --out dist
-
-      - name: Test wheel installation
-        working-directory: crates/pysof
-        run: |
-          uv pip install dist/*.whl --force-reinstall
-          uv run python -c "import pysof; print(f'pysof version: {pysof.__version__}')"
-
-      - name: Upload wheel artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: wheel-${{ matrix.platform }}
-          path: crates/pysof/dist/*.whl
-          retention-days: 15
-
-  create-python-release-bundle:
-    name: Create consolidated Python wheel bundle
-    runs-on: [self-hosted, Linux]
-    needs: build-python-wheels
-    if: ${{ inputs.server == 'python-wheels' && success() }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Download all wheel artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: crates/pysof/dist
-
-      - name: Create release archive
-        working-directory: crates/pysof
-        run: |
-          mkdir -p release
-          find dist -name "*.whl" -exec cp {} release/ \;
-          cd release
-          tar -czf pysof-wheels.tar.gz *.whl
-          cd ..
-          ls -la release/
-
-      - name: Upload consolidated wheels artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: pysof-wheels
-          path: |
-            crates/pysof/release/*.whl
-            crates/pysof/release/pysof-wheels.tar.gz
-          retention-days: 30
-
-  test-python-wheels:
-    name: Test Python wheels on ${{ matrix.python-version }}
-    runs-on: [self-hosted, Linux]
-    needs: build-python-wheels
-    if: ${{ inputs.server == 'python-wheels' }}
-    strategy:
-      matrix:
-        python-version: ['3.11']
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Download Linux wheel artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: wheel-linux_x86_64_gnu
-          path: crates/pysof/dist
-
-      - name: Restore virtual environment
-        uses: actions/cache@v4
-        with:
-          path: crates/pysof/.venv
-          key: pysof-venv-${{ runner.os }}-${{ hashFiles('crates/pysof/pyproject.toml', 'crates/pysof/uv.lock') }}
-          restore-keys: |
-            pysof-venv-${{ runner.os }}-
-
-      - name: Install wheel and test dependencies
-        working-directory: crates/pysof
-        run: |
-          uv pip install dist/*.whl --force-reinstall
-          uv pip install -q pytest pytest-cov
-
-      - name: Run comprehensive tests
-        working-directory: crates/pysof
-        run: uv run python -m pytest tests/ -v --tb=short
-
-  # publish-python-wheels:
-  #   name: Publish Python wheels to PyPI
-  #   runs-on: [self-hosted, Linux]
-  #   needs: [build-python-wheels, test-python-wheels]
-  #   if: ${{ inputs.server == 'python-wheels' && inputs.publish == true }}
-
-  #   steps:
-  #     - name: Checkout code
-  #       uses: actions/checkout@v4
-
-  #     - name: Download all wheel artifacts
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         path: crates/pysof/dist
-
-  #     - name: Install twine
-  #       working-directory: crates/pysof
-  #       run: uv pip install -q twine
-
-  #     - name: Upload to PyPI
-  #       working-directory: crates/pysof
-  #       env:
-  #         TWINE_USERNAME: __token__
-  #         TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-  #       run: |
-  #         uv run python -m twine upload --non-interactive dist/**/*.whl
+    - name: Upload consolidated wheels artifact
+      if: ${{ inputs.server == 'python-wheels' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: pysof-wheels
+        path: |
+          crates/pysof/release/*.whl
+          crates/pysof/release/hfs-*-python-wheels.tar.gz
+        retention-days: 30
