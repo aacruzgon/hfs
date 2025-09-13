@@ -543,3 +543,133 @@ jobs:
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}
           generate_release_notes: ${{ steps.changelog.outputs.changelog_exists == 'false' }}
+
+  # Python CI Jobs - only run when Python files change
+  python-setup:
+    name: Setup Python Environment
+    runs-on: [self-hosted, Linux]
+    if: contains(github.event.head_commit.modified, 'crates/pysof/') || contains(github.event.head_commit.added, 'crates/pysof/') || contains(github.event.head_commit.removed, 'crates/pysof/') || github.event_name == 'pull_request'
+    outputs:
+      venv-path: ${{ steps.venv.outputs.path }}
+      should-run: ${{ steps.check-changes.outputs.should-run }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for Python changes
+        id: check-changes
+        run: |
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            # For PRs, check changed files
+            if git diff --name-only origin/${{ github.base_ref }}..HEAD | grep -q "^crates/pysof/\|^\.github/workflows/ci\.yml$"; then
+              echo "should-run=true" >> $GITHUB_OUTPUT
+            else
+              echo "should-run=false" >> $GITHUB_OUTPUT
+            fi
+          elif [ "${{ github.event_name }}" == "push" ]; then
+            # For pushes, check if any Python files changed in the commit
+            if git diff --name-only HEAD~1 HEAD | grep -q "^crates/pysof/\|^\.github/workflows/ci\.yml$"; then
+              echo "should-run=true" >> $GITHUB_OUTPUT
+            else
+              echo "should-run=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "should-run=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Python 3.11
+        if: steps.check-changes.outputs.should-run == 'true'
+        working-directory: crates/pysof
+        run: uv python install 3.11
+
+      - name: Create virtual environment
+        if: steps.check-changes.outputs.should-run == 'true'
+        id: venv
+        working-directory: crates/pysof
+        run: |
+          uv venv --python 3.11 .venv
+          echo "path=$(pwd)/.venv" >> $GITHUB_OUTPUT
+
+      - name: Install dependencies
+        if: steps.check-changes.outputs.should-run == 'true'
+        working-directory: crates/pysof
+        run: uv sync --group dev
+
+      - name: Cache virtual environment
+        if: steps.check-changes.outputs.should-run == 'true'
+        uses: actions/cache@v4
+        with:
+          path: crates/pysof/.venv
+          key: pysof-venv-${{ runner.os }}-${{ hashFiles('crates/pysof/pyproject.toml', 'crates/pysof/uv.lock') }}
+
+  python-lint:
+    name: Python Lint (format, lint, typecheck)
+    runs-on: [self-hosted, Linux]
+    needs: python-setup
+    if: needs.python-setup.outputs.should-run == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Restore virtual environment
+        uses: actions/cache@v4
+        with:
+          path: crates/pysof/.venv
+          key: pysof-venv-${{ runner.os }}-${{ hashFiles('crates/pysof/pyproject.toml', 'crates/pysof/uv.lock') }}
+
+      - name: Apply formatting
+        working-directory: crates/pysof
+        run: uv run ruff format src
+
+      - name: Format check
+        working-directory: crates/pysof
+        run: uv run ruff format --check src
+
+      - name: Lint check
+        working-directory: crates/pysof
+        run: uv run ruff check src
+
+      - name: Type check
+        working-directory: crates/pysof
+        run: uv run mypy src
+
+  python-test:
+    name: Python Tests (Linux)
+    runs-on: [self-hosted, Linux]
+    needs: python-setup
+    if: needs.python-setup.outputs.should-run == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Restore virtual environment
+        uses: actions/cache@v4
+        with:
+          path: crates/pysof/.venv
+          key: pysof-venv-${{ runner.os }}-${{ hashFiles('crates/pysof/pyproject.toml', 'crates/pysof/uv.lock') }}
+
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Build extension (dev)
+        working-directory: crates/pysof
+        run: uv run maturin develop
+
+      - name: Run tests with coverage
+        working-directory: crates/pysof
+        run: uv run python -m pytest -v --cov=src --cov-report=xml:coverage.xml --cov-report=term-missing
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./crates/pysof/coverage.xml
+          flags: pysof
+          name: pysof-coverage
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
