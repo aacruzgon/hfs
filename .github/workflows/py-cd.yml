@@ -1,17 +1,12 @@
 name: py CD
 
 on:
-  workflow_run:
-    workflows: ['py CI']
-    branches: [main, epic/pysof, feat/deliver-wheel]
-    types: [completed]
   workflow_dispatch:
     inputs:
-      publish:
-        description: 'Publish to PyPI (requires running from a tag)'
-        required: false
-        default: false
-        type: boolean
+      tag:
+        description: 'Release tag to deploy (e.g., v0.1.8)'
+        required: true
+        type: string
 
 defaults:
   run:
