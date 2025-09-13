@@ -7,6 +7,16 @@ on:
         description: 'Release tag to deploy (e.g., v0.1.8)'
         required: true
         type: string
+      publish:
+        description: 'Publish the built wheels to PyPI'
+        required: false
+        type: boolean
+        default: false
+  workflow_run:
+    workflows:
+      - py CI
+    types:
+      - completed
 
 defaults:
   run:
@@ -19,7 +29,7 @@ env:
 jobs:
   build-wheels:
     name: Build wheels on ${{ matrix.os }}
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') || github.event_name == 'workflow_dispatch' }}
     runs-on: ${{ matrix.runner }}
     strategy:
       matrix:
@@ -166,7 +176,7 @@ jobs:
     name: Publish to PyPI (manual on tag)
     runs-on: [self-hosted, Linux]
     needs: [build-wheels]
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish == true && startsWith(github.ref, 'refs/tags/') }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish == true }}
 
     steps:
       - name: Checkout code
