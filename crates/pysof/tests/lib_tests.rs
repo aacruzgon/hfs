@@ -1,11 +1,11 @@
 //! Unit tests for pysof lib.rs functions
-//! 
+//!
 //! These tests focus on testing the core logic of the PyO3 binding functions
 //! without requiring Python runtime initialization.
 
-use serde_json::json;
-use helios_sof::{ContentType, RunOptions, SofError as RustSofError};
 use chrono::{DateTime, Utc};
+use helios_sof::{ContentType, RunOptions, SofError as RustSofError};
+use serde_json::json;
 
 fn get_test_view_definition() -> serde_json::Value {
     json!({
@@ -50,7 +50,7 @@ fn test_content_type_from_string() {
     assert!(ContentType::from_string("json").is_ok());
     assert!(ContentType::from_string("csv").is_ok());
     assert!(ContentType::from_string("ndjson").is_ok());
-    
+
     // Test invalid content type
     assert!(ContentType::from_string("invalid").is_err());
 }
@@ -77,11 +77,7 @@ fn test_run_options_creation() {
 }
 
 // Helper function to create RunOptions for testing
-fn create_run_options(
-    since: Option<&str>,
-    limit: Option<i32>,
-    page: Option<i32>,
-) -> RunOptions {
+fn create_run_options(since: Option<&str>, limit: Option<i32>, page: Option<i32>) -> RunOptions {
     let since_datetime = since.and_then(|s| {
         DateTime::parse_from_rfc3339(s)
             .ok()
@@ -98,11 +94,11 @@ fn create_run_options(
 #[test]
 fn test_view_definition_validation_logic() {
     let valid_view = get_test_view_definition();
-    
+
     // Test that valid ViewDefinition can be parsed
     #[cfg(feature = "R4")]
     {
-        let result: Result<helios_fhir::r4::ViewDefinition, _> = 
+        let result: Result<helios_fhir::r4::ViewDefinition, _> =
             serde_json::from_value(valid_view.clone());
         assert!(result.is_ok());
     }
@@ -116,7 +112,7 @@ fn test_view_definition_validation_logic() {
 
     #[cfg(feature = "R4")]
     {
-        let result: Result<helios_fhir::r4::ViewDefinition, _> = 
+        let result: Result<helios_fhir::r4::ViewDefinition, _> =
             serde_json::from_value(invalid_view);
         // ViewDefinition validation might be lenient, so we just check it doesn't panic
         let _validation_result = result;
@@ -126,11 +122,11 @@ fn test_view_definition_validation_logic() {
 #[test]
 fn test_bundle_validation_logic() {
     let valid_bundle = get_test_bundle();
-    
+
     // Test that valid Bundle can be parsed
     #[cfg(feature = "R4")]
     {
-        let result: Result<helios_fhir::r4::Bundle, _> = 
+        let result: Result<helios_fhir::r4::Bundle, _> =
             serde_json::from_value(valid_bundle.clone());
         assert!(result.is_ok());
     }
@@ -144,8 +140,7 @@ fn test_bundle_validation_logic() {
 
     #[cfg(feature = "R4")]
     {
-        let result: Result<helios_fhir::r4::Bundle, _> = 
-            serde_json::from_value(minimal_bundle);
+        let result: Result<helios_fhir::r4::Bundle, _> = serde_json::from_value(minimal_bundle);
         assert!(result.is_ok());
     }
 }
@@ -158,9 +153,18 @@ fn test_content_type_format_mapping() {
     let ndjson_type = ContentType::from_string("ndjson").unwrap();
 
     // These should be different variants
-    assert_ne!(std::mem::discriminant(&csv_type), std::mem::discriminant(&json_type));
-    assert_ne!(std::mem::discriminant(&json_type), std::mem::discriminant(&ndjson_type));
-    assert_ne!(std::mem::discriminant(&csv_type), std::mem::discriminant(&ndjson_type));
+    assert_ne!(
+        std::mem::discriminant(&csv_type),
+        std::mem::discriminant(&json_type)
+    );
+    assert_ne!(
+        std::mem::discriminant(&json_type),
+        std::mem::discriminant(&ndjson_type)
+    );
+    assert_ne!(
+        std::mem::discriminant(&csv_type),
+        std::mem::discriminant(&ndjson_type)
+    );
 }
 
 #[test]
@@ -187,26 +191,35 @@ fn test_error_type_mapping() {
     let invalid_view_err = RustSofError::InvalidViewDefinition("test".to_string());
     let fhirpath_err = RustSofError::FhirPathError("test".to_string());
     let unsupported_err = RustSofError::UnsupportedContentType("test".to_string());
-    
+
     // Verify they are different error variants
-    assert_ne!(std::mem::discriminant(&invalid_view_err), std::mem::discriminant(&fhirpath_err));
-    assert_ne!(std::mem::discriminant(&fhirpath_err), std::mem::discriminant(&unsupported_err));
-    assert_ne!(std::mem::discriminant(&invalid_view_err), std::mem::discriminant(&unsupported_err));
+    assert_ne!(
+        std::mem::discriminant(&invalid_view_err),
+        std::mem::discriminant(&fhirpath_err)
+    );
+    assert_ne!(
+        std::mem::discriminant(&fhirpath_err),
+        std::mem::discriminant(&unsupported_err)
+    );
+    assert_ne!(
+        std::mem::discriminant(&invalid_view_err),
+        std::mem::discriminant(&unsupported_err)
+    );
 }
 
 #[test]
 fn test_json_serialization() {
     let view_def = get_test_view_definition();
     let bundle = get_test_bundle();
-    
+
     // Test that our test data is valid JSON
     assert!(view_def.is_object());
     assert!(bundle.is_object());
-    
+
     // Test that we can serialize back to string
     let view_str = serde_json::to_string(&view_def).unwrap();
     let bundle_str = serde_json::to_string(&bundle).unwrap();
-    
+
     assert!(view_str.contains("ViewDefinition"));
     assert!(bundle_str.contains("Bundle"));
 }
@@ -216,10 +229,10 @@ fn test_content_type_parsing_edge_cases() {
     // Test case sensitivity
     assert!(ContentType::from_string("JSON").is_err());
     assert!(ContentType::from_string("CSV").is_err());
-    
+
     // Test empty string
     assert!(ContentType::from_string("").is_err());
-    
+
     // Test whitespace
     assert!(ContentType::from_string(" json ").is_err());
     assert!(ContentType::from_string("json ").is_err());
@@ -232,13 +245,13 @@ fn test_run_options_edge_cases() {
     let options = create_run_options(None, Some(0), Some(0));
     assert_eq!(options.limit, Some(0));
     assert_eq!(options.page, Some(0));
-    
+
     // Test with negative values (should convert to usize)
     let options = create_run_options(None, Some(-1), Some(-1));
     // Note: This will wrap around due to usize conversion
     assert!(options.limit.is_some());
     assert!(options.page.is_some());
-    
+
     // Test with very large values
     let options = create_run_options(None, Some(i32::MAX), Some(i32::MAX));
     assert_eq!(options.limit, Some(i32::MAX as usize));
@@ -255,12 +268,12 @@ fn test_datetime_edge_cases() {
         "2023-06-15T12:30:45-05:00",
         "2023-06-15T12:30:45.123Z",
     ];
-    
+
     for format in &valid_formats {
         let parsed = DateTime::parse_from_rfc3339(format);
         assert!(parsed.is_ok(), "Failed to parse: {}", format);
     }
-    
+
     // Test invalid formats
     let invalid_formats = [
         "2023-01-01",
@@ -270,7 +283,7 @@ fn test_datetime_edge_cases() {
         "2023-01-32T00:00:00Z", // Invalid day
         "2023-01-01T25:00:00Z", // Invalid hour
     ];
-    
+
     for format in &invalid_formats {
         let parsed = DateTime::parse_from_rfc3339(format);
         assert!(parsed.is_err(), "Should have failed to parse: {}", format);
@@ -285,24 +298,24 @@ fn test_fhir_version_feature_flags() {
         // R4 should be available
         assert!(true, "R4 feature is enabled");
     }
-    
+
     #[cfg(not(feature = "R4"))]
     {
         // This should not happen with default features
         panic!("R4 feature should be enabled by default");
     }
-    
+
     // Test other versions based on feature flags
     #[cfg(feature = "R4B")]
     {
         assert!(true, "R4B feature is enabled");
     }
-    
+
     #[cfg(feature = "R5")]
     {
         assert!(true, "R5 feature is enabled");
     }
-    
+
     #[cfg(feature = "R6")]
     {
         assert!(true, "R6 feature is enabled");
@@ -312,16 +325,16 @@ fn test_fhir_version_feature_flags() {
 #[test]
 fn test_json_value_manipulation() {
     let mut view_def = get_test_view_definition();
-    
+
     // Test that we can modify the JSON structure
     view_def["name"] = json!("ModifiedTestView");
     assert_eq!(view_def["name"], "ModifiedTestView");
-    
+
     // Test array manipulation
     let mut bundle = get_test_bundle();
     if let Some(entries) = bundle["entry"].as_array_mut() {
         assert_eq!(entries.len(), 1);
-        
+
         // Add another patient
         entries.push(json!({
             "resource": {
@@ -333,7 +346,7 @@ fn test_json_value_manipulation() {
                 }]
             }
         }));
-        
+
         assert_eq!(entries.len(), 2);
     }
 }
@@ -347,10 +360,16 @@ fn test_error_display_formatting() {
         RustSofError::UnsupportedContentType("Unsupported format: xyz".to_string()),
         RustSofError::CsvWriterError("CSV writing failed".to_string()),
     ];
-    
+
     for error in errors {
         let error_string = error.to_string();
-        assert!(!error_string.is_empty(), "Error message should not be empty");
-        assert!(error_string.len() > 5, "Error message should be descriptive");
+        assert!(
+            !error_string.is_empty(),
+            "Error message should not be empty"
+        );
+        assert!(
+            error_string.len() > 5,
+            "Error message should be descriptive"
+        );
     }
 }
