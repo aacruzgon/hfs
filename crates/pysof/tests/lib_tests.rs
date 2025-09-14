@@ -295,8 +295,14 @@ fn test_fhir_version_feature_flags() {
     // Test that we can check which FHIR versions are compiled in
     #[cfg(feature = "R4")]
     {
-        // R4 should be available
-        assert!(true, "R4 feature is enabled");
+        // R4 should be available - try to deserialize a minimal Bundle
+        let bundle = json!({
+            "resourceType": "Bundle",
+            "id": "feat-r4",
+            "type": "collection"
+        });
+        let result: Result<helios_fhir::r4::Bundle, _> = serde_json::from_value(bundle);
+        assert!(result.is_ok(), "R4 Bundle should deserialize");
     }
 
     #[cfg(not(feature = "R4"))]
@@ -308,17 +314,38 @@ fn test_fhir_version_feature_flags() {
     // Test other versions based on feature flags
     #[cfg(feature = "R4B")]
     {
-        assert!(true, "R4B feature is enabled");
+        // R4B should be available - try to deserialize a minimal Bundle
+        let bundle = json!({
+            "resourceType": "Bundle",
+            "id": "feat-r4b",
+            "type": "collection"
+        });
+        let result: Result<helios_fhir::r4b::Bundle, _> = serde_json::from_value(bundle);
+        assert!(result.is_ok(), "R4B Bundle should deserialize");
     }
 
     #[cfg(feature = "R5")]
     {
-        assert!(true, "R5 feature is enabled");
+        // R5 should be available - try to deserialize a minimal Bundle
+        let bundle = json!({
+            "resourceType": "Bundle",
+            "id": "feat-r5",
+            "type": "collection"
+        });
+        let result: Result<helios_fhir::r5::Bundle, _> = serde_json::from_value(bundle);
+        assert!(result.is_ok(), "R5 Bundle should deserialize");
     }
 
     #[cfg(feature = "R6")]
     {
-        assert!(true, "R6 feature is enabled");
+        // R6 should be available - try to deserialize a minimal Bundle
+        let bundle = json!({
+            "resourceType": "Bundle",
+            "id": "feat-r6",
+            "type": "collection"
+        });
+        let result: Result<helios_fhir::r6::Bundle, _> = serde_json::from_value(bundle);
+        assert!(result.is_ok(), "R6 Bundle should deserialize");
     }
 }
 
