@@ -66,31 +66,58 @@ For detailed information about wheel building and distribution, see [WHEEL_BUILD
 
 ## Testing
 
-Run the comprehensive test suite:
+The project has separate test suites for Python and Rust components:
+
+### Python Tests
+
+Run the comprehensive Python test suite:
 
 ```bash
-# Run all tests
-uv run pytest
+# Run all Python tests
+uv run pytest python-tests/
 
 # Run specific test files
-uv run pytest tests/test_core_functions.py -v
-uv run pytest tests/test_content_types.py -v
-uv run pytest tests/test_import.py -v
+uv run pytest python-tests/test_core_functions.py -v
+uv run pytest python-tests/test_content_types.py -v
+uv run pytest python-tests/test_import.py -v
 
 # Run with coverage
-uv run pytest --cov=pysof --cov-report=html
+uv run pytest python-tests/ --cov=pysof --cov-report=html
 
 # Run tests with detailed output
-uv run pytest -v --tb=short
+uv run pytest python-tests/ -v --tb=short
 ```
 
-Current test coverage:
+Current Python test coverage:
 - **58 total tests** across 5 test files
 - Core API functions (19 tests)
 - Content type support (14 tests) 
 - FHIR version support (16 tests)
 - Package structure and imports (6 tests)
 - Package metadata (3 tests)
+
+### Rust Tests
+
+Run the Rust unit and integration tests:
+
+```bash
+# Run all Rust tests
+cargo test
+
+# Run unit tests only
+cargo test --test lib_tests
+
+# Run integration tests only
+cargo test --test integration
+
+# Run with verbose output
+cargo test -- --nocapture
+```
+
+Current Rust test coverage:
+- **17 total tests** across 2 test files
+- Unit tests: 14 tests covering core library functions
+- Integration tests: 3 tests covering component interactions
 
 ## Usage
 
@@ -381,7 +408,16 @@ crates/pysof/
 │  ├─ pysof/
 │  │  └─ __init__.py       # Python package root
 │  └─ lib.rs               # Rust PyO3 bindings
-├─ tests/                  # Test suite (58 tests)
+├─ tests/                  # Rust tests (17 tests)
+│  ├─ lib_tests.rs         # Unit tests for core library functions
+│  ├─ integration.rs       # Integration tests for component interactions
+│  └─ integration/         # Organized integration test modules
+│     ├─ mod.rs
+│     ├─ content_types.rs
+│     ├─ error_handling.rs
+│     └─ fhir_versions.rs
+├─ python-tests/           # Python test suite (58 tests)
+│  ├─ __init__.py
 │  ├─ test_core_functions.py
 │  ├─ test_content_types.py
 │  ├─ test_fhir_versions.py
