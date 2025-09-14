@@ -662,4 +662,4 @@ jobs:
 
       - name: Run tests with coverage
         working-directory: crates/pysof
-        run: uv run python -m pytest -v --cov=src --cov-report=xml:coverage.xml --cov-report=term-missing
+        run: uv run python -m pytest python-tests/ -v --cov=src --cov-report=xml:coverage.xml --cov-report=term-missing
