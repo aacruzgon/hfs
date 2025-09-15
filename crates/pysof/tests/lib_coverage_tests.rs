@@ -43,7 +43,7 @@ fn test_rust_sof_error_to_py_err_coverage() {
 #[test]
 fn test_content_type_parsing_coverage() {
     // Test the ContentType parsing that's used in the PyO3 functions
-    let valid_formats = ["json", "csv", "csv_with_header", "ndjson"];
+    let valid_formats = ["json", "csv", "ndjson", "parquet"];
 
     for format in &valid_formats {
         let result = ContentType::from_string(format);
@@ -61,9 +61,25 @@ fn test_content_type_parsing_coverage() {
         assert!(!format_str.is_empty());
     }
 
+    // Test MIME type formats
+    let mime_formats = [
+        ("text/csv", ContentType::CsvWithHeader),
+        ("text/csv;header=false", ContentType::Csv),
+        ("text/csv;header=true", ContentType::CsvWithHeader),
+        ("application/json", ContentType::Json),
+        ("application/ndjson", ContentType::NdJson),
+        ("application/parquet", ContentType::Parquet),
+    ];
+
+    for (mime_type, expected) in &mime_formats {
+        let result = ContentType::from_string(mime_type);
+        assert!(result.is_ok(), "Failed to parse MIME type: {}", mime_type);
+        assert_eq!(result.unwrap(), *expected);
+    }
+
     // Test invalid format
-    let result = ContentType::from_string("invalid_format");
-    assert!(result.is_err());
+    let invalid_result = ContentType::from_string("invalid_format");
+    assert!(invalid_result.is_err());
 }
 
 #[test]
