@@ -2144,6 +2144,7 @@ name = "pysof"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "csv",
  "helios-fhir",
  "helios-sof",
  "pyo3",
