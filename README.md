@@ -139,7 +139,13 @@ Helper macros for code generation used by other components.
 ### 6. [`helios-fhirpath-support`](crates/fhirpath-support) - Shared Utilities
 Common types and traits for FHIRPath evaluation.
 
-### 7. [`helios-hfs`](crates/hfs) - Main Server Application
+### 7. [`pysof`](crates/pysof) - Python Bindings
+Python bindings for SQL-on-FHIR using PyO3.
+- Provides Python access to the SQL-on-FHIR functionality
+- Cross-platform wheel distribution for Linux, Windows, and macOS
+- See [Wheel Building Documentation](crates/pysof/WHEEL_BUILDING.md) for build and distribution details
+
+### 8. [`helios-hfs`](crates/hfs) - Main Server Application
 The main Helios FHIR Server application (coming soon).
 
 ## Design Principles
