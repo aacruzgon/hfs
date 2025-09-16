@@ -49,7 +49,7 @@ pip install dist/*.whl
 
 ### From GitHub Releases
 
-Download the appropriate wheel for your platform from the [releases page](https://github.com/helios/hfs/releases) and install:
+Download the appropriate wheel for your platform from the [releases page](https://github.com/HeliosSoftware/hfs/releases) and install:
 
 ```bash
 pip install pysof-*.whl
