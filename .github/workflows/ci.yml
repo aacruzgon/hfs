@@ -632,3 +632,14 @@ jobs:
       - name: Run tests with coverage
         working-directory: crates/pysof
         run: uv run python -m pytest python-tests/ -v --cov=src --cov-report=xml:coverage.xml --cov-report=term-missing
+
+      - name: Build release binary
+        working-directory: crates/pysof
+        run: uv run maturin build --release --out dist
+
+      - name: Upload wheel artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pysof-wheels
+          path: crates/pysof/dist/*.whl
+          retention-days: 30
