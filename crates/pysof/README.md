@@ -4,12 +4,30 @@ Python wrapper for the Helios SOF (SQL on FHIR) toolkit.
 
 This package provides Python bindings for the Rust `helios-sof` library via PyO3 and maturin. Use `uv` to manage the environment and run builds.
 
+> **Note**: This crate is excluded from the default workspace build. When running `cargo build` from the repository root, `pysof` will not be built automatically. This is intentional to allow building the core Rust components without requiring Python to be installed.
+
 ## Requirements
 
 - Python 3.11
 - uv (package and environment manager)
 
-## Quickstart
+## Building the Crate
+
+### Building with Cargo
+
+This crate is excluded from the default workspace build to allow building the core Rust components without Python. To build it explicitly:
+
+```bash
+# From repo root, build just the pysof crate
+cargo build -p pysof
+
+# Or build with specific FHIR version features
+cargo build -p pysof --features R4,R5
+```
+
+### Building with Maturin (Recommended)
+
+For Python development, it's recommended to use `maturin` via `uv`:
 
 ```bash
 # From repo root

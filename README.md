@@ -143,6 +143,7 @@ Common types and traits for FHIRPath evaluation.
 Python bindings for SQL-on-FHIR using PyO3.
 - Provides Python access to the SQL-on-FHIR functionality
 - Cross-platform wheel distribution for Linux, Windows, and macOS
+- Excluded from default workspace build (requires explicit `cargo build -p pysof`)
 - See [Wheel Building Documentation](crates/pysof/WHEEL_BUILDING.md) for build and distribution details
 
 ### 8. [`helios-hfs`](crates/hfs) - Main Server Application
@@ -192,6 +193,7 @@ cargo doc --no-deps --open
 ## Building from Source
 ```bash
 # Build with default features (R4 only)
+# Note: pysof is excluded from default workspace build
 cargo build
 
 # Build with all FHIR versions
@@ -199,6 +201,12 @@ cargo build --features R4,R4B,R5,R6
 
 # Build specific component
 cargo build -p helios-fhirpath
+
+# Build Python bindings (requires Python 3.11)
+cargo build -p pysof
+
+# Build everything except Python bindings
+cargo build --workspace --exclude pysof
 ```
 
 ## Running Tests
