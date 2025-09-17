@@ -40,7 +40,7 @@ sudo apt install clang lld
 
 macOS:
 ```bash
-brew install llvm
+brew install lld
 ```
 
 3. **Configure Rust to use LLD**
