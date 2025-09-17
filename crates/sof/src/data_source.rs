@@ -18,6 +18,14 @@ pub struct UniversalDataSource {
     client: reqwest::Client,
 }
 
+impl Default for UniversalDataSource {
+    fn default() -> Self {
+        Self {
+            client: reqwest::Client::new(),
+        }
+    }
+}
+
 impl UniversalDataSource {
     pub fn new() -> Self {
         Self {
@@ -202,7 +210,7 @@ fn wrap_resource_in_bundle(
             value: Some("collection".to_string()),
         };
         bundle.entry = Some(vec![helios_fhir::r5::BundleEntry {
-            resource: Some(res),
+            resource: Some(Box::new(res)),
             ..Default::default()
         }]);
         return Ok(SofBundle::R5(bundle));
@@ -218,7 +226,7 @@ fn wrap_resource_in_bundle(
             value: Some("collection".to_string()),
         };
         bundle.entry = Some(vec![helios_fhir::r6::BundleEntry {
-            resource: Some(res),
+            resource: Some(Box::new(res)),
             ..Default::default()
         }]);
         return Ok(SofBundle::R6(bundle));
@@ -327,7 +335,7 @@ fn wrap_resources_in_bundle(
                     ))
                 })?;
             entries.push(helios_fhir::r5::BundleEntry {
-                resource: Some(res),
+                resource: Some(Box::new(res)),
                 ..Default::default()
             });
         }
@@ -356,7 +364,7 @@ fn wrap_resources_in_bundle(
                     ))
                 })?;
             entries.push(helios_fhir::r6::BundleEntry {
-                resource: Some(res),
+                resource: Some(Box::new(res)),
                 ..Default::default()
             });
         }
