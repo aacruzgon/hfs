@@ -5,8 +5,8 @@
 
 use chrono::{DateTime, Utc};
 use helios_sof::{
-    run_view_definition, run_view_definition_with_options, ContentType, RunOptions, SofBundle,
-    SofError as RustSofError, SofViewDefinition,
+    ContentType, RunOptions, SofBundle, SofError as RustSofError, SofViewDefinition,
+    run_view_definition, run_view_definition_with_options,
 };
 use pyo3::exceptions::{PyException, PyValueError};
 use pyo3::prelude::*;
@@ -45,6 +45,38 @@ pyo3::create_exception!(
 );
 pyo3::create_exception!(pysof, PyCsvError, PySofError, "CSV generation errors");
 pyo3::create_exception!(pysof, PyIoError, PySofError, "File/IO related errors");
+// New source-related error types
+pyo3::create_exception!(
+    pysof,
+    PyInvalidSourceError,
+    PySofError,
+    "Invalid source parameter value"
+);
+pyo3::create_exception!(pysof, PySourceNotFoundError, PySofError, "Source not found");
+pyo3::create_exception!(
+    pysof,
+    PySourceFetchError,
+    PySofError,
+    "Failed to fetch from source"
+);
+pyo3::create_exception!(
+    pysof,
+    PySourceReadError,
+    PySofError,
+    "Failed to read from source"
+);
+pyo3::create_exception!(
+    pysof,
+    PyInvalidSourceContentError,
+    PySofError,
+    "Invalid content in source"
+);
+pyo3::create_exception!(
+    pysof,
+    PyUnsupportedSourceProtocolError,
+    PySofError,
+    "Unsupported source protocol"
+);
 
 /// Convert Rust SofError to appropriate Python exception
 fn rust_sof_error_to_py_err(err: RustSofError) -> PyErr {
@@ -56,6 +88,14 @@ fn rust_sof_error_to_py_err(err: RustSofError) -> PyErr {
         RustSofError::CsvError(err) => PyCsvError::new_err(err.to_string()),
         RustSofError::IoError(err) => PyIoError::new_err(err.to_string()),
         RustSofError::CsvWriterError(msg) => PyCsvError::new_err(msg),
+        RustSofError::InvalidSource(msg) => PyInvalidSourceError::new_err(msg),
+        RustSofError::SourceNotFound(msg) => PySourceNotFoundError::new_err(msg),
+        RustSofError::SourceFetchError(msg) => PySourceFetchError::new_err(msg),
+        RustSofError::SourceReadError(msg) => PySourceReadError::new_err(msg),
+        RustSofError::InvalidSourceContent(msg) => PyInvalidSourceContentError::new_err(msg),
+        RustSofError::UnsupportedSourceProtocol(msg) => {
+            PyUnsupportedSourceProtocolError::new_err(msg)
+        }
     }
 }
 
@@ -426,6 +466,24 @@ fn _pysof(m: &Bound<'_, PyModule>) -> PyResult<()> {
     )?;
     m.add("CsvError", m.py().get_type::<PyCsvError>())?;
     m.add("IoError", m.py().get_type::<PyIoError>())?;
+    m.add(
+        "InvalidSourceError",
+        m.py().get_type::<PyInvalidSourceError>(),
+    )?;
+    m.add(
+        "SourceNotFoundError",
+        m.py().get_type::<PySourceNotFoundError>(),
+    )?;
+    m.add("SourceFetchError", m.py().get_type::<PySourceFetchError>())?;
+    m.add("SourceReadError", m.py().get_type::<PySourceReadError>())?;
+    m.add(
+        "InvalidSourceContentError",
+        m.py().get_type::<PyInvalidSourceContentError>(),
+    )?;
+    m.add(
+        "UnsupportedSourceProtocolError",
+        m.py().get_type::<PyUnsupportedSourceProtocolError>(),
+    )?;
 
     Ok(())
 }

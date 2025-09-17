@@ -19,6 +19,12 @@ Exception hierarchy:
     UnsupportedContentTypeError: Unsupported output format errors
     CsvError: CSV generation errors
     IoError: File/IO related errors
+    InvalidSourceError: Invalid source parameter value
+    SourceNotFoundError: Source not found
+    SourceFetchError: Failed to fetch from source
+    SourceReadError: Failed to read from source
+    InvalidSourceContentError: Invalid content in source
+    UnsupportedSourceProtocolError: Unsupported source protocol
 """
 
 from typing import Any, cast
@@ -34,6 +40,12 @@ try:
         # Exception classes
         SofError,
         UnsupportedContentTypeError,
+        InvalidSourceError,
+        SourceNotFoundError,
+        SourceFetchError,
+        SourceReadError,
+        InvalidSourceContentError,
+        UnsupportedSourceProtocolError,
         py_get_supported_fhir_versions,
         py_parse_content_type,
         py_run_view_definition,
@@ -217,6 +229,36 @@ except ImportError as e:
 
         pass
 
+    class InvalidSourceError(SofError):  # type: ignore[no-redef]
+        """Invalid source parameter value"""
+
+        pass
+
+    class SourceNotFoundError(SofError):  # type: ignore[no-redef]
+        """Source not found"""
+
+        pass
+
+    class SourceFetchError(SofError):  # type: ignore[no-redef]
+        """Failed to fetch from source"""
+
+        pass
+
+    class SourceReadError(SofError):  # type: ignore[no-redef]
+        """Failed to read from source"""
+
+        pass
+
+    class InvalidSourceContentError(SofError):  # type: ignore[no-redef]
+        """Invalid content in source"""
+
+        pass
+
+    class UnsupportedSourceProtocolError(SofError):  # type: ignore[no-redef]
+        """Unsupported source protocol"""
+
+        pass
+
     # Define placeholder functions
     def run_view_definition(
         view: dict[str, Any],
@@ -270,6 +312,12 @@ __all__: list[str] = [
     "UnsupportedContentTypeError",
     "CsvError",
     "IoError",
+    "InvalidSourceError",
+    "SourceNotFoundError",
+    "SourceFetchError",
+    "SourceReadError",
+    "InvalidSourceContentError",
+    "UnsupportedSourceProtocolError",
 ]
 
 __version__ = "0.1.0"
