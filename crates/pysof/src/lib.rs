@@ -79,6 +79,7 @@ pyo3::create_exception!(
 );
 
 /// Convert Rust SofError to appropriate Python exception
+#[allow(unreachable_patterns)]
 fn rust_sof_error_to_py_err(err: RustSofError) -> PyErr {
     match err {
         RustSofError::InvalidViewDefinition(msg) => PyInvalidViewDefinitionError::new_err(msg),
@@ -95,7 +96,9 @@ fn rust_sof_error_to_py_err(err: RustSofError) -> PyErr {
         RustSofError::InvalidSourceContent(msg) => PyInvalidSourceContentError::new_err(msg),
         RustSofError::UnsupportedSourceProtocol(msg) => {
             PyUnsupportedSourceProtocolError::new_err(msg)
-        }
+        },
+        // Catch-all for any future error variants
+        _ => PySofError::new_err(format!("Unhandled SofError: {}", err)),
     }
 }
 
