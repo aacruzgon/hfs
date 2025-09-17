@@ -62,6 +62,13 @@ class TestExceptionHierarchy:
         assert issubclass(pysof.UnsupportedContentTypeError, pysof.SofError)
         assert issubclass(pysof.CsvError, pysof.SofError)
         assert issubclass(pysof.IoError, pysof.SofError)
+        # Source-related exceptions
+        assert issubclass(pysof.InvalidSourceError, pysof.SofError)
+        assert issubclass(pysof.SourceNotFoundError, pysof.SofError)
+        assert issubclass(pysof.SourceFetchError, pysof.SofError)
+        assert issubclass(pysof.SourceReadError, pysof.SofError)
+        assert issubclass(pysof.InvalidSourceContentError, pysof.SofError)
+        assert issubclass(pysof.UnsupportedSourceProtocolError, pysof.SofError)
     
     def test_python_exception_inheritance(self) -> None:
         """Test that all pysof exceptions inherit from Python's Exception."""
@@ -72,6 +79,13 @@ class TestExceptionHierarchy:
         assert issubclass(pysof.UnsupportedContentTypeError, Exception)
         assert issubclass(pysof.CsvError, Exception)
         assert issubclass(pysof.IoError, Exception)
+        # Source-related exceptions
+        assert issubclass(pysof.InvalidSourceError, Exception)
+        assert issubclass(pysof.SourceNotFoundError, Exception)
+        assert issubclass(pysof.SourceFetchError, Exception)
+        assert issubclass(pysof.SourceReadError, Exception)
+        assert issubclass(pysof.InvalidSourceContentError, Exception)
+        assert issubclass(pysof.UnsupportedSourceProtocolError, Exception)
     
     def test_exception_availability(self) -> None:
         """Test that all exception classes are available in the module."""
@@ -82,6 +96,13 @@ class TestExceptionHierarchy:
         assert hasattr(pysof, 'UnsupportedContentTypeError')
         assert hasattr(pysof, 'CsvError')
         assert hasattr(pysof, 'IoError')
+        # Source-related exceptions
+        assert hasattr(pysof, 'InvalidSourceError')
+        assert hasattr(pysof, 'SourceNotFoundError')
+        assert hasattr(pysof, 'SourceFetchError')
+        assert hasattr(pysof, 'SourceReadError')
+        assert hasattr(pysof, 'InvalidSourceContentError')
+        assert hasattr(pysof, 'UnsupportedSourceProtocolError')
 
 
 class TestInvalidViewDefinitionError:
