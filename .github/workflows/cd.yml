@@ -187,6 +187,12 @@ jobs:
         working-directory: crates/pysof
         run: uv sync
 
+      - name: Install patchelf (for python-wheels)
+        if: inputs.server == 'python-wheels'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y patchelf
+
       - name: Build release binary (for python-wheels)
         if: inputs.server == 'python-wheels'
         working-directory: crates/pysof
