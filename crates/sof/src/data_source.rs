@@ -37,6 +37,12 @@ impl UniversalDataSource {
     }
 }
 
+impl Default for UniversalDataSource {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait]
 impl DataSource for UniversalDataSource {
     async fn load(&self, source: &str) -> Result<SofBundle, SofError> {
