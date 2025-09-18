@@ -16,7 +16,7 @@ env:
 jobs:
   test:
     name: Test Suite
-    runs-on: [self-hosted, Linux]
+    runs-on: [self-hosted, Unix]
     strategy:
       matrix:
         rust: [stable, beta, nightly]
@@ -67,7 +67,7 @@ jobs:
 
   lint:
     name: Linting
-    runs-on: [self-hosted, macOS]
+    runs-on: [self-hosted, Unix]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -104,7 +104,7 @@ jobs:
 
   security:
     name: Security Audit
-    runs-on: [self-hosted, Linux]
+    runs-on: [self-hosted, Unix]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -131,7 +131,7 @@ jobs:
 
   coverage:
     name: Code Coverage
-    runs-on: [self-hosted, Linux]
+    runs-on: [self-hosted, Unix]
     needs: [test, lint, security]
     steps:
       - name: Checkout code
