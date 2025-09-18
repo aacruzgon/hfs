@@ -87,7 +87,7 @@ jobs:
           fi
 
       - name: Cache cargo registry
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
@@ -202,7 +202,7 @@ jobs:
             console.log(`Latest FhirPath Validator release: ${release.tag_name}`);
 
             // Find the Windows executable archive
-            const asset = release.assets.find(asset => 
+            const asset = release.assets.find(asset =>
               asset.name.includes('win-x64') && asset.name.endsWith('.zip')
             );
 
@@ -278,7 +278,7 @@ jobs:
               // Copy to root for easier access
               fs.copyFileSync(validatorPath, 'fhirpath-validator.exe');
               console.log('Validator setup complete');
-              
+
               // Verify it works
               try {
                 execSync('.\\fhirpath-validator.exe --help', { stdio: 'pipe' });
@@ -465,7 +465,7 @@ jobs:
           )
 
       - name: Cache cargo registry
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
@@ -630,15 +630,9 @@ jobs:
           key: pysof-venv-${{ runner.os }}-${{ hashFiles('crates/pysof/pyproject.toml', 'crates/pysof/uv.lock') }}
 
       - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
-          override: true
-
-      - name: Install patchelf
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y patchelf
 
       - name: Build extension (dev)
         working-directory: crates/pysof
