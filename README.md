@@ -54,6 +54,9 @@ rustflags = ["-C", "link-arg=-fuse-ld=lld"]
 [target.x86_64-apple-darwin]
 linker = "clang"
 rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+
+[target.x86_64-pc-windows-msvc]
+linker = "lld-link.exe"
 ```
 
 4. **Set stack size and parallel build count** (add to `~/.bashrc` or `~/.zshrc`):
