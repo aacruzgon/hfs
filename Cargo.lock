@@ -126,6 +126,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b0674a1ddeecb70197781e945de4b3b8ffb61fa939a5597bcf48503737663100"
 
 [[package]]
+name = "arc-swap"
+version = "1.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "69f7f8c3906b62b754cd5326047894316021dcfe5a194c8ea52bdd94934a3457"
+
+[[package]]
 name = "arrayvec"
 version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1110,6 +1116,7 @@ dependencies = [
 name = "helios-fhirpath"
 version = "0.1.16"
 dependencies = [
+ "arc-swap",
  "axum",
  "axum-test",
  "base64",
@@ -1125,6 +1132,8 @@ dependencies = [
  "lazy_static",
  "octofhir-ucum",
  "once_cell",
+ "parking_lot",
+ "rayon",
  "regex",
  "reqwest",
  "roxmltree",
@@ -1160,11 +1169,13 @@ name = "helios-sof"
 version = "0.1.16"
 dependencies = [
  "anyhow",
+ "arc-swap",
  "async-trait",
  "axum",
  "axum-test",
  "chrono",
  "clap",
+ "criterion",
  "csv",
  "helios-fhir",
  "helios-fhirpath",
@@ -1172,6 +1183,8 @@ dependencies = [
  "http",
  "mime",
  "object_store",
+ "parking_lot",
+ "rayon",
  "reqwest",
  "serde",
  "serde_json",
