@@ -182,6 +182,7 @@ pub mod traits;
 
 use chrono::{DateTime, Utc};
 use helios_fhirpath::{EvaluationContext, EvaluationResult, evaluate_expression};
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use thiserror::Error;
@@ -1053,7 +1054,8 @@ fn process_view_definition_generic<VD, B>(
 where
     VD: ViewDefinitionTrait,
     B: BundleTrait,
-    B::Resource: ResourceTrait,
+    B::Resource: ResourceTrait + Sync,
+    VD::Select: Sync,
 {
     validate_view_definition(&view_definition)?;
 
@@ -1471,21 +1473,44 @@ fn generate_rows_from_selects<R, S>(
     variables: &HashMap<String, EvaluationResult>,
 ) -> Result<(Vec<String>, Vec<ProcessedRow>), SofError>
 where
-    R: ResourceTrait,
-    S: ViewDefinitionSelectTrait,
+    R: ResourceTrait + Sync,
+    S: ViewDefinitionSelectTrait + Sync,
     S::Select: ViewDefinitionSelectTrait,
 {
-    let mut all_columns = Vec::new();
+    // Process resources in parallel
+    let resource_results: Result<Vec<_>, _> = resources
+        .par_iter()
+        .map(|resource| {
+            // Each thread gets its own local column vector
+            let mut local_columns = Vec::new();
+            let resource_rows = generate_rows_for_resource(
+                *resource,
+                selects,
+                &mut local_columns,
+                variables
+            )?;
+            Ok::<(Vec<String>, Vec<ProcessedRow>), SofError>((local_columns, resource_rows))
+        })
+        .collect();
+
+    // Handle errors from parallel processing
+    let resource_results = resource_results?;
+
+    // Merge columns from all threads (maintaining order is important)
+    let mut final_columns = Vec::new();
     let mut all_rows = Vec::new();
 
-    // For each resource, generate all possible row combinations
-    for resource in resources {
-        let resource_rows =
-            generate_rows_for_resource(*resource, selects, &mut all_columns, variables)?;
+    for (local_columns, resource_rows) in resource_results {
+        // Merge columns, avoiding duplicates
+        for col in local_columns {
+            if !final_columns.contains(&col) {
+                final_columns.push(col);
+            }
+        }
         all_rows.extend(resource_rows);
     }
 
-    Ok((all_columns, all_rows))
+    Ok((final_columns, all_rows))
 }
 
 fn generate_rows_for_resource<R, S>(
