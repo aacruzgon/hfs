@@ -22,6 +22,7 @@
 //! -o, --output <OUTPUT>          Output file path (defaults to stdout)
 //!     --since <SINCE>            Filter resources modified after this time (RFC3339 format)
 //!     --limit <LIMIT>            Limit the number of results (1-10000)
+//! -t, --threads <THREADS>        Number of threads to use for parallel processing
 //!     --fhir-version <VERSION>   FHIR version to use [default: R4]
 //! -h, --help                     Print help
 //!
@@ -70,9 +71,14 @@
 //! sof-cli -v view_definition.json -b patient_bundle.json --limit 100
 //! ```
 //!
+//! ### Use multiple threads for parallel processing
+//! ```bash
+//! sof-cli -v view_definition.json -b patient_bundle.json --threads 8
+//! ```
+//!
 //! ### Combine filters
 //! ```bash
-//! sof-cli -v view_definition.json -b patient_bundle.json --since 2024-01-01T00:00:00Z --limit 50
+//! sof-cli -v view_definition.json -b patient_bundle.json --since 2024-01-01T00:00:00Z --limit 50 --threads 4
 //! ```
 //!
 //! ### Using source parameter for external data
@@ -169,6 +175,10 @@ struct Args {
     /// Limit the number of results (1-10000)
     #[arg(long)]
     limit: Option<usize>,
+
+    /// Number of threads to use for parallel processing (default: system decides)
+    #[arg(long, short = 't')]
+    threads: Option<usize>,
 
     /// FHIR version to use for parsing resources
     #[arg(long, value_enum, default_value_t = FhirVersion::R4)]
@@ -377,11 +387,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         None
     };
 
-    // Build run options
+    // Build run options (use Default to remain forward-compatible)
     let options = RunOptions {
         since,
         limit,
         page: None, // CLI doesn't support page parameter yet
+        num_threads: args.threads,
+        ..Default::default()
     };
 
     // Run the transformation

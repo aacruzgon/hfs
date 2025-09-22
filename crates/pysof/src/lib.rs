@@ -182,9 +182,10 @@ fn py_run_view_definition(
 
     let (sof_view_def, sof_bundle) = parsed?;
 
-    // Execute transformation
-    let result = run_view_definition(sof_view_def, sof_bundle, content_type)
-        .map_err(rust_sof_error_to_py_err)?;
+    // Execute transformation - release GIL for parallel/long work
+    let result = py.allow_threads(|| {
+        run_view_definition(sof_view_def, sof_bundle, content_type)
+    }).map_err(rust_sof_error_to_py_err)?;
 
     Ok(PyBytes::new(py, &result).into())
 }
@@ -286,9 +287,10 @@ fn py_run_view_definition_with_options(
     options.page = page;
     options.num_threads = num_threads;
 
-    // Execute transformation
-    let result = run_view_definition_with_options(sof_view_def, sof_bundle, content_type, options)
-        .map_err(rust_sof_error_to_py_err)?;
+    // Execute transformation - release GIL for parallel/long work
+    let result = py.allow_threads(|| {
+        run_view_definition_with_options(sof_view_def, sof_bundle, content_type, options)
+    }).map_err(rust_sof_error_to_py_err)?;
 
     Ok(PyBytes::new(py, &result).into())
 }
