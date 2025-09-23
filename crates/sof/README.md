@@ -85,6 +85,12 @@ sof-cli -v view-definition.json -b patient-data.json --since 2024-01-01T00:00:00
     --since <SINCE>            Filter resources modified after this time (RFC3339 format)
     --limit <LIMIT>            Limit the number of results (1-10000)
     --fhir-version <VERSION>   FHIR version to use [default: R4]
+    --parquet-row-group-size <MB> Row group size for Parquet (64-1024MB) [default: 256]
+    --parquet-page-size <KB>   Page size for Parquet (64-8192KB) [default: 1024]
+    --parquet-compression <ALG> Compression for Parquet [default: snappy]
+                              Options: none, snappy, gzip, lz4, brotli, zstd
+    --max-file-size <MB>       Maximum file size for Parquet output (10-10000MB)
+                              When exceeded, creates numbered files (e.g., output_001.parquet)
 -h, --help                     Print help
 
 * Additional FHIR versions (R4B, R5, R6) available when compiled with corresponding features
@@ -175,7 +181,9 @@ The CLI supports multiple output formats via the `-f/--format` parameter:
 - **parquet** - Apache Parquet columnar format
   - Efficient binary format for analytics workloads
   - Automatic schema inference from data
-  - Snappy compression by default
+  - Configurable compression (snappy, gzip, lz4, brotli, zstd, none)
+  - Optimized for large datasets with automatic chunking
+  - Configurable row group and page sizes for performance tuning
 
 ### `sof-server` - HTTP Server
 
@@ -665,14 +673,52 @@ The SOF implementation supports Apache Parquet format for efficient columnar dat
   - `decimal` → FLOAT64
   - `dateTime`/`date` → UTF8
   - Arrays → List types with nullable elements
-- **Compression**: Snappy compression by default for optimal size/speed balance
+- **Optimized for Large Datasets**:
+  - Automatic chunking into optimal batch sizes (100K-500K rows)
+  - Memory-efficient streaming for datasets > 1GB
+  - Configurable row group size (default: 256MB, range: 64-1024MB)
+  - Configurable page size (default: 1MB, range: 64KB-8MB)
+- **Compression Options**:
+  - `snappy` (default): Fast compression with good ratios
+  - `gzip`: Maximum compatibility, good compression
+  - `lz4`: Fastest compression/decompression
+  - `zstd`: Balanced speed and compression ratio
+  - `brotli`: Best compression ratio
+  - `none`: No compression for maximum speed
 - **Null Handling**: All fields are OPTIONAL to accommodate FHIR's nullable nature
 - **Complex Types**: Objects and nested structures are serialized as JSON strings
 
 Example usage:
 ```bash
-# CLI export to Parquet
+# CLI export with default settings (256MB row groups, snappy compression)
 sof-cli --view view.json --bundle data.json --format parquet -o output.parquet
+
+# Optimize for smaller files with better compression
+sof-cli --view view.json --bundle data.json --format parquet \
+  --parquet-compression zstd \
+  --parquet-row-group-size 128 \
+  -o output.parquet
+
+# Maximize compression for archival
+sof-cli --view view.json --bundle data.json --format parquet \
+  --parquet-compression brotli \
+  --parquet-row-group-size 512 \
+  --parquet-page-size 2048 \
+  -o output.parquet
+
+# Fast processing with minimal compression
+sof-cli --view view.json --bundle data.json --format parquet \
+  --parquet-compression lz4 \
+  --parquet-row-group-size 64 \
+  -o output.parquet
+
+# Split large datasets into multiple files (500MB each)
+sof-cli --view view.json --bundle large-data.json --format parquet \
+  --max-file-size 500 \
+  -o output.parquet
+# Creates: output.parquet (first 500MB)
+#          output_002.parquet (next 500MB)
+#          output_003.parquet (remaining data)
 
 # Server API
 curl -X POST "http://localhost:8080/ViewDefinition/$run?_format=application/parquet" \
@@ -680,6 +726,21 @@ curl -X POST "http://localhost:8080/ViewDefinition/$run?_format=application/parq
   -d '{"resourceType": "Parameters", ...}' \
   --output result.parquet
 ```
+
+#### Performance Guidelines
+
+- **Row Group Size**: Larger row groups (256-512MB) improve compression and columnar efficiency but require more memory during processing
+- **Page Size**: Smaller pages (64-512KB) enable fine-grained reads and better predicate pushdown; larger pages (1-8MB) reduce metadata overhead
+- **Compression**:
+  - Use `snappy` or `lz4` for real-time processing
+  - Use `zstd` for balanced storage and query performance
+  - Use `brotli` or `gzip` for long-term storage where space is critical
+- **Large Datasets**: The implementation automatically chunks data to prevent memory issues, processing in batches optimized for the configured row group size
+- **File Splitting**: When `--max-file-size` is specified:
+  - Files are split when they exceed the specified size in MB
+  - Each file contains complete row groups and is independently queryable
+  - Files are named with sequential numbering: `base.parquet`, `base_002.parquet`, `base_003.parquet`, etc.
+  - Ideal for distributed processing systems that parallelize across files
 
 ## Performance
 
