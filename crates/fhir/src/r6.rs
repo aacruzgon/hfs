@@ -381,9 +381,8 @@ pub struct AdministrableProductDefinitionRouteOfAdministration {
     #[fhir_serde(rename = "maxTreatmentPeriod")]
     pub max_treatment_period: Option<Duration>,
     #[fhir_serde(rename = "targetSpecies")]
-    pub target_species: Option<
-        Vec<AdministrableProductDefinitionRouteOfAdministrationTargetSpecies>,
-    >,
+    pub target_species:
+        Option<Vec<AdministrableProductDefinitionRouteOfAdministrationTargetSpecies>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, FhirSerde, FhirPath, Default)]
@@ -1282,9 +1281,8 @@ pub struct BodyStructureIncludedStructureBodyLandmarkOrientation {
     #[fhir_serde(rename = "clockFacePosition")]
     pub clock_face_position: Option<Vec<CodeableConcept>>,
     #[fhir_serde(rename = "distanceFromLandmark")]
-    pub distance_from_landmark: Option<
-        Vec<BodyStructureIncludedStructureBodyLandmarkOrientationDistanceFromLandmark>,
-    >,
+    pub distance_from_landmark:
+        Option<Vec<BodyStructureIncludedStructureBodyLandmarkOrientationDistanceFromLandmark>>,
     #[fhir_serde(rename = "surfaceOrientation")]
     pub surface_orientation: Option<Vec<CodeableConcept>>,
 }
@@ -1331,9 +1329,8 @@ pub struct BodyStructureIncludedStructure {
     pub structure: CodeableConcept,
     pub laterality: Option<CodeableConcept>,
     #[fhir_serde(rename = "bodyLandmarkOrientation")]
-    pub body_landmark_orientation: Option<
-        Vec<BodyStructureIncludedStructureBodyLandmarkOrientation>,
-    >,
+    pub body_landmark_orientation:
+        Option<Vec<BodyStructureIncludedStructureBodyLandmarkOrientation>>,
     #[fhir_serde(rename = "spatialReference")]
     pub spatial_reference: Option<Vec<Reference>>,
     pub qualifier: Option<Vec<CodeableConcept>>,
@@ -2082,9 +2079,8 @@ pub struct CitationCitedArtifactContributorshipEntry {
     pub contribution_type: Option<Vec<CodeableConcept>>,
     pub role: Option<CodeableConcept>,
     #[fhir_serde(rename = "contributionInstance")]
-    pub contribution_instance: Option<
-        Vec<CitationCitedArtifactContributorshipEntryContributionInstance>,
-    >,
+    pub contribution_instance:
+        Option<Vec<CitationCitedArtifactContributorshipEntryContributionInstance>>,
     #[fhir_serde(rename = "correspondingContact")]
     pub corresponding_contact: Option<Boolean>,
     #[fhir_serde(rename = "rankingOrder")]
@@ -11459,9 +11455,8 @@ pub struct MedicationKnowledgeIndicationGuidelineDosingGuideline {
     #[fhir_serde(rename = "administrationTreatment")]
     pub administration_treatment: Option<CodeableConcept>,
     #[fhir_serde(rename = "patientCharacteristic")]
-    pub patient_characteristic: Option<
-        Vec<MedicationKnowledgeIndicationGuidelineDosingGuidelinePatientCharacteristic>,
-    >,
+    pub patient_characteristic:
+        Option<Vec<MedicationKnowledgeIndicationGuidelineDosingGuidelinePatientCharacteristic>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, FhirSerde, FhirPath, Default)]
@@ -17711,13 +17706,11 @@ pub struct SubstancePolymerRepeatRepeatUnit {
     pub orientation: Option<CodeableConcept>,
     pub amount: Option<Integer>,
     #[fhir_serde(rename = "degreeOfPolymerisation")]
-    pub degree_of_polymerisation: Option<
-        Vec<SubstancePolymerRepeatRepeatUnitDegreeOfPolymerisation>,
-    >,
+    pub degree_of_polymerisation:
+        Option<Vec<SubstancePolymerRepeatRepeatUnitDegreeOfPolymerisation>>,
     #[fhir_serde(rename = "structuralRepresentation")]
-    pub structural_representation: Option<
-        Vec<SubstancePolymerRepeatRepeatUnitStructuralRepresentation>,
-    >,
+    pub structural_representation:
+        Option<Vec<SubstancePolymerRepeatRepeatUnitStructuralRepresentation>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, FhirSerde, FhirPath, Default)]
@@ -22607,7 +22600,8 @@ pub mod type_hierarchy {
 
     /// Gets all subtypes of a given parent type
     pub fn get_subtypes(parent: &str) -> Vec<&'static str> {
-        get_type_parents().iter()
+        get_type_parents()
+            .iter()
             .filter_map(|(child, p)| {
                 if p.eq_ignore_ascii_case(parent) {
                     Some(*child)
@@ -22618,7 +22612,6 @@ pub mod type_hierarchy {
             .collect()
     }
 }
-
 
 // --- Complex Types Provider ---
 /// Marker struct for complex type information
