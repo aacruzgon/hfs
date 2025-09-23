@@ -187,10 +187,11 @@ The CLI supports multiple output formats via the `-f/--format` parameter:
 
 ### `sof-server` - HTTP Server
 
-A high-performance HTTP server providing SQL-on-FHIR ViewDefinition transformation capabilities.
-Use this server if you need a stateless, simple web service for SQL-on-FHIR implementations.  Should you
-need to perform SQL-on-FHIR transformations using server-stored ViewDefinitions and
-server-stored FHIR data, use the full capabilities of the Helios FHIR Server in [hfs](../hfs).
+A high-performance HTTP server providing SQL-on-FHIR ViewDefinition transformation capabilities with
+advanced Parquet support and streaming for large datasets. Use this server if you need a stateless,
+simple web service for SQL-on-FHIR implementations. Should you need to perform SQL-on-FHIR
+transformations using server-stored ViewDefinitions and server-stored FHIR data, use the full
+capabilities of the Helios FHIR Server in [hfs](../hfs).
 
 
 ```bash
@@ -342,9 +343,14 @@ sof-server
 #### Server Features
 
 - **HTTP API**: RESTful endpoints for ViewDefinition execution
-- **CapabilityStatement**: Discovery endpoint for server capabilities  
+- **CapabilityStatement**: Discovery endpoint for server capabilities
 - **ViewDefinition Runner**: Synchronous execution of ViewDefinitions
 - **Multi-format Output**: Support for CSV, JSON, NDJSON, and Parquet responses
+- **Advanced Parquet Support**:
+  - Configurable compression, row group size, and page size
+  - Automatic file splitting when size limits are exceeded
+  - ZIP archive generation for multi-file outputs
+- **Streaming Response**: Chunked transfer encoding for large datasets
 - **FHIR Compliance**: Proper OperationOutcome error responses
 - **Configurable CORS**: Fine-grained control over cross-origin requests with support for specific origins, methods, and headers
 
@@ -419,6 +425,10 @@ Parameter table:
 |------|------|-----|-------|-----|-----|---------------|
 | _format | code | in | type, instance | 1 | 1 | Output format - `application/json`, `application/ndjson`, `text/csv`, `application/parquet` |
 | header | boolean | in | type, instance | 0 | 1 | This parameter only applies to `text/csv` requests. `true` (default) - return headers in the response, `false` - do not return headers. |
+| maxFileSize | integer | in | type, instance | 0 | 1 | Maximum Parquet file size in MB (10-10000). When exceeded, generates multiple files in a ZIP archive. |
+| rowGroupSize | integer | in | type, instance | 0 | 1 | Parquet row group size in MB (64-1024, default: 256) |
+| pageSize | integer | in | type, instance | 0 | 1 | Parquet page size in KB (64-8192, default: 1024) |
+| compression | code | in | type, instance | 0 | 1 | Parquet compression: none, snappy (default), gzip, lz4, brotli, zstd |
 | viewReference | Reference | in | type, instance | 0 | 1 | Reference to ViewDefinition to be used for data transformation. (not yet supported) |
 | viewResource | ViewDefinition | in | type | 0 | 1 | ViewDefinition to be used for data transformation. |
 | patient | Reference | in | type, instance | 0 | * | Filter resources by patient. |
@@ -443,6 +453,10 @@ All parameters except `viewReference`, `viewResource`, `patient`, `group`, and `
 - **source**: URL to FHIR data (file://, http://, s3://, gs://, azure://)
 - **_limit**: Limit results (1-10000)
 - **_since**: Filter by modification time (RFC3339 format)
+- **maxFileSize**: Maximum Parquet file size in MB (10-10000)
+- **rowGroupSize**: Parquet row group size in MB (64-1024)
+- **pageSize**: Parquet page size in KB (64-8192)
+- **compression**: Parquet compression algorithm
 
 ##### Body Parameters
 
@@ -458,6 +472,10 @@ For POST requests, parameters can be provided in a FHIR Parameters resource:
 - **_limit**: As valueInteger
 - **_since**: As valueInstant
 - **resource**: As resource (can be repeated)
+- **maxFileSize**: As valueInteger (for Parquet output)
+- **rowGroupSize**: As valueInteger (for Parquet output)
+- **pageSize**: As valueInteger (for Parquet output)
+- **compression**: As valueCode or valueString (for Parquet output)
 
 ##### Parameter Precedence
 
@@ -465,6 +483,26 @@ When the same parameter is specified in multiple places, the precedence order is
 1. Parameters in request body (highest priority)
 2. Query parameters
 3. Accept header (for format only, lowest priority)
+
+##### Response Headers
+
+The server automatically sets appropriate response headers based on the output format and size:
+
+**Standard Response Headers:**
+- `Content-Type`: Based on format parameter
+  - `application/json` for JSON output
+  - `text/csv` for CSV output
+  - `application/ndjson` for NDJSON output
+  - `application/parquet` for single Parquet file
+  - `application/zip` for multiple Parquet files
+
+**Streaming Response Headers (for large files):**
+- `Transfer-Encoding: chunked` - Automatically set for files > 10MB
+- `Content-Disposition: attachment; filename="..."` - Suggests filename for downloads
+  - Single Parquet: `filename="data.parquet"`
+  - Multiple Parquet (ZIP): `filename="data.zip"`
+
+**Note:** The `Transfer-Encoding: chunked` header is automatically managed by the server. Clients don't need to set any special headers to receive chunked responses - they will automatically receive data in chunks if the response is large.
 
 ##### Examples
 
@@ -513,6 +551,39 @@ curl -X POST "http://localhost:8080/ViewDefinition/$run?source=s3://my-bucket/bu
 curl -X POST "http://localhost:8080/ViewDefinition/$run?source=azure://container/data.json&_limit=100" \
   -H "Content-Type: application/json" \
   -d '{...}'
+
+# Generate Parquet with custom compression and row group size
+curl -X POST "http://localhost:8080/ViewDefinition/$run?_format=application/parquet&compression=zstd&rowGroupSize=512" \
+  -H "Content-Type: application/json" \
+  -d '{...}' \
+  --output result.parquet
+
+# Generate large Parquet with file splitting (returns ZIP if multiple files)
+curl -X POST "http://localhost:8080/ViewDefinition/$run?_format=application/parquet&maxFileSize=100" \
+  -H "Content-Type: application/json" \
+  -d '{...}' \
+  --output result.zip
+
+# Using Parquet parameters in request body
+curl -X POST "http://localhost:8080/ViewDefinition/$run" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "resourceType": "Parameters",
+    "parameter": [{
+      "name": "_format",
+      "valueCode": "parquet"
+    }, {
+      "name": "maxFileSize",
+      "valueInteger": 500
+    }, {
+      "name": "compression",
+      "valueCode": "brotli"
+    }, {
+      "name": "viewResource",
+      "resource": {...}
+    }]
+  }' \
+  --output result.zip
 ```
 
 ## Core Features
@@ -720,11 +791,23 @@ sof-cli --view view.json --bundle large-data.json --format parquet \
 #          output_002.parquet (next 500MB)
 #          output_003.parquet (remaining data)
 
-# Server API
+# Server API - single Parquet file
 curl -X POST "http://localhost:8080/ViewDefinition/$run?_format=application/parquet" \
   -H "Content-Type: application/json" \
   -d '{"resourceType": "Parameters", ...}' \
   --output result.parquet
+
+# Server API - with file splitting (returns ZIP archive if multiple files)
+curl -X POST "http://localhost:8080/ViewDefinition/$run?_format=application/parquet&maxFileSize=100" \
+  -H "Content-Type: application/json" \
+  -d '{"resourceType": "Parameters", ...}' \
+  --output result.zip
+
+# Server API - optimized settings for large datasets
+curl -X POST "http://localhost:8080/ViewDefinition/$run?_format=application/parquet&compression=zstd&rowGroupSize=512&maxFileSize=500" \
+  -H "Content-Type: application/json" \
+  -d '{"resourceType": "Parameters", ...}' \
+  --output result.zip
 ```
 
 #### Performance Guidelines
@@ -736,11 +819,22 @@ curl -X POST "http://localhost:8080/ViewDefinition/$run?_format=application/parq
   - Use `zstd` for balanced storage and query performance
   - Use `brotli` or `gzip` for long-term storage where space is critical
 - **Large Datasets**: The implementation automatically chunks data to prevent memory issues, processing in batches optimized for the configured row group size
-- **File Splitting**: When `--max-file-size` is specified:
+- **File Splitting**: When `--max-file-size` or `maxFileSize` is specified:
   - Files are split when they exceed the specified size in MB
   - Each file contains complete row groups and is independently queryable
-  - Files are named with sequential numbering: `base.parquet`, `base_002.parquet`, `base_003.parquet`, etc.
+  - CLI: Files are named with sequential numbering: `base.parquet`, `base_002.parquet`, `base_003.parquet`, etc.
+  - Server: Multiple files are automatically packaged into a ZIP archive for convenient download
   - Ideal for distributed processing systems that parallelize across files
+- **Streaming Response** (Server only):
+  - Files larger than 10MB are automatically streamed using chunked transfer encoding
+  - Reduces memory usage on both server and client
+  - Multiple Parquet files are streamed as a ZIP archive with proper content disposition headers
+  - Enables processing of gigabyte-scale datasets without memory constraints
+  - Response headers for streaming:
+    - `Transfer-Encoding: chunked` - Automatically set by the server for streaming responses
+    - `Content-Type: application/parquet` or `application/zip` - Based on single or multi-file output
+    - `Content-Disposition: attachment; filename="data.parquet"` or `filename="data.zip"` - For convenient file downloads
+  - Chunked responses use 64KB chunks for optimal network efficiency
 
 ## Performance
 

@@ -2441,8 +2441,11 @@ pub fn format_parquet_multi_file(
     let mut file_buffers = Vec::new();
     let mut current_buffer = Vec::new();
     let mut current_cursor = Cursor::new(&mut current_buffer);
-    let mut current_writer = ArrowWriter::try_new(&mut current_cursor, schema_ref.clone(), Some(props.clone()))
-        .map_err(|e| SofError::ParquetConversionError(format!("Failed to create Parquet writer: {}", e)))?;
+    let mut current_writer =
+        ArrowWriter::try_new(&mut current_cursor, schema_ref.clone(), Some(props.clone()))
+            .map_err(|e| {
+                SofError::ParquetConversionError(format!("Failed to create Parquet writer: {}", e))
+            })?;
 
     let mut row_offset = 0;
     let mut _current_file_rows = 0;
@@ -2452,7 +2455,8 @@ pub fn format_parquet_multi_file(
         let batch_rows = &result.rows[row_offset..batch_end];
 
         // Convert batch to Arrow arrays
-        let batch_arrays = parquet_schema::process_to_arrow_arrays(&schema, &result.columns, batch_rows)?;
+        let batch_arrays =
+            parquet_schema::process_to_arrow_arrays(&schema, &result.columns, batch_rows)?;
 
         // Create RecordBatch
         let batch = RecordBatch::try_new(schema_ref.clone(), batch_arrays).map_err(|e| {
@@ -2489,8 +2493,14 @@ pub fn format_parquet_multi_file(
             // Start new file
             current_buffer = Vec::new();
             current_cursor = Cursor::new(&mut current_buffer);
-            current_writer = ArrowWriter::try_new(&mut current_cursor, schema_ref.clone(), Some(props.clone()))
-                .map_err(|e| SofError::ParquetConversionError(format!("Failed to create new Parquet writer: {}", e)))?;
+            current_writer =
+                ArrowWriter::try_new(&mut current_cursor, schema_ref.clone(), Some(props.clone()))
+                    .map_err(|e| {
+                        SofError::ParquetConversionError(format!(
+                            "Failed to create new Parquet writer: {}",
+                            e
+                        ))
+                    })?;
             _current_file_rows = 0;
         }
     }

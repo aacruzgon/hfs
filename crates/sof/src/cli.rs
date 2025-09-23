@@ -431,17 +431,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // For Parquet with max_file_size, we need special handling
-    if content_type == ContentType::Parquet && args.max_file_size.is_some() && args.output.is_some() {
+    if content_type == ContentType::Parquet && args.max_file_size.is_some() && args.output.is_some()
+    {
         // Process and write Parquet files with splitting
-        write_parquet_with_splitting(
-            view_definition,
-            bundle,
-            &args.output.unwrap(),
-            options,
-        )?;
+        write_parquet_with_splitting(view_definition, bundle, &args.output.unwrap(), options)?;
     } else {
         // Standard processing for all other cases
-        let result = run_view_definition_with_options(view_definition, bundle, content_type, options)?;
+        let result =
+            run_view_definition_with_options(view_definition, bundle, content_type, options)?;
 
         // Output result
         match args.output {
@@ -616,7 +613,8 @@ fn write_parquet_with_splitting(
     use helios_sof::format_parquet_multi_file;
 
     // Get the max file size in bytes
-    let max_file_size_bytes = options.parquet_options
+    let max_file_size_bytes = options
+        .parquet_options
         .as_ref()
         .and_then(|opts| opts.max_file_size_mb)
         .map(|mb| mb as usize * 1024 * 1024)
