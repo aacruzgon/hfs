@@ -90,7 +90,7 @@ fn process_single_version(version: &FhirVersion, output_path: impl AsRef<Path>) 
     // Create the version-specific output file with initial content
     std::fs::write(
         &version_path,
-        "use helios_fhir_macro::{FhirPath, FhirSerde};\nuse serde::{Deserialize, Serialize};\n\nuse crate::{DecimalElement, Element};\n\n",
+        "// Generated documentation contains content from HL7 FHIR specifications\n// which may include HTML-like tags and bracket notations that are not actual HTML or links\n#![allow(rustdoc::broken_intra_doc_links)]\n#![allow(rustdoc::invalid_html_tags)]\n\nuse helios_fhir_macro::{FhirPath, FhirSerde};\nuse serde::{Deserialize, Serialize};\n\nuse crate::{DecimalElement, Element};\n\n",
     )?;
 
     // Collect all type hierarchy information across all bundles
@@ -718,6 +718,569 @@ fn capitalize_first_letter(s: &str) -> String {
     }
 }
 
+/// Escapes markdown text for use in Rust doc comments.
+///
+/// This function escapes special characters that could interfere with
+/// Rust's doc comment parsing.
+///
+/// # Arguments
+///
+/// * `text` - The markdown text to escape
+///
+/// # Returns
+///
+/// Returns the escaped text safe for use in doc comments.
+fn escape_doc_comment(text: &str) -> String {
+    text.replace("*/", "*\\/")
+        .replace("/*", "/\\*")
+        .replace("\r\n", "\n")  // Convert Windows line endings
+        .replace("\r", "\n")    // Convert old Mac line endings
+        .replace("\n\n\n", "\n\n") // Reduce excessive blank lines
+        // Fix common typos in FHIR spec
+        .replace("(aka \"privacy tags\".", "(aka \"privacy tags\").")
+        .replace("(aka \"tagged\")", "(aka \"tagged\")")
+        .trim_end() // Remove trailing whitespace
+        .to_string()
+        // Note: We don't escape quotes in doc comments as they don't cause issues
+}
+
+/// Formats cardinality information into human-readable text.
+///
+/// # Arguments
+///
+/// * `min` - Minimum cardinality (0 or 1)
+/// * `max` - Maximum cardinality ("1", "*", or a specific number)
+///
+/// # Returns
+///
+/// Returns a formatted string describing the cardinality.
+fn format_cardinality(min: Option<u32>, max: Option<&str>) -> String {
+    let min_val = min.unwrap_or(0);
+    let max_val = max.unwrap_or("1");
+    
+    match (min_val, max_val) {
+        (0, "1") => "Optional (0..1)".to_string(),
+        (1, "1") => "Required (1..1)".to_string(),
+        (0, "*") => "Optional, Multiple (0..*)".to_string(),
+        (1, "*") => "Required, Multiple (1..*)".to_string(),
+        (min, max) => format!("{min}..{max}"),
+    }
+}
+
+/// Formats constraint information for documentation.
+///
+/// # Arguments
+///
+/// * `constraints` - Vector of ElementDefinitionConstraint
+///
+/// # Returns
+///
+/// Returns formatted constraint documentation.
+fn format_constraints(constraints: &[initial_fhir_model::ElementDefinitionConstraint]) -> String {
+    if constraints.is_empty() {
+        return String::new();
+    }
+    
+    let mut output = String::new();
+    output.push_str("/// ## Constraints\n");
+    
+    for constraint in constraints {
+        let escaped_human = escape_doc_comment(&constraint.human);
+        
+        // Handle multi-line constraint descriptions
+        let human_lines: Vec<&str> = escaped_human.split('\n').collect();
+        
+        if human_lines.len() == 1 {
+            // Single line - output as before
+            output.push_str(&format!("/// - **{}**: {} ({})\n", 
+                constraint.key,
+                escaped_human,
+                constraint.severity
+            ));
+        } else {
+            // Multi-line - format the first line with key and severity
+            output.push_str(&format!("/// - **{}**: {} ({})\n", 
+                constraint.key,
+                human_lines[0],
+                constraint.severity
+            ));
+            
+            // Add subsequent lines with proper indentation
+            for line in &human_lines[1..] {
+                let trimmed = line.trim();
+                if !trimmed.is_empty() {
+                    output.push_str(&format!("///   {}\n", trimmed));
+                }
+            }
+        }
+        
+        if let Some(expr) = &constraint.expression {
+            output.push_str(&format!("///   Expression: `{}`\n", escape_doc_comment(expr)));
+        }
+    }
+    
+    output
+}
+
+/// Formats example values for documentation.
+///
+/// # Arguments
+///
+/// * `examples` - Vector of ElementDefinitionExample
+///
+/// # Returns
+///
+/// Returns formatted example documentation.
+fn format_examples(examples: &[initial_fhir_model::ElementDefinitionExample]) -> String {
+    if examples.is_empty() {
+        return String::new();
+    }
+    
+    let mut output = String::new();
+    output.push_str("/// ## Examples\n");
+    
+    for example in examples {
+        output.push_str(&format!("/// - {}: {:?}\n", 
+            escape_doc_comment(&example.label),
+            example.value
+        ));
+    }
+    
+    output
+}
+
+/// Formats binding information for documentation.
+///
+/// # Arguments
+///
+/// * `binding` - Optional ElementDefinitionBinding
+///
+/// # Returns
+///
+/// Returns formatted binding documentation.
+fn format_binding(binding: Option<&initial_fhir_model::ElementDefinitionBinding>) -> String {
+    if let Some(b) = binding {
+        let mut output = String::new();
+        output.push_str("/// ## Binding\n");
+        
+        output.push_str(&format!("/// - **Strength**: {}\n", b.strength));
+        
+        if let Some(desc) = &b.description {
+            let escaped_desc = escape_doc_comment(desc);
+            let desc_lines: Vec<&str> = escaped_desc.split('\n').collect();
+            
+            if desc_lines.len() == 1 {
+                // Single line - output as before
+                output.push_str(&format!("/// - **Description**: {}\n", escaped_desc));
+            } else {
+                // Multi-line - format the first line with "Description:"
+                output.push_str(&format!("/// - **Description**: {}\n", desc_lines[0]));
+                
+                // Add subsequent lines with proper indentation
+                for line in &desc_lines[1..] {
+                    let trimmed = line.trim();
+                    if !trimmed.is_empty() {
+                        output.push_str(&format!("///   {}\n", trimmed));
+                    }
+                }
+            }
+        }
+        
+        if let Some(vs) = &b.value_set {
+            output.push_str(&format!("/// - **ValueSet**: {}\n", vs));
+        }
+        
+        output
+    } else {
+        String::new()
+    }
+}
+
+/// Generates documentation comments for a FHIR struct/type from its StructureDefinition.
+///
+/// This function extracts type-level documentation from a StructureDefinition.
+///
+/// # Arguments
+///
+/// * `sd` - The StructureDefinition to document
+///
+/// # Returns
+///
+/// Returns a string containing formatted Rust doc comments for the type.
+fn generate_struct_documentation(sd: &StructureDefinition) -> String {
+    let mut output = String::new();
+    
+    // Type name
+    output.push_str(&format!("/// FHIR {} type\n", capitalize_first_letter(&sd.name)));
+    
+    // Description
+    if let Some(desc) = &sd.description {
+        if !desc.is_empty() {
+            output.push_str("/// \n");
+            // Split long descriptions into multiple lines
+            for line in desc.split('\n') {
+                if line.is_empty() {
+                    output.push_str("/// \n");
+                } else if line.len() <= 77 {
+                    // Line fits, output as is
+                    output.push_str("/// ");
+                    output.push_str(&escape_doc_comment(line));
+                    output.push_str("\n");
+                } else {
+                    // Need to wrap - use word boundaries
+                    let escaped_line = escape_doc_comment(line);
+                    let words = escaped_line.split_whitespace().collect::<Vec<_>>();
+                    let mut current_line = String::new();
+                    
+                    for word in words {
+                        if current_line.is_empty() {
+                            current_line = word.to_string();
+                        } else if current_line.len() + 1 + word.len() <= 77 {
+                            current_line.push(' ');
+                            current_line.push_str(word);
+                        } else {
+                            // Output the current line
+                            output.push_str("/// ");
+                            output.push_str(&current_line);
+                            output.push_str("\n");
+                            // Start new line with this word
+                            current_line = word.to_string();
+                        }
+                    }
+                    
+                    // Output any remaining content
+                    if !current_line.is_empty() {
+                        output.push_str("/// ");
+                        output.push_str(&current_line);
+                        output.push_str("\n");
+                    }
+                }
+            }
+        }
+    }
+    
+    // Purpose
+    if let Some(purpose) = &sd.purpose {
+        if !purpose.is_empty() {
+            output.push_str("/// \n");
+            output.push_str("/// ## Purpose\n");
+            for line in purpose.split('\n') {
+                if line.is_empty() {
+                    output.push_str("/// \n");
+                } else {
+                    output.push_str(&format!("/// {}\n", escape_doc_comment(line)));
+                }
+            }
+        }
+    }
+    
+    // Kind and base
+    output.push_str("/// \n");
+    output.push_str(&format!("/// ## Type: {} type\n", capitalize_first_letter(&sd.kind)));
+    
+    if sd.r#abstract {
+        output.push_str("/// Abstract type (cannot be instantiated directly)\n");
+    }
+    
+    if let Some(base) = &sd.base_definition {
+        output.push_str(&format!("/// Base type: {}\n", base));
+    }
+    
+    // Status and version
+    output.push_str("/// \n");
+    output.push_str(&format!("/// ## Status: {}\n", sd.status));
+    
+    // FHIR version
+    if let Some(version) = &sd.fhir_version {
+        output.push_str(&format!("/// FHIR Version: {}\n", version));
+    }
+    
+    // URL reference
+    output.push_str("/// \n");
+    output.push_str(&format!("/// See: [{}]({})\n", sd.name, sd.url));
+    
+    output
+}
+
+/// Generates comprehensive documentation comments for a FHIR element.
+///
+/// This function extracts all available documentation from an ElementDefinition
+/// and formats it into structured Rust doc comments.
+///
+/// # Arguments
+///
+/// * `element` - The ElementDefinition to document
+///
+/// # Returns
+///
+/// Returns a string containing formatted Rust doc comments.
+/// IMPORTANT: Every line in the returned string MUST start with "///"
+fn generate_element_documentation(element: &ElementDefinition) -> String {
+    let mut output = String::new();
+    
+    // Short description (primary doc comment)
+    if let Some(short) = &element.short {
+        output.push_str(&format!("/// {}\n", escape_doc_comment(short)));
+    }
+    
+    // Full definition
+    if let Some(definition) = &element.definition {
+        if !definition.is_empty() {
+            output.push_str("/// \n");
+            let escaped_definition = escape_doc_comment(definition);
+            // Split long definitions into multiple lines
+            for line in escaped_definition.split('\n') {
+                if line.is_empty() {
+                    output.push_str("/// \n");
+                } else if line.len() <= 77 {
+                    // Line fits, output as is
+                    output.push_str("/// ");
+                    output.push_str(line);
+                    output.push_str("\n");
+                } else {
+                    // Need to wrap - use word boundaries
+                    let words = line.split_whitespace().collect::<Vec<_>>();
+                    let mut current_line = String::new();
+                    
+                    for word in words {
+                        if current_line.is_empty() {
+                            current_line = word.to_string();
+                        } else if current_line.len() + 1 + word.len() <= 77 {
+                            current_line.push(' ');
+                            current_line.push_str(word);
+                        } else {
+                            // Output the current line
+                            output.push_str("/// ");
+                            output.push_str(&current_line);
+                            output.push_str("\n");
+                            // Start new line with this word
+                            current_line = word.to_string();
+                        }
+                    }
+                    
+                    // Output any remaining content
+                    if !current_line.is_empty() {
+                        output.push_str("/// ");
+                        output.push_str(&current_line);
+                        output.push_str("\n");
+                    }
+                }
+            }
+        }
+    }
+    
+    // Requirements
+    if let Some(requirements) = &element.requirements {
+        if !requirements.is_empty() {
+            output.push_str("/// \n");
+            output.push_str("/// ## Requirements\n");
+            let escaped_requirements = escape_doc_comment(requirements);
+            for line in escaped_requirements.split('\n') {
+                if line.is_empty() {
+                    output.push_str("/// \n");
+                } else if line.len() <= 77 {
+                    // Line fits, output as is
+                    output.push_str("/// ");
+                    output.push_str(line);
+                    output.push_str("\n");
+                } else {
+                    // Need to wrap - use word boundaries
+                    let words = line.split_whitespace().collect::<Vec<_>>();
+                    let mut current_line = String::new();
+                    
+                    for word in words {
+                        if current_line.is_empty() {
+                            current_line = word.to_string();
+                        } else if current_line.len() + 1 + word.len() <= 77 {
+                            current_line.push(' ');
+                            current_line.push_str(word);
+                        } else {
+                            // Output the current line
+                            output.push_str("/// ");
+                            output.push_str(&current_line);
+                            output.push_str("\n");
+                            // Start new line with this word
+                            current_line = word.to_string();
+                        }
+                    }
+                    
+                    // Output any remaining content
+                    if !current_line.is_empty() {
+                        output.push_str("/// ");
+                        output.push_str(&current_line);
+                        output.push_str("\n");
+                    }
+                }
+            }
+        }
+    }
+    
+    // Implementation comments
+    if let Some(comment) = &element.comment {
+        if !comment.is_empty() {
+            output.push_str("/// \n");
+            output.push_str("/// ## Implementation Notes\n");
+            let escaped_comment = escape_doc_comment(comment);
+            for line in escaped_comment.split('\n') {
+                if line.is_empty() {
+                    output.push_str("/// \n");
+                } else if line.len() <= 77 {
+                    // Line fits, output as is
+                    output.push_str("/// ");
+                    output.push_str(line);
+                    output.push_str("\n");
+                } else {
+                    // Need to wrap - use word boundaries
+                    let words = line.split_whitespace().collect::<Vec<_>>();
+                    let mut current_line = String::new();
+                    
+                    for word in words {
+                        if current_line.is_empty() {
+                            current_line = word.to_string();
+                        } else if current_line.len() + 1 + word.len() <= 77 {
+                            current_line.push(' ');
+                            current_line.push_str(word);
+                        } else {
+                            // Output the current line
+                            output.push_str("/// ");
+                            output.push_str(&current_line);
+                            output.push_str("\n");
+                            // Start new line with this word
+                            current_line = word.to_string();
+                        }
+                    }
+                    
+                    // Output any remaining content
+                    if !current_line.is_empty() {
+                        output.push_str("/// ");
+                        output.push_str(&current_line);
+                        output.push_str("\n");
+                    }
+                }
+            }
+        }
+    }
+    
+    // Cardinality
+    let cardinality = format_cardinality(element.min, element.max.as_deref());
+    output.push_str("/// \n");
+    output.push_str(&format!("/// ## Cardinality: {}\n", cardinality));
+    
+    // Special semantics
+    let mut special_semantics = Vec::new();
+    
+    if element.is_modifier == Some(true) {
+        let mut modifier_text = "Modifier element".to_string();
+        if let Some(reason) = &element.is_modifier_reason {
+            modifier_text.push_str(&format!(" - {}", escape_doc_comment(reason)));
+        }
+        special_semantics.push(modifier_text);
+    }
+    
+    if element.is_summary == Some(true) {
+        special_semantics.push("Included in summary".to_string());
+    }
+    
+    if element.must_support == Some(true) {
+        special_semantics.push("Must be supported".to_string());
+    }
+    
+    if let Some(meaning) = &element.meaning_when_missing {
+        special_semantics.push(format!("When missing: {}", escape_doc_comment(meaning)));
+    }
+    
+    if let Some(order) = &element.order_meaning {
+        special_semantics.push(format!("Order meaning: {}", escape_doc_comment(order)));
+    }
+    
+    if !special_semantics.is_empty() {
+        output.push_str("/// \n");
+        output.push_str("/// ## Special Semantics\n");
+        for semantic in special_semantics {
+            output.push_str(&format!("/// - {}\n", semantic));
+        }
+    }
+    
+    // Constraints
+    if let Some(constraints) = &element.constraint {
+        let constraint_doc = format_constraints(constraints);
+        if !constraint_doc.is_empty() {
+            output.push_str("/// \n");
+            output.push_str(&constraint_doc);
+        }
+    }
+    
+    // Examples
+    if let Some(examples) = &element.example {
+        let example_doc = format_examples(examples);
+        if !example_doc.is_empty() {
+            output.push_str("/// \n");
+            output.push_str(&example_doc);
+        }
+    }
+    
+    // Binding
+    let binding_doc = format_binding(element.binding.as_ref());
+    if !binding_doc.is_empty() {
+        output.push_str("/// \n");
+        output.push_str(&binding_doc);
+    }
+    
+    // Aliases
+    if let Some(aliases) = &element.alias {
+        if !aliases.is_empty() {
+            output.push_str("/// \n");
+            output.push_str("/// ## Aliases\n");
+            
+            // Handle aliases that might contain newlines
+            let all_aliases = aliases.join(", ");
+            let escaped_aliases = escape_doc_comment(&all_aliases);
+            
+            // Split on newlines and ensure each line has the /// prefix
+            for line in escaped_aliases.split('\n') {
+                if line.trim().is_empty() {
+                    output.push_str("/// \n");
+                } else {
+                    output.push_str(&format!("/// {}\n", line));
+                }
+            }
+        }
+    }
+    
+    // Conditions
+    if let Some(conditions) = &element.condition {
+        if !conditions.is_empty() {
+            output.push_str("/// \n");
+            output.push_str("/// ## Conditions\n");
+            output.push_str(&format!("/// Used when: {}\n", conditions.join(", ")));
+        }
+    }
+    
+    // Validate that all non-empty lines have the /// prefix
+    let validated_output = output.lines()
+        .enumerate()
+        .map(|(i, line)| {
+            if line.trim().is_empty() {
+                "/// ".to_string()
+            } else if line.starts_with("///") {
+                line.to_string()
+            } else {
+                // This should never happen, but if it does, add the prefix
+                eprintln!("ERROR in generate_element_documentation for {}: Line {} missing /// prefix: {}", 
+                    &element.path, i, line);
+                format!("/// {}", line)
+            }
+        })
+        .collect::<Vec<String>>()
+        .join("\n");
+    
+    if !validated_output.is_empty() && !validated_output.ends_with('\n') {
+        format!("{}\n", validated_output)
+    } else {
+        validated_output
+    }
+}
+
 /// Converts a FHIR StructureDefinition to Rust code.
 ///
 /// This function is the main entry point for converting a single StructureDefinition
@@ -748,11 +1311,29 @@ fn structure_definition_to_rust(
         return generate_primitive_type(sd);
     }
 
+    // Generate struct documentation for the main type
+    let struct_doc = generate_struct_documentation(sd);
+    
     // Process elements for complex types and resources
     if let Some(snapshot) = &sd.snapshot {
         if let Some(elements) = &snapshot.element {
             let mut processed_types = std::collections::HashSet::new();
-            process_elements(elements, &mut output, &mut processed_types, cycles);
+            // Find the root element to get its documentation
+            let root_element_doc = elements.iter()
+                .find(|e| e.path == sd.name)
+                .map(|e| generate_element_documentation(e))
+                .unwrap_or_default();
+            
+            process_elements(
+                elements, 
+                &mut output, 
+                &mut processed_types, 
+                cycles,
+                &sd.name,
+                if !struct_doc.is_empty() { Some(&struct_doc) } 
+                else if !root_element_doc.is_empty() { Some(&root_element_doc) } 
+                else { None }
+            );
         }
     }
     output
@@ -811,6 +1392,84 @@ fn generate_primitive_type(sd: &StructureDefinition) -> String {
         _ => "std::string::String",
     };
 
+    // Add type-specific documentation
+    match type_name.as_str() {
+        "boolean" => {
+            output.push_str("/// FHIR primitive type for boolean values (true/false)\n");
+        }
+        "integer" => {
+            output.push_str("/// FHIR primitive type for whole number values\n");
+        }
+        "positiveInt" => {
+            output.push_str("/// FHIR primitive type for positive whole number values (> 0)\n");
+        }
+        "unsignedInt" => {
+            output.push_str("/// FHIR primitive type for non-negative whole number values (>= 0)\n");
+        }
+        "decimal" => {
+            output.push_str("/// FHIR primitive type for decimal numbers with arbitrary precision\n");
+        }
+        "string" => {
+            output.push_str("/// FHIR primitive type for character sequences\n");
+        }
+        "code" => {
+            output.push_str("/// FHIR primitive type for coded values drawn from a defined set\n");
+        }
+        "uri" => {
+            output.push_str("/// FHIR primitive type for Uniform Resource Identifiers (RFC 3986)\n");
+        }
+        "url" => {
+            output.push_str("/// FHIR primitive type for Uniform Resource Locators\n");
+        }
+        "canonical" => {
+            output.push_str("/// FHIR primitive type for canonical URLs that reference FHIR resources\n");
+        }
+        "base64Binary" => {
+            output.push_str("/// FHIR primitive type for base64-encoded binary data\n");
+        }
+        "date" => {
+            output.push_str("/// FHIR primitive type for date values (year, month, day)\n");
+        }
+        "dateTime" => {
+            output.push_str("/// FHIR primitive type for date and time values\n");
+        }
+        "instant" => {
+            output.push_str("/// FHIR primitive type for instant in time values (to millisecond precision)\n");
+        }
+        "time" => {
+            output.push_str("/// FHIR primitive type for time of day values\n");
+        }
+        "id" => {
+            output.push_str("/// FHIR primitive type for logical IDs within FHIR resources\n");
+        }
+        "oid" => {
+            output.push_str("/// FHIR primitive type for Object Identifiers (OIDs)\n");
+        }
+        "uuid" => {
+            output.push_str("/// FHIR primitive type for Universally Unique Identifiers (UUIDs)\n");
+        }
+        "markdown" => {
+            output.push_str("/// FHIR primitive type for markdown-formatted text\n");
+        }
+        "xhtml" => {
+            output.push_str("/// FHIR primitive type for XHTML-formatted text with limited subset\n");
+        }
+        _ => {
+            output.push_str(&format!("/// FHIR primitive type {}\n", capitalize_first_letter(type_name)));
+        }
+    }
+    
+    // Add description if available
+    if let Some(desc) = &sd.description {
+        if !desc.is_empty() {
+            output.push_str("/// \n");
+            output.push_str(&format!("/// {}\n", escape_doc_comment(desc)));
+        }
+    }
+    
+    // Add reference to the spec
+    output.push_str(&format!("/// \n/// See: [{}]({})\n", sd.name, sd.url));
+    
     // Generate a type alias using Element<T, Extension> or DecimalElement<Extension> for decimal type
     if type_name == "decimal" {
         output.push_str("pub type Decimal = DecimalElement<Extension>;\n\n");
@@ -914,6 +1573,8 @@ fn detect_struct_cycles(
 /// * `output` - Mutable string to append generated code to
 /// * `processed_types` - Set tracking which types have already been generated
 /// * `cycles` - Set of detected circular dependencies requiring Box<T> handling
+/// * `root_type_name` - The name of the root type (e.g., "Patient")
+/// * `root_doc` - Optional documentation for the root type
 ///
 /// # Process Overview
 ///
@@ -933,6 +1594,8 @@ fn process_elements(
     output: &mut String,
     processed_types: &mut std::collections::HashSet<String>,
     cycles: &std::collections::HashSet<(String, String)>,
+    root_type_name: &str,
+    root_doc: Option<&str>,
 ) {
     // Group elements by their parent path
     let mut element_groups: std::collections::HashMap<String, Vec<&ElementDefinition>> =
@@ -1027,6 +1690,25 @@ fn process_elements(
             .filter_map(|e| e.path.rsplit('.').next())
             .map(|name| name.trim_end_matches("[x]").to_string())
             .collect();
+
+        // Add struct documentation
+        if path == *root_type_name {
+            // This is the root type, use the provided documentation
+            if let Some(doc) = root_doc {
+                output.push_str(doc);
+            }
+        } else {
+            // For nested types, try to find the documentation from the element
+            if let Some(type_element) = elements.iter().find(|e| e.path == path) {
+                let doc = generate_element_documentation(type_element);
+                if !doc.is_empty() {
+                    output.push_str(&doc);
+                }
+            } else {
+                // Generate a basic doc comment
+                output.push_str(&format!("/// {} sub-type\n", capitalize_first_letter(&type_name)));
+            }
+        }
 
         // Generate struct derives - Add Clone, PartialEq, Eq to all structs
         let derives = [
@@ -1202,6 +1884,37 @@ fn generate_element_definition(
                         }
                         break;
                     }
+                }
+            }
+        }
+
+        // Generate documentation for this field
+        let doc_comment = generate_element_documentation(element);
+        if !doc_comment.is_empty() {
+            // Debug: Check for any issues
+            if doc_comment.lines().any(|line| !line.trim().is_empty() && !line.starts_with("//")) {
+                eprintln!("\n=== WARNING: Found doc comment with lines missing /// prefix ===");
+                eprintln!("Field: {}", element.path);
+                eprintln!("Doc comment has {} lines", doc_comment.lines().count());
+                for (i, line) in doc_comment.lines().enumerate() {
+                    if !line.trim().is_empty() && !line.starts_with("//") {
+                        eprintln!("  Line {}: Missing prefix: {:?}", i, line);
+                    }
+                }
+                eprintln!("==================================================\n");
+            }
+            
+            // Indent all doc comments with 4 spaces
+            for line in doc_comment.lines() {
+                // Ensure every line is a proper doc comment
+                if line.trim().is_empty() {
+                    output.push_str("    /// \n");
+                } else if line.starts_with("///") {
+                    output.push_str(&format!("    {}\n", line));
+                } else {
+                    // This line doesn't have a doc comment prefix - this is a bug!
+                    eprintln!("WARNING: Doc comment line without /// prefix: {}", line);
+                    output.push_str(&format!("    /// {}\n", line));
                 }
             }
         }
