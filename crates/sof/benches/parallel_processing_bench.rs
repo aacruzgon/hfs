@@ -1,12 +1,12 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
-use helios_sof::{run_view_definition, SofBundle, SofViewDefinition, ContentType};
-use serde_json;
+use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
+use helios_sof::{ContentType, SofBundle, SofViewDefinition, run_view_definition};
 
 fn create_large_bundle(num_patients: usize) -> String {
     let mut entries = Vec::new();
 
     for i in 0..num_patients {
-        entries.push(format!(r#"{{
+        entries.push(format!(
+            r#"{{
             "resource": {{
                 "resourceType": "Patient",
                 "id": "patient-{}",
@@ -22,17 +22,23 @@ fn create_large_bundle(num_patients: usize) -> String {
                 "birthDate": "1970-01-{:02}"
             }}
         }}"#,
-        i, i, i, i,
-        if i % 2 == 0 { "male" } else { "female" },
-        (i % 28) + 1
+            i,
+            i,
+            i,
+            i,
+            if i % 2 == 0 { "male" } else { "female" },
+            (i % 28) + 1
         ));
     }
 
-    format!(r#"{{
+    format!(
+        r#"{{
         "resourceType": "Bundle",
         "type": "collection",
         "entry": [{}]
-    }}"#, entries.join(","))
+    }}"#,
+        entries.join(",")
+    )
 }
 
 fn create_complex_view_definition() -> &'static str {
@@ -85,7 +91,7 @@ fn benchmark_parallel_processing(c: &mut Criterion) {
                     );
 
                     match result {
-                        Ok(_) => {},
+                        Ok(_) => {}
                         Err(e) => panic!("Error running view definition: {}", e),
                     }
                 });
@@ -137,7 +143,7 @@ fn benchmark_with_foreach(c: &mut Criterion) {
                     );
 
                     match result {
-                        Ok(_) => {},
+                        Ok(_) => {}
                         Err(e) => panic!("Error running view definition: {}", e),
                     }
                 });
@@ -148,5 +154,9 @@ fn benchmark_with_foreach(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, benchmark_parallel_processing, benchmark_with_foreach);
+criterion_group!(
+    benches,
+    benchmark_parallel_processing,
+    benchmark_with_foreach
+);
 criterion_main!(benches);

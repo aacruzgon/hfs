@@ -1,4 +1,4 @@
-use helios_sof::{run_view_definition, SofBundle, SofViewDefinition, ContentType};
+use helios_sof::{ContentType, SofBundle, SofViewDefinition, run_view_definition};
 
 #[test]
 fn test_parallel_processing_works() {
@@ -37,11 +37,8 @@ fn test_parallel_processing_works() {
     let sof_bundle = SofBundle::R4(bundle);
 
     // Run the view definition (will use parallel processing)
-    let result = run_view_definition(
-        sof_view,
-        sof_bundle,
-        ContentType::Csv,
-    ).expect("Failed to run view definition");
+    let result = run_view_definition(sof_view, sof_bundle, ContentType::Csv)
+        .expect("Failed to run view definition");
 
     // Convert result to string
     let csv_string = String::from_utf8(result).expect("Invalid UTF-8");
@@ -56,16 +53,29 @@ fn test_parallel_processing_works() {
     assert_eq!(lines.len(), 5, "Should have 5 patients");
 
     // Check that all patients are present (order may vary due to parallel processing)
-    let mut found_ids = vec![false; 5];
+    let mut found_ids = [false; 5];
     for line in &lines {
-        if line.contains("1") && line.contains("Smith") { found_ids[0] = true; }
-        if line.contains("2") && line.contains("Jones") { found_ids[1] = true; }
-        if line.contains("3") && line.contains("Brown") { found_ids[2] = true; }
-        if line.contains("4") && line.contains("Davis") { found_ids[3] = true; }
-        if line.contains("5") && line.contains("Wilson") { found_ids[4] = true; }
+        if line.contains("1") && line.contains("Smith") {
+            found_ids[0] = true;
+        }
+        if line.contains("2") && line.contains("Jones") {
+            found_ids[1] = true;
+        }
+        if line.contains("3") && line.contains("Brown") {
+            found_ids[2] = true;
+        }
+        if line.contains("4") && line.contains("Davis") {
+            found_ids[3] = true;
+        }
+        if line.contains("5") && line.contains("Wilson") {
+            found_ids[4] = true;
+        }
     }
 
-    assert!(found_ids.iter().all(|&found| found), "Not all patients found in output");
+    assert!(
+        found_ids.iter().all(|&found| found),
+        "Not all patients found in output"
+    );
 
     println!("✅ Parallel processing is working correctly!");
 }

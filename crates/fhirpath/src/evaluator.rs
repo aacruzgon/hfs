@@ -4,12 +4,12 @@ use helios_fhir::{FhirResource, FhirVersion};
 use helios_fhirpath_support::{
     EvaluationError, EvaluationResult, IntoEvaluationResult, TypeInfoResult,
 };
+use parking_lot::Mutex;
 use regex::{Regex, RegexBuilder};
 use rust_decimal::Decimal;
 use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
-use parking_lot::Mutex;
-use std::sync::Arc;
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
 /// Evaluation context for FHIRPath expressions
 ///
