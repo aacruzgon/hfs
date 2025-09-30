@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, develop]
     tags:
-      - 'v*'
+      - "v*"
   pull_request:
     branches: [main]
 
@@ -169,7 +169,7 @@ jobs:
         with:
           files: lcov.info
           fail_ci_if_error: true
-          token: ${{ secrets.CODECOV_TOKEN }}
+          # token omitted intentionally; if repository is private add CODECOV_TOKEN secret and re-add token field
 
   fhirpath-validation:
     name: FhirPath Validation
@@ -524,7 +524,7 @@ jobs:
   release:
     name: Create GitHub Release
     runs-on: [self-hosted, Linux]
-    needs: [build]
+    needs: [build, pysof-wheels]
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write
