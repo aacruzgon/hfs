@@ -61,7 +61,7 @@ jobs:
 
       - name: Run tests with all features
         run: |
-          cargo test --all-features 
+          cargo test --all-features
 
   lint:
     name: Linting
@@ -470,13 +470,43 @@ jobs:
       - name: Build release (Linux/macOS)
         if: runner.os != 'Windows'
         run: cargo build --all-features --release
-        # Doug TODO: ?? Add a build release step for the python code?
 
       - name: Build release (Windows)
         if: runner.os == 'Windows'
         shell: cmd
         run: cargo build --all-features --release
-      # Doug TODO ?? Add a build release step for the python code?
+
+      # Build pysof wheel (set up Python)
+      - name: Set up Python 3.11 for pysof
+        working-directory: crates/pysof
+        run: uv python install 3.11
+
+      - name: Create virtual environment for pysof
+        id: pysof-venv
+        working-directory: crates/pysof
+        run: |
+          uv venv --python 3.11 .venv
+          echo "path=$(pwd)/.venv" >> $GITHUB_OUTPUT
+
+      - name: Install pysof build dependencies
+        working-directory: crates/pysof
+        run: uv sync --group dev
+
+      - name: Build pysof wheel (and sdist on Linux)
+        working-directory: crates/pysof
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            uv run maturin build --release --sdist -o dist
+          else
+            uv run maturin build --release -o dist
+          fi
+
+      - name: Upload pysof artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pysof-${{ matrix.target }}
+          path: crates/pysof/dist/*
+          retention-days: 14
 
       - name: Upload Rust build artifacts to crates.io
         uses: actions/upload-artifact@v4
@@ -490,9 +520,6 @@ jobs:
             !target/release/*.d
             !target/release/*.rlib
             !target/release/*.so
-
-      - name: Upload Python artifacts to pypi.org
-        uses:  # Doug TODO ...
 
   release:
     name: Create GitHub Release
@@ -509,6 +536,15 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: ./artifacts
+
+      - name: Aggregate pysof wheels
+        run: |
+          mkdir -p releases/wheels
+          # Copy all pysof wheels and sdist (if any)
+          find artifacts -type f -name 'pysof_*whl' -exec cp {} releases/wheels/ \; || true
+          find artifacts -type f -name 'pysof_mult-*whl' -exec cp {} releases/wheels/ \; || true
+          find artifacts -type f -name 'pysof_mult-*.tar.gz' -exec cp {} releases/wheels/ \; || true
+          ls -l releases/wheels || true
 
       - name: Create release archives
         run: |
@@ -547,11 +583,23 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: releases/*
+          files: |
+            releases/*
+            releases/wheels/*
           body_path: current_changelog.md
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}
           generate_release_notes: ${{ steps.changelog.outputs.changelog_exists == 'false' }}
+
+      - name: Publish to PyPI (optional)
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          if [ -z "$PYPI_API_TOKEN" ]; then
+            echo "PYPI_API_TOKEN secret not set; skipping publish"; exit 0; fi
+          python -m pip install --upgrade pip wheel twine
+          twine upload --skip-existing releases/wheels/* -u __token__ -p "$PYPI_API_TOKEN"
 
   python-lint:
     name: Python Lint (format, lint, typecheck)
