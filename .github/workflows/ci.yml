@@ -551,7 +551,6 @@ jobs:
   python-lint:
     name: Python Lint (format, lint, typecheck)
     runs-on: [self-hosted, Linux]
-    needs: python-setup
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -586,7 +585,6 @@ jobs:
   python-test:
     name: Python Tests (Linux)
     runs-on: [self-hosted, Linux]
-    needs: python-setup
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
