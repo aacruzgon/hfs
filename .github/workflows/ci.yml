@@ -548,12 +548,10 @@ jobs:
           prerelease: ${{ contains(github.ref_name, '-') }}
           generate_release_notes: ${{ steps.changelog.outputs.changelog_exists == 'false' }}
 
-  # Python CI Jobs
-  python-setup:
-    name: Setup Python Environment
+  python-lint:
+    name: Python Lint (format, lint, typecheck)
     runs-on: [self-hosted, Linux]
-    outputs:
-      venv-path: ${{ steps.venv.outputs.path }}
+    needs: python-setup
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -572,30 +570,6 @@ jobs:
       - name: Install dependencies
         working-directory: crates/pysof
         run: uv sync --group dev
-
-      - name: Cache virtual environment
-        uses: actions/cache@v4
-        with:
-          path: crates/pysof/.venv
-          key: pysof-venv-${{ runner.os }}-${{ hashFiles('crates/pysof/pyproject.toml', 'crates/pysof/uv.lock') }}
-
-  python-lint:
-    name: Python Lint (format, lint, typecheck)
-    runs-on: [self-hosted, Linux]
-    needs: python-setup
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Restore virtual environment
-        uses: actions/cache@v4
-        with:
-          path: crates/pysof/.venv
-          key: pysof-venv-${{ runner.os }}-${{ hashFiles('crates/pysof/pyproject.toml', 'crates/pysof/uv.lock') }}
-
-      - name: Apply formatting
-        working-directory: crates/pysof
-        run: uv run ruff format src
 
       - name: Format check
         working-directory: crates/pysof
@@ -617,11 +591,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Restore virtual environment
-        uses: actions/cache@v4
-        with:
-          path: crates/pysof/.venv
-          key: pysof-venv-${{ runner.os }}-${{ hashFiles('crates/pysof/pyproject.toml', 'crates/pysof/uv.lock') }}
+      - name: Set up Python 3.11
+        working-directory: crates/pysof
+        run: uv python install 3.11
+
+      - name: Create virtual environment
+        id: venv
+        working-directory: crates/pysof
+        run: |
+          uv venv --python 3.11 .venv
+          echo "path=$(pwd)/.venv" >> $GITHUB_OUTPUT
+
+      - name: Install dependencies
+        working-directory: crates/pysof
+        run: uv sync --group dev
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
