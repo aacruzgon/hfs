@@ -63,6 +63,29 @@ jobs:
         run: |
           cargo test --all-features
 
+      - name: Set up Python 3.11
+        working-directory: crates/pysof
+        run: uv python install 3.11
+
+      - name: Create virtual environment
+        id: venv
+        working-directory: crates/pysof
+        run: |
+          uv venv --python 3.11 .venv
+          echo "path=$(pwd)/.venv" >> $GITHUB_OUTPUT
+
+      - name: Install dependencies
+        working-directory: crates/pysof
+        run: uv sync --group dev
+
+      - name: Build extension (dev)
+        working-directory: crates/pysof
+        run: uv run maturin develop
+
+      - name: Run tests with coverage
+        working-directory: crates/pysof
+        run: uv run python -m pytest python-tests/ -v --cov=src --cov-report=xml:coverage.xml --cov-report=term-missing
+
   lint:
     name: Linting
     runs-on: [self-hosted, Unix]
@@ -99,6 +122,34 @@ jobs:
       - name: Run clippy
         run: |
           cargo clippy --all-targets --all-features -- -D warnings -A clippy::items_after_test_module -A clippy::large_enum_variant -A clippy::question_mark -A clippy::collapsible_match -A clippy::collapsible_if -A clippy::field_reassign_with_default -A clippy::doc-overindented-list-items
+
+      - name: Set up Python 3.11
+        working-directory: crates/pysof
+        run: uv python install 3.11
+
+      - name: Create virtual environment
+        id: venv
+        working-directory: crates/pysof
+        run: |
+          uv venv --python 3.11 .venv
+          echo "path=$(pwd)/.venv" >> $GITHUB_OUTPUT
+
+      - name: Install dependencies
+        working-directory: crates/pysof
+        run: uv sync --group dev
+
+      - name: Format check
+        working-directory: crates/pysof
+        run: uv run ruff format --check src
+
+      - name: Lint check
+        working-directory: crates/pysof
+        run: uv run ruff check src
+
+      - name: Type check
+        working-directory: crates/pysof
+        run: uv run mypy src
+
 
   security:
     name: Security Audit
@@ -476,6 +527,19 @@ jobs:
         shell: cmd
         run: cargo build --all-features --release
 
+      - name: Upload Rust build artifacts to GitHub 
+        uses: actions/upload-artifact@v4
+        with:
+          name: hfs-${{ matrix.target }}
+          path: |
+            target/release/
+            !target/release/build/
+            !target/release/deps/
+            !target/release/incremental/
+            !target/release/*.d
+            !target/release/*.rlib
+            !target/release/*.so
+      
       # Build pysof wheel (set up Python)
       - name: Set up Python 3.11 for pysof
         working-directory: crates/pysof
@@ -506,25 +570,44 @@ jobs:
         with:
           name: pysof-${{ matrix.target }}
           path: crates/pysof/dist/*
-          retention-days: 14
 
-      - name: Upload Rust build artifacts to crates.io
-        uses: actions/upload-artifact@v4
+
+  publish-pypi:
+    name: Publish to PyPI
+    runs-on: [self-hosted, Linux]
+    needs: [build]
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Download all pysof artifacts
+        uses: actions/download-artifact@v4
         with:
-          name: hfs-${{ matrix.target }}
-          path: |
-            target/release/
-            !target/release/build/
-            !target/release/deps/
-            !target/release/incremental/
-            !target/release/*.d
-            !target/release/*.rlib
-            !target/release/*.so
+          pattern: pysof-*
+          path: ./pysof-dist
+          merge-multiple: true
+
+      - name: Set up Python for publishing
+        run: uv python install 3.11
+
+      - name: Install twine
+        run: uv pip install --system twine
+
+      - name: List artifacts
+        run: |
+          echo "Files to upload to PyPI:"
+          ls -la pysof-dist/
+
+      - name: Upload to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          twine upload --skip-existing pysof-dist/*
+
 
   release:
     name: Create GitHub Release
     runs-on: [self-hosted, Linux]
-    needs: [build, pysof-wheels]
+    needs: [build]
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write
@@ -591,158 +674,3 @@ jobs:
           prerelease: ${{ contains(github.ref_name, '-') }}
           generate_release_notes: ${{ steps.changelog.outputs.changelog_exists == 'false' }}
 
-  pysof-version:
-    name: Extract pysof Version
-    runs-on: [self-hosted, Linux]
-    outputs:
-      version: ${{ steps.ver.outputs.version }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Read version
-        id: ver
-        working-directory: crates/pysof
-        run: |
-          ver=$(grep '^version' pyproject.toml | head -n1 | sed -E 's/version *= *"([^"]+)"/\1/')
-          echo "version=$ver" >> $GITHUB_OUTPUT
-          echo "Detected pysof version: $ver"
-
-  pysof-wheels:
-    name: Build pysof Wheels
-    concurrency:
-      group: pysof-wheels-${{ needs.pysof-version.outputs.version }}
-      cancel-in-progress: true
-    runs-on: ${{ matrix.os }}
-    needs: [test, pysof-version]
-    strategy:
-      matrix:
-        include:
-          - os: Linux
-            runner: [self-hosted, Linux]
-          - os: Windows
-            runner: [self-hosted, Windows]
-          - os: macOS
-            runner: [self-hosted, macOS]
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Read pysof version
-        id: pyver
-        working-directory: crates/pysof
-        run: |
-          ver='${{ needs.pysof-version.outputs.version }}'
-          echo "version=$ver" >> $GITHUB_OUTPUT
-          echo "Detected pysof version (from upstream): $ver"
-
-      - name: Check if version exists on PyPI
-        id: pypi
-        run: |
-          ver='${{ steps.pyver.outputs.version }}'
-          set -e
-          if [ -z "$ver" ]; then echo "No version found"; echo "exists=false" >> $GITHUB_OUTPUT; exit 0; fi
-          status=$(curl -s -o /dev/null -w "%{http_code}" https://pypi.org/pypi/pysof_mult/$ver/json || true)
-          if [ "$status" = "200" ]; then
-            echo "Version $ver already on PyPI"; echo "exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "Version $ver not on PyPI"; echo "exists=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Set up Python 3.11
-        if: steps.pypi.outputs.exists == 'false'
-        working-directory: crates/pysof
-        run: uv python install 3.11
-
-      - name: Create virtual environment
-        if: steps.pypi.outputs.exists == 'false'
-        working-directory: crates/pysof
-        run: uv venv --python 3.11 .venv
-
-      - name: Install build dependencies
-        if: steps.pypi.outputs.exists == 'false'
-        working-directory: crates/pysof
-        run: uv sync --group dev
-
-      - name: Install Rust toolchain
-        if: steps.pypi.outputs.exists == 'false'
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
-
-      - name: Build wheel (and sdist on Linux)
-        if: steps.pypi.outputs.exists == 'false'
-        working-directory: crates/pysof
-        run: |
-          if [ "$RUNNER_OS" = "Linux" ]; then
-            uv run maturin build --release --sdist -o dist
-          else
-            uv run maturin build --release -o dist
-          fi
-
-      - name: Upload pysof artifacts
-        if: steps.pypi.outputs.exists == 'false'
-        uses: actions/upload-artifact@v4
-        with:
-          name: pysof-${{ matrix.os }}
-          path: crates/pysof/dist/*
-          retention-days: 7
-
-      - name: Skip notice (already published)
-        if: steps.pypi.outputs.exists == 'true'
-        run: echo "pysof version ${{ steps.pyver.outputs.version }} already published; skipping build."
-
-  pysof-publish:
-    name: Publish pysof to PyPI
-    concurrency:
-      group: pysof-publish-${{ needs.pysof-version.outputs.version }}
-      cancel-in-progress: false
-    runs-on: [self-hosted, Linux]
-    needs: [pysof-version, pysof-wheels]
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Use version output
-        id: pyver
-        run: |
-          echo "version=${{ needs.pysof-version.outputs.version }}" >> $GITHUB_OUTPUT
-          echo "Using pysof version: ${{ needs.pysof-version.outputs.version }}"
-
-      - name: Re-check if version exists on PyPI
-        id: pypi
-        run: |
-          ver='${{ needs.pysof-version.outputs.version }}'
-          status=$(curl -s -o /dev/null -w "%{http_code}" https://pypi.org/pypi/pysof_mult/$ver/json || true)
-          if [ "$status" = "200" ]; then
-            echo "already=true" >> $GITHUB_OUTPUT
-            echo "Version $ver already on PyPI."
-          else
-            echo "already=false" >> $GITHUB_OUTPUT
-            echo "Version $ver not on PyPI."
-          fi
-
-      - name: Download pysof artifacts
-        if: steps.pypi.outputs.already == 'false'
-        uses: actions/download-artifact@v4
-        with:
-          path: pysof-artifacts
-
-      - name: Validate wheels
-        if: steps.pypi.outputs.already == 'false'
-        run: |
-          count=$(find pysof-artifacts -type f -name '*.whl' | wc -l | tr -d ' ')
-          if [ "$count" -eq 0 ]; then
-            echo "No wheels to publish. Exiting."; exit 1; fi
-          echo "Found $count wheels."
-
-      # Publication currently disabled to avoid secret lint errors.
-      # To enable publishing:
-      # 1. Add repository secret PYPI_API_TOKEN with an API token from PyPI.
-      # 2. Replace the step below with the pypa publish action referencing that secret.
-      - name: Publish to PyPI (disabled)
-        if: false
-        run: echo "Publishing disabled. Configure PYPI_API_TOKEN to enable."
-
-      - name: Finish
-        run: echo "pysof publish workflow complete (publish disabled)."
