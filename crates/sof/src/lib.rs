@@ -976,7 +976,6 @@ pub struct RunOptions {
 /// - Filtering resources by modification time (`since`)
 /// - Limiting results (`limit`)
 /// - Pagination (`page`)
-/// - Thread control for parallel processing (`num_threads`)
 ///
 /// # Arguments
 ///
@@ -1002,7 +1001,7 @@ pub fn run_view_definition_with_options(
     };
 
     // Process the ViewDefinition to generate tabular data
-    let processed_result = process_view_definition(view_definition, filtered_bundle, &options)?;
+    let processed_result = process_view_definition(view_definition, filtered_bundle)?;
 
     // Apply pagination if needed
     let processed_result = if options.limit.is_some() || options.page.is_some() {
@@ -1022,7 +1021,6 @@ pub fn run_view_definition_with_options(
 pub fn process_view_definition(
     view_definition: SofViewDefinition,
     bundle: SofBundle,
-    options: &RunOptions,
 ) -> Result<ProcessedResult, SofError> {
     // Ensure both resources use the same FHIR version
     if view_definition.version() != bundle.version() {
@@ -1034,19 +1032,19 @@ pub fn process_view_definition(
     match (view_definition, bundle) {
         #[cfg(feature = "R4")]
         (SofViewDefinition::R4(vd), SofBundle::R4(bundle)) => {
-            process_view_definition_generic(vd, bundle, options)
+            process_view_definition_generic(vd, bundle)
         }
         #[cfg(feature = "R4B")]
         (SofViewDefinition::R4B(vd), SofBundle::R4B(bundle)) => {
-            process_view_definition_generic(vd, bundle, options)
+            process_view_definition_generic(vd, bundle)
         }
         #[cfg(feature = "R5")]
         (SofViewDefinition::R5(vd), SofBundle::R5(bundle)) => {
-            process_view_definition_generic(vd, bundle, options)
+            process_view_definition_generic(vd, bundle)
         }
         #[cfg(feature = "R6")]
         (SofViewDefinition::R6(vd), SofBundle::R6(bundle)) => {
-            process_view_definition_generic(vd, bundle, options)
+            process_view_definition_generic(vd, bundle)
         }
         // This case should never happen due to the version check above,
         // but is needed for exhaustive pattern matching when multiple features are enabled
@@ -1089,7 +1087,6 @@ fn extract_view_definition_constants<VD: ViewDefinitionTrait>(
 fn process_view_definition_generic<VD, B>(
     view_definition: VD,
     bundle: B,
-    options: &RunOptions,
 ) -> Result<ProcessedResult, SofError>
 where
     VD: ViewDefinitionTrait,
@@ -1123,7 +1120,7 @@ where
 
     // Generate rows for each resource using the forEach-aware approach
     let (all_columns, rows) =
-        generate_rows_from_selects(&filtered_resources, select_clauses, &variables, options)?;
+        generate_rows_from_selects(&filtered_resources, select_clauses, &variables)?;
 
     Ok(ProcessedResult {
         columns: all_columns,
@@ -1511,7 +1508,6 @@ fn generate_rows_from_selects<R, S>(
     resources: &[&R],
     selects: &[S],
     variables: &HashMap<String, EvaluationResult>,
-    options: &RunOptions,
 ) -> Result<(Vec<String>, Vec<ProcessedRow>), SofError>
 where
     R: ResourceTrait + Sync,
@@ -1528,23 +1524,7 @@ where
                 generate_rows_for_resource(*resource, selects, &mut local_columns, variables)?;
             Ok::<(Vec<String>, Vec<ProcessedRow>), SofError>((local_columns, resource_rows))
         })
-    } else {
-        // Use default global thread pool
-        resources
-            .par_iter()
-            .map(|resource| {
-                // Each thread gets its own local column vector
-                let mut local_columns = Vec::new();
-                let resource_rows = generate_rows_for_resource(
-                    *resource,
-                    selects,
-                    &mut local_columns,
-                    variables
-                )?;
-                Ok::<(Vec<String>, Vec<ProcessedRow>), SofError>((local_columns, resource_rows))
-            })
-            .collect()
-    };
+        .collect();
 
     // Handle errors from parallel processing
     let resource_results = resource_results?;

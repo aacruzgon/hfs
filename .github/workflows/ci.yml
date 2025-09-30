@@ -470,13 +470,15 @@ jobs:
       - name: Build release (Linux/macOS)
         if: runner.os != 'Windows'
         run: cargo build --all-features --release
+        # Doug TODO: ?? Add a build release step for the python code?
 
       - name: Build release (Windows)
         if: runner.os == 'Windows'
         shell: cmd
         run: cargo build --all-features --release
+      # Doug TODO ?? Add a build release step for the python code?
 
-      - name: Upload Rust build artifacts
+      - name: Upload Rust build artifacts to crates.io
         uses: actions/upload-artifact@v4
         with:
           name: hfs-${{ matrix.target }}
@@ -488,6 +490,9 @@ jobs:
             !target/release/*.d
             !target/release/*.rlib
             !target/release/*.so
+
+      - name: Upload Python artifacts to pypi.org
+        uses:  # Doug TODO ...
 
   release:
     name: Create GitHub Release

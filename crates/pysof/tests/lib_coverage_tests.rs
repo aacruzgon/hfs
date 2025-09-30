@@ -42,6 +42,7 @@ fn test_rust_sof_error_to_py_err_coverage() {
             RustSofError::SourceReadError(_) => {}
             RustSofError::InvalidSourceContent(_) => {}
             RustSofError::UnsupportedSourceProtocol(_) => {}
+            RustSofError::ParquetConversionError(_) => {}
         }
     }
 }

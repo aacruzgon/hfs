@@ -5,16 +5,14 @@ use chrono::Utc;
 
 #[test]
 fn test_run_options_threading_support() {
-    // Test that RunOptions can be constructed with threading parameters
+    // Test that RunOptions can be constructed
     let options = RunOptions {
         since: None,
         limit: Some(100),
         page: Some(1),
-        num_threads: Some(8),
         ..Default::default()
     };
 
-    assert_eq!(options.num_threads, Some(8));
     assert_eq!(options.limit, Some(100));
     assert_eq!(options.page, Some(1));
 }
@@ -33,10 +31,9 @@ fn test_content_type_parsing_for_multithreading() {
 
 #[test]
 fn test_default_run_options_compatibility() {
-    // Test that Default::default() works and includes num_threads
+    // Test that Default::default() works
     let options = RunOptions::default();
     
-    assert!(options.num_threads.is_none());
     assert!(options.since.is_none());
     assert!(options.limit.is_none());
     assert!(options.page.is_none());
@@ -49,13 +46,11 @@ fn test_run_options_cloning() {
         since: Some(Utc::now()),
         limit: Some(50),
         page: Some(2),
-        num_threads: Some(4),
         ..Default::default()
     };
     
     let cloned = original.clone();
     
-    assert_eq!(original.num_threads, cloned.num_threads);
     assert_eq!(original.limit, cloned.limit);
     assert_eq!(original.page, cloned.page);
     assert_eq!(original.since, cloned.since);

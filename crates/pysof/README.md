@@ -18,8 +18,11 @@ This package provides Python bindings for the Rust `helios-sof` library via PyO3
 This crate is excluded from the default workspace build to allow building the core Rust components without Python. To build it explicitly:
 
 ```bash
-# From repo root, build just the pysof crate
-cargo build -p pysof
+# Your current directory MUST be the pysof crate:
+cd crates/pysof
+
+# From the pysof folder
+cargo build
 
 # Or build with specific FHIR version features
 cargo build -p pysof --features R4,R5

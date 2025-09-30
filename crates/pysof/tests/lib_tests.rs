@@ -88,7 +88,6 @@ fn create_run_options(since: Option<&str>, limit: Option<i32>, page: Option<i32>
         since: since_datetime,
         limit: limit.map(|l| l as usize),
         page: page.map(|p| p as usize),
-        num_threads: None,
         ..Default::default()
     }
 }
