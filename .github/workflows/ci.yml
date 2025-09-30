@@ -476,7 +476,7 @@ jobs:
         shell: cmd
         run: cargo build --all-features --release
 
-      - name: Upload build artifacts
+      - name: Upload Rust build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: hfs-${{ matrix.target }}
