@@ -1,5 +1,7 @@
 [workspace]
 members = ["crates/*"]
+# pysof is excluded because it requires Python to build (pyo3-build-config)
+# Users without Python can still build the rest of the workspace
 exclude = ["crates/pysof"]
 resolver = "2"
 
