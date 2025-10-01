@@ -1,7 +1,5 @@
 - Merge the pysof work
 
-- Modify fhir_gen to add Rust docs to r4.rs, others.
-
 - FHIRPath
   - FHIRPath Lab Debugger support
 
