@@ -24,7 +24,6 @@ def py_run_view_definition(
     format: str,
     fhir_version: str,
 ) -> bytes: ...
-
 def py_run_view_definition_with_options(
     view: dict[str, Any],
     bundle: dict[str, Any],
@@ -36,17 +35,13 @@ def py_run_view_definition_with_options(
     num_threads: int | None = None,
     fhir_version: str = "R4",
 ) -> bytes: ...
-
 def py_validate_view_definition(
     view: dict[str, Any],
     fhir_version: str,
 ) -> bool: ...
-
 def py_validate_bundle(
     bundle: dict[str, Any],
     fhir_version: str,
 ) -> bool: ...
-
 def py_parse_content_type(mime_type: str) -> str: ...
-
 def py_get_supported_fhir_versions() -> list[str]: ...
