@@ -175,15 +175,21 @@ class TestContentTypeFormats:
         assert "patient-2" in patient_ids
         assert "patient-3" in patient_ids
     
-    def test_parquet_format_not_implemented(self) -> None:
-        """Test that parquet format raises appropriate error."""
+    def test_parquet_format(self) -> None:
+        """Test parquet output format."""
         view = get_test_view_definition()
         bundle = get_test_bundle()
         
-        with pytest.raises(pysof.UnsupportedContentTypeError) as exc_info:
-            pysof.run_view_definition(view, bundle, "parquet")
+        result = pysof.run_view_definition(view, bundle, "parquet")
         
-        assert "Parquet not yet implemented" in str(exc_info.value)
+        # Should return bytes
+        assert isinstance(result, bytes)
+        
+        # Should have content (parquet binary format)
+        assert len(result) > 0
+        
+        # Basic check that it's likely parquet format (starts with "PAR1" magic bytes)
+        assert result[:4] == b"PAR1"
 
 
 class TestContentTypeParsing:
