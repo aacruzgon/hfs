@@ -731,22 +731,52 @@ fn capitalize_first_letter(s: &str) -> String {
 ///
 /// Returns the escaped text safe for use in doc comments.
 fn escape_doc_comment(text: &str) -> String {
-    text.replace("*/", "*\\/")
-        .replace("/*", "/\\*")
+    // First, normalize all line endings to \n and remove bare CRs
+    let normalized = text
         .replace("\r\n", "\n")  // Convert Windows line endings
-        .replace("\r", "\n")    // Convert old Mac line endings
-        .replace("\n\n\n", "\n\n") // Reduce excessive blank lines
-        // Fix common typos in FHIR spec
-        .replace("(aka \"privacy tags\".", "(aka \"privacy tags\").")
-        .replace("(aka \"tagged\")", "(aka 'tagged')")
-        // Escape comparison operators that look like quote markers to clippy
-        .replace(" <=", " \\<=")
-        .replace(" >=", " \\>=")
-        .replace("(<=", "(\\<=")
-        .replace("(>=", "(\\>=")
-        .trim_end() // Remove trailing whitespace
-        .to_string()
-        // Note: We don't escape quotes in doc comments as they don't cause issues
+        .replace('\r', "\n");   // Convert bare CRs to newlines
+    
+    let mut result = String::new();
+    let mut in_code_block = false;
+    
+    // Process each line
+    for line in normalized.lines() {
+        let trimmed_line = line.trim();
+        
+        // Check for code block markers
+        if trimmed_line == "```" {
+            if in_code_block {
+                // This is a closing ```
+                result.push_str("```\n");
+                in_code_block = false;
+            } else {
+                // This is an opening ```
+                result.push_str("```text\n");
+                in_code_block = true;
+            }
+            continue;
+        }
+        
+        // Apply standard replacements
+        let processed = line
+            .replace("*/", "*\\/")
+            .replace("/*", "/\\*")
+            // Fix common typos in FHIR spec
+            .replace("(aka \"privacy tags\".", "(aka \"privacy tags\").")
+            .replace("(aka \"tagged\")", "(aka 'tagged')")
+            // Escape comparison operators that look like quote markers to clippy
+            .replace(" <=", " \\<=")
+            .replace(" >=", " \\>=")
+            .replace("(<=", "(\\<=")
+            .replace("(>=", "(\\>=");
+        
+        result.push_str(&processed);
+        result.push('\n');
+    }
+    
+    // Clean up excessive blank lines and trailing whitespace
+    result = result.replace("\n\n\n", "\n\n");
+    result.trim_end().to_string()
 }
 
 /// Formats text content for use in Rust doc comments, handling proper indentation.
