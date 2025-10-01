@@ -7,7 +7,7 @@ from pathlib import Path
 def test_package_structure() -> None:
     """Test that package has expected structure."""
     import pysof
-    
+
     # Test that package is installed/importable
     assert hasattr(pysof, "__version__")
     assert hasattr(pysof, "__all__")
@@ -23,7 +23,7 @@ def test_python_version_compatibility() -> None:
 def test_module_file_location() -> None:
     """Test that module is loaded from expected location."""
     import pysof
-    
+
     # Should be loaded from src/pysof/__init__.py
     module_file = Path(pysof.__file__) if pysof.__file__ else None
     assert module_file is not None
