@@ -74,9 +74,9 @@ jobs:
         working-directory: crates/pysof
         run: uv sync --group dev
 
-      - name: Build extension (release)
+      - name: Build extension (debug)
         working-directory: crates/pysof
-        run: uv run maturin develop --release
+        run: uv run maturin develop
 
       - name: Run tests with coverage
         working-directory: crates/pysof
