@@ -136,18 +136,46 @@ Transform FHIR resources into tabular data using [ViewDefinitions](https://sql-o
 - Supports multiple output formats: CSV, JSON, NDJSON, Parquet (planned)
 - Version-agnostic processing with automatic FHIR version detection
 
-### 5. [`helios-fhir-macro`](crates/fhir-macro) - Procedural Macros
-Helper macros for code generation used by other components.
+### 5. [`pysof`](crates/pysof) - Python Bindings
+Python bindings for SQL-on-FHIR using PyO3, bringing high-performance FHIR data transformation to Python.
 
-### 6. [`helios-fhirpath-support`](crates/fhirpath-support) - Shared Utilities
-Common types and traits for FHIRPath evaluation.
+**Key Capabilities:**
+- **ViewDefinition Processing**: Transform FHIR resources into tabular formats using ViewDefinitions
+- **Multiple Output Formats**: Export to CSV, JSON, NDJSON, and Parquet formats
+- **Streaming Support**: Efficiently process large FHIR bundles without loading everything into memory
+- **Auto Version Detection**: Automatically detects and handles R4, R4B, R5, and R6 FHIR versions
+- **Type-Safe Interface**: Leverages Rust's type safety while providing a Pythonic API
+- **High Performance**: Native Rust performance with minimal Python overhead
 
-### 7. [`pysof`](crates/pysof) - Python Bindings
-Python bindings for SQL-on-FHIR using PyO3.
-- Provides Python access to the SQL-on-FHIR functionality
+**Python API Example:**
+```python
+import pysof
+
+# Transform FHIR bundle to CSV using a ViewDefinition
+result = pysof.run_view_definition(
+    view_definition=view_def_json,
+    bundle=fhir_bundle_json,
+    format="csv"
+)
+
+# Process individual resources
+result = pysof.run_view_definition(
+    view_definition=view_def_json,
+    resources=[patient1, patient2],
+    format="parquet"
+)
+```
+
+**Distribution:**
 - Cross-platform wheel distribution for Linux, Windows, and macOS
 - Excluded from default workspace build (requires explicit `cargo build -p pysof`)
 - See [Wheel Building Documentation](crates/pysof/WHEEL_BUILDING.md) for build and distribution details
+
+### 6. [`helios-fhir-macro`](crates/fhir-macro) - Procedural Macros
+Helper macros for code generation used by other components.
+
+### 7. [`helios-fhirpath-support`](crates/fhirpath-support) - Shared Utilities
+Common types and traits for FHIRPath evaluation.
 
 ### 8. [`helios-hfs`](crates/hfs) - Main Server Application
 The main Helios FHIR Server application (coming soon).
