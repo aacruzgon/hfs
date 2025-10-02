@@ -359,7 +359,7 @@ pub async fn run_view_definition_handler(
         let mime_type = match validated_params.format {
             ContentType::Csv | ContentType::CsvWithHeader => "text/csv",
             ContentType::Json => "application/json",
-            ContentType::NdJson => "application/ndjson",
+            ContentType::NdJson => "application/x-ndjson",
             ContentType::Parquet => "application/parquet",
         };
 
