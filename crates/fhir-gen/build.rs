@@ -3,6 +3,8 @@ use std::fs;
 use std::fs::File;
 use std::io::copy;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
+use std::thread;
 use zip::ZipArchive;
 
 fn main() {
@@ -22,50 +24,44 @@ fn main() {
 
     println!("Downloading FHIR definitions...");
 
-    // Create a client with custom headers
+    // Create a client with custom headers and timeout
     let client = reqwest::blocking::Client::builder()
         .user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko)")
+        .timeout(Duration::from_secs(120))
         .build()
         .expect("Failed to create HTTP client");
 
-    // Download the file
-    let response = client.get(url).send().expect("Failed to GET from url");
-
-    // Check if request was successful
-    if !response.status().is_success() {
-        panic!(
-            "Download failed with status: {} for URL: {}",
-            response.status(),
-            url
-        );
-    }
-
-    // Verify content type
-    if let Some(content_type) = response.headers().get("content-type") {
-        let content_type_str = content_type.to_str().unwrap_or("");
-        if !content_type_str.contains("zip") {
-            panic!(
-                "Expected ZIP file but got content-type: {}",
-                content_type_str
-            );
+    // Try downloading with retries
+    const MAX_RETRIES: u32 = 3;
+    let mut last_error = None;
+    
+    for attempt in 1..=MAX_RETRIES {
+        println!("Download attempt {} of {}", attempt, MAX_RETRIES);
+        
+        match download_with_retry(&client, url, &output_path) {
+            Ok(bytes) => {
+                println!("Downloaded {} bytes", bytes);
+                last_error = None;
+                break;
+            }
+            Err(e) => {
+                println!("Attempt {} failed: {}", attempt, e);
+                last_error = Some(e);
+                
+                if attempt < MAX_RETRIES {
+                    let wait_time = Duration::from_secs(5 * attempt as u64);
+                    println!("Waiting {:?} before retry...", wait_time);
+                    thread::sleep(wait_time);
+                }
+            }
         }
     }
+    
+    if let Some(error) = last_error {
+        panic!("Failed to download file after {} attempts: {}", MAX_RETRIES, error);
+    }
 
-    let mut response = response;
-
-    // Create the file
-    let mut downloaded_file = File::create(output_path.clone()).expect("Failed to create the file");
-
-    let bytes_copied = copy(&mut response, &mut downloaded_file).expect("Failed to copy the file");
-
-    // Ensure file is written to disk
-    downloaded_file
-        .sync_all()
-        .expect("Failed to flush file to disk");
-
-    println!("Downloaded {} bytes", bytes_copied);
-
-    // Verify file exists and has content
+    // Verify and extract the downloaded file
     let file = fs::File::open(&output_path).expect("Failed to open downloaded file");
     let metadata = file.metadata().expect("Failed to get file metadata");
     println!("File size on disk: {} bytes", metadata.len());
@@ -99,6 +95,54 @@ fn main() {
     insert_view_definition(&resources_dir).expect("Failed to insert ViewDefinition");
 
     println!("FHIR definitions downloaded successfully");
+}
+
+fn download_with_retry(
+    client: &reqwest::blocking::Client,
+    url: &str,
+    output_path: &PathBuf,
+) -> Result<u64, String> {
+    // Download the file
+    let response = client
+        .get(url)
+        .send()
+        .map_err(|e| format!("Failed to GET from url: {}", e))?;
+
+    // Check if request was successful
+    if !response.status().is_success() {
+        return Err(format!(
+            "Download failed with status: {} for URL: {}",
+            response.status(),
+            url
+        ));
+    }
+
+    // Verify content type
+    if let Some(content_type) = response.headers().get("content-type") {
+        let content_type_str = content_type.to_str().unwrap_or("");
+        if !content_type_str.contains("zip") {
+            return Err(format!(
+                "Expected ZIP file but got content-type: {}",
+                content_type_str
+            ));
+        }
+    }
+
+    let mut response = response;
+
+    // Create the file
+    let mut downloaded_file = File::create(output_path)
+        .map_err(|e| format!("Failed to create the file: {}", e))?;
+
+    let bytes_copied = copy(&mut response, &mut downloaded_file)
+        .map_err(|e| format!("Failed to copy the file: {}", e))?;
+
+    // Ensure file is written to disk
+    downloaded_file
+        .sync_all()
+        .map_err(|e| format!("Failed to flush file to disk: {}", e))?;
+
+    Ok(bytes_copied)
 }
 
 /// Inserts the ViewDefinition resource into profiles-resources.json for R6 builds.

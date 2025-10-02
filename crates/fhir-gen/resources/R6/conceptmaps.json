@@ -2,7 +2,11 @@
   "resourceType" : "Bundle",
   "id" : "conceptmaps",
   "meta" : {
+<<<<<<< HEAD
     "lastUpdated" : "2025-09-30T23:53:31.556+00:00"
+=======
+    "lastUpdated" : "2025-10-01T11:58:17.518+00:00"
+>>>>>>> main
   },
   "type" : "collection",
   "entry" : [{
@@ -20,7 +24,11 @@
       "title" : "v2 map for AdministrativeGender",
       "status" : "draft",
       "experimental" : false,
+<<<<<<< HEAD
       "date" : "2025-09-30T23:53:31+00:00",
+=======
+      "date" : "2025-10-01T11:58:17+00:00",
+>>>>>>> main
       "publisher" : "HL7 (FHIR Project)",
       "contact" : [{
         "telecom" : [{
@@ -92,7 +100,11 @@
       "title" : "v3 map for AdministrativeGender",
       "status" : "draft",
       "experimental" : false,
+<<<<<<< HEAD
       "date" : "2025-09-30T23:53:31+00:00",
+=======
+      "date" : "2025-10-01T11:58:17+00:00",
+>>>>>>> main
       "publisher" : "HL7 (FHIR Project)",
       "contact" : [{
         "telecom" : [{
@@ -158,7 +170,11 @@
       "title" : "v3 map for DocumentReferenceStatus",
       "status" : "draft",
       "experimental" : false,
+<<<<<<< HEAD
       "date" : "2025-09-30T23:53:31+00:00",
+=======
+      "date" : "2025-10-01T11:58:17+00:00",
+>>>>>>> main
       "publisher" : "HL7 (FHIR Project)",
       "contact" : [{
         "telecom" : [{
@@ -217,7 +233,11 @@
       "title" : "v2 map for NameUse",
       "status" : "draft",
       "experimental" : false,
+<<<<<<< HEAD
       "date" : "2025-09-30T23:53:31+00:00",
+=======
+      "date" : "2025-10-01T11:58:17+00:00",
+>>>>>>> main
       "publisher" : "HL7 (FHIR Project)",
       "contact" : [{
         "telecom" : [{
@@ -320,7 +340,11 @@
       "title" : "v3 map for NameUse",
       "status" : "draft",
       "experimental" : false,
+<<<<<<< HEAD
       "date" : "2025-09-30T23:53:31+00:00",
+=======
+      "date" : "2025-10-01T11:58:17+00:00",
+>>>>>>> main
       "publisher" : "HL7 (FHIR Project)",
       "contact" : [{
         "telecom" : [{
@@ -417,7 +441,11 @@
       "title" : "v2 map for AddressUse",
       "status" : "draft",
       "experimental" : false,
+<<<<<<< HEAD
       "date" : "2025-09-30T23:53:31+00:00",
+=======
+      "date" : "2025-10-01T11:58:17+00:00",
+>>>>>>> main
       "publisher" : "HL7 (FHIR Project)",
       "contact" : [{
         "telecom" : [{
@@ -501,7 +529,11 @@
       "title" : "v3 map for AddressUse",
       "status" : "draft",
       "experimental" : false,
+<<<<<<< HEAD
       "date" : "2025-09-30T23:53:31+00:00",
+=======
+      "date" : "2025-10-01T11:58:17+00:00",
+>>>>>>> main
       "publisher" : "HL7 (FHIR Project)",
       "contact" : [{
         "telecom" : [{
@@ -583,7 +615,11 @@
       "title" : "v3 map for AddressType",
       "status" : "draft",
       "experimental" : false,
+<<<<<<< HEAD
       "date" : "2025-09-30T23:53:31+00:00",
+=======
+      "date" : "2025-10-01T11:58:17+00:00",
+>>>>>>> main
       "publisher" : "HL7 (FHIR Project)",
       "contact" : [{
         "telecom" : [{
@@ -645,7 +681,11 @@
       "title" : "v2 map for ContactPointSystem",
       "status" : "draft",
       "experimental" : false,
+<<<<<<< HEAD
       "date" : "2025-09-30T23:53:31+00:00",
+=======
+      "date" : "2025-10-01T11:58:17+00:00",
+>>>>>>> main
       "publisher" : "HL7 (FHIR Project)",
       "contact" : [{
         "telecom" : [{
@@ -730,7 +770,11 @@
       "title" : "v2 map for ContactPointUse",
       "status" : "draft",
       "experimental" : false,
+<<<<<<< HEAD
       "date" : "2025-09-30T23:53:31+00:00",
+=======
+      "date" : "2025-10-01T11:58:17+00:00",
+>>>>>>> main
       "publisher" : "HL7 (FHIR Project)",
       "contact" : [{
         "telecom" : [{
@@ -810,7 +854,11 @@
       "title" : "v3 map for ContactPointUse",
       "status" : "draft",
       "experimental" : false,
+<<<<<<< HEAD
       "date" : "2025-09-30T23:53:31+00:00",
+=======
+      "date" : "2025-10-01T11:58:17+00:00",
+>>>>>>> main
       "publisher" : "HL7 (FHIR Project)",
       "contact" : [{
         "telecom" : [{
@@ -1015,7 +1063,11 @@
       "resourceType" : "ConceptMap",
       "id" : "101",
       "meta" : {
+<<<<<<< HEAD
         "lastUpdated" : "2025-09-30T23:53:31.556+00:00"
+=======
+        "lastUpdated" : "2025-10-01T11:58:17.518+00:00"
+>>>>>>> main
       },
       "text" : {
         "status" : "generated",
@@ -1122,7 +1174,11 @@
       "resourceType" : "ConceptMap",
       "id" : "103",
       "meta" : {
+<<<<<<< HEAD
         "lastUpdated" : "2025-09-30T23:53:31.556+00:00"
+=======
+        "lastUpdated" : "2025-10-01T11:58:17.518+00:00"
+>>>>>>> main
       },
       "text" : {
         "status" : "generated",
@@ -1193,7 +1249,11 @@
       "resourceType" : "ConceptMap",
       "id" : "102",
       "meta" : {
+<<<<<<< HEAD
         "lastUpdated" : "2025-09-30T23:53:31.556+00:00"
+=======
+        "lastUpdated" : "2025-10-01T11:58:17.518+00:00"
+>>>>>>> main
       },
       "text" : {
         "status" : "generated",
@@ -3490,7 +3550,11 @@
       "resourceType" : "ConceptMap",
       "id" : "example2",
       "meta" : {
+<<<<<<< HEAD
         "lastUpdated" : "2025-09-30T23:53:31.556+00:00"
+=======
+        "lastUpdated" : "2025-10-01T11:58:17.518+00:00"
+>>>>>>> main
       },
       "text" : {
         "status" : "generated",
@@ -3560,7 +3624,11 @@
       "resourceType" : "ConceptMap",
       "id" : "cdshooks-indicator",
       "meta" : {
+<<<<<<< HEAD
         "lastUpdated" : "2025-09-30T23:53:31.556+00:00"
+=======
+        "lastUpdated" : "2025-10-01T11:58:17.518+00:00"
+>>>>>>> main
       },
       "text" : {
         "status" : "generated",
@@ -3621,7 +3689,11 @@
       "resourceType" : "ConceptMap",
       "id" : "example-metadata",
       "meta" : {
+<<<<<<< HEAD
         "lastUpdated" : "2025-09-30T23:53:31.556+00:00",
+=======
+        "lastUpdated" : "2025-10-01T11:58:17.518+00:00",
+>>>>>>> main
         "profile" : ["http://hl7.org/fhir/StructureDefinition/shareableconceptmap"]
       },
       "text" : {
@@ -3753,7 +3825,11 @@
       "resourceType" : "ConceptMap",
       "id" : "example-metadata-2",
       "meta" : {
+<<<<<<< HEAD
         "lastUpdated" : "2025-09-30T23:53:31.556+00:00",
+=======
+        "lastUpdated" : "2025-10-01T11:58:17.518+00:00",
+>>>>>>> main
         "profile" : ["http://hl7.org/fhir/StructureDefinition/shareableconceptmap"]
       },
       "text" : {
@@ -3889,7 +3965,11 @@
       "resourceType" : "ConceptMap",
       "id" : "example-priority",
       "meta" : {
+<<<<<<< HEAD
         "lastUpdated" : "2025-09-30T23:53:31.556+00:00"
+=======
+        "lastUpdated" : "2025-10-01T11:58:17.518+00:00"
+>>>>>>> main
       },
       "text" : {
         "status" : "generated",
@@ -3975,7 +4055,11 @@
       "resourceType" : "ConceptMap",
       "id" : "message-adt-a04-to-bundle",
       "meta" : {
+<<<<<<< HEAD
         "lastUpdated" : "2025-09-30T23:53:31.556+00:00"
+=======
+        "lastUpdated" : "2025-10-01T11:58:17.518+00:00"
+>>>>>>> main
       },
       "text" : {
         "status" : "generated",
