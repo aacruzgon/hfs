@@ -14,70 +14,70 @@ use pyo3::types::PyBytes;
 
 // Custom Python exception types - using different names to avoid conflicts
 pyo3::create_exception!(
-    pysof_mult,
+    pysof,
     PySofError,
     PyException,
     "Base exception for all pysof errors"
 );
 pyo3::create_exception!(
-    pysof_mult,
+    pysof,
     PyInvalidViewDefinitionError,
     PySofError,
     "ViewDefinition validation errors"
 );
 pyo3::create_exception!(
-    pysof_mult,
+    pysof,
     PyFhirPathError,
     PySofError,
     "FHIRPath expression evaluation errors"
 );
 pyo3::create_exception!(
-    pysof_mult,
+    pysof,
     PySerializationError,
     PySofError,
     "JSON/data serialization errors"
 );
 pyo3::create_exception!(
-    pysof_mult,
+    pysof,
     PyUnsupportedContentTypeError,
     PySofError,
     "Unsupported output format errors"
 );
-pyo3::create_exception!(pysof_mult, PyCsvError, PySofError, "CSV generation errors");
-pyo3::create_exception!(pysof_mult, PyIoError, PySofError, "File/IO related errors");
+pyo3::create_exception!(pysof, PyCsvError, PySofError, "CSV generation errors");
+pyo3::create_exception!(pysof, PyIoError, PySofError, "File/IO related errors");
 // New source-related error types
 pyo3::create_exception!(
-    pysof_mult,
+    pysof,
     PyInvalidSourceError,
     PySofError,
     "Invalid source parameter value"
 );
 pyo3::create_exception!(
-    pysof_mult,
+    pysof,
     PySourceNotFoundError,
     PySofError,
     "Source not found"
 );
 pyo3::create_exception!(
-    pysof_mult,
+    pysof,
     PySourceFetchError,
     PySofError,
     "Failed to fetch from source"
 );
 pyo3::create_exception!(
-    pysof_mult,
+    pysof,
     PySourceReadError,
     PySofError,
     "Failed to read from source"
 );
 pyo3::create_exception!(
-    pysof_mult,
+    pysof,
     PyInvalidSourceContentError,
     PySofError,
     "Invalid content in source"
 );
 pyo3::create_exception!(
-    pysof_mult,
+    pysof,
     PyUnsupportedSourceProtocolError,
     PySofError,
     "Unsupported source protocol"
@@ -452,7 +452,7 @@ fn py_get_supported_fhir_versions() -> PyResult<Vec<String>> {
 
 /// Python module definition
 #[pymodule]
-fn _pysof_mult(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn _pysof(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Add functions
     m.add_function(wrap_pyfunction!(py_run_view_definition, m)?)?;
     m.add_function(wrap_pyfunction!(py_run_view_definition_with_options, m)?)?;

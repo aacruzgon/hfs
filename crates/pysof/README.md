@@ -264,6 +264,22 @@ except pysof.SofError as e:
     print(f"General SOF error: {e}")
 ```
 
+### Key Features
+
+- **Performance**: Efficient processing of large FHIR Bundles using Rust
+- **GIL Release**: Python GIL is released during Rust execution for better performance
+- **Multiple Formats**: Support for CSV, JSON, NDJSON, and Parquet outputs
+- **FHIR Versions**: Support for R4, R4B, R5, and R6 (depending on build features)
+
+### Available Options
+
+The `run_view_definition_with_options()` function accepts the following parameters:
+
+- **limit**: Limit the number of results returned
+- **page**: Page number for pagination (1-based)
+- **since**: Filter resources modified after this ISO8601 datetime
+- **fhir_version**: FHIR version to use ("R4", "R4B", "R5", "R6")
+
 ### Supported Content Types
 
 | Format | Description | Output |
@@ -281,6 +297,12 @@ except pysof.SofError as e:
 - **R6** (if compiled with R6 feature)
 
 Use `pysof.get_supported_fhir_versions()` to check what's available in your build.
+
+### Usage Notes
+
+- The basic `run_view_definition()` function is suitable for simple use cases
+- Use `run_view_definition_with_options()` for pagination, filtering, and other advanced features
+- All heavy processing happens in Rust code; Python GIL is properly released for optimal performance
 
 ## Configuring FHIR Version Support
 

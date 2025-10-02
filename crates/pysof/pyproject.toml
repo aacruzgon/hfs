@@ -3,7 +3,7 @@ requires = ["maturin>=1.0,<2.0"]
 build-backend = "maturin"
 
 [project]
-name = "pysof_mult"
+name = "pysof"
 version = "0.1.2"
 description = "Python wrapper for the Helios SOF (SQL on FHIR) toolkit."
 readme = "README.md"
@@ -41,7 +41,7 @@ dev = [
 
 [tool.maturin]
 features = ["pyo3/extension-module"]
-module-name = "pysof_mult._pysof_mult"
+module-name = "pysof._pysof"
 python-source = "src"
 
 [tool.ruff]
@@ -108,7 +108,7 @@ module = "tests.*"
 disallow_untyped_defs = false
 
 [[tool.mypy.overrides]]
-module = "pysof_mult._pysof_mult"
+module = "pysof._pysof"
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

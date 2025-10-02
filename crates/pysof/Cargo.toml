@@ -1,12 +1,12 @@
 [package]
-name = "pysof_mult"
+name = "pysof"
 version = "0.1.2"
 edition = "2024"
 description = "Python bindings for helios-sof using PyO3"
 
 # PyO3 extension metadata
 [lib]
-name = "pysof_mult"
+name = "pysof"
 crate-type = ["cdylib"]
 
 [dependencies]

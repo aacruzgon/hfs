@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Example demonstrating pysof_mult multithreading capabilities."""
+"""Example demonstrating pysof capabilities."""
 
-import pysof_mult
+import pysof
 import json
 import time
 
 
 def main():
-    """Demonstrate multithreading functionality."""
-    print("🧵 pysof_mult Multithreading Example")
+    """Demonstrate pysof functionality."""
+    print("🧵 pysof Example")
     print("=" * 40)
 
     # Sample ViewDefinition
@@ -51,36 +51,15 @@ def main():
 
     print(f"Processing {len(bundle['entry'])} patients...\n")
 
-    # Example 1: Default threading (uses system default)
-    print("1️⃣ Default threading:")
+    # Example 1: Basic execution
+    print("1️⃣ Basic execution:")
     start = time.time()
-    result = pysof_mult.run_view_definition_with_options(
+    result = pysof.run_view_definition_with_options(
         view_definition, bundle, "json"
     )
     duration = time.time() - start
     data = json.loads(result.decode("utf-8"))
     print(f"   ⏱️  Time: {duration:.3f}s | Rows: {len(data)}")
-
-    # Example 2: Single thread
-    print("\n2️⃣ Single thread:")
-    start = time.time()
-    result = pysof_mult.run_view_definition_with_options(
-        view_definition, bundle, "json", num_threads=1
-    )
-    duration = time.time() - start
-    data = json.loads(result.decode("utf-8"))
-    print(f"   ⏱️  Time: {duration:.3f}s | Rows: {len(data)}")
-
-    # Example 3: Multiple threads
-    for threads in [2, 4, 8]:
-        print(f"\n{threads}️⃣ {threads} threads:")
-        start = time.time()
-        result = pysof_mult.run_view_definition_with_options(
-            view_definition, bundle, "json", num_threads=threads
-        )
-        duration = time.time() - start
-        data = json.loads(result.decode("utf-8"))
-        print(f"   ⏱️  Time: {duration:.3f}s | Rows: {len(data)}")
 
     # Example 4: Show sample output
     print(f"\n📋 Sample output (first 3 rows):")
@@ -88,26 +67,24 @@ def main():
     for i, row in enumerate(sample_data, 1):
         print(f"   {i}. {row}")
 
-    # Example 5: Combined with other options
-    print(f"\n🔧 Combined with pagination (4 threads, limit 10):")
-    result = pysof_mult.run_view_definition_with_options(
+    # Example 2: Combined with other options
+    print(f"\n🔧 Combined with pagination (limit 10):")
+    result = pysof.run_view_definition_with_options(
         view_definition,
         bundle,
         "csv",  # CSV format
         limit=10,
-        num_threads=4,
     )
     csv_output = result.decode("utf-8")
     print("   CSV Output:")
     for line in csv_output.strip().split("\n")[:5]:  # Show first 5 lines
         print(f"   {line}")
 
-    print(f"\n✅ Multithreading example completed!")
+    print(f"\n✅ Example completed!")
     print(f"\n💡 Tips:")
-    print(f"   • Use more threads for larger datasets")
-    print(f"   • Single thread may be faster for small datasets due to overhead")
-    print(f"   • Optimal thread count depends on your CPU cores and data size")
-    print(f"   • Thread count validation prevents invalid values (e.g., 0 threads)")
+    print(f"   • Use pagination (limit/page) to control result size")
+    print(f"   • Use 'since' parameter to filter by modification date")
+    print(f"   • Multiple output formats supported: csv, json, ndjson, parquet")
 
 
 if __name__ == "__main__":

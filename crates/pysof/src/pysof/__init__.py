@@ -31,7 +31,7 @@ from typing import Any, cast
 
 try:
     # Import the Rust extension module
-    from pysof_mult._pysof_mult import (
+    from pysof._pysof import (
         CsvError,
         FhirPathError,
         InvalidSourceContentError,

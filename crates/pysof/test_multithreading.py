@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Test script for pysof_mult multithreading functionality."""
+"""Test script for pysof functionality."""
 
-import pysof_mult
+import pysof
 import json
 import time
 
@@ -45,91 +45,71 @@ def create_test_bundle(num_patients=100):
     return {"resourceType": "Bundle", "type": "collection", "entry": entries}
 
 
-def test_multithreading():
-    """Test the multithreading functionality."""
-    print("Testing pysof_mult multithreading functionality...")
+def test_pysof():
+    """Test the pysof functionality."""
+    print("Testing pysof functionality...")
 
     # Create test data
-    bundle = create_test_bundle(1000)  # 1000 patients for better parallelism testing
+    bundle = create_test_bundle(1000)  # 1000 patients for testing
 
     print(f"Created bundle with {len(bundle['entry'])} patients")
 
-    # Test with default threading (no num_threads specified)
-    print("\n1. Testing with default threading...")
+    # Test basic execution
+    print("\n1. Testing basic execution...")
     start_time = time.time()
-    result_default = pysof_mult.run_view_definition_with_options(
+    result_default = pysof.run_view_definition_with_options(
         view_definition, bundle, "json"
     )
     default_time = time.time() - start_time
-    print(f"   Default threading completed in {default_time:.3f} seconds")
+    print(f"   Execution completed in {default_time:.3f} seconds")
 
-    # Test with single thread
-    print("\n2. Testing with single thread...")
+    # Test with pagination
+    print("\n2. Testing with pagination...")
     start_time = time.time()
-    result_single = pysof_mult.run_view_definition_with_options(
-        view_definition, bundle, "json", num_threads=1
+    result_paginated = pysof.run_view_definition_with_options(
+        view_definition, bundle, "json", limit=100
     )
-    single_time = time.time() - start_time
-    print(f"   Single thread completed in {single_time:.3f} seconds")
+    paginated_time = time.time() - start_time
+    print(f"   Pagination completed in {paginated_time:.3f} seconds")
 
-    # Test with multiple threads
-    print("\n3. Testing with 4 threads...")
-    start_time = time.time()
-    result_multi = pysof_mult.run_view_definition_with_options(
-        view_definition, bundle, "json", num_threads=4
-    )
-    multi_time = time.time() - start_time
-    print(f"   4 threads completed in {multi_time:.3f} seconds")
-
-    # Verify results are the same
+    # Verify results
     data_default = json.loads(result_default.decode("utf-8"))
-    data_single = json.loads(result_single.decode("utf-8"))
-    data_multi = json.loads(result_multi.decode("utf-8"))
+    data_paginated = json.loads(result_paginated.decode("utf-8"))
 
-    print(f"\n4. Verifying results...")
-    print(f"   Default result: {len(data_default)} rows")
-    print(f"   Single thread result: {len(data_single)} rows")
-    print(f"   Multi thread result: {len(data_multi)} rows")
+    print(f"\n3. Verifying results...")
+    print(f"   Full result: {len(data_default)} rows")
+    print(f"   Paginated result: {len(data_paginated)} rows")
 
-    # Check if all results have the same number of rows
-    if len(data_default) == len(data_single) == len(data_multi):
-        print("   ✅ All results have the same number of rows")
+    # Check pagination worked correctly
+    if len(data_paginated) == 100:
+        print("   ✅ Pagination worked correctly (100 rows returned)")
     else:
-        print("   ❌ Results have different numbers of rows")
+        print(f"   ❌ Expected 100 rows, got {len(data_paginated)}")
         return False
 
-    # Performance comparison
-    print(f"\n5. Performance comparison:")
-    print(f"   Default vs Single thread: {single_time / default_time:.2f}x")
-    print(f"   Single vs Multi thread: {single_time / multi_time:.2f}x")
-
-    if multi_time < single_time:
-        print("   ✅ Multithreading shows performance improvement")
+    # Test CSV format
+    print(f"\n4. Testing CSV format...")
+    result_csv = pysof.run_view_definition_with_options(
+        view_definition, bundle, "csv", limit=10
+    )
+    csv_lines = result_csv.decode("utf-8").strip().split("\n")
+    print(f"   CSV result: {len(csv_lines)} lines (including header)")
+    
+    if len(csv_lines) > 0:
+        print("   ✅ CSV format works")
     else:
-        print(
-            "   ⚠️  Multithreading didn't show improvement (normal for small datasets)"
-        )
-
-    # Test error handling for invalid thread count
-    print(f"\n6. Testing error handling...")
-    try:
-        pysof_mult.run_view_definition_with_options(
-            view_definition, bundle, "json", num_threads=0
-        )
-        print("   ❌ Should have failed with 0 threads")
+        print("   ❌ CSV format failed")
         return False
-    except Exception as e:
-        print(f"   ✅ Correctly handled invalid thread count: {type(e).__name__}")
 
-    print(f"\n✅ All multithreading tests passed!")
+    print(f"\n✅ All tests passed!")
     return True
 
 
 if __name__ == "__main__":
     try:
-        success = test_multithreading()
+        success = test_pysof()
         if success:
-            print("\n🎉 Multithreading functionality is working correctly!")
+            print("\n🎉 pysof functionality is working correctly!")
         else:
             print("\n❌ Some tests failed")
     except Exception as e:

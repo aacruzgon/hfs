@@ -1,4 +1,4 @@
-"""Type stubs for the pysof_mult Rust extension module."""
+"""Type stubs for the pysof Rust extension module."""
 
 from typing import Any
 
@@ -32,7 +32,6 @@ def py_run_view_definition_with_options(
     since: str | None = None,
     limit: int | None = None,
     page: int | None = None,
-    num_threads: int | None = None,
     fhir_version: str = "R4",
 ) -> bytes: ...
 def py_validate_view_definition(
