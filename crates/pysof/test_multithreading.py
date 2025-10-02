@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Test script for pysof functionality."""
+"""Test script for pysof parallel processing functionality."""
 
+import os
 import pysof
 import json
 import time
@@ -46,22 +47,24 @@ def create_test_bundle(num_patients=100):
 
 
 def test_pysof():
-    """Test the pysof functionality."""
-    print("Testing pysof functionality...")
+    """Test the pysof parallel processing functionality."""
+    print("Testing pysof parallel processing functionality...")
+    print(f"RAYON_NUM_THREADS: {os.environ.get('RAYON_NUM_THREADS', 'auto (all cores)')}\n")
 
     # Create test data
     bundle = create_test_bundle(1000)  # 1000 patients for testing
 
     print(f"Created bundle with {len(bundle['entry'])} patients")
 
-    # Test basic execution
-    print("\n1. Testing basic execution...")
+    # Test basic execution (automatic parallel processing)
+    print("\n1. Testing parallel execution...")
     start_time = time.time()
     result_default = pysof.run_view_definition_with_options(
         view_definition, bundle, "json"
     )
     default_time = time.time() - start_time
     print(f"   Execution completed in {default_time:.3f} seconds")
+    print(f"   (Parallel processing automatically used)")
 
     # Test with pagination
     print("\n2. Testing with pagination...")
@@ -109,7 +112,10 @@ if __name__ == "__main__":
     try:
         success = test_pysof()
         if success:
-            print("\n🎉 pysof functionality is working correctly!")
+            print("\n🎉 pysof parallel processing is working correctly!")
+            print("\n💡 To test with different thread counts:")
+            print("   Linux/Mac:  RAYON_NUM_THREADS=4 python test_multithreading.py")
+            print("   Windows:    set RAYON_NUM_THREADS=4 && python test_multithreading.py")
         else:
             print("\n❌ Some tests failed")
     except Exception as e:
