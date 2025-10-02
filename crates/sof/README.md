@@ -89,7 +89,7 @@ sof-cli -v view-definition.json -b patient-data.json --since 2024-01-01T00:00:00
     --parquet-page-size <KB>   Page size for Parquet (64-8192KB) [default: 1024]
     --parquet-compression <ALG> Compression for Parquet [default: snappy]
                               Options: none, snappy, gzip, lz4, brotli, zstd
-    --max-file-size <MB>       Maximum file size for Parquet output (10-10000MB)
+    --max-file-size <MB>       Maximum file size for Parquet output (10-10000MB) [default: 1000]
                               When exceeded, creates numbered files (e.g., output_001.parquet)
 -h, --help                     Print help
 
