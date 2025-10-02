@@ -45,8 +45,10 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-${{ github.job }}-${{ matrix.rust }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
+            ${{ runner.os }}-${{ github.job }}-${{ matrix.rust }}-cargo-
+            ${{ runner.os }}-${{ github.job }}-cargo-
             ${{ runner.os }}-cargo-
 
       - name: Build the FHIR model code generator for all versions (This will download the latest R6 from https://build.fhir.org/
@@ -114,7 +116,10 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-${{ github.job }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ github.job }}-cargo-
+            ${{ runner.os }}-cargo-
 
       - name: Check formatting
         run: cargo fmt --all -- --check
@@ -516,7 +521,10 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-${{ github.job }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ github.job }}-cargo-
+            ${{ runner.os }}-cargo-
 
       - name: Build release (Linux/macOS)
         if: runner.os != 'Windows'

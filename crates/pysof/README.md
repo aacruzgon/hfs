@@ -80,7 +80,7 @@ pip install pysof-*.whl
 
 - **Linux**: x86_64 (glibc and musl)
 - **Windows**: x86_64 (MSVC)
-- **macOS**: x86_64 and ARM64 (when available)
+- **macOS**: AArch64 (x86_64 is not supported) 
 - **Python**: 3.11 only
 
 For detailed information about wheel building and distribution, see [WHEEL_BUILDING.md](WHEEL_BUILDING.md).
