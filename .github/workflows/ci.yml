@@ -168,7 +168,7 @@ jobs:
 
   coverage:
     name: Code Coverage
-    runs-on: [self-hosted, Unix]
+    runs-on: [self-hosted, macOS]
     needs: [test, lint, security]
     steps:
       - name: Checkout code
