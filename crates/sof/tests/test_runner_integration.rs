@@ -33,7 +33,7 @@ struct Test {
 #[derive(Debug, Serialize)]
 struct TestResult {
     passed: bool,
-    reason: Option<String>,
+    error: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -100,12 +100,12 @@ fn run_single_test(test: &Test, bundle: &SofBundle) -> TestResult {
                 // This is expected for error tests
                 return TestResult {
                     passed: true,
-                    reason: None,
+                    error: None,
                 };
             } else {
                 return TestResult {
                     passed: false,
-                    reason: Some(format!("Failed to parse ViewDefinition: {}", e)),
+                    error: Some(format!("Failed to parse ViewDefinition: {}", e)),
                 };
             }
         }
@@ -119,12 +119,12 @@ fn run_single_test(test: &Test, bundle: &SofBundle) -> TestResult {
                 // This is expected for error tests
                 return TestResult {
                     passed: true,
-                    reason: None,
+                    error: None,
                 };
             } else {
                 return TestResult {
                     passed: false,
-                    reason: Some(format!("Failed to execute ViewDefinition: {}", e)),
+                    error: Some(format!("Failed to execute ViewDefinition: {}", e)),
                 };
             }
         }
@@ -134,7 +134,7 @@ fn run_single_test(test: &Test, bundle: &SofBundle) -> TestResult {
     if expect_error {
         return TestResult {
             passed: false,
-            reason: Some("Expected an error but ViewDefinition executed successfully".to_string()),
+            error: Some("Expected an error but ViewDefinition executed successfully".to_string()),
         };
     }
 
@@ -144,7 +144,7 @@ fn run_single_test(test: &Test, bundle: &SofBundle) -> TestResult {
         Err(e) => {
             return TestResult {
                 passed: false,
-                reason: Some(format!("Failed to parse result as JSON: {}", e)),
+                error: Some(format!("Failed to parse result as JSON: {}", e)),
             };
         }
     };
@@ -155,12 +155,12 @@ fn run_single_test(test: &Test, bundle: &SofBundle) -> TestResult {
             if compare_results(&actual_rows, expected) {
                 TestResult {
                     passed: true,
-                    reason: None,
+                    error: None,
                 }
             } else {
                 TestResult {
                     passed: false,
-                    reason: Some(format!(
+                    error: Some(format!(
                         "Results don't match. Expected: {}, Got: {}",
                         serde_json::to_string_pretty(expected).unwrap_or_default(),
                         serde_json::to_string_pretty(&actual_rows).unwrap_or_default()
@@ -170,7 +170,7 @@ fn run_single_test(test: &Test, bundle: &SofBundle) -> TestResult {
         }
         None => TestResult {
             passed: false,
-            reason: Some("Test has neither 'expect' nor 'expectError' field".to_string()),
+            error: Some("Test has neither 'expect' nor 'expectError' field".to_string()),
         },
     }
 }
@@ -226,7 +226,7 @@ fn run_test_file(test_file: &Path) -> Result<TestSuiteReport, Box<dyn std::error
             name: "version_check".to_string(),
             result: TestResult {
                 passed: false,
-                reason: Some("Only R4 (4.0.1) is currently supported".to_string()),
+                error: Some("Only R4 (4.0.1) is currently supported".to_string()),
             },
         });
         return Ok(TestSuiteReport {
@@ -290,7 +290,7 @@ fn run_comprehensive_test_suite() {
                                 test_report.name,
                                 test_report
                                     .result
-                                    .reason
+                                    .error
                                     .as_deref()
                                     .unwrap_or("Unknown error")
                             );
@@ -307,7 +307,7 @@ fn run_comprehensive_test_suite() {
                                 name: "file_error".to_string(),
                                 result: TestResult {
                                     passed: false,
-                                    reason: Some(format!("Failed to load test file: {}", e)),
+                                    error: Some(format!("Failed to load test file: {}", e)),
                                 },
                             }],
                         },
