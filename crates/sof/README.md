@@ -13,6 +13,26 @@ The `sof` crate implements the [HL7 FHIR SQL-on-FHIR Implementation Guide](https
 - **Command Line Interface** - Ready-to-use CLI tool for batch processing
 - **Server Implementation** - HTTP API for on-demand transformations (planned)
 
+## Python Developers
+
+**Looking to use SQL-on-FHIR from Python?** Check out the **[pysof](../pysof)** package, which provides Python bindings for this crate:
+
+```python
+import pysof
+
+# Transform FHIR data to CSV, JSON, NDJSON, or Parquet
+result = pysof.run_view_definition(view_definition, bundle, "csv")
+```
+
+Features:
+- **High Performance** - Rust-powered processing with automatic multithreading (5-7x speedup)
+- **Simple API** - Easy-to-use functions with native Python types
+- **Multiple Formats** - Support for CSV, JSON, NDJSON, and Parquet outputs
+- **FHIR Versions** - Compatible with R4, R4B, R5, and R6 (configurable at build time)
+- **PyPI Distribution** - Install with `pip install pysof`
+
+See the [pysof README](../pysof/README.md) for installation and usage details.
+
 ## Executables
 
 This crate provides two executable targets:
