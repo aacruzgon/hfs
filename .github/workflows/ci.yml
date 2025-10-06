@@ -187,7 +187,7 @@ jobs:
 
   coverage:
     name: Code Coverage
-    runs-on: [self-hosted, macOS]
+    runs-on: [self-hosted, Unix]
     needs: [test, lint, security]
     steps:
       - name: Checkout code
@@ -206,6 +206,9 @@ jobs:
             echo 'linker = "clang"' >> ~/.cargo/config.toml
             echo 'rustflags = ["-C", "link-arg=-fuse-ld=lld"]' >> ~/.cargo/config.toml
           fi
+
+      - name: Install cargo-llvm-cov
+        run: cargo install cargo-llvm-cov
 
       - name: Generate code coverage
         run: cargo llvm-cov --workspace --lcov --output-path lcov.info
