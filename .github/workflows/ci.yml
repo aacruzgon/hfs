@@ -12,12 +12,14 @@ env:
   CARGO_TERM_COLOR: always
   RUST_MIN_STACK: 8388608
   CARGO_BUILD_JOBS: 1
+  PYTHON_VERSION: "3.11"
 
 jobs:
   test:
     name: Test Suite
     runs-on: [self-hosted, Unix]
     strategy:
+      fail-fast: false
       matrix:
         rust: [stable, beta, nightly]
     steps:
@@ -27,7 +29,7 @@ jobs:
       - name: Install Rust toolchain (Linux/macOS)
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
+          toolchain: ${{ matrix.rust }}
 
       - name: Configure Rust to use LLD (Linux/MacOS)
         run: |
@@ -38,18 +40,10 @@ jobs:
             echo 'rustflags = ["-C", "link-arg=-fuse-ld=lld"]' >> ~/.cargo/config.toml
           fi
 
-      - name: Cache cargo registry
-        uses: actions/cache@v4
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-${{ github.job }}-${{ matrix.rust }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ github.job }}-${{ matrix.rust }}-cargo-
-            ${{ runner.os }}-${{ github.job }}-cargo-
-            ${{ runner.os }}-cargo-
+          key: ${{ matrix.rust }}
 
       - name: Build the FHIR model code generator for all versions (This will download the latest R6 from https://build.fhir.org/
         run: |
@@ -59,30 +53,30 @@ jobs:
       - name: Generate all FHIR model code
         run: |
           echo "Generate all FHIR model code..."
-          ./target/debug/helios-fhir-gen --all
+          cargo run -p helios-fhir-gen --all-features -- --all
 
       - name: Run tests with all features
         run: |
           cargo test --all-features
 
-      - name: Set up Python 3.11
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
         working-directory: crates/pysof
-        run: uv python install 3.11
+        run: uv python install ${{ env.PYTHON_VERSION }}
 
       - name: Create virtual environment
         id: venv
         working-directory: crates/pysof
         run: |
-          uv venv --python 3.11 .venv
+          uv venv --python ${{ env.PYTHON_VERSION }} .venv
           echo "path=$(pwd)/.venv" >> $GITHUB_OUTPUT
 
       - name: Install dependencies
         working-directory: crates/pysof
         run: uv sync --group dev
 
-      - name: Build extension (dev)
+      - name: Build extension (release)
         working-directory: crates/pysof
-        run: uv run maturin develop
+        run: uv run maturin develop --release
 
       - name: Run tests with coverage
         working-directory: crates/pysof
@@ -109,17 +103,8 @@ jobs:
             echo 'rustflags = ["-C", "link-arg=-fuse-ld=lld"]' >> ~/.cargo/config.toml
           fi
 
-      - name: Cache cargo registry
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-${{ github.job }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ github.job }}-cargo-
-            ${{ runner.os }}-cargo-
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
 
       - name: Check formatting
         run: cargo fmt --all -- --check
@@ -128,15 +113,15 @@ jobs:
         run: |
           cargo clippy --all-targets --all-features -- -D warnings -A clippy::items_after_test_module -A clippy::large_enum_variant -A clippy::question_mark -A clippy::collapsible_match -A clippy::collapsible_if -A clippy::field_reassign_with_default -A clippy::doc-overindented-list-items -A clippy::doc-lazy-continuation
 
-      - name: Set up Python 3.11
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
         working-directory: crates/pysof
-        run: uv python install 3.11
+        run: uv python install ${{ env.PYTHON_VERSION }}
 
       - name: Create virtual environment
         id: venv
         working-directory: crates/pysof
         run: |
-          uv venv --python 3.11 .venv
+          uv venv --python ${{ env.PYTHON_VERSION }} .venv
           echo "path=$(pwd)/.venv" >> $GITHUB_OUTPUT
 
       - name: Install dependencies
@@ -154,7 +139,6 @@ jobs:
       - name: Type check
         working-directory: crates/pysof
         run: uv run mypy src
-
 
   security:
     name: Security Audit
@@ -177,28 +161,25 @@ jobs:
             echo 'rustflags = ["-C", "link-arg=-fuse-ld=lld"]' >> ~/.cargo/config.toml
           fi
 
-      - name: Install cargo-audit
-        run: cargo install cargo-audit
-
       - name: Run security audit
-        run: cargo audit
+        uses: rustsec/audit-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
   coverage:
     name: Code Coverage
-    runs-on: [self-hosted, Unix]
+    runs-on: [self-hosted, macOS]
     needs: [test, lint, security]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Install Rust toolchain (Linux/macOS)
-        if: runner.os != 'Windows'
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
 
       - name: Configure Rust to use LLD (Linux/MacOS)
-        if: runner.os != 'Windows'
         run: |
           mkdir -p ~/.cargo
           if ! grep -q "link-arg=-fuse-ld=lld" ~/.cargo/config.toml 2>/dev/null; then
@@ -206,6 +187,17 @@ jobs:
             echo 'linker = "clang"' >> ~/.cargo/config.toml
             echo 'rustflags = ["-C", "link-arg=-fuse-ld=lld"]' >> ~/.cargo/config.toml
           fi
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build the FHIR model code generator for coverage
+        run: |
+          cargo build -p helios-fhir-gen --all-features
+
+      - name: Generate all FHIR model code
+        run: |
+          cargo run -p helios-fhir-gen --all-features -- --all
 
       - name: Generate code coverage
         run: cargo llvm-cov --workspace --lcov --output-path lcov.info
@@ -464,6 +456,7 @@ jobs:
     needs: [test, lint, security]
     if: startsWith(github.ref, 'refs/tags/v')
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: Linux
@@ -514,17 +507,10 @@ jobs:
             )
           )
 
-      - name: Cache cargo registry
-        uses: actions/cache@v4
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-${{ github.job }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ github.job }}-cargo-
-            ${{ runner.os }}-cargo-
+          key: ${{ matrix.target }}
 
       - name: Build release (Linux/macOS)
         if: runner.os != 'Windows'
@@ -535,7 +521,7 @@ jobs:
         shell: cmd
         run: cargo build --all-features --release
 
-      - name: Upload Rust build artifacts to GitHub 
+      - name: Upload Rust build artifacts to GitHub
         uses: actions/upload-artifact@v4
         with:
           name: hfs-${{ matrix.target }}
@@ -547,17 +533,17 @@ jobs:
             !target/release/*.d
             !target/release/*.rlib
             !target/release/*.so
-      
+
       # Build pysof wheel (set up Python)
-      - name: Set up Python 3.11 for pysof
+      - name: Set up Python ${{ env.PYTHON_VERSION }} for pysof
         working-directory: crates/pysof
-        run: uv python install 3.11
+        run: uv python install ${{ env.PYTHON_VERSION }}
 
       - name: Create virtual environment for pysof
         id: pysof-venv
         working-directory: crates/pysof
         run: |
-          uv venv --python 3.11 .venv
+          uv venv --python ${{ env.PYTHON_VERSION }} .venv
           echo "path=$(pwd)/.venv" >> $GITHUB_OUTPUT
 
       - name: Install pysof build dependencies
@@ -565,6 +551,7 @@ jobs:
         run: uv sync --group dev
 
       - name: Build pysof wheel (and sdist on Linux)
+        if: runner.os != 'Windows'
         working-directory: crates/pysof
         run: |
           if [ "$RUNNER_OS" = "Linux" ]; then
@@ -573,12 +560,17 @@ jobs:
             uv run maturin build --release -o dist
           fi
 
+      - name: Build pysof wheel (Windows)
+        if: runner.os == 'Windows'
+        working-directory: crates/pysof
+        shell: cmd
+        run: uv run maturin build --release -o dist
+
       - name: Upload pysof artifacts
         uses: actions/upload-artifact@v4
         with:
           name: pysof-${{ matrix.target }}
           path: crates/pysof/dist/*
-
 
   publish-pypi:
     name: Publish to PyPI
@@ -594,7 +586,7 @@ jobs:
           merge-multiple: true
 
       - name: Set up Python for publishing
-        run: uv python install 3.11
+        run: uv python install ${{ env.PYTHON_VERSION }}
 
       - name: Install twine
         run: uv pip install --system twine
@@ -610,7 +602,6 @@ jobs:
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
         run: |
           twine upload --skip-existing pysof-dist/*
-
 
   release:
     name: Create GitHub Release
@@ -681,4 +672,3 @@ jobs:
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}
           generate_release_notes: ${{ steps.changelog.outputs.changelog_exists == 'false' }}
-

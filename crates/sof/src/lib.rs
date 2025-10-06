@@ -616,6 +616,7 @@ impl ContentType {
     /// - `"text/csv;header=false"` → [`ContentType::Csv`]
     /// - `"application/json"` → [`ContentType::Json`]
     /// - `"application/ndjson"` → [`ContentType::NdJson`]
+    /// - `"application/x-ndjson"` → [`ContentType::NdJson`]
     /// - `"application/parquet"` → [`ContentType::Parquet`]
     ///
     /// # Arguments
@@ -673,7 +674,7 @@ impl ContentType {
             "text/csv;header=false" => Ok(ContentType::Csv),
             "text/csv" | "text/csv;header=true" => Ok(ContentType::CsvWithHeader),
             "application/json" => Ok(ContentType::Json),
-            "application/ndjson" => Ok(ContentType::NdJson),
+            "application/ndjson" | "application/x-ndjson" => Ok(ContentType::NdJson),
             "application/parquet" => Ok(ContentType::Parquet),
             _ => Err(SofError::UnsupportedContentType(s.to_string())),
         }

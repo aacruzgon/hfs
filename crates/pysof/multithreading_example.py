@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
-"""Example demonstrating pysof capabilities."""
+"""Example demonstrating pysof parallel processing capabilities."""
 
+import os
 import pysof
 import json
 import time
 
 
 def main():
-    """Demonstrate pysof functionality."""
-    print("🧵 pysof Example")
+    """Demonstrate pysof parallel processing functionality."""
+    print("🧵 pysof Parallel Processing Example")
     print("=" * 40)
+    print("\nNote: Thread count is controlled via RAYON_NUM_THREADS environment variable.")
+    print("Current setting:", os.environ.get('RAYON_NUM_THREADS', 'auto (all cores)'))
+    print()
 
     # Sample ViewDefinition
     view_definition = {
@@ -51,8 +55,8 @@ def main():
 
     print(f"Processing {len(bundle['entry'])} patients...\n")
 
-    # Example 1: Basic execution
-    print("1️⃣ Basic execution:")
+    # Example 1: Parallel execution (using default thread count)
+    print("1️⃣ Parallel execution (default thread count):")
     start = time.time()
     result = pysof.run_view_definition_with_options(
         view_definition, bundle, "json"
@@ -82,9 +86,14 @@ def main():
 
     print(f"\n✅ Example completed!")
     print(f"\n💡 Tips:")
+    print(f"   • Multithreading is automatic - resources are processed in parallel")
+    print(f"   • Control thread count with RAYON_NUM_THREADS environment variable")
     print(f"   • Use pagination (limit/page) to control result size")
     print(f"   • Use 'since' parameter to filter by modification date")
     print(f"   • Multiple output formats supported: csv, json, ndjson, parquet")
+    print(f"\n🔧 To control threads:")
+    print(f"   Linux/Mac:  RAYON_NUM_THREADS=4 python {__file__}")
+    print(f"   Windows:    set RAYON_NUM_THREADS=4 && python {__file__}")
 
 
 if __name__ == "__main__":
