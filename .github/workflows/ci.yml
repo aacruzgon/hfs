@@ -40,10 +40,18 @@ jobs:
             echo 'rustflags = ["-C", "link-arg=-fuse-ld=lld"]' >> ~/.cargo/config.toml
           fi
 
-      - name: Setup Rust cache
-        uses: Swatinem/rust-cache@v2
+      - name: Cache cargo registry
+        uses: actions/cache@v4
         with:
-          key: ${{ matrix.rust }}
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-${{ github.job }}-${{ matrix.rust }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ github.job }}-${{ matrix.rust }}-cargo-
+            ${{ runner.os }}-${{ github.job }}-cargo-
+            ${{ runner.os }}-cargo-
 
       - name: Build the FHIR model code generator for all versions (This will download the latest R6 from https://build.fhir.org/
         run: |
@@ -103,8 +111,17 @@ jobs:
             echo 'rustflags = ["-C", "link-arg=-fuse-ld=lld"]' >> ~/.cargo/config.toml
           fi
 
-      - name: Setup Rust cache
-        uses: Swatinem/rust-cache@v2
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-${{ github.job }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-${{ github.job }}-cargo-
+          ${{ runner.os }}-cargo-
 
       - name: Check formatting
         run: cargo fmt --all -- --check
@@ -161,10 +178,12 @@ jobs:
             echo 'rustflags = ["-C", "link-arg=-fuse-ld=lld"]' >> ~/.cargo/config.toml
           fi
 
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit
+
       - name: Run security audit
-        uses: rustsec/audit-check@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+        run: cargo audit
 
   coverage:
     name: Code Coverage
@@ -187,17 +206,6 @@ jobs:
             echo 'linker = "clang"' >> ~/.cargo/config.toml
             echo 'rustflags = ["-C", "link-arg=-fuse-ld=lld"]' >> ~/.cargo/config.toml
           fi
-
-      - name: Setup Rust cache
-        uses: Swatinem/rust-cache@v2
-
-      - name: Build the FHIR model code generator for coverage
-        run: |
-          cargo build -p helios-fhir-gen --all-features
-
-      - name: Generate all FHIR model code
-        run: |
-          cargo run -p helios-fhir-gen --all-features -- --all
 
       - name: Generate code coverage
         run: cargo llvm-cov --workspace --lcov --output-path lcov.info
@@ -507,10 +515,17 @@ jobs:
             )
           )
 
-      - name: Setup Rust cache
-        uses: Swatinem/rust-cache@v2
+      - name: Cache cargo registry
+        uses: actions/cache@v4
         with:
-          key: ${{ matrix.target }}
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-${{ github.job }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-${{ github.job }}-cargo-
+          ${{ runner.os }}-cargo-
 
       - name: Build release (Linux/macOS)
         if: runner.os != 'Windows'
