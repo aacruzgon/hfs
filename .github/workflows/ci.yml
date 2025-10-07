@@ -526,13 +526,8 @@ jobs:
             ${{ runner.os }}-${{ github.job }}-cargo-
             ${{ runner.os }}-cargo-
 
-      - name: Build release (Linux/macOS)
-        if: runner.os != 'Windows'
-        run: cargo build --all-features --release
-
-      - name: Build release (Windows)
-        if: runner.os == 'Windows'
-        shell: cmd
+      - name: Build Release
+        shell: ${{ runner.os == 'Windows' && 'cmd' || 'bash' }}
         run: cargo build --all-features --release
 
       - name: Upload Rust build artifacts to GitHub
@@ -562,10 +557,12 @@ jobs:
 
       # Build pysof wheel (set up Python)
       - name: Set up Python ${{ env.PYTHON_VERSION }} for pysof
+        shell: ${{ runner.os == 'Windows' && 'cmd' || 'bash' }}
         working-directory: crates/pysof
         run: uv python install ${{ env.PYTHON_VERSION }}
 
       - name: Create virtual environment for pysof
+        shell: ${{ runner.os == 'Windows' && 'cmd' || 'bash' }}
         id: pysof-venv
         working-directory: crates/pysof
         run: |
@@ -573,25 +570,15 @@ jobs:
           echo "path=$(pwd)/.venv" >> $GITHUB_OUTPUT
 
       - name: Install pysof build dependencies
+        shell: ${{ runner.os == 'Windows' && 'cmd' || 'bash' }}
         working-directory: crates/pysof
         run: |
           uv sync --group dev
           uv pip install patchelf
 
-      - name: Build pysof wheel (Linux)
-        if: runner.os == 'Linux'
+      - name: Build pysof wheel
+        shell: ${{ runner.os == 'Windows' && 'cmd' || 'bash' }}
         working-directory: crates/pysof
-        run: uv run maturin build --release -o dist
-
-      - name: Build pysof wheel (macOS)
-        if: runner.os == 'macOS'
-        working-directory: crates/pysof
-        run: uv run maturin build --release -o dist
-
-      - name: Build pysof wheel (Windows)
-        if: runner.os == 'Windows'
-        working-directory: crates/pysof
-        shell: cmd
         run: uv run maturin build --release -o dist
 
       - name: Upload pysof artifacts
