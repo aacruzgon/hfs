@@ -566,8 +566,13 @@ jobs:
             ${{ runner.os }}-${{ github.job }}-cargo-
             ${{ runner.os }}-cargo-
 
-      - name: Build Release
-        shell: ${{ matrix.os == 'Windows' && 'cmd' || 'bash' }}
+      - name: Build Release (Windows)
+        if: matrix.os == 'Windows'
+        shell: cmd
+        run: cargo build --all-features --release
+
+      - name: Build Release (Unix)
+        if: matrix.os != 'Windows'
         run: cargo build --all-features --release
 
       - name: Upload Rust build artifacts to GitHub
@@ -596,28 +601,57 @@ jobs:
             crates/sof/
 
       # Build pysof wheel (set up Python)
-      - name: Set up Python ${{ env.PYTHON_VERSION }} for pysof
-        shell: ${{ matrix.os == 'Windows' && 'cmd' || 'bash' }}
+      - name: Set up Python ${{ env.PYTHON_VERSION }} for pysof (Windows)
+        if: matrix.os == 'Windows'
+        shell: cmd
         working-directory: crates/pysof
         run: uv python install ${{ env.PYTHON_VERSION }}
 
-      - name: Create virtual environment for pysof
-        shell: ${{ matrix.os == 'Windows' && 'cmd' || 'bash' }}
-        id: pysof-venv
+      - name: Set up Python ${{ env.PYTHON_VERSION }} for pysof (Unix)
+        if: matrix.os != 'Windows'
+        working-directory: crates/pysof
+        run: uv python install ${{ env.PYTHON_VERSION }}
+
+      - name: Create virtual environment for pysof (Windows)
+        if: matrix.os == 'Windows'
+        shell: cmd
+        id: pysof-venv-windows
+        working-directory: crates/pysof
+        run: |
+          uv venv --python ${{ env.PYTHON_VERSION }} .venv
+          echo path=%CD%\.venv >> %GITHUB_OUTPUT%
+
+      - name: Create virtual environment for pysof (Unix)
+        if: matrix.os != 'Windows'
+        id: pysof-venv-unix
         working-directory: crates/pysof
         run: |
           uv venv --python ${{ env.PYTHON_VERSION }} .venv
           echo "path=$(pwd)/.venv" >> $GITHUB_OUTPUT
 
-      - name: Install pysof build dependencies
-        shell: ${{ matrix.os == 'Windows' && 'cmd' || 'bash' }}
+      - name: Install pysof build dependencies (Windows)
+        if: matrix.os == 'Windows'
+        shell: cmd
         working-directory: crates/pysof
         run: |
           uv sync --group dev
           uv pip install patchelf
 
-      - name: Build pysof wheel
-        shell: ${{ matrix.os == 'Windows' && 'cmd' || 'bash' }}
+      - name: Install pysof build dependencies (Unix)
+        if: matrix.os != 'Windows'
+        working-directory: crates/pysof
+        run: |
+          uv sync --group dev
+          uv pip install patchelf
+
+      - name: Build pysof wheel (Windows)
+        if: matrix.os == 'Windows'
+        shell: cmd
+        working-directory: crates/pysof
+        run: uv run maturin build --release -o dist
+
+      - name: Build pysof wheel (Unix)
+        if: matrix.os != 'Windows'
         working-directory: crates/pysof
         run: uv run maturin build --release -o dist
 
