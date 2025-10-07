@@ -567,7 +567,7 @@ jobs:
             ${{ runner.os }}-cargo-
 
       - name: Build Release
-        shell: ${{ runner.os == 'Windows' && 'cmd' || 'bash' }}
+        shell: ${{ matrix.os == 'Windows' && 'cmd' || 'bash' }}
         run: cargo build --all-features --release
 
       - name: Upload Rust build artifacts to GitHub
@@ -597,12 +597,12 @@ jobs:
 
       # Build pysof wheel (set up Python)
       - name: Set up Python ${{ env.PYTHON_VERSION }} for pysof
-        shell: ${{ runner.os == 'Windows' && 'cmd' || 'bash' }}
+        shell: ${{ matrix.os == 'Windows' && 'cmd' || 'bash' }}
         working-directory: crates/pysof
         run: uv python install ${{ env.PYTHON_VERSION }}
 
       - name: Create virtual environment for pysof
-        shell: ${{ runner.os == 'Windows' && 'cmd' || 'bash' }}
+        shell: ${{ matrix.os == 'Windows' && 'cmd' || 'bash' }}
         id: pysof-venv
         working-directory: crates/pysof
         run: |
@@ -610,14 +610,14 @@ jobs:
           echo "path=$(pwd)/.venv" >> $GITHUB_OUTPUT
 
       - name: Install pysof build dependencies
-        shell: ${{ runner.os == 'Windows' && 'cmd' || 'bash' }}
+        shell: ${{ matrix.os == 'Windows' && 'cmd' || 'bash' }}
         working-directory: crates/pysof
         run: |
           uv sync --group dev
           uv pip install patchelf
 
       - name: Build pysof wheel
-        shell: ${{ runner.os == 'Windows' && 'cmd' || 'bash' }}
+        shell: ${{ matrix.os == 'Windows' && 'cmd' || 'bash' }}
         working-directory: crates/pysof
         run: uv run maturin build --release -o dist
 
