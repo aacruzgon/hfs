@@ -224,6 +224,10 @@ fn test_examples_in_dir<R: DeserializeOwned + Serialize>(dir: &PathBuf) {
             "devicealert-example.json",
             "R6 DeviceAlert example contains incompatible data structure",
         ),
+        (
+            "familymemberhistory-example.json",
+            "R6 FamilyMemberHistory example contains incompatible data structure",
+        ),
     ];
 
     for entry in fs::read_dir(dir).unwrap() {
