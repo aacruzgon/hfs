@@ -209,6 +209,12 @@ jobs:
     name: Linting
     runs-on: [self-hosted]
     steps:
+
+      - name: Debug endpoint
+        run: |
+          echo "Endpoint format check:"
+          echo "${{ secrets.AWS_ENDPOINT }}" | cat -A
+
       - name: Checkout code
         uses: actions/checkout@v4
 
