@@ -68,6 +68,12 @@ jobs:
           ACTIONS_CACHE_BUCKET: github-cache
           ACTIONS_CACHE_URL: ${{ secrets.AWS_ENDPOINT }}
         with:
+          endpoint: ${{ secrets.AWS_ENDPOINT }}
+          insecure: true 
+          accessKey: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          secretKey: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          bucket: github-cache
+          use-fallback: false
           path: |
             ~/.cargo/registry
             ~/.cargo/git
@@ -141,6 +147,12 @@ jobs:
           ACTIONS_CACHE_BUCKET: github-cache
           ACTIONS_CACHE_URL: ${{ secrets.AWS_ENDPOINT }}
         with:
+          endpoint: ${{ secrets.AWS_ENDPOINT }}
+          insecure: true 
+          accessKey: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          secretKey: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          bucket: github-cache
+          use-fallback: false
           path: ~/.cache/uv
           key: ${{ runner.os }}-uv-${{ hashFiles('**/uv.lock') }}
           restore-keys: |
@@ -156,6 +168,12 @@ jobs:
           ACTIONS_CACHE_BUCKET: github-cache
           ACTIONS_CACHE_URL: ${{ secrets.AWS_ENDPOINT }}
         with:
+          endpoint: ${{ secrets.AWS_ENDPOINT }}
+          insecure: true 
+          accessKey: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          secretKey: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          bucket: github-cache
+          use-fallback: false
           path: |
             ~/.cargo/registry
             ~/.cargo/git
@@ -236,6 +254,12 @@ jobs:
           ACTIONS_CACHE_BUCKET: github-cache
           ACTIONS_CACHE_URL: ${{ secrets.AWS_ENDPOINT }}
         with:
+          endpoint: ${{ secrets.AWS_ENDPOINT }}
+          insecure: true 
+          accessKey: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          secretKey: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          bucket: github-cache
+          use-fallback: false
           path: |
             ~/.cargo/registry
             ~/.cargo/git
@@ -255,6 +279,12 @@ jobs:
           ACTIONS_CACHE_BUCKET: github-cache
           ACTIONS_CACHE_URL: ${{ secrets.AWS_ENDPOINT }}
         with:
+          endpoint: ${{ secrets.AWS_ENDPOINT }}
+          insecure: true 
+          accessKey: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          secretKey: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          bucket: github-cache
+          use-fallback: false
           path: ~/.cache/uv
           key: ${{ runner.os }}-uv-${{ hashFiles('**/uv.lock') }}
           restore-keys: |
@@ -698,6 +728,12 @@ jobs:
           ACTIONS_CACHE_BUCKET: github-cache
           ACTIONS_CACHE_URL: ${{ secrets.AWS_ENDPOINT }}
         with:
+          endpoint: ${{ secrets.AWS_ENDPOINT }}
+          insecure: true 
+          accessKey: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          secretKey: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          bucket: github-cache
+          use-fallback: false
           path: |
             ~/.cargo/registry
             ~/.cargo/git
@@ -717,6 +753,12 @@ jobs:
           ACTIONS_CACHE_BUCKET: github-cache
           ACTIONS_CACHE_URL: ${{ secrets.AWS_ENDPOINT }}
         with:
+          endpoint: ${{ secrets.AWS_ENDPOINT }}
+          insecure: true 
+          accessKey: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          secretKey: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          bucket: github-cache
+          use-fallback: false
           path: ~/.cache/uv
           key: ${{ runner.os }}-uv-${{ hashFiles('**/uv.lock') }}
           restore-keys: |
