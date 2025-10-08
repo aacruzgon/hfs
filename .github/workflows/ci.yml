@@ -140,7 +140,6 @@ jobs:
       - name: Create virtual environment (Windows)
         if: runner.os == 'Windows'
         shell: cmd
-        id: venv
         working-directory: crates/pysof
         run: |
           uv venv --python ${{ env.PYTHON_VERSION }} .venv
@@ -148,7 +147,6 @@ jobs:
 
       - name: Create virtual environment (Unix)
         if: runner.os != 'Windows'
-        id: venv
         working-directory: crates/pysof
         run: |
           uv venv --python ${{ env.PYTHON_VERSION }} .venv
@@ -240,7 +238,6 @@ jobs:
         run: uv python install ${{ env.PYTHON_VERSION }}
 
       - name: Create virtual environment
-        id: venv
         working-directory: crates/pysof
         run: |
           uv venv --python ${{ env.PYTHON_VERSION }} .venv
@@ -690,7 +687,6 @@ jobs:
 
       - name: Create virtual environment for pysof (Windows)
         if: matrix.os == 'Windows'
-        id: pysof-venv-windows
         working-directory: crates/pysof
         run: |
           uv venv --python ${{ env.PYTHON_VERSION }} .venv
@@ -698,7 +694,6 @@ jobs:
 
       - name: Create virtual environment for pysof (Unix)
         if: matrix.os != 'Windows'
-        id: pysof-venv-unix
         working-directory: crates/pysof
         run: |
           uv venv --python ${{ env.PYTHON_VERSION }} .venv
@@ -813,7 +808,6 @@ jobs:
           done
 
       - name: Generate changelog
-        id: changelog
         run: |
           if [ -f CHANGELOG.md ]; then
             # Extract changelog for this version
