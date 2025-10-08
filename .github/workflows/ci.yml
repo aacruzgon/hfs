@@ -75,11 +75,29 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Rust toolchain (Linux/macOS)
+        if: runner.os != 'Windows'
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
 
+      - name: Configure Rust to use LLD (Windows)
+        if: matrix.os == 'Windows'
+        shell: cmd
+        run: |
+          if not exist "%USERPROFILE%\.cargo" mkdir "%USERPROFILE%\.cargo"
+          set "configPath=%USERPROFILE%\.cargo\config.toml"
+          if not exist "%configPath%" (
+            echo [target.x86_64-pc-windows-msvc] >> "%configPath%"
+            echo linker = "lld-link.exe" >> "%configPath%"
+          ) else (
+            findstr /C:"lld-link" "%configPath%" >nul || (
+              echo [target.x86_64-pc-windows-msvc] >> "%configPath%"
+              echo linker = "lld-link.exe" >> "%configPath%"
+            )
+          )
+
       - name: Configure Rust to use LLD (Linux/MacOS)
+        if: matrix.os != 'Windows'
         run: |
           mkdir -p ~/.cargo
           if ! grep -q "link-arg=-fuse-ld=lld" ~/.cargo/config.toml 2>/dev/null; then
@@ -541,7 +559,7 @@ jobs:
         with:
           toolchain: stable
 
-      - name: Configure Rust to use LLD
+      - name: Configure Rust to use LLD (Windows)
         if: matrix.os == 'Windows'
         shell: cmd
         run: |
