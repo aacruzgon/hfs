@@ -277,12 +277,12 @@ fn test_examples_in_dir<R: DeserializeOwned + Serialize>(dir: &PathBuf) {
                                     // Skip other missing R6 resources (not yet implemented)
                                     let missing_r6_resources = [
                                         "MolecularSequence",
-                                        "SubstanceNucleicAcid", 
+                                        "SubstanceNucleicAcid",
                                         "SubstancePolymer",
                                         "SubstanceProtein",
-                                        "SubstanceReferenceInformation"
+                                        "SubstanceReferenceInformation",
                                     ];
-                                    
+
                                     if missing_r6_resources.contains(&resource_type_str) {
                                         println!("Skipping {} resource", resource_type_str);
                                         continue;
