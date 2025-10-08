@@ -69,7 +69,7 @@ jobs:
 
   test-python:
     name: Test Python
-    runs-on: [self-hosted, Unix]
+    runs-on: [self-hosted, Windows]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -624,7 +624,6 @@ jobs:
       # Build pysof wheel (set up Python)
       - name: Set up Python ${{ env.PYTHON_VERSION }} for pysof (Windows)
         if: matrix.os == 'Windows'
-        shell: pwsh
         working-directory: crates/pysof
         run: uv python install ${{ env.PYTHON_VERSION }}
 
@@ -635,12 +634,11 @@ jobs:
 
       - name: Create virtual environment for pysof (Windows)
         if: matrix.os == 'Windows'
-        shell: pwsh
         id: pysof-venv-windows
         working-directory: crates/pysof
         run: |
           uv venv --python ${{ env.PYTHON_VERSION }} .venv
-          echo "path=$(Get-Location)\.venv" >> $env:GITHUB_OUTPUT
+          echo path=%CD%\.venv >> %GITHUB_OUTPUT%
 
       - name: Create virtual environment for pysof (Unix)
         if: matrix.os != 'Windows'
@@ -652,7 +650,6 @@ jobs:
 
       - name: Install pysof build dependencies (Windows)
         if: matrix.os == 'Windows'
-        shell: pwsh
         working-directory: crates/pysof
         run: |
           uv sync --group dev
@@ -667,7 +664,6 @@ jobs:
 
       - name: Build pysof wheel (Windows)
         if: matrix.os == 'Windows'
-        shell: pwsh
         working-directory: crates/pysof
         run: uv run maturin build --release -o dist
 
