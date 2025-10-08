@@ -128,7 +128,7 @@ jobs:
 
       - name: Set up Python ${{ env.PYTHON_VERSION }} (Windows)
         if: runner.os == 'Windows'
-        shell: cmd
+        shell: 'powershell -NoProfile -NonInteractive -Command "& ''{0}''"'
         working-directory: crates/pysof
         run: uv python install ${{ env.PYTHON_VERSION }}
 
@@ -677,6 +677,7 @@ jobs:
       # Build pysof wheel (set up Python)
       - name: Set up Python ${{ env.PYTHON_VERSION }} for pysof (Windows)
         if: matrix.os == 'Windows'
+        shell: 'powershell -NoProfile -NonInteractive -Command "& ''{0}''"'
         working-directory: crates/pysof
         run: uv python install ${{ env.PYTHON_VERSION }}
 
@@ -687,10 +688,11 @@ jobs:
 
       - name: Create virtual environment for pysof (Windows)
         if: matrix.os == 'Windows'
+        shell: 'powershell -NoProfile -NonInteractive -Command "& ''{0}''"'
         working-directory: crates/pysof
         run: |
           uv venv --python ${{ env.PYTHON_VERSION }} .venv
-          echo path=%CD%\.venv >> %GITHUB_OUTPUT%
+          echo "path=$(Get-Location)\.venv" >> $env:GITHUB_OUTPUT
 
       - name: Create virtual environment for pysof (Unix)
         if: matrix.os != 'Windows'
@@ -701,6 +703,7 @@ jobs:
 
       - name: Install pysof build dependencies (Windows)
         if: matrix.os == 'Windows'
+        shell: 'powershell -NoProfile -NonInteractive -Command "& ''{0}''"'
         working-directory: crates/pysof
         run: |
           uv sync --group dev
@@ -715,6 +718,7 @@ jobs:
 
       - name: Build pysof wheel (Windows)
         if: matrix.os == 'Windows'
+        shell: 'powershell -NoProfile -NonInteractive -Command "& ''{0}''"'
         working-directory: crates/pysof
         run: uv run maturin build --release -o dist
 
