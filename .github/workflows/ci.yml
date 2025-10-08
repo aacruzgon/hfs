@@ -126,26 +126,64 @@ jobs:
             ${{ runner.os }}-${{ github.job }}-cargo-
             ${{ runner.os }}-cargo-
 
-      - name: Set up Python ${{ env.PYTHON_VERSION }}
+      - name: Set up Python ${{ env.PYTHON_VERSION }} (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
         working-directory: crates/pysof
         run: uv python install ${{ env.PYTHON_VERSION }}
 
-      - name: Create virtual environment
+      - name: Set up Python ${{ env.PYTHON_VERSION }} (Unix)
+        if: runner.os != 'Windows'
+        working-directory: crates/pysof
+        run: uv python install ${{ env.PYTHON_VERSION }}
+
+      - name: Create virtual environment (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
         id: venv
         working-directory: crates/pysof
         run: |
           uv venv --python ${{ env.PYTHON_VERSION }} .venv
           echo "path=$(pwd)/.venv" >> $GITHUB_OUTPUT
 
-      - name: Install dependencies
+      - name: Create virtual environment (Unix)
+        if: runner.os != 'Windows'
+        id: venv
+        working-directory: crates/pysof
+        run: |
+          uv venv --python ${{ env.PYTHON_VERSION }} .venv
+          echo "path=$(pwd)/.venv" >> $GITHUB_OUTPUT
+
+      - name: Install dependencies (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
         working-directory: crates/pysof
         run: uv sync --group dev
 
-      - name: Build extension (release)
+      - name: Install dependencies (Unix)
+        if: runner.os != 'Windows'
+        working-directory: crates/pysof
+        run: uv sync --group dev
+
+      - name: Build extension (release) (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
         working-directory: crates/pysof
         run: uv run maturin develop --release
 
-      - name: Run tests with coverage
+      - name: Build extension (release) (Unix)
+        if: runner.os != 'Windows'
+        working-directory: crates/pysof
+        run: uv run maturin develop --release
+
+      - name: Run tests with coverage (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        working-directory: crates/pysof
+        run: uv run python -m pytest python-tests/ -v --cov=src --cov-report=xml:coverage.xml --cov-report=term-missing
+
+      - name: Run tests with coverage (Unix)
+        if: runner.os != 'Windows'
         working-directory: crates/pysof
         run: uv run python -m pytest python-tests/ -v --cov=src --cov-report=xml:coverage.xml --cov-report=term-missing
 
