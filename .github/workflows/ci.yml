@@ -126,53 +126,57 @@ jobs:
             ${{ runner.os }}-${{ github.job }}-cargo-
             ${{ runner.os }}-cargo-
 
-      - name: Set up Python ${{ env.PYTHON_VERSION }} (Windows)
+      - name: Set up Python ${{ env.PYTHON_VERSION }} for pysof (Windows)
         if: runner.os == 'Windows'
         shell: 'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& ''{0}''"'
         working-directory: crates/pysof
         run: uv python install ${{ env.PYTHON_VERSION }}
 
-      - name: Set up Python ${{ env.PYTHON_VERSION }} (Unix)
+      - name: Set up Python ${{ env.PYTHON_VERSION }} for pysof (Unix)
         if: runner.os != 'Windows'
         working-directory: crates/pysof
         run: uv python install ${{ env.PYTHON_VERSION }}
 
-      - name: Create virtual environment (Windows)
+      - name: Create virtual environment for pysof (Windows)
         if: runner.os == 'Windows'
-        shell: cmd
+        shell: 'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& ''{0}''"'
+        working-directory: crates/pysof
+        run: |
+          uv venv --python ${{ env.PYTHON_VERSION }} .venv
+          echo "path=$(Get-Location)\.venv" >> $env:GITHUB_OUTPUT
+
+      - name: Create virtual environment for pysof (Unix)
+        if: runner.os != 'Windows'
         working-directory: crates/pysof
         run: |
           uv venv --python ${{ env.PYTHON_VERSION }} .venv
           echo "path=$(pwd)/.venv" >> $GITHUB_OUTPUT
 
-      - name: Create virtual environment (Unix)
+      - name: Install pysof build dependencies (Windows)
+        if: runner.os == 'Windows'
+        shell: 'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& ''{0}''"'
+        working-directory: crates/pysof
+        run: |
+          uv sync --group dev
+          uv pip install patchelf
+
+      - name: Install pysof build dependencies (Unix)
         if: runner.os != 'Windows'
         working-directory: crates/pysof
         run: |
-          uv venv --python ${{ env.PYTHON_VERSION }} .venv
-          echo "path=$(pwd)/.venv" >> $GITHUB_OUTPUT
+          uv sync --group dev
+          uv pip install patchelf
 
-      - name: Install dependencies (Windows)
+      - name: Build pysof wheel (Windows)
         if: runner.os == 'Windows'
-        shell: cmd
+        shell: 'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& ''{0}''"'
         working-directory: crates/pysof
-        run: uv sync --group dev
+        run: uv run maturin build --release -o dist
 
-      - name: Install dependencies (Unix)
+      - name: Build pysof wheel (Unix)
         if: runner.os != 'Windows'
         working-directory: crates/pysof
-        run: uv sync --group dev
-
-      - name: Build extension (release) (Windows)
-        if: runner.os == 'Windows'
-        shell: cmd
-        working-directory: crates/pysof
-        run: uv run maturin develop --release
-
-      - name: Build extension (release) (Unix)
-        if: runner.os != 'Windows'
-        working-directory: crates/pysof
-        run: uv run maturin develop --release
+        run: uv run maturin build --release -o dist
 
       - name: Run tests with coverage (Windows)
         if: runner.os == 'Windows'
