@@ -59,7 +59,14 @@ jobs:
           fi
 
       - name: Cache cargo registry
-        uses: actions/runs-on@v4
+        uses: tespkg/actions-cache@v1
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: us-east-1
+          ACTIONS_CACHE_BACKEND: s3
+          ACTIONS_CACHE_BUCKET: github-cache
+          ACTIONS_CACHE_URL: ${{ secrets.AWS_ENDPOINT }}
         with:
           path: |
             ~/.cargo/registry
@@ -125,7 +132,14 @@ jobs:
           fi
 
       - name: Set up uv cache
-        uses: actions/runs-on@v4
+        uses: tespkg/actions-cache@v1
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: us-east-1
+          ACTIONS_CACHE_BACKEND: s3
+          ACTIONS_CACHE_BUCKET: github-cache
+          ACTIONS_CACHE_URL: ${{ secrets.AWS_ENDPOINT }}
         with:
           path: ~/.cache/uv
           key: ${{ runner.os }}-uv-${{ hashFiles('**/uv.lock') }}
@@ -133,7 +147,14 @@ jobs:
             ${{ runner.os }}-uv-
 
       - name: Cache cargo registry
-        uses: actions/runs-on@v4
+        uses: tespkg/actions-cache@v1
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: us-east-1
+          ACTIONS_CACHE_BACKEND: s3
+          ACTIONS_CACHE_BUCKET: github-cache
+          ACTIONS_CACHE_URL: ${{ secrets.AWS_ENDPOINT }}
         with:
           path: |
             ~/.cargo/registry
@@ -206,7 +227,14 @@ jobs:
           fi
 
       - name: Cache cargo registry
-        uses: actions/runs-on@v4
+        uses: tespkg/actions-cache@v1
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: us-east-1
+          ACTIONS_CACHE_BACKEND: s3
+          ACTIONS_CACHE_BUCKET: github-cache
+          ACTIONS_CACHE_URL: ${{ secrets.AWS_ENDPOINT }}
         with:
           path: |
             ~/.cargo/registry
@@ -218,7 +246,14 @@ jobs:
             ${{ runner.os }}-cargo-
 
       - name: Set up uv cache
-        uses: actions/runs-on@v4
+        uses: tespkg/actions-cache@v1
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: us-east-1
+          ACTIONS_CACHE_BACKEND: s3
+          ACTIONS_CACHE_BUCKET: github-cache
+          ACTIONS_CACHE_URL: ${{ secrets.AWS_ENDPOINT }}
         with:
           path: ~/.cache/uv
           key: ${{ runner.os }}-uv-${{ hashFiles('**/uv.lock') }}
@@ -654,7 +689,14 @@ jobs:
           fi
 
       - name: Cache cargo registry
-        uses: actions/runs-on@v4
+        uses: tespkg/actions-cache@v1
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: us-east-1
+          ACTIONS_CACHE_BACKEND: s3
+          ACTIONS_CACHE_BUCKET: github-cache
+          ACTIONS_CACHE_URL: ${{ secrets.AWS_ENDPOINT }}
         with:
           path: |
             ~/.cargo/registry
@@ -666,7 +708,14 @@ jobs:
             ${{ runner.os }}-cargo-
 
       - name: Set up uv cache
-        uses: actions/runs-on@v4
+        uses: tespkg/actions-cache@v1
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: us-east-1
+          ACTIONS_CACHE_BACKEND: s3
+          ACTIONS_CACHE_BUCKET: github-cache
+          ACTIONS_CACHE_URL: ${{ secrets.AWS_ENDPOINT }}
         with:
           path: ~/.cache/uv
           key: ${{ runner.os }}-uv-${{ hashFiles('**/uv.lock') }}
