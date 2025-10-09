@@ -238,7 +238,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version-file: "pyproject.toml"
+          python-version-file: "crates/pysof/pyproject.toml"
 
       - name: Install the latest version of uv
         uses: astral-sh/setup-uv@v6
