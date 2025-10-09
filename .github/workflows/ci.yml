@@ -242,7 +242,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: crates/pysof
-        run: uv sync --group dev --python ${{ env.PYTHON_VERSION }}
+        run: uv sync --group dev --python python3
 
       - name: Format check
         working-directory: crates/pysof
