@@ -242,7 +242,6 @@ jobs:
       - name: Install dependencies
         working-directory: crates/pysof
         run: |
-          uv python install ${{ env.PYTHON_VERSION }}
           uv venv --python python${{ env.PYTHON_VERSION }} .venv
           source .venv/bin/activate
           uv sync --group dev
