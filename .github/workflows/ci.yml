@@ -248,8 +248,8 @@ jobs:
           uv venv --python ${{ env.PYTHON_VERSION }} .venv
 
       - name: Install dependencies
-        working-directory: crates/pysof --python ${{ env.PYTHON_VERSION }}
-        run: uv sync --group dev
+        working-directory: crates/pysof
+        run: uv sync --group dev --python ${{ env.PYTHON_VERSION }}
 
       - name: Format check
         working-directory: crates/pysof
