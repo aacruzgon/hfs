@@ -1,4 +1,5 @@
- 
+- Re-think skip-r6-download feature - it seems to be on all the time now.
+
 - FHIRPath
   - Add R6 support in fhirpath-lab.com
   - FHIRPath Lab Debugger support
