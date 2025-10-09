@@ -41,7 +41,7 @@ jobs:
           if exist "%configPath%" del "%configPath%"
           echo [target.x86_64-pc-windows-msvc] >> "%configPath%"
           echo linker = "lld-link.exe" >> "%configPath%"
-          echo rustflags = ["-C", "link-arg=/STACK:8388608"] >> "%configPath%"
+          echo rustflags = ["-C", "link-arg=/STACK:16777216"] >> "%configPath%"
 
       - name: Configure Rust to use LLD (Linux)
         if: runner.os == 'Linux'
@@ -98,7 +98,7 @@ jobs:
           if exist "%configPath%" del "%configPath%"
           echo [target.x86_64-pc-windows-msvc] >> "%configPath%"
           echo linker = "lld-link.exe" >> "%configPath%"
-          echo rustflags = ["-C", "link-arg=/STACK:8388608"] >> "%configPath%"
+          echo rustflags = ["-C", "link-arg=/STACK:16777216"] >> "%configPath%"
 
       - name: Configure Rust to use LLD (Linux)
         if: runner.os == 'Linux'
@@ -172,7 +172,7 @@ jobs:
           if exist "%configPath%" del "%configPath%"
           echo [target.x86_64-pc-windows-msvc] >> "%configPath%"
           echo linker = "lld-link.exe" >> "%configPath%"
-          echo rustflags = ["-C", "link-arg=/STACK:8388608"] >> "%configPath%"
+          echo rustflags = ["-C", "link-arg=/STACK:16777216"] >> "%configPath%"
 
       - name: Configure Rust to use LLD (Linux)
         if: runner.os == 'Linux'
@@ -249,7 +249,7 @@ jobs:
           if exist "%configPath%" del "%configPath%"
           echo [target.x86_64-pc-windows-msvc] >> "%configPath%"
           echo linker = "lld-link.exe" >> "%configPath%"
-          echo rustflags = ["-C", "link-arg=/STACK:8388608"] >> "%configPath%"
+          echo rustflags = ["-C", "link-arg=/STACK:16777216"] >> "%configPath%"
 
       - name: Configure Rust to use LLD (Linux)
         if: runner.os == 'Linux'
@@ -298,7 +298,7 @@ jobs:
           if exist "%configPath%" del "%configPath%"
           echo [target.x86_64-pc-windows-msvc] >> "%configPath%"
           echo linker = "lld-link.exe" >> "%configPath%"
-          echo rustflags = ["-C", "link-arg=/STACK:8388608"] >> "%configPath%"
+          echo rustflags = ["-C", "link-arg=/STACK:16777216"] >> "%configPath%"
 
       - name: Configure Rust to use LLD (Linux)
         if: runner.os == 'Linux'
@@ -465,7 +465,7 @@ jobs:
           if exist "%configPath%" del "%configPath%"
           echo [target.x86_64-pc-windows-msvc] >> "%configPath%"
           echo linker = "lld-link.exe" >> "%configPath%"
-          echo rustflags = ["-C", "link-arg=/STACK:8388608"] >> "%configPath%"
+          echo rustflags = ["-C", "link-arg=/STACK:16777216"] >> "%configPath%"
 
       - name: Build fhirpath-server (R5)
         shell: cmd
@@ -607,7 +607,7 @@ jobs:
           if exist "%configPath%" del "%configPath%"
           echo [target.x86_64-pc-windows-msvc] >> "%configPath%"
           echo linker = "lld-link.exe" >> "%configPath%"
-          echo rustflags = ["-C", "link-arg=/STACK:8388608"] >> "%configPath%"
+          echo rustflags = ["-C", "link-arg=/STACK:16777216"] >> "%configPath%"
 
       - name: Configure Rust to use LLD (Linux)
         if: matrix.os == 'Linux'
