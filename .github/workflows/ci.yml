@@ -240,30 +240,21 @@ jobs:
         run: |
           cargo clippy --all-targets --all-features -- -D warnings -A clippy::items_after_test_module -A clippy::large_enum_variant -A clippy::question_mark -A clippy::collapsible_match -A clippy::collapsible_if -A clippy::field_reassign_with_default -A clippy::doc-overindented-list-items -A clippy::doc-lazy-continuation
 
-      - name: Set up Python ${{ env.PYTHON_VERSION }}
-        working-directory: crates/pysof
-        run: uv python install ${{ env.PYTHON_VERSION }}
-
-      - name: Create virtual environment
-        working-directory: crates/pysof
-        run: |
-          uv venv --python ${{ env.PYTHON_VERSION }} .venv
-
       - name: Install dependencies
         working-directory: crates/pysof
         run: uv sync --group dev --python ${{ env.PYTHON_VERSION }}
 
       - name: Format check
         working-directory: crates/pysof
-        run: uv run ruff format --check src --python ${{ env.PYTHON_VERSION }}
+        run: uv run ruff format --check src
 
       - name: Lint check
         working-directory: crates/pysof
-        run: uv run ruff check src --python ${{ env.PYTHON_VERSION }}
+        run: uv run ruff check src
 
       - name: Type check
         working-directory: crates/pysof
-        run: uv run mypy src --python ${{ env.PYTHON_VERSION }}
+        run: uv run mypy src
 
   security:
     name: Security Audit
