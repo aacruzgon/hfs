@@ -236,7 +236,14 @@ jobs:
         run: |
           cargo clippy --all-targets --all-features -- -D warnings -A clippy::items_after_test_module -A clippy::large_enum_variant -A clippy::question_mark -A clippy::collapsible_match -A clippy::collapsible_if -A clippy::field_reassign_with_default -A clippy::doc-overindented-list-items -A clippy::doc-lazy-continuation
 
+      - name: Install uv (ARM64)
+        if: runner.os == 'macOS'
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
       - name: Install uv
+        if: runner.os != 'macOS'
         uses: astral-sh/setup-uv@v6
 
       - name: Install dependencies
