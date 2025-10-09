@@ -228,17 +228,22 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
-      - name: Install the latest version of uv
-        uses: astral-sh/setup-uv@v6
-        with:
-          version: "latest"
-
       - name: Check formatting
         run: cargo fmt --all -- --check
 
       - name: Run clippy
         run: |
           cargo clippy --all-targets --all-features -- -D warnings -A clippy::items_after_test_module -A clippy::large_enum_variant -A clippy::question_mark -A clippy::collapsible_match -A clippy::collapsible_if -A clippy::field_reassign_with_default -A clippy::doc-overindented-list-items -A clippy::doc-lazy-continuation
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        working-directory: crates/pysof
+        with:
+          python-version-file: "pyproject.toml"
+
+      - name: Install the latest version of uv
+        uses: astral-sh/setup-uv@v6
+        working-directory: crates/pysof
 
       - name: Install dependencies
         working-directory: crates/pysof
