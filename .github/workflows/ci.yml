@@ -158,6 +158,12 @@ jobs:
         run: |
           uv sync --group dev
 
+      - name: Install patchelf (Linux)
+        if: runner.os == 'Linux'
+        working-directory: crates/pysof
+        run: |
+          uv pip install patchelf
+
       - name: Build pysof wheel
         working-directory: crates/pysof
         run: uv run maturin build --release -o dist
