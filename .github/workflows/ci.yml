@@ -237,31 +237,27 @@ jobs:
           cargo clippy --all-targets --all-features -- -D warnings -A clippy::items_after_test_module -A clippy::large_enum_variant -A clippy::question_mark -A clippy::collapsible_match -A clippy::collapsible_if -A clippy::field_reassign_with_default -A clippy::doc-overindented-list-items -A clippy::doc-lazy-continuation
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v7
 
       - name: Install dependencies
         working-directory: crates/pysof
         run: |
           uv venv --python python${{ env.PYTHON_VERSION }} .venv
-          source .venv/bin/activate
           uv sync --group dev
 
       - name: Format check
         working-directory: crates/pysof
         run: |
-          source .venv/bin/activate
           uv run ruff format --check src
 
       - name: Lint check
         working-directory: crates/pysof
         run: |
-          source .venv/bin/activate
           uv run ruff check src
 
       - name: Type check
         working-directory: crates/pysof
         run: |
-          source .venv/bin/activate
           uv run mypy src
 
   security:
