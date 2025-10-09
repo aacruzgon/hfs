@@ -140,7 +140,7 @@ jobs:
         if: runner.os == 'Linux'
         working-directory: crates/pysof
         run: |
-          uv pip install patchelf
+          uv pip install patchelf --system
 
       - name: Build pysof wheel
         working-directory: crates/pysof
