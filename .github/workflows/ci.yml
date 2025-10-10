@@ -64,7 +64,7 @@ jobs:
       - name: Cache cargo
         uses: corca-ai/local-cache@v2
         with:
-          path: $HOME/.cargo
+          path: ${{ github.workspace }}/../../../../.cargo
           base: /mnt/github-cache
           key: ${{ runner.os }}-${{ matrix.rust }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
@@ -78,7 +78,7 @@ jobs:
       - name: Cache uv
         uses: corca-ai/local-cache@v2
         with:
-          path: $HOME/.cache/uv
+          path: ${{ github.workspace }}/../../../../.cache/uv
           base: /mnt/github-cache
           key: ${{ runner.os }}-${{ matrix.rust }}-uv-${{ hashFiles('**/Cargo.lock') }}
 
