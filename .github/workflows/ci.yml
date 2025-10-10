@@ -17,7 +17,7 @@ env:
 jobs:
   test-rust:
     name: Test Rust
-    runs-on: [self-hosted]
+    runs-on: [self-hosted, Linux]
     strategy:
       fail-fast: false
       matrix:
@@ -30,7 +30,7 @@ jobs:
         if: runner.os != 'Windows'
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
+          toolchain: ${{ matrix.rust }}  
 
       - name: Configure Rust to use LLD (Windows)
         if: runner.os == 'Windows'
@@ -62,7 +62,7 @@ jobs:
           echo 'rustflags = ["-C", "link-arg=-fuse-ld=lld", "-C", "link-arg=-Wl,-stack_size,0x800000"]' >> ~/.cargo/config.toml
 
       - name: Cache cargo registry
-        uses: actions/cache@v4
+        uses: corca-ai/local-cache@v2
         with:
           path: |
             ~/.cargo/bin/
@@ -70,6 +70,7 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
+          base: /mnt/github-cache
           key: ${{ runner.os }}-${{ matrix.rust }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Run tests with all features
@@ -78,7 +79,7 @@ jobs:
 
   test-python:
     name: Test Python
-    runs-on: [self-hosted, macOS]
+    runs-on: [self-hosted]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -117,19 +118,6 @@ jobs:
           echo "[target.aarch64-apple-darwin]" >> ~/.cargo/config.toml
           echo 'linker = "clang"' >> ~/.cargo/config.toml
           echo 'rustflags = ["-C", "link-arg=-fuse-ld=lld", "-C", "link-arg=-Wl,-stack_size,0x800000"]' >> ~/.cargo/config.toml
-
-      - name: Cache cargo registry
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
 
       - name: Build pysof wheel
         working-directory: crates/pysof
@@ -180,19 +168,6 @@ jobs:
           echo "[target.aarch64-apple-darwin]" >> ~/.cargo/config.toml
           echo 'linker = "clang"' >> ~/.cargo/config.toml
           echo 'rustflags = ["-C", "link-arg=-fuse-ld=lld", "-C", "link-arg=-Wl,-stack_size,0x800000"]' >> ~/.cargo/config.toml
-
-      - name: Cache cargo registry
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
 
       - name: Check formatting
         run: cargo fmt --all -- --check
@@ -617,19 +592,6 @@ jobs:
             echo 'linker = "clang"' >> ~/.cargo/config.toml
             echo 'rustflags = ["-C", "link-arg=-fuse-ld=lld", "-C", "link-arg=-Wl,-stack_size,0x800000"]' >> ~/.cargo/config.toml
           fi
-
-      - name: Cache cargo registry
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
 
       - name: Build Release (Windows)
         if: matrix.os == 'Windows'
