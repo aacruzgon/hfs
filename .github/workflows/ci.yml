@@ -78,7 +78,7 @@ jobs:
 
   test-python:
     name: Test Python
-    runs-on: [self-hosted]
+    runs-on: [self-hosted, macOS]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -117,11 +117,6 @@ jobs:
           echo "[target.aarch64-apple-darwin]" >> ~/.cargo/config.toml
           echo 'linker = "clang"' >> ~/.cargo/config.toml
           echo 'rustflags = ["-C", "link-arg=-fuse-ld=lld", "-C", "link-arg=-Wl,-stack_size,0x800000"]' >> ~/.cargo/config.toml
-
-      - name: Install the latest version of uv
-        uses: astral-sh/setup-uv@v6
-        with:
-          version: "latest"
 
       - name: Cache cargo registry
         uses: actions/cache@v4
