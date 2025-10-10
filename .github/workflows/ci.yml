@@ -136,12 +136,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
-      - name: Install patchelf (Linux)
-        if: runner.os == 'Linux'
-        working-directory: crates/pysof
-        run: |
-          uv pip install patchelf --system
-
       - name: Build pysof wheel
         working-directory: crates/pysof
         run: uv run maturin develop
