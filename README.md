@@ -87,10 +87,10 @@ cargo build --release
 
 # Or build with all FHIR versions
 cargo build --release --features R4,R4B,R5,R6
+
 # Build all workspace members (including pysof)
 cargo build --workspace --release
-# Build everything except Python bindings explicitly (alternative)
-cargo build --workspace --exclude pysof --release
+
 ```
 
 ## Try It Out
