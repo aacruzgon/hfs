@@ -1,7 +1,0 @@
-[target.aarch64-apple-darwin]
-linker = "clang"
-rustflags = [
-    "-C", "link-arg=-undefined",
-    "-C", "link-arg=dynamic_lookup",
-    "-C", "link-arg=-Wl,-stack_size,0x800000"
-]
