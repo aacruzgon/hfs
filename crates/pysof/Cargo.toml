@@ -3,6 +3,10 @@ name = "pysof"
 version = "0.1.2"
 edition = "2024"
 description = "Python bindings for helios-sof using PyO3"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+rust-version.workspace = true
 
 # PyO3 extension metadata
 [lib]
