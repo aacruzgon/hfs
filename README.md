@@ -38,17 +38,16 @@ The Helios FHIR Server is an implementation of the [HL7® FHIR®](https://hl7.or
     sudo apt install clang lld
     ```
 
-    macOS:
-    ```bash
-    brew install lld
-    ```
-
     Windows:
 
       Download a pre-build binary from [llvm-project's GitHub page](https://github.com/llvm/llvm-project/releases).
 
+    macOS:
 
-3. **Configure Rust to use LLD**
+      LLD is not required for macOS.
+
+
+3. **Configure config.toml**
 
     Create or modify `~/.cargo/config.toml`:
     ```toml
@@ -58,7 +57,11 @@ The Helios FHIR Server is an implementation of the [HL7® FHIR®](https://hl7.or
 
     [target.aarch64-apple-darwin]
     linker = "clang"
-    rustflags = ["-C", "link-arg=-fuse-ld=lld", "-C", "link-arg=-Wl,-stack_size,0x800000"]
+    rustflags = [
+      "-C", "link-arg=-Wl,-dead_strip",
+      "-C", "link-arg=-undefined",
+      "-C", "link-arg=dynamic_lookup"
+    ]
 
     [target.x86_64-pc-windows-msvc]
     linker = "lld-link.exe"

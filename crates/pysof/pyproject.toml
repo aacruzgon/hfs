@@ -5,10 +5,10 @@ build-backend = "maturin"
 [project]
 name = "pysof"
 version = "0.1.2"
-description = "Python wrapper for the Helios SOF (SQL on FHIR) toolkit."
+description = "Python wrapper for the Helios Software SOF (SQL on FHIR) toolkit."
 readme = "README.md"
 requires-python = ">=3.11,<3.12"
-keywords = ["SQL on FHIR", "FHIR", "healthcare", "sof", "helios"]
+keywords = ["SQL on FHIR", "FHIR", "healthcare", "sof", "Helios Software"]
 classifiers = [
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.11",
@@ -22,7 +22,7 @@ classifiers = [
 ]
 dependencies = []
 authors = [
-    {name = "Helios Team", email = "team@heliossoftware.com"},
+    {name = "Helios Software", email = "team@heliossoftware.com"},
 ]
 license = {text = "MIT"}
 project-urls = { Homepage = "https://github.com/HeliosSoftware/hfs", Repository = "https://github.com/HeliosSoftware/hfs", Documentation = "https://github.com/HeliosSoftware/hfs/tree/main/crates/pysof", "Bug Tracker" = "https://github.com/HeliosSoftware/hfs/issues" }

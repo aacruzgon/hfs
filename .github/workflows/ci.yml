@@ -644,9 +644,6 @@ jobs:
           path: ./pysof-dist
           merge-multiple: true
 
-      - name: Install twine
-        run: uv pip install --system twine
-
       - name: List artifacts
         run: |
           echo "Files to upload to PyPI:"
