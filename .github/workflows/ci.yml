@@ -656,6 +656,31 @@ jobs:
         run: |
           twine upload --skip-existing pysof-dist/*
 
+  publish-report:
+    name: Publish SQL on FHIR test report to GitHub Pages
+    needs: [build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Download all pysof artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: test_report.json 
+          path: ./test_report
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './test_report'
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
   release:
     name: Create GitHub Release
     runs-on: [self-hosted, Linux]
@@ -678,8 +703,6 @@ jobs:
           # Copy all pysof wheels and sdist (if any)
           find artifacts -type f -name 'pysof-*whl' -exec cp {} releases/wheels/ \; || true
           ls -l releases/wheels || true
-          # Copy test_report.json if it exists
-          find artifacts -type f -name 'test_report.json' -exec cp {} releases/ \; || true
 
       - name: Create release archives
         run: |
