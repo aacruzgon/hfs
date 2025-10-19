@@ -611,9 +611,8 @@ jobs:
         if: runner.os == 'Linux'
         uses: actions/upload-artifact@v4
         with:
-          name: test_report.json 
-          path: |
-            crates/sof/
+          name: test_report 
+          path: crates/sof/test_report.json 
 
       - name: Build pysof wheel
         if: runner.os == 'Linux'
@@ -672,12 +671,13 @@ jobs:
       - name: Download all pysof artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: test_report.json 
-          path: ./test_report
+          pattern: test_report
+          path: ./downloaded
+          merge-multiple: true
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './test_report'
+          path: './downloaded/test_report.json'
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
