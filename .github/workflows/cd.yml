@@ -19,7 +19,7 @@ on:
 jobs:
   deploy:
     name: Deploy ${{ inputs.server }} to server
-    runs-on: [self-hosted, Linux] 
+    runs-on: [self-hosted, Linux, Deploy] 
     
     steps:
     - name: Download release binary
