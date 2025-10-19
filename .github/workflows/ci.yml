@@ -653,6 +653,7 @@ jobs:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
         run: |
+          export PATH="/home/github/.local/bin:$PATH"
           twine upload --skip-existing pysof-dist/*
 
   publish-report:
