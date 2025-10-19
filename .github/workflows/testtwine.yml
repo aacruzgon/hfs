@@ -29,5 +29,5 @@ jobs:
           head -3 /home/github/.local/share/pipx/venvs/twine/bin/twine
       - name: Test Twine
         run: | 
-          export PATH="/home/github/.local/share/pipx/venvs/twine/bin:$PATH"
+          export PATH="/home/github/.local/bin:$PATH"
           twine --version
