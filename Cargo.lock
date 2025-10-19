@@ -1408,7 +1408,7 @@ checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 
 [[package]]
 name = "helios-fhir"
-version = "0.1.22"
+version = "0.1.23"
 dependencies = [
  "chrono",
  "clap",
@@ -1425,7 +1425,7 @@ dependencies = [
 
 [[package]]
 name = "helios-fhir-gen"
-version = "0.1.22"
+version = "0.1.23"
 dependencies = [
  "clap",
  "helios-fhir",
@@ -1437,7 +1437,7 @@ dependencies = [
 
 [[package]]
 name = "helios-fhir-macro"
-version = "0.1.22"
+version = "0.1.23"
 dependencies = [
  "heck",
  "helios-fhirpath-support",
@@ -1450,7 +1450,7 @@ dependencies = [
 
 [[package]]
 name = "helios-fhirpath"
-version = "0.1.22"
+version = "0.1.23"
 dependencies = [
  "arc-swap",
  "axum",
@@ -1487,14 +1487,14 @@ dependencies = [
 
 [[package]]
 name = "helios-fhirpath-support"
-version = "0.1.22"
+version = "0.1.23"
 dependencies = [
  "rust_decimal",
 ]
 
 [[package]]
 name = "helios-hfs"
-version = "0.1.22"
+version = "0.1.23"
 dependencies = [
  "clap",
  "helios-fhir",
@@ -1502,7 +1502,7 @@ dependencies = [
 
 [[package]]
 name = "helios-sof"
-version = "0.1.22"
+version = "0.1.23"
 dependencies = [
  "anyhow",
  "arc-swap",
