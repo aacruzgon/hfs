@@ -15,5 +15,5 @@ jobs:
     steps:
       - name: Test Twine
         run: | 
-          export PATH="/home/github/.local/bin:$PATH"
+          export PATH="/home/github/.local/share/pipx/venvs/twine/bin:$PATH"
           twine --version
