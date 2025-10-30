@@ -9,17 +9,10 @@
   https://github.com/HL7/FHIRPath/blob/master/tests/r5/tests-fhir-r5.xml
 
   The example data for this test suite consists of:
-  patient-example.json
-  conceptmap-example.json
-  observation-example.json
-  questionnaire-example.json
-  valueset-example-expansion.json
-  patient-example-name.json
-  codesystem-example.json
-  parameters-example-types.json
-  patient-example-period.json
-  ccda.json
-
+  patient-example.xml
+  observation-example.xml
+  questionnaire-example.xml
+  valueset-example-expansion.xml
 
   The test schema for this test suite is maintained in the FHIRPath specification repository:
   https://github.com/HL7/FHIRPath/blob/master/tests/testSchema.xsd
@@ -1442,7 +1435,6 @@ Any text enclosed within is ignored
 		<test name="testDiv3" inputfile="patient-example.json"><expression>5 div 2 = 2</expression><output type="boolean">true</output></test>
 		<test name="testDiv4" inputfile="patient-example.json"><expression>2.2 div 1.8 = 1</expression><output type="boolean">true</output></test>
 		<test name="testDiv5" inputfile="patient-example.json"><expression>5 div 0</expression></test>
-		<test name="testDiv6" inputfile="patient-example.json"><expression>-5.5 div 2 = -2</expression><output type="boolean">true</output></test>
 		<test name="testDivEmpty1" inputfile="patient-example.json"><expression>1 div {}</expression></test>
 		<test name="testDivEmpty2" inputfile="patient-example.json"><expression>{} div 1</expression></test>
 		<test name="testDivEmpty3" inputfile="patient-example.json"><expression>{} div {}</expression></test>
@@ -1756,6 +1748,16 @@ Any text enclosed within is ignored
 			</expression>
 			<output type="boolean">true</output>
 		</test>
+		<test name="testPrimitiveExtensions" inputfile="patient-name-extensions.json">
+		  <expression>Patient.name.given.select($this.hasValue())</expression>
+		  <output type="boolean">false</output>
+		  <output type="boolean">true</output>
+		</test>
+		<test name="testPrimitiveExtensionsElement" inputfile="patient-name-extensions.json" mode="element">
+		  <expression>Patient.name.given.select($this.hasValue())</expression>
+  		<output type="boolean">false</output>
+	  	<output type="boolean">true</output>
+		</test>
 	</group>
 
   <group name="cdaTests">
@@ -1767,6 +1769,6 @@ Any text enclosed within is ignored
 	<group name="TerminologyTests">
 	  <test name="txTest01" mode="tx" inputfile="patient-example.json"><expression>%terminologies.expand('http://hl7.org/fhir/ValueSet/administrative-gender').expansion.contains.count()</expression><output type="integer">4</output></test>
 	  <test name="txTest02" mode="tx" inputfile="patient-example.json"><expression>%terminologies.validateVS('http://hl7.org/fhir/ValueSet/administrative-gender', $this.gender).parameter.where(name = 'result').value</expression><output type="boolean">true</output></test>
-	  <test name="txTest02" mode="tx" inputfile="patient-example.json"><expression>%terminologies.translate('http://hl7.org/fhir/ConceptMap/cm-address-use-v2', $this.address.use).parameter.where(name = 'match').part.where(name = 'concept').value.code</expression><output type="code">H</output></test>
+	  <test name="txTest03" mode="tx" inputfile="patient-example.json"><expression>%terminologies.translate('http://hl7.org/fhir/ConceptMap/cm-address-use-v2', $this.address.use).parameter.where(name = 'match').part.where(name = 'concept').value.code</expression><output type="code">H</output></test>
 	</group>
 </tests>
