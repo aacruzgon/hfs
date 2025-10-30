@@ -528,6 +528,35 @@ crates/pysof/
 └─ Cargo.toml              # Rust crate metadata
 ```
 
-## License
+## 📄 License
 
-This package inherits the license from the repository root.
+MIT License - See [LICENSE.md](../../LICENSE.md) for details.
+
+Copyright (c) 2025 Helios Software
+
+## 🤝 Contributing
+
+Contributions are welcome! Please see our [Contributing Guidelines](../../CONTRIBUTING.md) for details.
+
+### Reporting Issues
+
+- **Bug Reports**: [GitHub Issues](https://github.com/HeliosSoftware/hfs/issues)
+- **Feature Requests**: [GitHub Discussions](https://github.com/HeliosSoftware/hfs/discussions)
+- **Security Issues**: Email team@heliossoftware.com
+
+### Development Setup
+
+See the [Development](#-development) section above for instructions on setting up your development environment.
+
+## 🙏 Acknowledgments
+
+Built with:
+- [PyO3](https://pyo3.rs/) - Rust bindings for Python
+- [maturin](https://www.maturin.rs/) - Build system for Rust Python extensions
+- [helios-sof](../sof) - Core SQL-on-FHIR implementation in Rust
+
+Part of the [Helios FHIR Server](https://github.com/HeliosSoftware/hfs) project.
+
+---
+
+**Made with ❤️ by [Helios Software](https://heliossoftware.com)**
