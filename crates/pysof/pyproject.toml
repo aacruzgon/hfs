@@ -27,11 +27,11 @@ authors = [
 license = {text = "MIT"}
 
 [project.urls]
-Homepage = "https://github.com/HeliosSoftware/hfs"
+Homepage = "https://github.com/HeliosSoftware/hfs/tree/main/crates/pysof"
 Repository = "https://github.com/HeliosSoftware/hfs"
 Documentation = "https://github.com/HeliosSoftware/hfs/tree/main/crates/pysof"
 "Bug Tracker" = "https://github.com/HeliosSoftware/hfs/issues"
-Source = "https://github.com/HeliosSoftware/hfs"
+Source = "https://github.com/HeliosSoftware/hfs/tree/main/crates/pysof"
 
 [dependency-groups]
 dev = [
