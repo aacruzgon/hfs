@@ -1,17 +1,249 @@
 # pysof
 
-Python wrapper for the Helios SOF (SQL on FHIR) toolkit.
+[![PyPI version](https://badge.fury.io/py/pysof.svg)](https://pypi.org/project/pysof/)
+[![Python versions](https://img.shields.io/pypi/pyversions/pysof.svg)](https://pypi.org/project/pysof/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Downloads](https://pepy.tech/badge/pysof)](https://pepy.tech/project/pysof)
 
-This package provides Python bindings for the Rust `helios-sof` library via PyO3 and maturin. Use `uv` to manage the environment and run builds.
+Python bindings for high-performance FHIR data transformation using the Helios SOF (SQL on FHIR) toolkit.
 
-> **Note**: This crate is excluded from the default workspace build via workspace default-members. When running `cargo build` from the repository root, `pysof` will not be built automatically. Build it explicitly when needed.
+**Transform FHIR resources into tabular data** using declarative ViewDefinitions. Built in Rust for speed, exposed to Python with a simple API.
 
-## Requirements
+## ✨ Key Features
+
+- 🚀 **High Performance**: Native Rust implementation with minimal Python overhead
+- 📊 **Multiple Output Formats**: CSV, JSON, NDJSON, and Parquet
+- 🔄 **Parallel Processing**: Automatic multithreading with 5-7x speedup on multi-core systems
+- 🌐 **Multi-Version FHIR**: Supports R4, R4B, R5, and R6 (based on build features)
+- 🎯 **Type-Safe**: Leverages Rust's type safety with a Pythonic interface
+- ⚡ **GIL-Free**: Python GIL released during processing for true parallelism
+
+## 🔗 Quick Links
+
+- 📦 **[PyPI Package](https://pypi.org/project/pysof/)**
+- 📚 **[Documentation](https://github.com/HeliosSoftware/hfs/tree/main/crates/pysof)**
+- 🐛 **[Issue Tracker](https://github.com/HeliosSoftware/hfs/issues)**
+- 💻 **[Source Code](https://github.com/HeliosSoftware/hfs)**
+- 📋 **[GitHub Releases](https://github.com/HeliosSoftware/hfs/releases)**
+
+## 📥 Installation
+
+### From PyPI (Recommended)
+
+```bash
+pip install pysof
+```
+
+**Supported Platforms:**
+- **Linux**: x86_64 (glibc and musl)
+- **Windows**: x86_64 (MSVC)
+- **macOS**: AArch64 (Apple Silicon)
+- **Python**: 3.11 only
+
+### From GitHub Releases
+
+Download pre-built wheels from the [releases page](https://github.com/HeliosSoftware/hfs/releases):
+
+```bash
+pip install pysof-*.whl
+```
+
+## 🚀 Quick Start
+
+Transform FHIR patient data to CSV in just a few lines:
+
+```python
+import pysof
+
+# Define what data to extract
+view_definition = {
+    "resourceType": "ViewDefinition",
+    "id": "patient-demographics",
+    "name": "PatientDemographics",
+    "status": "active",
+    "resource": "Patient",
+    "select": [{
+        "column": [
+            {"name": "id", "path": "id"},
+            {"name": "family_name", "path": "name.family"},
+            {"name": "given_name", "path": "name.given.first()"},
+            {"name": "gender", "path": "gender"},
+            {"name": "birth_date", "path": "birthDate"}
+        ]
+    }]
+}
+
+# Sample FHIR Bundle
+bundle = {
+    "resourceType": "Bundle",
+    "type": "collection",
+    "entry": [{
+        "resource": {
+            "resourceType": "Patient",
+            "id": "patient-1",
+            "name": [{"family": "Doe", "given": ["John"]}],
+            "gender": "male",
+            "birthDate": "1990-01-01"
+        }
+    }]
+}
+
+# Transform to CSV
+csv_output = pysof.run_view_definition(view_definition, bundle, "csv")
+print(csv_output.decode('utf-8'))
+# Output:
+# id,family_name,given_name,gender,birth_date
+# patient-1,Doe,John,male,1990-01-01
+```
+
+## 📖 Usage
+
+### Multiple Output Formats
+
+```python
+import pysof
+import json
+
+# Transform to different formats
+csv_result = pysof.run_view_definition(view_definition, bundle, "csv")
+json_result = pysof.run_view_definition(view_definition, bundle, "json")
+ndjson_result = pysof.run_view_definition(view_definition, bundle, "ndjson")
+parquet_result = pysof.run_view_definition(view_definition, bundle, "parquet")
+
+print("CSV Output:")
+print(csv_result.decode('utf-8'))
+
+print("\nJSON Output:")
+data = json.loads(json_result.decode('utf-8'))
+print(json.dumps(data, indent=2))
+```
+
+### Advanced Options
+
+```python
+import pysof
+
+# Transform with pagination and filtering
+result = pysof.run_view_definition_with_options(
+    view_definition,
+    bundle,
+    "json",
+    limit=10,                          # Limit results
+    page=1,                            # Page number
+    since="2023-01-01T00:00:00Z",     # Filter by modification date
+    fhir_version="R4"                  # Specify FHIR version
+)
+```
+
+### Utility Functions
+
+```python
+import pysof
+
+# Validate structures
+is_valid_view = pysof.validate_view_definition(view_definition)
+is_valid_bundle = pysof.validate_bundle(bundle)
+
+# Parse content types
+format_str = pysof.parse_content_type("text/csv")  # Returns "csv_with_header"
+
+# Check supported FHIR versions
+versions = pysof.get_supported_fhir_versions()  # Returns ["R4"] or more
+print(f"Supported FHIR versions: {versions}")
+
+# Package info
+print(f"Version: {pysof.get_version()}")
+print(pysof.get_status())
+```
+
+### Error Handling
+
+```python
+import pysof
+
+try:
+    result = pysof.run_view_definition(view_definition, bundle, "json")
+except pysof.InvalidViewDefinitionError as e:
+    print(f"ViewDefinition validation error: {e}")
+except pysof.SerializationError as e:
+    print(f"JSON parsing error: {e}")
+except pysof.UnsupportedContentTypeError as e:
+    print(f"Unsupported format: {e}")
+except pysof.SofError as e:
+    print(f"General SOF error: {e}")
+```
+
+## ⚡ Performance
+
+### Automatic Parallel Processing
+
+pysof automatically processes FHIR resources in parallel using rayon:
+
+- **5-7x speedup** on typical workloads with multi-core CPUs
+- **Zero configuration** - parallelization is always enabled
+- **Python GIL released** during processing for true parallel execution
+
+### Controlling Thread Count
+
+Set the `RAYON_NUM_THREADS` environment variable before importing pysof:
+
+```python
+import os
+os.environ['RAYON_NUM_THREADS'] = '4'  # Must be set before first import
+
+import pysof
+result = pysof.run_view_definition(view_definition, bundle, "json")
+```
+
+Or from the command line:
+
+```bash
+# Linux/Mac
+RAYON_NUM_THREADS=4 python my_script.py
+
+# Windows PowerShell
+$env:RAYON_NUM_THREADS=4
+python my_script.py
+```
+
+**Performance Tips:**
+- Use all available cores for large datasets (default behavior)
+- Limit threads on shared systems to avoid resource contention
+- Reduce thread count if memory-constrained
+
+## 📋 Supported Features
+
+### Output Formats
+
+| Format | Description | Output |
+|--------|-------------|--------|
+| `csv` | CSV with headers | Comma-separated values with header row |
+| `json` | JSON array | Array of objects, one per result row |
+| `ndjson` | Newline-delimited JSON | One JSON object per line |
+| `parquet` | Parquet format | Columnar binary format for analytics |
+
+### FHIR Versions
+
+- **R4** (default, always available)
+- **R4B** (if compiled with R4B feature)
+- **R5** (if compiled with R5 feature)
+- **R6** (if compiled with R6 feature)
+
+Use `pysof.get_supported_fhir_versions()` to check available versions in your build.
+
+---
+
+## 🔧 Development
+
+### Requirements
 
 - Python 3.11
 - uv (package and environment manager)
+- Rust toolchain (for building from source)
 
-## Building the Crate
+> **Note**: This crate is excluded from the default workspace build. When running `cargo build` from the repository root, `pysof` will not be built automatically.
+
+### Building from Source
 
 ### Building with Cargo
 
@@ -53,18 +285,12 @@ uv run maturin sdist -o dist               # source distribution
 uv run python -c "import pysof; print(pysof.__version__); print(pysof.get_status()); print(pysof.get_supported_fhir_versions())"
 ```
 
-## Installation
+### Installing from Source
 
-### From PyPI (Recommended)
-
-```bash
-pip install pysof
-```
-
-### From Source
+Requires Rust toolchain:
 
 ```bash
-# Install from source (requires Rust toolchain)
+# Install directly
 pip install -e .
 
 # Or build wheel locally
@@ -72,28 +298,11 @@ maturin build --release --out dist
 pip install dist/*.whl
 ```
 
-### From GitHub Releases
-
-Download the appropriate wheel for your platform from the [releases page](https://github.com/HeliosSoftware/hfs/releases) and install:
-
-```bash
-pip install pysof-*.whl
-```
-
-### Supported Platforms
-
-- **Linux**: x86_64 (glibc and musl)
-- **Windows**: x86_64 (MSVC)
-- **macOS**: AArch64 (x86_64 is not supported) 
-- **Python**: 3.11 only
-
-For detailed information about wheel building and distribution, see [WHEEL_BUILDING.md](WHEEL_BUILDING.md).
-
-## Testing
+### Testing
 
 The project has separate test suites for Python and Rust components:
 
-### Python Tests
+#### Python Tests
 
 Run the comprehensive Python test suite:
 
@@ -121,7 +330,7 @@ Current Python test coverage:
 - Package structure and imports (6 tests)
 - Package metadata (3 tests)
 
-### Rust Tests
+#### Rust Tests
 
 Run the Rust unit and integration tests:
 
@@ -144,223 +353,15 @@ Current Rust test coverage:
 - Unit tests: 14 tests covering core library functions
 - Integration tests: 3 tests covering component interactions
 
-## Usage
+### More Examples
 
-### Basic Example
+For additional examples including:
+- Detailed usage patterns
+- FHIR version configuration
+- Advanced filtering and pagination
+- Complete API reference
 
-```python
-import pysof
-import json
-
-# Sample ViewDefinition for extracting patient data
-view_definition = {
-    "resourceType": "ViewDefinition",
-    "id": "patient-demographics",
-    "name": "PatientDemographics", 
-    "status": "active",
-    "resource": "Patient",
-    "select": [
-        {
-            "column": [
-                {"name": "id", "path": "id"},
-                {"name": "family_name", "path": "name.family"},
-                {"name": "given_name", "path": "name.given.first()"},
-                {"name": "gender", "path": "gender"},
-                {"name": "birth_date", "path": "birthDate"}
-            ]
-        }
-    ]
-}
-
-# Sample FHIR Bundle with patient data
-bundle = {
-    "resourceType": "Bundle",
-    "type": "collection", 
-    "entry": [
-        {
-            "resource": {
-                "resourceType": "Patient",
-                "id": "patient-1",
-                "name": [{"family": "Doe", "given": ["John"]}],
-                "gender": "male",
-                "birthDate": "1990-01-01"
-            }
-        },
-        {
-            "resource": {
-                "resourceType": "Patient", 
-                "id": "patient-2",
-                "name": [{"family": "Smith", "given": ["Jane"]}],
-                "gender": "female",
-                "birthDate": "1985-05-15"
-            }
-        }
-    ]
-}
-
-# Transform to different formats
-csv_result = pysof.run_view_definition(view_definition, bundle, "csv")
-json_result = pysof.run_view_definition(view_definition, bundle, "json")
-ndjson_result = pysof.run_view_definition(view_definition, bundle, "ndjson")
-parquet_result = pysof.run_view_definition(view_definition, bundle, "parquet")
-
-print("CSV Output:")
-print(csv_result.decode('utf-8'))
-
-print("\nJSON Output:")
-data = json.loads(json_result.decode('utf-8'))
-print(json.dumps(data, indent=2))
-
-print("\nParquet Output (binary):")
-print(f"Parquet data: {len(parquet_result)} bytes")
-```
-
-### Advanced Usage with Options
-
-```python
-import pysof
-from datetime import datetime
-
-# Transform with pagination and filtering
-result = pysof.run_view_definition_with_options(
-    view_definition,
-    bundle, 
-    "json",
-    limit=10,           # Limit to 10 results
-    page=1,             # First page
-    since="2023-01-01T00:00:00Z",  # Filter by modification date
-    fhir_version="R4"   # Specify FHIR version
-)
-```
-
-### Utility Functions
-
-```python
-import pysof
-
-# Validate structures before processing
-is_valid_view = pysof.validate_view_definition(view_definition)
-is_valid_bundle = pysof.validate_bundle(bundle)
-
-# Parse content types
-format_str = pysof.parse_content_type("text/csv")  # Returns "csv_with_header"
-format_str = pysof.parse_content_type("application/json")  # Returns "json"
-
-# Check supported FHIR versions
-versions = pysof.get_supported_fhir_versions()  # Returns ["R4"] (or more based on build)
-print(f"Supported FHIR versions: {versions}")
-
-# Check package status
-print(pysof.get_status())  # Shows current implementation status
-print(f"Version: {pysof.get_version()}")
-```
-
-### Error Handling
-
-```python
-import pysof
-
-try:
-    result = pysof.run_view_definition(view_definition, bundle, "json")
-except pysof.InvalidViewDefinitionError as e:
-    print(f"ViewDefinition validation error: {e}")
-except pysof.SerializationError as e:
-    print(f"JSON parsing error: {e}")
-except pysof.UnsupportedContentTypeError as e:
-    print(f"Unsupported format: {e}")
-except pysof.SofError as e:
-    print(f"General SOF error: {e}")
-```
-
-### Key Features
-
-- **Performance**: Efficient processing of large FHIR Bundles using Rust
-- **Parallel Processing**: Automatic multithreading of FHIR resources using rayon (5-7x speedup on multi-core systems)
-- **GIL Release**: Python GIL is released during Rust execution for better performance
-- **Multiple Formats**: Support for CSV, JSON, NDJSON, and Parquet outputs
-- **FHIR Versions**: Support for R4, R4B, R5, and R6 (depending on build features)
-
-### Available Options
-
-The `run_view_definition_with_options()` function accepts the following parameters:
-
-- **limit**: Limit the number of results returned
-- **page**: Page number for pagination (1-based)
-- **since**: Filter resources modified after this ISO8601 datetime
-- **fhir_version**: FHIR version to use ("R4", "R4B", "R5", "R6")
-
-### Supported Content Types
-
-| Format | Description | Output |
-|--------|-------------|---------|
-| `csv` | CSV with headers | Comma-separated values with header row |
-| `json` | JSON array | Array of objects, one per result row |
-| `ndjson` | Newline-delimited JSON | One JSON object per line |
-| `parquet` | Parquet format | Columnar binary format optimized for analytics |
-
-### Supported FHIR Versions
-
-- **R4** (default, always available)
-- **R4B** (if compiled with R4B feature)
-- **R5** (if compiled with R5 feature) 
-- **R6** (if compiled with R6 feature)
-
-Use `pysof.get_supported_fhir_versions()` to check what's available in your build.
-
-### Usage Notes
-
-- The basic `run_view_definition()` function is suitable for simple use cases
-- Use `run_view_definition_with_options()` for pagination, filtering, and other advanced features
-- All heavy processing happens in Rust code; Python GIL is properly released for optimal performance
-
-## Multithreading and Performance
-
-### Automatic Parallel Processing
-
-pysof automatically processes FHIR resources in parallel using rayon, providing significant performance improvements on multi-core systems:
-
-- **5-7x speedup** for typical workloads on modern CPUs
-- **Zero configuration required** - parallelization is always enabled
-- **Python GIL released** during processing for true parallel execution
-
-### Controlling Thread Count
-
-By default, pysof uses all available CPU cores. You can control the thread count using the `RAYON_NUM_THREADS` environment variable:
-
-```python
-import os
-import pysof
-
-# Set thread count BEFORE first use (must be set before rayon initializes)
-os.environ['RAYON_NUM_THREADS'] = '4'
-
-# Now all operations will use 4 threads
-result = pysof.run_view_definition(view_definition, bundle, "json")
-```
-
-Or from the command line:
-
-```bash
-# Linux/Mac
-RAYON_NUM_THREADS=4 python my_script.py
-
-# Windows (cmd)
-set RAYON_NUM_THREADS=4
-python my_script.py
-
-# Windows (PowerShell)
-$env:RAYON_NUM_THREADS=4
-python my_script.py
-```
-
-**Important**: The environment variable must be set before rayon initializes its global thread pool (typically on first use of pysof). Once initialized, the thread count cannot be changed for that process.
-
-### Performance Tips
-
-- **Large datasets**: Use all available cores (default behavior)
-- **Shared systems**: Limit threads to avoid resource contention (`RAYON_NUM_THREADS=4`)
-- **Memory constrained**: Reduce thread count to lower memory usage
-- **Benchmarking**: Test different thread counts to find optimal performance for your workload
+See the [full documentation](https://github.com/HeliosSoftware/hfs/tree/main/crates/pysof).
 
 ## Configuring FHIR Version Support
 
