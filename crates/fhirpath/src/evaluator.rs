@@ -5985,12 +5985,20 @@ fn call_function(
             crate::reference_key_functions::get_reference_key_function(invocation_base, args)
         }
         "hasValue" => {
-            // hasValue() returns true if the collection has any non-empty values
-            // It's the opposite of empty()
-            Ok(EvaluationResult::boolean(!matches!(
-                invocation_base,
-                EvaluationResult::Empty
-            )))
+            // hasValue() returns true if the element is a primitive with an actual value
+            // Returns false if element is empty or is a primitive with extensions but no value
+            match invocation_base {
+                EvaluationResult::Empty => Ok(EvaluationResult::boolean(false)),
+                EvaluationResult::Object { type_info, .. } => {
+                    // Check if this is an Element (primitive with extensions but no value)
+                    let is_element = type_info
+                        .as_ref()
+                        .map(|ti| ti.name == "Element")
+                        .unwrap_or(false);
+                    Ok(EvaluationResult::boolean(!is_element))
+                }
+                _ => Ok(EvaluationResult::boolean(true)),
+            }
         }
         "encode" => {
             // encode(encoding) : String

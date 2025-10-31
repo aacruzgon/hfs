@@ -409,12 +409,9 @@ mod r4_impl {
         }
 
         fn repeat(&self) -> Option<Vec<&str>> {
-            self.repeat.as_ref().map(|paths| {
-                paths
-                    .iter()
-                    .filter_map(|p| p.value.as_deref())
-                    .collect()
-            })
+            self.repeat
+                .as_ref()
+                .map(|paths| paths.iter().filter_map(|p| p.value.as_deref()).collect())
         }
 
         fn union_all(&self) -> Option<&[Self::Select]> {
@@ -637,12 +634,9 @@ mod r4b_impl {
         }
 
         fn repeat(&self) -> Option<Vec<&str>> {
-            self.repeat.as_ref().map(|paths| {
-                paths
-                    .iter()
-                    .filter_map(|p| p.value.as_deref())
-                    .collect()
-            })
+            self.repeat
+                .as_ref()
+                .map(|paths| paths.iter().filter_map(|p| p.value.as_deref()).collect())
         }
 
         fn union_all(&self) -> Option<&[Self::Select]> {
@@ -866,12 +860,9 @@ mod r5_impl {
         }
 
         fn repeat(&self) -> Option<Vec<&str>> {
-            self.repeat.as_ref().map(|paths| {
-                paths
-                    .iter()
-                    .filter_map(|p| p.value.as_deref())
-                    .collect()
-            })
+            self.repeat
+                .as_ref()
+                .map(|paths| paths.iter().filter_map(|p| p.value.as_deref()).collect())
         }
 
         fn union_all(&self) -> Option<&[Self::Select]> {
@@ -1104,12 +1095,9 @@ mod r6_impl {
         }
 
         fn repeat(&self) -> Option<Vec<&str>> {
-            self.repeat.as_ref().map(|paths| {
-                paths
-                    .iter()
-                    .filter_map(|p| p.value.as_deref())
-                    .collect()
-            })
+            self.repeat
+                .as_ref()
+                .map(|paths| paths.iter().filter_map(|p| p.value.as_deref()).collect())
         }
 
         fn union_all(&self) -> Option<&[Self::Select]> {

@@ -380,7 +380,8 @@ fn test_repeat_directive() {
     }
 
     let content = fs::read_to_string(&test_suite_path).expect("Failed to read repeat test file");
-    let test_case: TestCase = serde_json::from_str(&content).expect("Failed to parse repeat test case");
+    let test_case: TestCase =
+        serde_json::from_str(&content).expect("Failed to parse repeat test case");
 
     // Check if we support the FHIR version
     let supports_r4 = test_case.fhir_version.contains(&"4.0.1".to_string());
