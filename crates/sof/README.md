@@ -76,6 +76,14 @@ sof-cli -v view-definition.json -b patient-data.json --limit 100
 
 # Combine filters: recent resources limited to 50 results
 sof-cli -v view-definition.json -b patient-data.json --since 2024-01-01T00:00:00Z --limit 50
+
+# Load NDJSON file (newline-delimited JSON) - automatically detected by .ndjson extension
+sof-cli -v view-definition.json -b patient-data.ndjson -f csv
+sof-cli -v view-definition.json -s file:///path/to/data.ndjson -f json
+sof-cli -v view-definition.json -s s3://my-bucket/fhir-data/patients.ndjson -f csv
+
+# NDJSON content detection (works even without .ndjson extension)
+sof-cli -v view-definition.json -b patient-data.txt -f csv  # Auto-detects NDJSON content
 ```
 
 #### CLI Features
@@ -175,9 +183,48 @@ sof-cli -v view.json -s azure://my-container/fhir-data/bundle.json -f ndjson
 ```
 
 The source can contain:
-- A FHIR Bundle
+- A FHIR Bundle (JSON)
 - A single FHIR resource (will be wrapped in a Bundle)
 - An array of FHIR resources (will be wrapped in a Bundle)
+- NDJSON file (newline-delimited FHIR resources, automatically detected)
+
+#### NDJSON Input Format
+
+In addition to standard JSON, the CLI and server support **NDJSON** (newline-delimited JSON) as an input format. NDJSON files contain one FHIR resource per line, making them ideal for streaming large datasets.
+
+**Format Detection:**
+- **Extension-based**: Files with `.ndjson` extension are automatically parsed as NDJSON
+- **Content-based fallback**: If JSON parsing fails on a multi-line file, NDJSON parsing is attempted automatically
+- Works with all data sources: local files, HTTP(S), S3, GCS, and Azure
+
+**Example NDJSON file:**
+```ndjson
+{"resourceType": "Patient", "id": "patient-1", "gender": "male"}
+{"resourceType": "Patient", "id": "patient-2", "gender": "female"}
+{"resourceType": "Observation", "id": "obs-1", "status": "final", "code": {"text": "Test"}}
+```
+
+**Error Handling:**
+- Invalid lines are skipped with warnings printed to stderr
+- Processing continues as long as at least one valid FHIR resource is found
+- Empty lines and whitespace-only lines are ignored
+
+**Usage Examples:**
+```bash
+# Load from local NDJSON file
+sof-cli -v view.json -b patients.ndjson -f csv
+
+# Load from cloud storage
+sof-cli -v view.json -s s3://bucket/patients.ndjson -f json
+
+# Mix NDJSON source with JSON bundle
+sof-cli -v view.json -s file:///data.ndjson -b additional-data.json -f csv
+
+# Server API with NDJSON
+curl -X POST "http://localhost:8080/ViewDefinition/$run?source=s3://bucket/data.ndjson" \
+  -H "Content-Type: application/json" \
+  -d '{"resourceType": "Parameters", "parameter": [{"name": "viewResource", "resource": {...}}]}'
+```
 
 #### Output Formats
 

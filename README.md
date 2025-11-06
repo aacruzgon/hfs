@@ -105,6 +105,9 @@ echo '{"resourceType": "Patient", "id": "123"}' | cargo run --bin fhirpath-cli -
 # Transform FHIR to CSV using SQL-on-FHIR
 cargo run --bin sof-cli -- --view examples/patient-view.json --bundle examples/patients.json
 
+# Transform NDJSON file to CSV
+cargo run --bin sof-cli -- --view examples/patient-view.json --bundle examples/patients.ndjson
+
 # Start the SQL-on-FHIR server
 cargo run --bin sof-server
 # Then POST to http://localhost:8080/ViewDefinition/$run
@@ -147,6 +150,7 @@ Transform FHIR resources into tabular data using [ViewDefinitions](https://sql-o
 - **Executables:**
   - `sof-cli` - Command-line tool for batch transformations
   - `sof-server` - HTTP server with `ViewDefinition/$run` operation
+- Supports multiple input formats: JSON, NDJSON, and FHIR Bundles from local/cloud storage
 - Supports multiple output formats: CSV, JSON, NDJSON, and Parquet
 
 ### 5. [`pysof`](crates/pysof) - Python Bindings
@@ -214,9 +218,11 @@ The main Helios FHIR Server application (coming soon).
 
 ## SQL-on-FHIR
 - ViewDefinition-based transformation to tabular formats
-- Multiple output formats: CSV, JSON, NDJSON, Parquet (planned)
+- Multiple input formats: JSON, NDJSON (newline-delimited), and FHIR Bundles
+- Multiple output formats: CSV, JSON, NDJSON, Parquet
 - Streaming support for large datasets
 - HTTP API with `$run` operation
+- Cloud storage support: S3, GCS, Azure Blob Storage
 
 ## FHIR REST API (Coming Soon)
 - Full CRUD operations

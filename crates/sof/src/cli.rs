@@ -124,7 +124,7 @@ use clap::Parser;
 use helios_fhir::FhirVersion;
 use helios_sof::{
     ContentType, ParquetOptions, RunOptions, SofBundle, SofViewDefinition,
-    data_source::{DataSource, UniversalDataSource},
+    data_source::{DataSource, UniversalDataSource, parse_fhir_content},
     run_view_definition_with_options,
 };
 use std::fs;
@@ -139,15 +139,19 @@ struct Args {
     #[arg(long, short = 'v')]
     view: Option<PathBuf>,
 
-    /// Path to FHIR Bundle JSON file (or use stdin if not provided)
-    #[arg(long, short = 'b')]
+    /// Path to FHIR Bundle JSON or NDJSON file (or use stdin if not provided)
+    #[arg(
+        long,
+        short = 'b',
+        help = "Path to FHIR data file. Can be a Bundle (JSON), single resource, array of resources, or NDJSON file. NDJSON files (.ndjson) are auto-detected."
+    )]
     bundle: Option<PathBuf>,
 
     /// URL or path to FHIR data source (file://, http://, https://, s3://, gs://, azure://)
     #[arg(
         long,
         short = 's',
-        help = "URL or path to FHIR data source. Supports:\n  - file:// for local files\n  - http(s):// for web resources\n  - s3:// for AWS S3 (e.g., s3://bucket/path/to/bundle.json)\n  - gs:// for Google Cloud Storage (e.g., gs://bucket/path/to/bundle.json)\n  - azure:// for Azure Blob Storage (e.g., azure://container/path/to/bundle.json)\nCan be a Bundle, single resource, or array of resources.\n\nCloud storage authentication:\n  - AWS S3: Set AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION\n  - GCS: Set GOOGLE_SERVICE_ACCOUNT or use Application Default Credentials\n  - Azure: Set AZURE_STORAGE_ACCOUNT, AZURE_STORAGE_ACCESS_KEY or use managed identity"
+        help = "URL or path to FHIR data source. Supports:\n  - file:// for local files\n  - http(s):// for web resources\n  - s3:// for AWS S3 (e.g., s3://bucket/path/to/bundle.json)\n  - gs:// for Google Cloud Storage (e.g., gs://bucket/path/to/bundle.json)\n  - azure:// for Azure Blob Storage (e.g., azure://container/path/to/bundle.json)\n\nCan be a Bundle, single resource, array of resources, or NDJSON file.\nNDJSON files (.ndjson) are auto-detected; multi-line content falls back to NDJSON if JSON parsing fails.\n\nCloud storage authentication:\n  - AWS S3: Set AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION\n  - GCS: Set GOOGLE_SERVICE_ACCOUNT or use Application Default Credentials\n  - Azure: Set AZURE_STORAGE_ACCOUNT, AZURE_STORAGE_ACCESS_KEY or use managed identity"
     )]
     source: Option<String>,
 
@@ -285,8 +289,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // Read Bundle from file if provided
+    // Use parse_fhir_content to support both JSON and NDJSON
     let file_bundle = if let Some(bundle_path) = &args.bundle {
-        Some(bundle_path)
+        let bundle_content = fs::read_to_string(bundle_path)?;
+        let bundle_path_str = bundle_path.to_string_lossy();
+        Some(parse_fhir_content(&bundle_content, &bundle_path_str)?)
     } else {
         None
     };
@@ -320,61 +327,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Only source provided
         (Some(bundle), None) => bundle,
 
-        // Only file bundle provided
-        (None, Some(bundle_path)) => {
-            let bundle_content = fs::read_to_string(bundle_path)?;
-            match args.fhir_version {
-                #[cfg(feature = "R4")]
-                FhirVersion::R4 => {
-                    let b: helios_fhir::r4::Bundle = serde_json::from_str(&bundle_content)?;
-                    SofBundle::R4(b)
-                }
-                #[cfg(feature = "R4B")]
-                FhirVersion::R4B => {
-                    let b: helios_fhir::r4b::Bundle = serde_json::from_str(&bundle_content)?;
-                    SofBundle::R4B(b)
-                }
-                #[cfg(feature = "R5")]
-                FhirVersion::R5 => {
-                    let b: helios_fhir::r5::Bundle = serde_json::from_str(&bundle_content)?;
-                    SofBundle::R5(b)
-                }
-                #[cfg(feature = "R6")]
-                FhirVersion::R6 => {
-                    let b: helios_fhir::r6::Bundle = serde_json::from_str(&bundle_content)?;
-                    SofBundle::R6(b)
-                }
-            }
-        }
+        // Only file bundle provided (already parsed with NDJSON support)
+        (None, Some(bundle)) => bundle,
 
         // Both source and file provided - merge them
-        (Some(source_bundle), Some(bundle_path)) => {
-            let bundle_content = fs::read_to_string(bundle_path)?;
-
-            // Parse the file bundle
-            let file_bundle = match args.fhir_version {
-                #[cfg(feature = "R4")]
-                FhirVersion::R4 => {
-                    let b: helios_fhir::r4::Bundle = serde_json::from_str(&bundle_content)?;
-                    SofBundle::R4(b)
-                }
-                #[cfg(feature = "R4B")]
-                FhirVersion::R4B => {
-                    let b: helios_fhir::r4b::Bundle = serde_json::from_str(&bundle_content)?;
-                    SofBundle::R4B(b)
-                }
-                #[cfg(feature = "R5")]
-                FhirVersion::R5 => {
-                    let b: helios_fhir::r5::Bundle = serde_json::from_str(&bundle_content)?;
-                    SofBundle::R5(b)
-                }
-                #[cfg(feature = "R6")]
-                FhirVersion::R6 => {
-                    let b: helios_fhir::r6::Bundle = serde_json::from_str(&bundle_content)?;
-                    SofBundle::R6(b)
-                }
-            };
-
+        (Some(source_bundle), Some(file_bundle)) => {
             // Merge the bundles - source data comes first
             merge_bundles(source_bundle, file_bundle)?
         }
