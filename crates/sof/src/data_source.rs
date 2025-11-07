@@ -913,11 +913,22 @@ mod tests {
 
     #[tokio::test]
     async fn test_file_protocol_file_not_found() {
+        use std::path::PathBuf;
+        use url::Url;
+
         let data_source = UniversalDataSource::new();
 
-        // Test with non-existent file
-        let file_url = "file:///nonexistent/path/to/file.json";
-        let result = data_source.load(file_url).await;
+        // Test with non-existent file using platform-appropriate path
+        #[cfg(windows)]
+        let nonexistent_path = PathBuf::from("C:\\nonexistent\\path\\to\\file.json");
+        #[cfg(not(windows))]
+        let nonexistent_path = PathBuf::from("/nonexistent/path/to/file.json");
+
+        let file_url = Url::from_file_path(&nonexistent_path)
+            .unwrap()
+            .to_string();
+
+        let result = data_source.load(&file_url).await;
         assert!(result.is_err());
 
         if let Err(SofError::SourceNotFound(msg)) = result {
