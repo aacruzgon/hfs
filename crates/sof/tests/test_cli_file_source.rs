@@ -9,13 +9,9 @@ use tempfile::TempDir;
 
 /// Helper function to get the path to the sof-cli binary
 fn get_cli_binary_path() -> PathBuf {
-    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    path.pop(); // Go up from crates/sof
-    path.pop(); // Go up to workspace root
-    path.push("target");
-    path.push("debug");
-    path.push("sof-cli");
-    path
+    // Use CARGO_BIN_EXE_<name> env var set by cargo during test execution
+    // This works regardless of the target directory (e.g., llvm-cov-target)
+    PathBuf::from(env!("CARGO_BIN_EXE_sof-cli"))
 }
 
 /// Helper function to create a test ViewDefinition
