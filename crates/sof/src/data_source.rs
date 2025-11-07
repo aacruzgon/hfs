@@ -924,9 +924,7 @@ mod tests {
         #[cfg(not(windows))]
         let nonexistent_path = PathBuf::from("/nonexistent/path/to/file.json");
 
-        let file_url = Url::from_file_path(&nonexistent_path)
-            .unwrap()
-            .to_string();
+        let file_url = Url::from_file_path(&nonexistent_path).unwrap().to_string();
 
         let result = data_source.load(&file_url).await;
         assert!(result.is_err());
