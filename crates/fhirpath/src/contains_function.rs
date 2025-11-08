@@ -1,3 +1,7 @@
+//! # FHIRPath Contains Function
+//!
+//! Implements the `contains()` function for substring matching in FHIRPath.
+
 use crate::evaluator::EvaluationContext;
 use helios_fhirpath_support::{EvaluationError, EvaluationResult};
 

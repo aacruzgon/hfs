@@ -1,3 +1,8 @@
+//! # FHIRPath Collection Functions
+//!
+//! Implements collection manipulation functions including `count()`, `empty()`, `exists()`,
+//! `select()`, `where()`, and other collection operations.
+
 use crate::evaluator::EvaluationContext;
 use helios_fhirpath_support::{EvaluationError, EvaluationResult};
 

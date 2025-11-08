@@ -1,3 +1,65 @@
+//! # FHIRPath Expression Evaluator
+//!
+//! This module provides the core evaluation engine for FHIRPath expressions.
+//! It takes parsed FHIRPath expressions (AST from the parser) and evaluates them
+//! against FHIR resources to produce results.
+//!
+//! ## Overview
+//!
+//! The evaluator implements the FHIRPath specification for navigating and querying
+//! FHIR resources. It handles:
+//!
+//! - **Path navigation**: Walking through resource structures (e.g., `Patient.name.given`)
+//! - **Function invocation**: Executing built-in FHIRPath functions (e.g., `where()`, `first()`, `exists()`)
+//! - **Operators**: Mathematical, logical, and comparison operations
+//! - **Type operations**: Type checking and casting (e.g., `is`, `as`)
+//! - **Variables**: Managing context variables like `$this`, `$index`, `%context`
+//! - **Collections**: Operating on collections of values with proper FHIRPath semantics
+//!
+//! ## Key Components
+//!
+//! - [`EvaluationContext`]: Manages the evaluation environment, including resources,
+//!   variables, and configuration options
+//! - [`evaluate()`]: Main entry point that evaluates an expression against a context
+//! - Function handlers: Specialized modules for different function categories (collection,
+//!   string, date/time, etc.)
+//!
+//! ## Examples
+//!
+//! ```rust
+//! use helios_fhirpath::{parse, evaluate};
+//! use helios_fhirpath::evaluator::EvaluationContext;
+//! use helios_fhir::{FhirResource, FhirVersion};
+//! use serde_json::json;
+//!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! // Parse a FHIRPath expression
+//! let expr = parse("Patient.name.given")?;
+//!
+//! // Create a FHIR resource (simplified example)
+//! let patient_json = json!({
+//!     "resourceType": "Patient",
+//!     "name": [{"given": ["John", "Q"]}]
+//! });
+//!
+//! // Evaluate the expression
+//! let mut context = EvaluationContext::new_empty(FhirVersion::R4);
+//! let result = evaluate(&expr, &mut context, None)?;
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ## Architecture
+//!
+//! The evaluator uses a recursive descent approach, matching on the expression AST
+//! and delegating to specialized handlers:
+//!
+//! 1. **Expression matching**: Pattern matches on `Expression` enum variants
+//! 2. **Operator evaluation**: Handles binary operations (arithmetic, logical, comparison)
+//! 3. **Function dispatch**: Routes function calls to appropriate handler modules
+//! 4. **Type system**: Manages FHIR type checking and polymorphism
+//! 5. **Result propagation**: Returns `EvaluationResult` collections
+
 use crate::parser::{Expression, Invocation, Literal, Term, TypeSpecifier};
 use chrono::{Datelike, Duration, Local, NaiveDate, NaiveDateTime, Timelike};
 use helios_fhir::{FhirResource, FhirVersion};

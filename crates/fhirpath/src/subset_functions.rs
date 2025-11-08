@@ -1,3 +1,7 @@
+//! # FHIRPath Subset Functions
+//!
+//! Implements subset testing functions: `subsetOf()` and `supersetOf()` for collection comparison.
+
 use helios_fhirpath_support::EvaluationError;
 use helios_fhirpath_support::EvaluationResult;
 use std::collections::HashSet;

@@ -1,3 +1,7 @@
+//! # FHIRPath Date and Time Operations
+//!
+//! Implements date and time arithmetic operations for FHIRPath temporal calculations.
+
 use crate::datetime_impl;
 use helios_fhirpath_support::{EvaluationError, EvaluationResult};
 

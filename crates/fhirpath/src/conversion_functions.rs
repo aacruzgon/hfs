@@ -1,3 +1,8 @@
+//! # FHIRPath Type Conversion Functions
+//!
+//! Implements type conversion functions including `toString()`, `toInteger()`, `toDecimal()`,
+//! `toBoolean()`, `toDate()`, `toDateTime()`, and `toTime()`.
+
 use helios_fhirpath_support::{EvaluationError, EvaluationResult};
 use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;

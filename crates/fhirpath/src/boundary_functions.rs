@@ -1,3 +1,7 @@
+//! # FHIRPath Boundary Functions
+//!
+//! Implements functions for accessing collection boundaries: `first()`, `last()`, `tail()`, `skip()`, `take()`.
+
 use chrono::{Datelike, NaiveDate};
 use helios_fhirpath_support::{EvaluationError, EvaluationResult};
 use rust_decimal::Decimal;

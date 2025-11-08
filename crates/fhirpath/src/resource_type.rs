@@ -1,3 +1,7 @@
+//! # FHIR Resource Type Handling
+//!
+//! Provides utilities for working with FHIR resource types in FHIRPath evaluation.
+
 use crate::evaluator::EvaluationContext;
 use crate::fhir_type_hierarchy::{capitalize_first_letter, is_fhir_primitive_type};
 use crate::parser::TypeSpecifier;

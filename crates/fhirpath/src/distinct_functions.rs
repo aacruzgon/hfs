@@ -1,3 +1,7 @@
+//! # FHIRPath Distinct Functions
+//!
+//! Implements `distinct()` and `isDistinct()` functions for removing duplicates from collections.
+
 use crate::evaluator::EvaluationContext;
 use helios_fhirpath_support::{EvaluationError, EvaluationResult};
 use std::collections::HashSet;

@@ -1,3 +1,7 @@
+//! # FHIRPath Reference and Key Functions
+//!
+//! Implements functions for working with FHIR references: `getReferenceKey()` and related operations.
+
 use helios_fhirpath_support::{EvaluationError, EvaluationResult};
 
 /// Implementation of the getResourceKey() function

@@ -1,3 +1,7 @@
+//! # FHIRPath Extension Function
+//!
+//! Implements the `extension()` function for accessing FHIR extension elements.
+
 use helios_fhirpath_support::{EvaluationError, EvaluationResult};
 use std::collections::HashMap;
 

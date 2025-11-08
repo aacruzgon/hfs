@@ -1,3 +1,24 @@
+//! # Parquet Schema Generation for SQL-on-FHIR
+//!
+//! This module provides functionality for converting SQL-on-FHIR ViewDefinition outputs
+//! to Apache Parquet format with proper schema inference and data type mapping.
+//!
+//! ## Overview
+//!
+//! The parquet schema generator:
+//! - Infers Arrow/Parquet schemas from FHIR data types
+//! - Converts processed ViewDefinition rows to Arrow columnar format
+//! - Handles collection columns as list types
+//! - Maps FHIR primitive types to appropriate Arrow data types
+//!
+//! ## Type Mappings
+//!
+//! - FHIR String → Arrow UTF8
+//! - FHIR Integer → Arrow Int32
+//! - FHIR Decimal/Float → Arrow Float64
+//! - FHIR Boolean → Arrow Boolean
+//! - Collections → Arrow List types
+
 use arrow::array::{
     ArrayRef, BooleanBuilder, Float64Builder, Int32Builder, ListBuilder, StringBuilder,
 };

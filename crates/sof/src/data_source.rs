@@ -1,3 +1,111 @@
+//! # FHIR Data Source Loading
+//!
+//! This module provides flexible data loading capabilities for FHIR resources from
+//! various sources including local files, HTTP endpoints, and cloud storage services.
+//! It handles automatic format detection and conversion to FHIR Bundles.
+//!
+//! ## Overview
+//!
+//! The data source system supports:
+//!
+//! - **Multiple Protocols**: file://, http(s)://, s3://, gs://, azure://
+//! - **Format Detection**: Automatic detection of JSON vs NDJSON formats
+//! - **Smart Wrapping**: Single resources and arrays automatically wrapped in Bundles
+//! - **Version Agnostic**: Works with R4, R4B, R5, and R6 FHIR versions
+//! - **Error Handling**: Comprehensive error reporting for invalid sources
+//!
+//! ## Supported Sources
+//!
+//! ### Local Files
+//! ```text
+//! file:///path/to/bundle.json
+//! file:///path/to/resource.ndjson
+//! ```
+//!
+//! ### HTTP/HTTPS
+//! ```text
+//! https://example.org/fhir/Bundle/123
+//! http://localhost:8080/Patient?_count=100
+//! ```
+//!
+//! ### Amazon S3
+//! ```text
+//! s3://my-bucket/path/to/bundle.json
+//! ```
+//! Requires: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION
+//!
+//! ### Google Cloud Storage
+//! ```text
+//! gs://my-bucket/path/to/data.ndjson
+//! ```
+//! Requires: GOOGLE_SERVICE_ACCOUNT or Application Default Credentials
+//!
+//! ### Azure Blob Storage
+//! ```text
+//! azure://container/path/to/bundle.json
+//! abfss://container@account.dfs.core.windows.net/path/to/data.json
+//! ```
+//! Requires: AZURE_STORAGE_ACCOUNT and AZURE_STORAGE_ACCESS_KEY
+//!
+//! ## Key Components
+//!
+//! - [`DataSource`]: Trait for loading FHIR data from various sources
+//! - [`UniversalDataSource`]: Universal implementation supporting all protocols
+//! - [`parse_fhir_content()`]: Parses FHIR content and wraps it in a Bundle
+//!
+//! ## Format Support
+//!
+//! ### JSON Format
+//! - Single FHIR resources (Patient, Observation, etc.)
+//! - FHIR Bundles
+//! - Arrays of FHIR resources
+//!
+//! ### NDJSON Format
+//! - Newline-delimited JSON (one resource per line)
+//! - Detected by `.ndjson` extension or content analysis
+//! - Partial failures tolerated (invalid lines logged as warnings)
+//!
+//! ## Examples
+//!
+//! ```rust
+//! use helios_sof::data_source::{DataSource, UniversalDataSource};
+//!
+//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+//! let source = UniversalDataSource::new();
+//!
+//! // Load from local file
+//! let bundle = source.load("file:///data/patients.json").await?;
+//!
+//! // Load from HTTP endpoint
+//! let bundle = source.load("https://hapi.fhir.org/baseR4/Patient?_count=10").await?;
+//!
+//! // Load from S3
+//! let bundle = source.load("s3://fhir-data/bundles/patients.json").await?;
+//!
+//! // Load NDJSON
+//! let bundle = source.load("file:///data/observations.ndjson").await?;
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ## Automatic Format Detection
+//!
+//! The module automatically:
+//! 1. Detects NDJSON by `.ndjson` file extension
+//! 2. Falls back to content-based detection for multi-line JSON files
+//! 3. Determines FHIR version by attempting to parse as each version
+//! 4. Wraps single resources or arrays in appropriate Bundle types
+//!
+//! ## Error Handling
+//!
+//! Provides detailed errors for:
+//! - Invalid URLs or protocols
+//! - Missing files or objects
+//! - Network failures
+//! - Malformed JSON
+//! - Invalid FHIR content
+//! - Missing credentials for cloud services
+
 use crate::{SofBundle, SofError};
 use async_trait::async_trait;
 use helios_fhir::Element;

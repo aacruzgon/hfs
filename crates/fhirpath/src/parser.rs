@@ -1,3 +1,101 @@
+//! # FHIRPath Expression Parser
+//!
+//! This module provides a complete parser for the FHIRPath expression language,
+//! implementing the official FHIRPath grammar specification. It transforms FHIRPath
+//! text into an Abstract Syntax Tree (AST) that can be evaluated against FHIR resources.
+//!
+//! ## Overview
+//!
+//! The parser handles all FHIRPath syntax elements including:
+//!
+//! - **Literals**: Numbers, strings, booleans, dates, times, quantities
+//! - **Path navigation**: Member access and nested paths (e.g., `Patient.name.given`)
+//! - **Function calls**: Both built-in and user-defined functions
+//! - **Operators**: Arithmetic, logical, comparison, and type operators
+//! - **Collections**: Collection literals and operations
+//! - **Comments**: Single-line (`//`) and multi-line (`/* */`) comments
+//!
+//! ## Key Types
+//!
+//! - [`Expression`]: The main AST node type representing any FHIRPath expression
+//! - [`Literal`]: Represents literal values (strings, numbers, dates, etc.)
+//! - [`Term`]: Basic terms (literals, invocations, variables)
+//! - [`Invocation`]: Function calls and member access
+//! - [`TypeSpecifier`]: Type names for `is` and `as` operations
+//!
+//! ## Parser Function
+//!
+//! The main entry point is [`parser()`], which returns a parser that can process
+//! FHIRPath text and produce an [`Expression`] AST.
+//!
+//! ## Examples
+//!
+//! ```rust
+//! use helios_fhirpath::parser::parser;
+//! use chumsky::Parser;
+//!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! // Parse a simple path expression
+//! let expr = parser().parse("Patient.name.given").unwrap();
+//!
+//! // Parse a function call with filter
+//! let expr = parser().parse("Patient.name.where(use = 'official')").unwrap();
+//!
+//! // Parse arithmetic expression
+//! let expr = parser().parse("(value + 10) * 2").unwrap();
+//!
+//! // Parse with literal values
+//! let expr = parser().parse("birthDate >= @1990-01-01").unwrap();
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ## Grammar Implementation
+//!
+//! The parser implements the FHIRPath grammar with proper operator precedence:
+//!
+//! 1. **Literals and Terms**: Numbers, strings, identifiers, parenthesized expressions
+//! 2. **Postfix Operators**: Member access (`.`), indexing (`[]`)
+//! 3. **Prefix Operators**: Unary plus/minus (`+`, `-`)
+//! 4. **Multiplicative**: `*`, `/`, `div`, `mod`
+//! 5. **Additive**: `+`, `-`, `&` (string concatenation)
+//! 6. **Union**: `|` (collection union)
+//! 7. **Inequality**: `<`, `<=`, `>`, `>=`
+//! 8. **Type Operations**: `is`, `as`
+//! 9. **Equality**: `=`, `~`, `!=`, `!~`
+//! 10. **Membership**: `in`, `contains`
+//! 11. **Logical AND**: `and`
+//! 12. **Logical OR/XOR**: `or`, `xor`
+//! 13. **Implies**: `implies`
+//!
+//! ## Literal Syntax
+//!
+//! The parser supports rich literal syntax:
+//!
+//! - **Strings**: `'text with \'escapes\''`
+//! - **Numbers**: `42` (integer), `3.14` (decimal)
+//! - **Booleans**: `true`, `false`
+//! - **Dates**: `@2024-01-15`, `@2024-01`, `@2024`
+//! - **DateTimes**: `@2024-01-15T14:30:00Z`, `@2024-01-15T14:30:00-05:00`
+//! - **Times**: `@T14:30:00`, `@T14:30:00.123`
+//! - **Quantities**: `5 'mg'`, `10.5 'cm'`, `3 days`
+//! - **Empty**: `{}`
+//!
+//! ## Comments
+//!
+//! The parser supports comments that are ignored during parsing:
+//!
+//! ```fhirpath
+//! Patient.name.given  // Get first name
+//! /* Multi-line comment
+//!    spanning multiple lines */
+//! ```
+//!
+//! ## Error Handling
+//!
+//! Parse errors include detailed information about the location and nature of
+//! syntax errors, making it easy to identify and fix issues in FHIRPath expressions.
+
 use chumsky::Parser;
 use chumsky::error::Rich;
 use chumsky::prelude::*;

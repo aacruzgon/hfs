@@ -1,3 +1,9 @@
+//! # FHIRPath Type Information
+//!
+//! Provides type metadata support for FHIRPath's `type()` function and type system.
+//! This module defines structures for representing type information including
+//! namespace and type name.
+
 /// Type information result for FHIRPath type() function
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TypeInfoResult {

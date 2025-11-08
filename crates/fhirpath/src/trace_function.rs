@@ -1,3 +1,7 @@
+//! # FHIRPath Trace Function
+//!
+//! Implements the `trace()` function for debugging FHIRPath expressions by logging intermediate values.
+
 use crate::evaluator::{EvaluationContext, evaluate};
 use crate::parser::Expression;
 use helios_fhirpath_support::{EvaluationError, EvaluationResult};

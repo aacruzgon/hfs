@@ -1,3 +1,7 @@
+//! # FHIR Type Hierarchy
+//!
+//! Implements FHIR type system navigation and inheritance checking for FHIRPath type operations.
+
 use once_cell::sync::Lazy;
 use std::collections::HashSet;
 

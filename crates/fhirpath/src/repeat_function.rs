@@ -1,3 +1,7 @@
+//! # FHIRPath Repeat Function
+//!
+//! Implements the `repeat()` function for recursive traversal of FHIR resource structures.
+
 use crate::evaluator::{EvaluationContext, evaluate};
 use crate::parser::Expression;
 use helios_fhirpath_support::{EvaluationError, EvaluationResult};

@@ -1,3 +1,9 @@
+//! # FHIRPath Aggregate Function
+//!
+//! Implements the `aggregate()` function for performing custom aggregation operations
+//! on collections. This is a powerful general-purpose iteration function that can
+//! compute any single value from a collection.
+
 use crate::evaluator::EvaluationContext;
 use crate::evaluator::evaluate;
 use crate::parser::Expression;

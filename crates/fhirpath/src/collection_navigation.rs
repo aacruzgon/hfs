@@ -1,3 +1,7 @@
+//! # FHIRPath Collection Navigation
+//!
+//! Implements collection navigation functions for accessing and filtering collection elements.
+
 use crate::distinct_functions::normalize_collection_result;
 use crate::evaluator::EvaluationContext;
 use helios_fhirpath_support::EvaluationError;

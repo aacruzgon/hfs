@@ -1,3 +1,7 @@
+//! # FHIRPath Set Operations
+//!
+//! Implements set operations including `union()`, `intersect()`, and `exclude()` for collections.
+
 use crate::distinct_functions::normalize_collection_result;
 use crate::evaluator::EvaluationContext;
 use helios_fhirpath_support::EvaluationError;

@@ -1,3 +1,7 @@
+//! # FHIRPath Polymorphic Element Access
+//!
+//! Handles accessing polymorphic FHIR elements (e.g., value[x]) in FHIRPath expressions.
+
 use helios_fhirpath_support::{EvaluationError, EvaluationResult};
 use std::collections::HashMap;
 

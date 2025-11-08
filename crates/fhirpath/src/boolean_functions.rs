@@ -1,3 +1,8 @@
+//! # FHIRPath Boolean Functions
+//!
+//! Implements boolean logic functions including `allTrue()`, `anyTrue()`, `allFalse()`, and `anyFalse()`.
+//! These functions work with collections of boolean values and handle FHIRPath's three-valued logic.
+
 use helios_fhirpath_support::{EvaluationError, EvaluationResult};
 
 /// Implements the FHIRPath allTrue() function

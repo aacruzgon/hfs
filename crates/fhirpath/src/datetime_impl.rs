@@ -1,3 +1,7 @@
+//! # FHIRPath DateTime Implementation
+//!
+//! Provides internal date and time handling implementation for FHIRPath temporal functions.
+
 use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 use helios_fhir::{PrecisionDate, PrecisionDateTime, PrecisionTime};
 use helios_fhirpath_support::EvaluationResult;

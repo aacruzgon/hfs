@@ -1,3 +1,7 @@
+//! # FHIRPath Type Functions
+//!
+//! Implements type checking and introspection functions including `is()`, `as()`, `ofType()`, and `type()`.
+
 use helios_fhirpath_support::{EvaluationError, EvaluationResult, TypeInfoResult};
 use std::collections::HashMap;
 

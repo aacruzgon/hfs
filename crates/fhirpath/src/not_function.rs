@@ -1,3 +1,7 @@
+//! # FHIRPath NOT Function
+//!
+//! Implements the `not()` function for boolean negation with three-valued logic.
+
 use helios_fhirpath_support::EvaluationError;
 use helios_fhirpath_support::EvaluationResult;
 
