@@ -2729,7 +2729,7 @@ dependencies = [
 
 [[package]]
 name = "pysof"
-version = "0.1.2"
+version = "0.1.26"
 dependencies = [
  "chrono",
  "csv",

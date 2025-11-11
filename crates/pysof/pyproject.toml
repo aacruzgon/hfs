@@ -4,7 +4,9 @@ build-backend = "maturin"
 
 [project]
 name = "pysof"
-version = "0.1.25"
+# Version is automatically read from Cargo.toml by maturin
+# This ensures Python package version always matches the Rust crate version
+dynamic = ["version"]
 description = "Python wrapper for the Helios Software SOF (SQL on FHIR) toolkit."
 readme = "README.md"
 requires-python = ">=3.8"

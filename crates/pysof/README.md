@@ -1,13 +1,13 @@
-# pysof
+# pysof - SQL on FHIR for Python
 
 [![PyPI version](https://badge.fury.io/py/pysof.svg)](https://pypi.org/project/pysof/)
 [![Python versions](https://img.shields.io/pypi/pyversions/pysof.svg)](https://pypi.org/project/pysof/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Downloads](https://pepy.tech/badge/pysof)](https://pepy.tech/project/pysof)
 
-Python bindings for high-performance FHIR data transformation using the Helios SOF (SQL on FHIR) toolkit.
+**High-performance FHIR data transformation for Python.** Transform FHIR resources into tabular formats (CSV, JSON, Parquet) using declarative ViewDefinitions from the [SQL on FHIR specification](https://build.fhir.org/ig/FHIR/sql-on-fhir-v2/).
 
-**Transform FHIR resources into tabular data** using declarative ViewDefinitions. Built in Rust for speed, exposed to Python with a simple API.
+Built in Rust for speed, exposed to Python with a simple, Pythonic API. Part of the [Helios FHIR Server](https://github.com/HeliosSoftware/hfs) project.
 
 ## ✨ Key Features
 
@@ -17,6 +17,17 @@ Python bindings for high-performance FHIR data transformation using the Helios S
 - 🌐 **Multi-Version FHIR**: Supports R4, R4B, R5, and R6 (based on build features)
 - 🎯 **Type-Safe**: Leverages Rust's type safety with a Pythonic interface
 - ⚡ **GIL-Free**: Python GIL released during processing for true parallelism
+
+## 🎯 Why pysof?
+
+Working with FHIR data in Python just got faster. **pysof** lets you:
+
+- **Transform complex FHIR resources** into clean, analyzable tables without writing custom parsers
+- **Process large datasets efficiently** with automatic parallel processing and Rust-level performance
+- **Use standard SQL on FHIR ViewDefinitions** for portable, maintainable data transformations
+- **Export to multiple formats** (CSV, JSON, NDJSON, Parquet) for analytics, ML, or reporting workflows
+
+Perfect for healthcare data engineers, researchers, and developers building FHIR-based analytics pipelines.
 
 ## 🔗 Quick Links
 
