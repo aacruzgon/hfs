@@ -320,14 +320,19 @@ fn test_cli_with_file_source_not_found() {
     let view_path = temp_dir.path().join("view.json");
     fs::write(&view_path, create_test_view_definition()).unwrap();
 
-    // Use a non-existent file
-    let nonexistent_url = "file:///nonexistent/path/to/file.json";
+    // Use a non-existent file with platform-appropriate path
+    let nonexistent_path = if cfg!(windows) {
+        // Windows requires drive letter for file URLs
+        "file:///C:/nonexistent/path/to/file.json"
+    } else {
+        "file:///nonexistent/path/to/file.json"
+    };
 
     let output = Command::new(&cli_path)
         .arg("-v")
         .arg(&view_path)
         .arg("-s")
-        .arg(nonexistent_url)
+        .arg(nonexistent_path)
         .arg("-f")
         .arg("csv")
         .output()
@@ -343,8 +348,9 @@ fn test_cli_with_file_source_not_found() {
     assert!(
         stderr.contains("File not found")
             || stderr.contains("not found")
-            || stderr.contains("error"),
-        "Error message should indicate file not found"
+            || stderr.contains("Invalid"),
+        "Error message should indicate file not found or invalid path. Actual: {}",
+        stderr
     );
 }
 
