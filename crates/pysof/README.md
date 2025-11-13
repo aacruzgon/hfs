@@ -333,14 +333,6 @@ uv run pytest python-tests/ --cov=pysof --cov-report=html
 uv run pytest python-tests/ -v --tb=short
 ```
 
-Current Python test coverage:
-- **58 total tests** across 5 test files
-- Core API functions (19 tests)
-- Content type support (14 tests) 
-- FHIR version support (16 tests)
-- Package structure and imports (6 tests)
-- Package metadata (3 tests)
-
 #### Rust Tests
 
 Run the Rust unit and integration tests:
@@ -358,21 +350,6 @@ cargo test --test integration
 # Run with verbose output
 cargo test -- --nocapture
 ```
-
-Current Rust test coverage:
-- **17 total tests** across 2 test files
-- Unit tests: 14 tests covering core library functions
-- Integration tests: 3 tests covering component interactions
-
-### More Examples
-
-For additional examples including:
-- Detailed usage patterns
-- FHIR version configuration
-- Advanced filtering and pagination
-- Complete API reference
-
-See the [full documentation](https://github.com/HeliosSoftware/hfs/tree/main/crates/pysof).
 
 ## Configuring FHIR Version Support
 
@@ -477,40 +454,6 @@ print('Default version test successful:', len(result), 'bytes')
 "
 ```
 
-### Important Considerations
-
-1. **Dependency Requirements**: Ensure the underlying `helios-sof` and `helios-fhir` crates support the features you want to enable
-2. **Binary Size**: Enabling multiple FHIR versions increases the compiled binary size significantly
-3. **Memory Usage**: Multiple versions require more memory at runtime
-4. **Testing**: Always run your test suite after changing version support
-5. **Documentation**: Update any project documentation that mentions specific FHIR versions
-6. **CI/CD**: Update build scripts and CI workflows if they depend on specific versions
-
-### Version Compatibility Matrix
-
-| FHIR Version | Feature Flag | Status | Notes |
-|--------------|--------------|---------|-------|
-| R4 | `R4` | ✅ Stable | Default, always recommended |
-| R4B | `R4B` | ✅ Stable | Minor updates to R4 |
-| R5 | `R5` | ✅ Stable | Current latest stable version |
-| R6 | `R6` | ⚠️ Preview | May have limited support |
-
-### Common Configuration Examples
-
-```toml
-# Production: Single version for minimal size
-default = ["R4"]
-
-# Development: Multiple versions for testing
-default = ["R4", "R5"]
-
-# Bleeding edge: Latest versions only
-default = ["R5", "R6"]
-
-# Maximum compatibility: All versions (not recommended for production)
-default = ["R4", "R4B", "R5", "R6"]
-```
-
 ## Project layout
 
 ```
@@ -552,7 +495,6 @@ Contributions are welcome! Please see our [Contributing Guidelines](../../CONTRI
 ### Reporting Issues
 
 - **Bug Reports**: [GitHub Issues](https://github.com/HeliosSoftware/hfs/issues)
-- **Feature Requests**: [GitHub Discussions](https://github.com/HeliosSoftware/hfs/discussions)
 - **Security Issues**: Email team@heliossoftware.com
 
 ### Development Setup
