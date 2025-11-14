@@ -10,9 +10,15 @@ def test_import() -> None:
 
 def test_version() -> None:
     """Test that version is accessible and correctly formatted."""
+    import re
+
     version = pysof.__version__
     assert isinstance(version, str)
-    assert version == "0.1.0"
+    # Check that version follows semantic versioning (e.g., "0.1.27", "1.0.0-beta", etc.)
+    # Pattern matches: MAJOR.MINOR.PATCH with optional pre-release suffix
+    version_pattern = r'^\d+\.\d+\.\d+(-[a-zA-Z0-9\.\-]+)?$'
+    assert re.match(version_pattern, version), f"Version '{version}' doesn't follow semantic versioning"
+    assert version != "0.0.0-dev", "Version should not be the fallback development version"
 
 
 def test_get_version_function() -> None:
