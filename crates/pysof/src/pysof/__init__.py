@@ -324,7 +324,7 @@ __all__: list[str] = [
 
 def get_version() -> str:
     """Return the package version."""
-    return __version__
+    return str(__version__)
 
 
 def get_status() -> str:

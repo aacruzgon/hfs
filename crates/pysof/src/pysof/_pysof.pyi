@@ -2,6 +2,9 @@
 
 from typing import Any
 
+# Module attributes
+__version__: str
+
 # Exception classes
 class SofError(Exception): ...
 class InvalidViewDefinitionError(SofError): ...
