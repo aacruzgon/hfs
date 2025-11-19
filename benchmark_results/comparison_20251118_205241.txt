@@ -1,0 +1,33 @@
+=====================================
+Performance Comparison Report
+=====================================
+Timestamp: 20251118_205241
+
+Branch,Version,Time (seconds)
+-----,-------,----------------
+Extracting timings from ./benchmark_results/main_20251118_205241.txt for branch main
+main,R4,2.780
+main,R4B,2.150
+main,R5,2.230
+main,R6,2.030
+Extracting timings from ./benchmark_results/refactor_20251118_205241.txt for branch refactor
+refactor,R4,2.740
+refactor,R4B,2.170
+refactor,R5,2.320
+refactor,R6,1.970
+
+Detailed Results:
+  Main branch:     ./benchmark_results/main_20251118_205241.txt
+  Refactor branch: ./benchmark_results/refactor_20251118_205241.txt
+
+Performance Differences (Refactor vs Main):
+-------------------------------------------
+R4: 1.00% faster (IMPROVEMENT)
+R4B: No significant difference
+R5: 4.00% slower (REGRESSION)
+R6: 2.00% faster (IMPROVEMENT)
+
+=====================================
+Benchmark Complete!
+=====================================
+
