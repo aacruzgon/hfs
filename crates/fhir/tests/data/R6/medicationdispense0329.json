@@ -139,9 +139,8 @@
   "recorded": "2015-01-15T10:00:00Z",
   "whenPrepared": "2015-01-15T10:20:00Z",
   "whenHandedOver": "2015-01-15T16:20:00Z",
-  "dosageInstruction": [
-    {
-      "sequence": 1,
+  "dosageInstruction": {
+    "simple": {
       "text": "Apply twice daily to affected area on left arm",
       "additionalInstruction": [
         {
@@ -193,7 +192,7 @@
         }
       ]
     }
-  ],
+  },
   "meta": {
     "tag": [
       {

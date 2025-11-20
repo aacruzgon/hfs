@@ -25,7 +25,7 @@
           },
           "valueExpression": {
             "description": "mRS 0-2",
-            "language": "text/cql",
+            "language": "text/cql-expression",
             "expression": "[\"Observation\": code in \"75859-9|LOINC\"] mRS where mRS.value between 0 and 2"
           },
           "exclude": false,

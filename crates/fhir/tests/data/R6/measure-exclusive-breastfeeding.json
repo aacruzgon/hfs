@@ -131,7 +131,7 @@
             ]
           },
           "criteria": {
-            "language": "text/cql",
+            "language": "text/cql-identifier",
             "expression": "InitialPopulation1"
           }
         },
@@ -144,7 +144,7 @@
             ]
           },
           "criteria": {
-            "language": "text/cql",
+            "language": "text/cql-identifier",
             "expression": "Denominator1"
           }
         },
@@ -157,7 +157,7 @@
             ]
           },
           "criteria": {
-            "language": "text/cql",
+            "language": "text/cql-identifier",
             "expression": "DenominatorExclusions1"
           }
         },
@@ -170,7 +170,7 @@
             ]
           },
           "criteria": {
-            "language": "text/cql",
+            "language": "text/cql-identifier",
             "expression": "Numerator1"
           }
         }
@@ -196,7 +196,7 @@
             ]
           },
           "criteria": {
-            "language": "text/cql",
+            "language": "text/cql-identifier",
             "expression": "InitialPopulation2"
           }
         },
@@ -209,7 +209,7 @@
             ]
           },
           "criteria": {
-            "language": "text/cql",
+            "language": "text/cql-identifier",
             "expression": "Denominator2"
           }
         },
@@ -222,7 +222,7 @@
             ]
           },
           "criteria": {
-            "language": "text/cql",
+            "language": "text/cql-identifier",
             "expression": "DenominatorExclusions2"
           }
         },
@@ -235,7 +235,7 @@
             ]
           },
           "criteria": {
-            "language": "text/cql",
+            "language": "text/cql-identifier",
             "expression": "Numerator2"
           }
         }

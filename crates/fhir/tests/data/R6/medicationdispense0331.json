@@ -61,9 +61,8 @@
     "code": "d"
   },
   "whenPrepared": "2015-01-15T10:20:00Z",
-  "dosageInstruction": [
-    {
-      "sequence": 1,
+  "dosageInstruction": {
+    "simple": {
       "text": "7mg (\u003done 5mg tablet PLUS one 2mg tablet) once daily",
       "additionalInstruction": [
         {
@@ -97,7 +96,7 @@
         }
       ]
     }
-  ],
+  },
   "meta": {
     "tag": [
       {

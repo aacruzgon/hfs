@@ -7,7 +7,7 @@
       "valueCode": "fhir"
     }
   ],
-  "url": "http://example.org/FHIR/R5/SubscriptionTopic/admission",
+  "url": "http://example.org/FHIR/SubscriptionTopic/admission",
   "identifier": [
     {
       "system": "urn:ietf:rfc:3986",
@@ -43,7 +43,7 @@
         "resultForDelete": "test-fails",
         "requireBoth": true
       },
-      "fhirPathCriteria": "%previous.status!\u003d\u0027in-progress\u0027 and %current.status\u003d\u0027in-progress\u0027",
+      "fhirPathCriteria": "(%previous.id.empty() or (%previous.status !\u003d \u0027in-progress\u0027)) and (%current.status \u003d \u0027in-progress\u0027)",
       "event": {
         "coding": [
           {

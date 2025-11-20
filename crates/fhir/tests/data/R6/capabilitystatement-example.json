@@ -97,7 +97,7 @@
   "rest": [
     {
       "mode": "server",
-      "documentation": "Main FHIR endpoint for acem health",
+      "documentation": "Main FHIR endpoint for ACME health",
       "security": {
         "cors": true,
         "service": [

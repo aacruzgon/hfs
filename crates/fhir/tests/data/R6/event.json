@@ -21,7 +21,7 @@
   "title": "event",
   "status": "draft",
   "experimental": false,
-  "date": "2025-11-03T08:55:27+00:00",
+  "date": "2025-11-17T19:23:40+00:00",
   "publisher": "HL7 International / FHIR Infrastructure",
   "contact": [
     {
@@ -198,12 +198,10 @@
               "http://hl7.org/fhir/StructureDefinition/CoverageEligibilityRequest",
               "http://hl7.org/fhir/StructureDefinition/DeviceRequest",
               "http://hl7.org/fhir/StructureDefinition/EnrollmentRequest",
-              "http://hl7.org/fhir/StructureDefinition/ImmunizationRecommendation",
               "http://hl7.org/fhir/StructureDefinition/MedicationRequest",
               "http://hl7.org/fhir/StructureDefinition/NutritionOrder",
               "http://hl7.org/fhir/StructureDefinition/RequestOrchestration",
               "http://hl7.org/fhir/StructureDefinition/ServiceRequest",
-              "http://hl7.org/fhir/StructureDefinition/SupplyRequest",
               "http://hl7.org/fhir/StructureDefinition/Task",
               "http://hl7.org/fhir/StructureDefinition/VisionPrescription"
             ]
@@ -254,10 +252,7 @@
             "targetProfile": [
               "http://hl7.org/fhir/StructureDefinition/AdverseEvent",
               "http://hl7.org/fhir/StructureDefinition/AuditEvent",
-              "http://hl7.org/fhir/StructureDefinition/BiologicallyDerivedProductDispense",
-              "http://hl7.org/fhir/StructureDefinition/ChargeItem",
               "http://hl7.org/fhir/StructureDefinition/ClaimResponse",
-              "http://hl7.org/fhir/StructureDefinition/ClinicalAssessment",
               "http://hl7.org/fhir/StructureDefinition/Communication",
               "http://hl7.org/fhir/StructureDefinition/Composition",
               "http://hl7.org/fhir/StructureDefinition/Consent",
@@ -266,8 +261,6 @@
               "http://hl7.org/fhir/StructureDefinition/CoverageEligibilityResponse",
               "http://hl7.org/fhir/StructureDefinition/DetectedIssue",
               "http://hl7.org/fhir/StructureDefinition/DeviceAlert",
-              "http://hl7.org/fhir/StructureDefinition/DeviceDispense",
-              "http://hl7.org/fhir/StructureDefinition/DeviceUsage",
               "http://hl7.org/fhir/StructureDefinition/DiagnosticReport",
               "http://hl7.org/fhir/StructureDefinition/DocumentReference",
               "http://hl7.org/fhir/StructureDefinition/Encounter",
@@ -275,13 +268,10 @@
               "http://hl7.org/fhir/StructureDefinition/EpisodeOfCare",
               "http://hl7.org/fhir/StructureDefinition/ExplanationOfBenefit",
               "http://hl7.org/fhir/StructureDefinition/FamilyMemberHistory",
-              "http://hl7.org/fhir/StructureDefinition/GenomicStudy",
               "http://hl7.org/fhir/StructureDefinition/GuidanceResponse",
               "http://hl7.org/fhir/StructureDefinition/ImagingSelection",
               "http://hl7.org/fhir/StructureDefinition/ImagingStudy",
               "http://hl7.org/fhir/StructureDefinition/Immunization",
-              "http://hl7.org/fhir/StructureDefinition/ImmunizationEvaluation",
-              "http://hl7.org/fhir/StructureDefinition/InventoryReport",
               "http://hl7.org/fhir/StructureDefinition/Invoice",
               "http://hl7.org/fhir/StructureDefinition/MedicationAdministration",
               "http://hl7.org/fhir/StructureDefinition/MedicationDispense",
@@ -294,9 +284,7 @@
               "http://hl7.org/fhir/StructureDefinition/Procedure",
               "http://hl7.org/fhir/StructureDefinition/Provenance",
               "http://hl7.org/fhir/StructureDefinition/QuestionnaireResponse",
-              "http://hl7.org/fhir/StructureDefinition/RiskAssessment",
-              "http://hl7.org/fhir/StructureDefinition/SupplyDelivery",
-              "http://hl7.org/fhir/StructureDefinition/Transport"
+              "http://hl7.org/fhir/StructureDefinition/RiskAssessment"
             ]
           }
         ],
@@ -1166,7 +1154,7 @@
           {
             "code": "Reference",
             "targetProfile": [
-              "http://hl7.org/fhir/StructureDefinition/Provenance"
+              "http://hl7.org/fhir/StructureDefinition/provenance-relevant-history"
             ]
           }
         ],

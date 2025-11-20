@@ -12,7 +12,8 @@
       "value": "0"
     }
   ],
-  "status": "draft",
+  "status": "active",
+  "experimental": true,
   "contact": [
     {
       "telecom": [
@@ -49,10 +50,10 @@
       "value": "v1.2.3"
     }
   ],
-  "url": "http://example.org/fhir/DeviceDefinition/exampleDevice",
+  "url": "http://hl7.org/fhir/DeviceDefinition/example",
   "hasPart": [
     {
-      "reference": "http://example.org/fhir/DeviceDefinition/example-prodspec"
+      "definitionCanonical": "http://hl7.org/fhir/DeviceDefinition/example-prodspec"
     }
   ],
   "manufacturer": {

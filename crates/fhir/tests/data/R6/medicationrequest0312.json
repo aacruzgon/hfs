@@ -51,9 +51,8 @@
       "text": "Patient should be counselled to ensure good dental hygiene"
     }
   ],
-  "dosageInstruction": [
-    {
-      "sequence": 1,
+  "dosageInstruction": {
+    "simple": {
       "text": "100mg (4ml) three times daily",
       "timing": {
         "repeat": {
@@ -91,7 +90,7 @@
         }
       ]
     }
-  ],
+  },
   "dispenseRequest": {
     "validityPeriod": {
       "start": "2015-01-15",

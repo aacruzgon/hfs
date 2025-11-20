@@ -371,7 +371,10 @@ impl<'a> Serializer for &'a mut ContentDetector {
     }
 }
 
-pub(crate) fn has_non_empty_content<T>(value: &T) -> bool
+/// Internal helper function for the FhirSerde macro.
+/// Do not use directly - this is an implementation detail.
+#[doc(hidden)]
+pub fn has_non_empty_content<T>(value: &T) -> bool
 where
     T: Serialize,
 {

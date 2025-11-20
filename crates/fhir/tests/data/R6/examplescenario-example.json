@@ -27,13 +27,13 @@
   "actor": [
     {
       "key": "Nurse",
-      "type": "practitioner",
+      "type": "person",
       "title": "Nurse",
       "description": "The Nurse"
     },
     {
       "key": "MAP",
-      "type": "device",
+      "type": "other",
       "title": "Nurse\u0027s Tablet",
       "description": "The entity that receives the Administration Requests to show the nurse to perform them"
     },

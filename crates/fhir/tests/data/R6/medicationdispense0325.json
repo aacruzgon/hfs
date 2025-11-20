@@ -50,9 +50,8 @@
     "code": "d"
   },
   "whenPrepared": "2015-01-15T10:20:00Z",
-  "dosageInstruction": [
-    {
-      "sequence": 1,
+  "dosageInstruction": {
+    "simple": {
       "text": "apply one patch three times per week",
       "timing": {
         "repeat": {
@@ -81,7 +80,7 @@
         }
       ]
     }
-  ],
+  },
   "meta": {
     "tag": [
       {

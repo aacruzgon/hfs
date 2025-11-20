@@ -20,7 +20,7 @@
     },
     {
       "url": "http://hl7.org/fhir/StructureDefinition/structuredefinition-standards-status",
-      "valueCode": "normative"
+      "valueCode": "informative"
     }
   ],
   "url": "http://hl7.org/fhir/StructureDefinition/provenance-relevant-history",
@@ -47,7 +47,7 @@
       ]
     }
   ],
-  "description": "Guidance on using Provenance for related history elements to provide key events that have happened over the lifespan of the resource  - see the use of this pattern in the [Request Pattern](request.html#history)",
+  "description": "This profile is provided for guidance purposes only.  There is no expectation that implementers must adhere to this profile.  It is included in the specification to help implementers understand how they might use Provenance to satisfy the typical needs envisioned by the \u0027relevantHistory\u0027 elements found in various Event and Request resources.\r\n\r\nThis profile identifies the data elements most likely to be relevant to implementers who are using Provenance to convey the `relevant history` of a resource, as discussed in the [request pattern](request.html#history).  For the purposes of this profile, mustSupport should be interpreted as \u0027SHOULD be considered for population and SHOULD be understood by consumers.\u0027  Implementers are not obligated to handle all of these element and are not prohibited from also making use of additional data elements",
   "fhirVersion": "6.0.0-ballot3",
   "mapping": [
     {
@@ -1375,7 +1375,7 @@
           ],
           "strength": "example",
           "description": "The role that a provenance agent played with respect to the activity.",
-          "valueSet": "http://hl7.org/fhir/ValueSet/security-role-type"
+          "valueSet": "http://hl7.org/fhir/ValueSet/security-role-type-example"
         },
         "mapping": [
           {
@@ -1813,7 +1813,7 @@
           ],
           "strength": "example",
           "description": "The role that a provenance agent played with respect to the activity.",
-          "valueSet": "http://hl7.org/fhir/ValueSet/security-role-type"
+          "valueSet": "http://hl7.org/fhir/ValueSet/security-role-type-example"
         },
         "mapping": [
           {

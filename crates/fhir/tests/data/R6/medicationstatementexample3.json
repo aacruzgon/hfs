@@ -31,9 +31,8 @@
       "text": "Patient cannot remember the name of the tablet, but takes it every day in the morning for water retention"
     }
   ],
-  "dosage": [
-    {
-      "sequence": 1,
+  "dosage": {
+    "simple": {
       "text": "1 tablet per day",
       "asNeeded": false,
       "route": {
@@ -64,20 +63,23 @@
           }
         }
       ],
-      "maxDosePerPeriod": [
-        {
-          "numerator": {
-            "value": 1
-          },
-          "denominator": {
-            "value": 1,
-            "system": "http://unitsofmeasure.org",
-            "code": "d"
+      "safety": {
+        "doseLimit": [
+          {
+            "valueQuantity": {
+              "value": 1
+            },
+            "scope": "period",
+            "period": {
+              "value": 1,
+              "system": "http://unitsofmeasure.org",
+              "code": "d"
+            }
           }
-        }
-      ]
+        ]
+      }
     }
-  ],
+  },
   "meta": {
     "tag": [
       {

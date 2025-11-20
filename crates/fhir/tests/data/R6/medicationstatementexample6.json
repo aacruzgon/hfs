@@ -30,9 +30,8 @@
       "text": "Father indicates they miss the occasional dose"
     }
   ],
-  "dosage": [
-    {
-      "sequence": 1,
+  "dosage": {
+    "simple": {
       "text": "5ml three times daily",
       "asNeeded": false,
       "route": {
@@ -63,20 +62,23 @@
           }
         }
       ],
-      "maxDosePerPeriod": [
-        {
-          "numerator": {
-            "value": 3
-          },
-          "denominator": {
-            "value": 1,
-            "system": "http://unitsofmeasure.org",
-            "code": "d"
+      "safety": {
+        "doseLimit": [
+          {
+            "valueQuantity": {
+              "value": 3
+            },
+            "scope": "period",
+            "period": {
+              "value": 1,
+              "system": "http://unitsofmeasure.org",
+              "code": "d"
+            }
           }
-        }
-      ]
+        ]
+      }
     }
-  ],
+  },
   "meta": {
     "tag": [
       {

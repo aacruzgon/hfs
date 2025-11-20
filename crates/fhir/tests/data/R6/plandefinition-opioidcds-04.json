@@ -175,7 +175,7 @@
           "kind": "applicability",
           "expression": {
             "description": "Check whether the opioid prescription for the existing patient is extended-release without any opioids-with-abuse-potential prescribed in the past 90 days.",
-            "language": "text/cql",
+            "language": "text/cql-identifier",
             "expression": "Inclusion Criteria"
           }
         }
@@ -186,21 +186,21 @@
         {
           "path": "action.title",
           "expression": {
-            "language": "text/cql",
+            "language": "text/cql-identifier",
             "expression": "Get Summary"
           }
         },
         {
           "path": "action.description",
           "expression": {
-            "language": "text/cql",
+            "language": "text/cql-identifier",
             "expression": "Get Detail"
           }
         },
         {
           "path": "activity.extension",
           "expression": {
-            "language": "text/cql",
+            "language": "text/cql-identifier",
             "expression": "Get Indicator"
           }
         }

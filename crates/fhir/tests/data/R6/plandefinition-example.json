@@ -28,7 +28,7 @@
               {
                 "url": "http://hl7.org/fhir/StructureDefinition/cqf-expression",
                 "valueExpression": {
-                  "language": "text/cql",
+                  "language": "text/cql-expression",
                   "expression": "Now()"
                 }
               }
@@ -92,14 +92,14 @@
         {
           "path": "dispenseRequest.numberOfRepeatsAllowed",
           "expression": {
-            "language": "text/cql",
+            "language": "text/cql-expression",
             "expression": "3"
           }
         },
         {
           "path": "dispenseRequest.quantity",
           "expression": {
-            "language": "text/cql",
+            "language": "text/cql-expression",
             "expression": "30 \u0027{tbl}\u0027"
           }
         }
@@ -383,49 +383,49 @@
                 {
                   "path": "timing.event",
                   "expression": {
-                    "language": "text/cql",
+                    "language": "text/cql-expression",
                     "expression": "Now()"
                   }
                 },
                 {
                   "path": "specialty",
                   "expression": {
-                    "language": "text/cql",
+                    "language": "text/cql-expression",
                     "expression": "Code \u0027261QM0850X\u0027 from SuicideRiskLogic.\"NUCC Provider Taxonomy\" display \u0027Adult Mental Health\u0027"
                   }
                 },
                 {
                   "path": "occurrenceDateTime",
                   "expression": {
-                    "language": "text/cql",
+                    "language": "text/cql-expression",
                     "expression": "SuicideRiskLogic.ServiceRequestFulfillmentTime"
                   }
                 },
                 {
                   "path": "subject",
                   "expression": {
-                    "language": "text/cql",
+                    "language": "text/cql-expression",
                     "expression": "SuicideRiskLogic.Patient"
                   }
                 },
                 {
                   "path": "requester.agent",
                   "expression": {
-                    "language": "text/cql",
+                    "language": "text/cql-expression",
                     "expression": "SuicideRiskLogic.Practitioner"
                   }
                 },
                 {
                   "path": "reasonCode",
                   "expression": {
-                    "language": "text/cql",
+                    "language": "text/cql-expression",
                     "expression": "SuicideRiskLogic.RiskAssessmentScore"
                   }
                 },
                 {
                   "path": "reasonReference",
                   "expression": {
-                    "language": "text/cql",
+                    "language": "text/cql-expression",
                     "expression": "SuicideRiskLogic.RiskAssessment"
                   }
                 }
@@ -489,35 +489,35 @@
                         {
                           "path": "status",
                           "expression": {
-                            "language": "text/cql",
+                            "language": "text/cql-expression",
                             "expression": "\u0027draft\u0027"
                           }
                         },
                         {
                           "path": "patient",
                           "expression": {
-                            "language": "text/cql",
+                            "language": "text/cql-expression",
                             "expression": "SuicideRiskLogic.Patient"
                           }
                         },
                         {
                           "path": "prescriber",
                           "expression": {
-                            "language": "text/cql",
+                            "language": "text/cql-expression",
                             "expression": "SuicideRiskLogic.Practitioner"
                           }
                         },
                         {
                           "path": "reasonCode",
                           "expression": {
-                            "language": "text/cql",
+                            "language": "text/cql-expression",
                             "expression": "SuicideRiskLogic.RiskAssessmentScore"
                           }
                         },
                         {
                           "path": "reasonReference",
                           "expression": {
-                            "language": "text/cql",
+                            "language": "text/cql-expression",
                             "expression": "SuicideRiskLogic.RiskAssessment"
                           }
                         }

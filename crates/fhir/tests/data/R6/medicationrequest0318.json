@@ -62,9 +62,8 @@
       "text": "culture expected back in 12 hours - may switch depending on results"
     }
   ],
-  "dosageInstruction": [
-    {
-      "sequence": 1,
+  "dosageInstruction": {
+    "simple": {
       "text": "500mg IV q6h x 3 days",
       "timing": {
         "event": [
@@ -118,7 +117,7 @@
         }
       ]
     }
-  ],
+  },
   "meta": {
     "tag": [
       {

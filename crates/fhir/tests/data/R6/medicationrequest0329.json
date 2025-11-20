@@ -117,9 +117,8 @@
     "reference": "Practitioner/f007",
     "display": "Patrick Pump"
   },
-  "dosageInstruction": [
-    {
-      "sequence": 1,
+  "dosageInstruction": {
+    "simple": {
       "text": "Apply twice daily to affected area on left arm",
       "additionalInstruction": [
         {
@@ -171,7 +170,7 @@
         }
       ]
     }
-  ],
+  },
   "dispenseRequest": {
     "validityPeriod": {
       "start": "2015-01-15",

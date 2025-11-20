@@ -39,7 +39,7 @@
             ]
           },
           "criteria": {
-            "language": "text/cql",
+            "language": "text/cql-identifier",
             "expression": "Initial Population"
           }
         },
@@ -52,7 +52,7 @@
             ]
           },
           "criteria": {
-            "language": "text/cql",
+            "language": "text/cql-identifier",
             "expression": "Denominator"
           }
         },
@@ -65,7 +65,7 @@
             ]
           },
           "criteria": {
-            "language": "text/cql",
+            "language": "text/cql-identifier",
             "expression": "Numerator"
           }
         }

@@ -1,0 +1,46 @@
+{
+  "resourceType": "Library",
+  "id": "ExampleEventDefinitionLogic",
+  "text": {
+    "status": "generated",
+    "div": "\u003cdiv xmlns\u003d\"http://www.w3.org/1999/xhtml\"\u003e\n      \u003cp class\u003d\"res-header-id\"\u003e\n        \u003cb\u003eGenerated Narrative: Library ExampleEventDefinitionLogic\u003c/b\u003e\n      \u003c/p\u003e\n      \u003ca name\u003d\"ExampleEventDefinitionLogic\"\u003e \u003c/a\u003e\n      \u003ca name\u003d\"hcExampleEventDefinitionLogic\"\u003e \u003c/a\u003e\n      \u003ch2\u003eContents\u003c/h2\u003e\n      \u003cp\u003e\n        \u003ccode\u003etext/cql\u003c/code\u003e\n      \u003c/p\u003e\n      \u003cpre\u003e\n        \u003ccode class\u003d\"language-sql\"\u003elibrary ExampleEventDefinitionLogic\n\nusing FHIR\n\ninclude FHIRHelpers\n\ncodesystem \u0026quot;LOINC\u0026quot;: \u0027http://loinc.org\u0027\n\ncode \u0026quot;LA6577-6|http://loinc.org\u0026quot;: \u0027LA6577-6\u0027 from \u0026quot;LOINC\u0026quot;\n\nvalueset \u0026quot;Stick Test Codes\u0026quot;: \u0027http://example.org/ValueSet/stick-test-codes\u0027\n\ncontext Patient\n\nparameter %context Encounter\n\ndefine StickTest:\n  [Observation: \u0026quot;Stick Test Codes\u0026quot;] O\n    where O.status in { \u0027final\u0027, \u0027amended\u0027, \u0027corrected\u0027 }\n\n// These functions are all candidates for [FHIRCommon](https://hl7.org/fhir/uv/cql/Library-FHIRCommon.html)\n// Or perhaps a FHIRCommonObservation library\ndefine fluent function negative(observations List\u0026lt;Observation\u0026gt;):\n  observations O\n    where O.interpretation ~ \u0026quot;LA6577-6|http://loinc.org\u0026quot;\n\ndefine fluent function during(observations List\u0026lt;Observation\u0026gt;, encounter Encounter):\n  observations O\n    where O.issued during minute of encounter.period\n\ndefine fluent function within(observations List\u0026lt;Observation\u0026gt;, quantity Quantity):\n  observations O\n    where (O.issued + quantity) on or after minute of Now()\n\ndefine fluent function consecutively(observations List\u0026lt;Observation\u0026gt;):\n  observations O\n    sort by issued\n\ndefine fluent function consecutivelyAfter(observations List\u0026lt;Observation\u0026gt;, observation Observation):\n  observations O\n    where O.issued on or after observation.issued\n    sort by issued\u003c/code\u003e\n      \u003c/pre\u003e\n    \u003c/div\u003e"
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/structuredefinition-wg",
+      "valueCode": "cds"
+    }
+  ],
+  "url": "http://hl7.org/fhir/EventDefinition/ExampleEventDefinitionLogic",
+  "version": "6.0.0-ballot3",
+  "name": "ExampleEventDefinitionLogic",
+  "title": "Example EventDefinition Logic",
+  "status": "active",
+  "experimental": true,
+  "type": {
+    "coding": [
+      {
+        "code": "logic-library"
+      }
+    ]
+  },
+  "date": "2016-03-08",
+  "publisher": "HL7 International / Clinical Decision Support",
+  "contact": [
+    {
+      "telecom": [
+        {
+          "system": "url",
+          "value": "http://www.hl7.org/Special/committees/dss"
+        }
+      ]
+    }
+  ],
+  "description": "Example EventDefinition Logic",
+  "content": [
+    {
+      "contentType": "text/cql",
+      "data": "bGlicmFyeSBFeGFtcGxlRXZlbnREZWZpbml0aW9uTG9naWMKCnVzaW5nIEZISVIKCmluY2x1ZGUgRkhJUkhlbHBlcnMKCmNvZGVzeXN0ZW0gIkxPSU5DIjogJ2h0dHA6Ly9sb2luYy5vcmcnCgpjb2RlICJMQTY1NzctNnxodHRwOi8vbG9pbmMub3JnIjogJ0xBNjU3Ny02JyBmcm9tICJMT0lOQyIKCnZhbHVlc2V0ICJTdGljayBUZXN0IENvZGVzIjogJ2h0dHA6Ly9leGFtcGxlLm9yZy9WYWx1ZVNldC9zdGljay10ZXN0LWNvZGVzJwoKY29udGV4dCBQYXRpZW50CgpwYXJhbWV0ZXIgJWNvbnRleHQgRW5jb3VudGVyCgpkZWZpbmUgU3RpY2tUZXN0OgogIFtPYnNlcnZhdGlvbjogIlN0aWNrIFRlc3QgQ29kZXMiXSBPCiAgICB3aGVyZSBPLnN0YXR1cyBpbiB7ICdmaW5hbCcsICdhbWVuZGVkJywgJ2NvcnJlY3RlZCcgfQoKLy8gVGhlc2UgZnVuY3Rpb25zIGFyZSBhbGwgY2FuZGlkYXRlcyBmb3IgW0ZISVJDb21tb25dKGh0dHBzOi8vaGw3Lm9yZy9maGlyL3V2L2NxbC9MaWJyYXJ5LUZISVJDb21tb24uaHRtbCkKLy8gT3IgcGVyaGFwcyBhIEZISVJDb21tb25PYnNlcnZhdGlvbiBsaWJyYXJ5CmRlZmluZSBmbHVlbnQgZnVuY3Rpb24gbmVnYXRpdmUob2JzZXJ2YXRpb25zIExpc3Q8T2JzZXJ2YXRpb24+KToKICBvYnNlcnZhdGlvbnMgTwogICAgd2hlcmUgTy5pbnRlcnByZXRhdGlvbiB+ICJMQTY1NzctNnxodHRwOi8vbG9pbmMub3JnIgoKZGVmaW5lIGZsdWVudCBmdW5jdGlvbiBkdXJpbmcob2JzZXJ2YXRpb25zIExpc3Q8T2JzZXJ2YXRpb24+LCBlbmNvdW50ZXIgRW5jb3VudGVyKToKICBvYnNlcnZhdGlvbnMgTwogICAgd2hlcmUgTy5pc3N1ZWQgZHVyaW5nIG1pbnV0ZSBvZiBlbmNvdW50ZXIucGVyaW9kCgpkZWZpbmUgZmx1ZW50IGZ1bmN0aW9uIHdpdGhpbihvYnNlcnZhdGlvbnMgTGlzdDxPYnNlcnZhdGlvbj4sIHF1YW50aXR5IFF1YW50aXR5KToKICBvYnNlcnZhdGlvbnMgTwogICAgd2hlcmUgKE8uaXNzdWVkICsgcXVhbnRpdHkpIG9uIG9yIGFmdGVyIG1pbnV0ZSBvZiBOb3coKQoKZGVmaW5lIGZsdWVudCBmdW5jdGlvbiBjb25zZWN1dGl2ZWx5KG9ic2VydmF0aW9ucyBMaXN0PE9ic2VydmF0aW9uPik6CiAgb2JzZXJ2YXRpb25zIE8KICAgIHNvcnQgYnkgaXNzdWVkCgpkZWZpbmUgZmx1ZW50IGZ1bmN0aW9uIGNvbnNlY3V0aXZlbHlBZnRlcihvYnNlcnZhdGlvbnMgTGlzdDxPYnNlcnZhdGlvbj4sIG9ic2VydmF0aW9uIE9ic2VydmF0aW9uKToKICBvYnNlcnZhdGlvbnMgTwogICAgd2hlcmUgTy5pc3N1ZWQgb24gb3IgYWZ0ZXIgb2JzZXJ2YXRpb24uaXNzdWVkCiAgICBzb3J0IGJ5IGlzc3VlZA\u003d\u003d"
+    }
+  ]
+}

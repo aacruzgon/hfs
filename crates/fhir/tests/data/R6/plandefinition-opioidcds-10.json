@@ -168,7 +168,7 @@
           "kind": "applicability",
           "expression": {
             "description": "Patient has not had a urine screening in the past 12 months",
-            "language": "text/cql",
+            "language": "text/cql-identifier",
             "expression": "No Screenings in Past Year"
           }
         }
@@ -177,7 +177,7 @@
         {
           "path": "activity.extension",
           "expression": {
-            "language": "text/cql",
+            "language": "text/cql-identifier",
             "expression": "Get Indicator"
           }
         }
@@ -230,7 +230,7 @@
           "kind": "applicability",
           "expression": {
             "description": "Patient has a positive urine screening in the past 12 months",
-            "language": "text/cql",
+            "language": "text/cql-identifier",
             "expression": "Has Positive Screening?"
           }
         }
@@ -275,7 +275,7 @@
               "kind": "applicability",
               "expression": {
                 "description": "Patient has a positive urine screening in the past 12 months for opioid(s), which is not prescribed",
-                "language": "text/cql",
+                "language": "text/cql-identifier",
                 "expression": "Has Unprescribed Opioids?"
               }
             }
@@ -284,14 +284,14 @@
             {
               "path": "activity.extension",
               "expression": {
-                "language": "text/cql",
+                "language": "text/cql-identifier",
                 "expression": "Get Indicator"
               }
             },
             {
               "path": "action.description",
               "expression": {
-                "language": "text/cql",
+                "language": "text/cql-identifier",
                 "expression": "Inconsistent Unprescribed Opioids"
               }
             }
@@ -341,7 +341,7 @@
               "kind": "applicability",
               "expression": {
                 "description": "Patient has a positive urine screening in the past 12 months, which does not include prescribed opioids",
-                "language": "text/cql",
+                "language": "text/cql-identifier",
                 "expression": "Has Missing Opioids?"
               }
             }
@@ -350,14 +350,14 @@
             {
               "path": "activity.extension",
               "expression": {
-                "language": "text/cql",
+                "language": "text/cql-identifier",
                 "expression": "Get Indicator"
               }
             },
             {
               "path": "action.description",
               "expression": {
-                "language": "text/cql",
+                "language": "text/cql-identifier",
                 "expression": "Inconsistent Missing Opioids"
               }
             }
@@ -402,7 +402,7 @@
               "kind": "applicability",
               "expression": {
                 "description": "Patient has a positive urine screening in the past 12 months for illicit drugs",
-                "language": "text/cql",
+                "language": "text/cql-identifier",
                 "expression": "Has Illicit Drugs in Screening?"
               }
             }
@@ -411,14 +411,14 @@
             {
               "path": "activity.extension",
               "expression": {
-                "language": "text/cql",
+                "language": "text/cql-identifier",
                 "expression": "Get Indicator"
               }
             },
             {
               "path": "action.description",
               "expression": {
-                "language": "text/cql",
+                "language": "text/cql-identifier",
                 "expression": "Inconsistent Illicit Drugs"
               }
             }

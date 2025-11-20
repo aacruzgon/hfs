@@ -44,9 +44,8 @@
       }
     }
   ],
-  "dosageInstruction": [
-    {
-      "sequence": 1,
+  "dosageInstruction": {
+    "simple": {
       "text": "75mcg daily",
       "timing": {
         "repeat": {
@@ -84,7 +83,7 @@
         }
       ]
     }
-  ],
+  },
   "dispenseRequest": {
     "validityPeriod": {
       "start": "2015-01-15",

@@ -20,7 +20,7 @@
     },
     {
       "url": "http://hl7.org/fhir/StructureDefinition/structuredefinition-standards-status",
-      "valueCode": "trial-use"
+      "valueCode": "normative"
     },
     {
       "url": "http://hl7.org/fhir/tools/StructureDefinition/summary",
@@ -33,7 +33,7 @@
   "title": "History bundle",
   "status": "active",
   "experimental": false,
-  "date": "2025-11-03T08:55:27+00:00",
+  "date": "2025-11-17T19:23:40+00:00",
   "description": "This profile holds all the requirements and constraints related to a FHIR history bundle.",
   "fhirVersion": "6.0.0-ballot3",
   "mapping": [

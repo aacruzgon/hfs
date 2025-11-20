@@ -25,6 +25,17 @@
     }
   ],
   "status": "active",
+  "code": [
+    {
+      "coding": [
+        {
+          "system": "http://hl7.org/fhir/us/vr-common-library/CodeSystem/CodeSystem-us-states-territories-vr",
+          "code": "DC",
+          "display": "District of Columbia"
+        }
+      ]
+    }
+  ],
   "name": "Washington, DC metro area",
   "form": {
     "coding": [

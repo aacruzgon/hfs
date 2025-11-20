@@ -73,8 +73,8 @@
             ]
           },
           "targetReference": {
-            "reference": "Citation/32137",
-            "type": "Citation",
+            "reference": "DocumentReference/32137",
+            "type": "DocumentReference",
             "display": "JournalArticleCitation: ADA 2021 Standards of Medical Care 8. Obesity Management for the Treatment of Type 2 Diabetes"
           }
         }
@@ -190,8 +190,8 @@
             ]
           },
           "targetReference": {
-            "reference": "Citation/33089",
-            "type": "Citation",
+            "reference": "DocumentReference/33089",
+            "type": "DocumentReference",
             "display": "JournalArticleCitation: Metabolic Surgery in the Treatment Algorithm for Type 2 Diabetes: A Joint Statement by International Diabetes Organizations"
           }
         },

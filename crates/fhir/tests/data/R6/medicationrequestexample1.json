@@ -65,9 +65,8 @@
       "text": "Chlorthalidone increases urniation so take it in the morning"
     }
   ],
-  "dosageInstruction": [
-    {
-      "sequence": 1,
+  "dosageInstruction": {
+    "simple": {
       "text": "One tablet daily",
       "additionalInstruction": [
         {
@@ -129,7 +128,7 @@
         }
       ]
     }
-  ],
+  },
   "dispenseRequest": {
     "validityPeriod": {
       "start": "2015-01-15",

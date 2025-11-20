@@ -2,19 +2,20 @@
   "resourceType": "ValueSet",
   "id": "ex-procedure-type",
   "meta": {
-    "lastUpdated": "2025-11-03T08:55:27.392+00:00",
-    "profile": [
-      "http://hl7.org/fhir/StructureDefinition/shareablevalueset"
-    ]
+    "lastUpdated": "2025-11-17T19:23:40.261+00:00"
   },
   "text": {
     "status": "generated",
-    "div": "\u003cdiv xmlns\u003d\"http://www.w3.org/1999/xhtml\"\u003e\u003cp class\u003d\"res-header-id\"\u003e\u003cb\u003eGenerated Narrative: ValueSet ex-procedure-type\u003c/b\u003e\u003c/p\u003e\u003ca name\u003d\"ex-procedure-type\"\u003e \u003c/a\u003e\u003ca name\u003d\"hcex-procedure-type\"\u003e \u003c/a\u003e\u003cdiv style\u003d\"display: inline-block; background-color: #d9e0e7; padding: 6px; margin: 4px; border: 1px solid #8da1b4; border-radius: 5px; line-height: 60%\"\u003e\u003cp style\u003d\"margin-bottom: 0px\"/\u003e\u003cp style\u003d\"margin-bottom: 0px\"\u003eProfile: \u003ca href\u003d\"shareablevalueset.html\"\u003eShareable ValueSet\u003c/a\u003e\u003c/p\u003e\u003c/div\u003e\u003cul\u003e\u003cli\u003eInclude all codes defined in \u003ca href\u003d\"http://terminology.hl7.org/6.5.0/CodeSystem-ex-procedure-type.html\"\u003e\u003ccode\u003ehttp://terminology.hl7.org/CodeSystem/ex-procedure-type\u003c/code\u003e\u003c/a\u003e\u003cspan title\u003d\"Version is not explicitly stated, which means it is fixed to 1.0.1, the version found through the package references\"\u003e version \u0026#x1F4E6;1.0.1\u003c/span\u003e\u003c/li\u003e\u003c/ul\u003e\u003c/div\u003e"
+    "div": "\u003cdiv xmlns\u003d\"http://www.w3.org/1999/xhtml\"\u003e\u003cp class\u003d\"res-header-id\"\u003e\u003cb\u003eGenerated Narrative: ValueSet ex-procedure-type\u003c/b\u003e\u003c/p\u003e\u003ca name\u003d\"ex-procedure-type\"\u003e \u003c/a\u003e\u003ca name\u003d\"hcex-procedure-type\"\u003e \u003c/a\u003e\u003cul\u003e\u003cli\u003eInclude all codes defined in \u003ca href\u003d\"http://terminology.hl7.org/7.0.0/CodeSystem-ex-procedure-type.html\"\u003e\u003ccode\u003ehttp://terminology.hl7.org/CodeSystem/ex-procedure-type\u003c/code\u003e\u003c/a\u003e\u003cspan title\u003d\"Version is not explicitly stated, which means it is fixed to 1.0.1, the version found through the package references\"\u003e version \u0026#x1F4E6;1.0.1\u003c/span\u003e\u003c/li\u003e\u003c/ul\u003e\u003c/div\u003e"
   },
   "extension": [
     {
       "url": "http://hl7.org/fhir/StructureDefinition/structuredefinition-wg",
       "valueCode": "fm"
+    },
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/structuredefinition-standards-status",
+      "valueCode": "normative"
     }
   ],
   "url": "http://hl7.org/fhir/ValueSet/ex-procedure-type",
@@ -27,7 +28,7 @@
   "version": "6.0.0-ballot3",
   "name": "ExampleProcedureTypeCodes",
   "title": "Example Procedure Type Codes",
-  "status": "draft",
+  "status": "active",
   "experimental": false,
   "publisher": "Financial Management",
   "contact": [

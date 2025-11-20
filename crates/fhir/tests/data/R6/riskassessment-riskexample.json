@@ -12,9 +12,6 @@
       "value": "risk-assessment-breastcancer1"
     }
   ],
-  "basedOn": {
-    "reference": "ImmunizationRecommendation/example"
-  },
   "parent": {
     "reference": "DiagnosticReport/example"
   },

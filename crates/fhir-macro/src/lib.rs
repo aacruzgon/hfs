@@ -814,12 +814,12 @@ fn generate_serialize_impl(data: &Data, name: &Ident) -> proc_macro2::TokenStrea
                     let import_serialize_map = if has_flattened_fields {
                         quote! {
                             use serde::ser::SerializeMap;
-                            use crate::serde_helpers;
+                            use ::helios_fhir::serde_helpers;
                         }
                     } else {
                         quote! {
                             use serde::ser::SerializeStruct;
-                            use crate::serde_helpers;
+                            use ::helios_fhir::serde_helpers;
                         }
                     };
 
@@ -1156,7 +1156,7 @@ fn generate_serialize_impl(data: &Data, name: &Ident) -> proc_macro2::TokenStrea
                             if has_flattened_fields {
                                 // For SerializeMap
                                 quote! {
-                                    if crate::serde_helpers::has_non_empty_content(&#field_access) {
+                                    if ::helios_fhir::serde_helpers::has_non_empty_content(&#field_access) {
                                         // Use serialize_entry for SerializeMap
                                         state.serialize_entry(&#effective_field_name_str, &#field_access)?;
                                     }
@@ -1164,7 +1164,7 @@ fn generate_serialize_impl(data: &Data, name: &Ident) -> proc_macro2::TokenStrea
                             } else {
                                 // For SerializeStruct
                                 quote! {
-                                    if crate::serde_helpers::has_non_empty_content(&#field_access) {
+                                    if ::helios_fhir::serde_helpers::has_non_empty_content(&#field_access) {
                                         // Use serialize_field for SerializeStruct
                                         state.serialize_field(&#effective_field_name_str, &#field_access)?;
                                     }

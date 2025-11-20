@@ -41,6 +41,11 @@
 //! let precise = PreciseDecimal::from(Decimal::new(12340, 3)); // 12.340
 //! ```
 
+// Allow the crate to reference itself via ::helios_fhir
+// This enables the FhirSerde macro to use ::helios_fhir::serde_helpers
+// from both inside and outside the crate
+extern crate self as helios_fhir;
+
 use chrono::{DateTime as ChronoDateTime, NaiveDate, NaiveTime, Utc};
 use helios_fhirpath_support::{EvaluationResult, IntoEvaluationResult, TypeInfoResult};
 use rust_decimal::Decimal;
@@ -1432,7 +1437,10 @@ pub mod parameters;
 // Re-export commonly used types from parameters module
 pub use parameters::{ParameterValueAccessor, VersionIndependentParameters};
 
-mod serde_helpers;
+// Make serde_helpers public for use by the FhirSerde derive macro
+// This is an internal module and should not be used directly by external code
+#[doc(hidden)]
+pub mod serde_helpers;
 
 /// Multi-version FHIR resource container supporting version-agnostic operations.
 ///

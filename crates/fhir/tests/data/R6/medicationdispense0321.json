@@ -50,9 +50,8 @@
     "code": "d"
   },
   "whenPrepared": "2015-01-15T10:20:00Z",
-  "dosageInstruction": [
-    {
-      "sequence": 1,
+  "dosageInstruction": {
+    "simple": {
       "text": "1 tablet every four hours as needed for pain",
       "additionalInstruction": [
         {
@@ -112,7 +111,7 @@
         }
       ]
     }
-  ],
+  },
   "meta": {
     "tag": [
       {

@@ -205,10 +205,6 @@ fn test_examples_in_dir<R: DeserializeOwned + Serialize>(dir: &PathBuf) {
             "Contains null in conclusionCode array where struct TempCodeableReference expected",
         ),
         (
-            "molecularsequence-example.json",
-            "R6 MolecularSequence contains incompatible data structure",
-        ),
-        (
             "specimen-example-liver-biopsy.json",
             "R6 Specimen example contains incompatible data structure",
         ),
@@ -219,10 +215,6 @@ fn test_examples_in_dir<R: DeserializeOwned + Serialize>(dir: &PathBuf) {
         (
             "specimen-example-pooled-serum.json",
             "Contains null in container array - invalid FHIR JSON",
-        ),
-        (
-            "graphdefinition-example.json",
-            "GraphDefinition not included in R6 Resource enum",
         ),
         (
             "task-example-fm-status-resp.json",
@@ -255,50 +247,6 @@ fn test_examples_in_dir<R: DeserializeOwned + Serialize>(dir: &PathBuf) {
         (
             "familymemberhistory-example.json",
             "R6 FamilyMemberHistory example contains incompatible data structure",
-        ),
-        (
-            "testreport-example.json",
-            "R6 TestReport example contains incompatible data structure",
-        ),
-        (
-            "testplan-tx-example.json",
-            "R6 TestPlan example contains incompatible data structure",
-        ),
-        (
-            "testplan-example.json",
-            "R6 TestPlan example contains incompatible data structure",
-        ),
-        (
-            "testscript-example-search.json",
-            "R6 TestScript example contains incompatible data structure",
-        ),
-        (
-            "testscript-example.json",
-            "R6 TestScript example contains incompatible data structure",
-        ),
-        (
-            "testscript-example-update.json",
-            "R6 TestScript example contains incompatible data structure",
-        ),
-        (
-            "testscript-example-effective-period.json",
-            "R6 TestScript example contains incompatible data structure",
-        ),
-        (
-            "testscript-example-multisystem.json",
-            "R6 TestScript example contains incompatible data structure",
-        ),
-        (
-            "testscript-example-readcommon.json",
-            "R6 TestScript example contains incompatible data structure",
-        ),
-        (
-            "testscript-example-history.json",
-            "R6 TestScript example contains incompatible data structure",
-        ),
-        (
-            "testscript-example-readtest.json",
-            "R6 TestScript example contains incompatible data structure",
         ),
     ];
 

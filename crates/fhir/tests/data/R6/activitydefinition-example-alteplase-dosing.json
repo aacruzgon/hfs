@@ -46,7 +46,6 @@
   "intent": "order",
   "dosage": [
     {
-      "sequence": 1,
       "text": "give 10% of dose over 1 minute",
       "route": {
         "coding": [
@@ -75,14 +74,20 @@
           }
         }
       ],
-      "maxDosePerAdministration": {
-        "value": 90,
-        "system": "http://unitsofmeasure.org",
-        "code": "mg"
+      "safety": {
+        "doseLimit": [
+          {
+            "valueQuantity": {
+              "value": 90,
+              "system": "http://unitsofmeasure.org",
+              "code": "mg"
+            },
+            "scope": "administration"
+          }
+        ]
       }
     },
     {
-      "sequence": 2,
       "text": "give remaining 90% of dose over 1 hour",
       "route": {
         "coding": [
@@ -111,10 +116,17 @@
           }
         }
       ],
-      "maxDosePerAdministration": {
-        "value": 90,
-        "system": "http://unitsofmeasure.org",
-        "code": "mg"
+      "safety": {
+        "doseLimit": [
+          {
+            "valueQuantity": {
+              "value": 90,
+              "system": "http://unitsofmeasure.org",
+              "code": "mg"
+            },
+            "scope": "administration"
+          }
+        ]
       }
     }
   ]

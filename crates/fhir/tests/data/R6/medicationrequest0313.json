@@ -47,9 +47,8 @@
       }
     }
   ],
-  "dosageInstruction": [
-    {
-      "sequence": 1,
+  "dosageInstruction": {
+    "simple": {
       "text": "500mg daily for 5 days",
       "additionalInstruction": [
         {
@@ -98,7 +97,7 @@
         }
       ]
     }
-  ],
+  },
   "dispenseRequest": {
     "validityPeriod": {
       "start": "2015-01-15",

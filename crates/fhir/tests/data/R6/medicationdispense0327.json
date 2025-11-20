@@ -51,9 +51,8 @@
   },
   "whenPrepared": "2015-01-15T10:20:00Z",
   "whenHandedOver": "2015-01-15T16:20:00Z",
-  "dosageInstruction": [
-    {
-      "sequence": 1,
+  "dosageInstruction": {
+    "simple": {
       "text": "Use two sprays twice daily",
       "additionalInstruction": [
         {
@@ -87,7 +86,7 @@
         }
       ]
     }
-  ],
+  },
   "meta": {
     "tag": [
       {

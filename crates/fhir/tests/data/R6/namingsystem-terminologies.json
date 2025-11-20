@@ -4,14 +4,14 @@
   "type": "collection",
   "entry": [
     {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/contact-point-system",
+      "fullUrl": "http://hl7.org/fhir/NamingSystem/resource-slicing-rules",
       "resource": {
         "resourceType": "NamingSystem",
-        "id": "contact-point-system",
-        "name": "ContactPointSystem",
+        "id": "resource-slicing-rules",
+        "name": "SlicingRules",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International / FHIR Infrastructure",
         "contact": [
           {
@@ -35,7 +35,7 @@
             ]
           }
         ],
-        "description": "Telecommunications form for contact point.",
+        "description": "How slices are interpreted when evaluating an instance.",
         "jurisdiction": [
           {
             "coding": [
@@ -50,72 +50,26 @@
         "uniqueId": [
           {
             "type": "uri",
-            "value": "http://hl7.org/fhir/contact-point-system",
+            "value": "http://hl7.org/fhir/resource-slicing-rules",
             "preferred": true
           },
           {
             "type": "oid",
-            "value": "2.16.840.1.113883.4.642.1.72",
+            "value": "2.16.840.1.113883.4.642.4.84",
             "preferred": false
           }
         ]
       }
     },
     {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/note-type",
+      "fullUrl": "http://hl7.org/fhir/NamingSystem/quantity-comparator",
       "resource": {
         "resourceType": "NamingSystem",
-        "id": "note-type",
-        "name": "NoteType",
-        "status": "draft",
-        "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
-        "publisher": "HL7 International / Financial Management",
-        "contact": [
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://www.hl7.org/Special/committees/fm"
-              }
-            ]
-          }
-        ],
-        "description": "The presentation types of notes.",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/note-type",
-            "preferred": true
-          },
-          {
-            "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.16",
-            "preferred": false
-          }
-        ]
-      }
-    },
-    {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/discriminator-type",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "discriminator-type",
-        "name": "DiscriminatorType",
+        "id": "quantity-comparator",
+        "name": "QuantityComparator",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International / FHIR Infrastructure",
         "contact": [
           {
@@ -139,7 +93,7 @@
             ]
           }
         ],
-        "description": "How an element value is interpreted when discrimination is evaluated.",
+        "description": "How the Quantity should be understood and represented.",
         "jurisdiction": [
           {
             "coding": [
@@ -154,116 +108,38 @@
         "uniqueId": [
           {
             "type": "uri",
-            "value": "http://hl7.org/fhir/discriminator-type",
+            "value": "http://hl7.org/fhir/quantity-comparator",
             "preferred": true
           },
           {
             "type": "oid",
-            "value": "2.16.840.1.113883.4.642.1.92",
+            "value": "2.16.840.1.113883.4.642.4.60",
             "preferred": false
           }
         ]
       }
     },
     {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/request-status",
+      "fullUrl": "http://hl7.org/fhir/NamingSystem/FHIR-version",
       "resource": {
         "resourceType": "NamingSystem",
-        "id": "request-status",
-        "name": "RequestStatus",
-        "status": "draft",
-        "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
-        "publisher": "HL7 International / Patient Care",
-        "contact": [
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://hl7.org/fhir"
-              },
-              {
-                "system": "email",
-                "value": "fhir@lists.hl7.org"
-              }
-            ]
-          },
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://www.hl7.org/Special/committees/fiwg"
-              }
-            ]
-          },
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://www.hl7.org/Special/committees/patientcare"
-              }
-            ]
-          }
-        ],
-        "description": "Codes identifying the lifecycle stage of a request.",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/request-status",
-            "preferred": true
-          },
-          {
-            "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.112",
-            "preferred": false
-          }
-        ]
-      }
-    },
-    {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/identifier-use",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "identifier-use",
-        "name": "IdentifierUse",
+        "id": "FHIR-version",
+        "name": "FHIRVersion",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International / FHIR Infrastructure",
         "contact": [
           {
             "telecom": [
               {
                 "system": "url",
-                "value": "http://hl7.org/fhir"
-              },
-              {
-                "system": "email",
-                "value": "fhir@lists.hl7.org"
-              }
-            ]
-          },
-          {
-            "telecom": [
-              {
-                "system": "url",
                 "value": "http://www.hl7.org/Special/committees/fiwg"
               }
             ]
           }
         ],
-        "description": "Identifies the purpose for this identifier, if known .",
+        "description": "All published FHIR Versions.",
         "jurisdiction": [
           {
             "coding": [
@@ -278,70 +154,12 @@
         "uniqueId": [
           {
             "type": "uri",
-            "value": "http://hl7.org/fhir/identifier-use",
+            "value": "http://hl7.org/fhir/FHIR-version",
             "preferred": true
           },
           {
             "type": "oid",
-            "value": "2.16.840.1.113883.4.642.1.58",
-            "preferred": false
-          }
-        ]
-      }
-    },
-    {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/related-artifact-type",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "related-artifact-type",
-        "name": "RelatedArtifactType",
-        "status": "active",
-        "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
-        "publisher": "HL7 International / FHIR Infrastructure",
-        "contact": [
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://hl7.org/fhir"
-              },
-              {
-                "system": "email",
-                "value": "fhir@lists.hl7.org"
-              }
-            ]
-          },
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://www.hl7.org/Special/committees/fiwg"
-              }
-            ]
-          }
-        ],
-        "description": "The type of relationship to the related artifact.",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/related-artifact-type",
-            "preferred": true
-          },
-          {
-            "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.100",
+            "value": "2.16.840.1.113883.4.642.4.1310",
             "preferred": false
           }
         ]
@@ -355,7 +173,7 @@
         "name": "RemittanceOutcome",
         "status": "draft",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International / Financial Management",
         "contact": [
           {
@@ -401,7 +219,7 @@
         "name": "NarrativeStatus",
         "status": "draft",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International / FHIR Infrastructure",
         "contact": [
           {
@@ -452,14 +270,72 @@
       }
     },
     {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/sort-direction",
+      "fullUrl": "http://hl7.org/fhir/NamingSystem/product-status",
       "resource": {
         "resourceType": "NamingSystem",
-        "id": "sort-direction",
-        "name": "SortDirection",
+        "id": "product-status",
+        "name": "ProductStatus",
+        "status": "draft",
+        "kind": "codesystem",
+        "date": "2025-11-17T19:23:40+00:00",
+        "publisher": "HL7 International / FHIR Infrastructure",
+        "contact": [
+          {
+            "telecom": [
+              {
+                "system": "url",
+                "value": "http://hl7.org/fhir"
+              },
+              {
+                "system": "email",
+                "value": "fhir@lists.hl7.org"
+              }
+            ]
+          },
+          {
+            "telecom": [
+              {
+                "system": "url",
+                "value": "http://www.hl7.org/Special/committees/fiwg"
+              }
+            ]
+          }
+        ],
+        "description": "Codes identifying the lifecycle stage of a product.",
+        "jurisdiction": [
+          {
+            "coding": [
+              {
+                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
+                "code": "001",
+                "display": "World"
+              }
+            ]
+          }
+        ],
+        "uniqueId": [
+          {
+            "type": "uri",
+            "value": "http://hl7.org/fhir/product-status",
+            "preferred": true
+          },
+          {
+            "type": "oid",
+            "value": "2.16.840.1.113883.4.642.4.903",
+            "preferred": false
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "http://hl7.org/fhir/NamingSystem/trigger-type",
+      "resource": {
+        "resourceType": "NamingSystem",
+        "id": "trigger-type",
+        "name": "TriggerType",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International / Clinical Decision Support",
         "contact": [
           {
@@ -483,7 +359,7 @@
             ]
           }
         ],
-        "description": "The possible sort directions, ascending or descending.",
+        "description": "The type of trigger.",
         "jurisdiction": [
           {
             "coding": [
@@ -498,26 +374,26 @@
         "uniqueId": [
           {
             "type": "uri",
-            "value": "http://hl7.org/fhir/sort-direction",
+            "value": "http://hl7.org/fhir/trigger-type",
             "preferred": true
           },
           {
             "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.980",
+            "value": "2.16.840.1.113883.4.642.4.104",
             "preferred": false
           }
         ]
       }
     },
     {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/name-use",
+      "fullUrl": "http://hl7.org/fhir/NamingSystem/discriminator-type",
       "resource": {
         "resourceType": "NamingSystem",
-        "id": "name-use",
-        "name": "NameUse",
+        "id": "discriminator-type",
+        "name": "DiscriminatorType",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International / FHIR Infrastructure",
         "contact": [
           {
@@ -541,7 +417,7 @@
             ]
           }
         ],
-        "description": "The use of a human name.",
+        "description": "How an element value is interpreted when discrimination is evaluated.",
         "jurisdiction": [
           {
             "coding": [
@@ -556,58 +432,12 @@
         "uniqueId": [
           {
             "type": "uri",
-            "value": "http://hl7.org/fhir/name-use",
+            "value": "http://hl7.org/fhir/discriminator-type",
             "preferred": true
           },
           {
             "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.66",
-            "preferred": false
-          }
-        ]
-      }
-    },
-    {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/search-param-type",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "search-param-type",
-        "name": "SearchParamType",
-        "status": "active",
-        "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
-        "publisher": "HL7 International / FHIR Infrastructure",
-        "contact": [
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://www.hl7.org/Special/committees/fiwg"
-              }
-            ]
-          }
-        ],
-        "description": "Data types allowed to be used for search parameters.",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/search-param-type",
-            "preferred": true
-          },
-          {
-            "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.12",
+            "value": "2.16.840.1.113883.4.642.1.92",
             "preferred": false
           }
         ]
@@ -619,9 +449,9 @@
         "resourceType": "NamingSystem",
         "id": "event-status",
         "name": "EventStatus",
-        "status": "draft",
+        "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International / Patient Care",
         "contact": [
           {
@@ -680,28 +510,16 @@
       }
     },
     {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/product-status",
+      "fullUrl": "http://hl7.org/fhir/NamingSystem/binding-strength",
       "resource": {
         "resourceType": "NamingSystem",
-        "id": "product-status",
-        "name": "ProductStatus",
-        "status": "draft",
+        "id": "binding-strength",
+        "name": "BindingStrength",
+        "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International / FHIR Infrastructure",
         "contact": [
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://hl7.org/fhir"
-              },
-              {
-                "system": "email",
-                "value": "fhir@lists.hl7.org"
-              }
-            ]
-          },
           {
             "telecom": [
               {
@@ -711,7 +529,7 @@
             ]
           }
         ],
-        "description": "Codes identifying the lifecycle stage of a product.",
+        "description": "Indication of the degree of conformance expectations associated with a binding.",
         "jurisdiction": [
           {
             "coding": [
@@ -726,26 +544,72 @@
         "uniqueId": [
           {
             "type": "uri",
-            "value": "http://hl7.org/fhir/product-status",
+            "value": "http://hl7.org/fhir/binding-strength",
             "preferred": true
           },
           {
             "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.903",
+            "value": "2.16.840.1.113883.4.642.4.44",
             "preferred": false
           }
         ]
       }
     },
     {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/address-type",
+      "fullUrl": "http://hl7.org/fhir/NamingSystem/note-type",
       "resource": {
         "resourceType": "NamingSystem",
-        "id": "address-type",
-        "name": "AddressType",
+        "id": "note-type",
+        "name": "NoteType",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
+        "publisher": "HL7 International / Financial Management",
+        "contact": [
+          {
+            "telecom": [
+              {
+                "system": "url",
+                "value": "http://www.hl7.org/Special/committees/fm"
+              }
+            ]
+          }
+        ],
+        "description": "The presentation types of notes.",
+        "jurisdiction": [
+          {
+            "coding": [
+              {
+                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
+                "code": "001",
+                "display": "World"
+              }
+            ]
+          }
+        ],
+        "uniqueId": [
+          {
+            "type": "uri",
+            "value": "http://hl7.org/fhir/note-type",
+            "preferred": true
+          },
+          {
+            "type": "oid",
+            "value": "2.16.840.1.113883.4.642.4.16",
+            "preferred": false
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "http://hl7.org/fhir/NamingSystem/contact-point-system",
+      "resource": {
+        "resourceType": "NamingSystem",
+        "id": "contact-point-system",
+        "name": "ContactPointSystem",
+        "status": "active",
+        "kind": "codesystem",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International / FHIR Infrastructure",
         "contact": [
           {
@@ -769,7 +633,7 @@
             ]
           }
         ],
-        "description": "The type of an address (physical / postal).",
+        "description": "Telecommunications form for contact point.",
         "jurisdiction": [
           {
             "coding": [
@@ -784,12 +648,12 @@
         "uniqueId": [
           {
             "type": "uri",
-            "value": "http://hl7.org/fhir/address-type",
+            "value": "http://hl7.org/fhir/contact-point-system",
             "preferred": true
           },
           {
             "type": "oid",
-            "value": "2.16.840.1.113883.4.642.1.70",
+            "value": "2.16.840.1.113883.4.642.1.72",
             "preferred": false
           }
         ]
@@ -803,7 +667,7 @@
         "name": "PublicationStatus",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International / Clinical Decision Support",
         "contact": [
           {
@@ -850,14 +714,80 @@
       }
     },
     {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/contact-point-use",
+      "fullUrl": "http://hl7.org/fhir/NamingSystem/request-status",
       "resource": {
         "resourceType": "NamingSystem",
-        "id": "contact-point-use",
-        "name": "ContactPointUse",
+        "id": "request-status",
+        "name": "RequestStatus",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
+        "publisher": "HL7 International / Patient Care",
+        "contact": [
+          {
+            "telecom": [
+              {
+                "system": "url",
+                "value": "http://hl7.org/fhir"
+              },
+              {
+                "system": "email",
+                "value": "fhir@lists.hl7.org"
+              }
+            ]
+          },
+          {
+            "telecom": [
+              {
+                "system": "url",
+                "value": "http://www.hl7.org/Special/committees/fiwg"
+              }
+            ]
+          },
+          {
+            "telecom": [
+              {
+                "system": "url",
+                "value": "http://www.hl7.org/Special/committees/patientcare"
+              }
+            ]
+          }
+        ],
+        "description": "Codes identifying the lifecycle stage of a request.",
+        "jurisdiction": [
+          {
+            "coding": [
+              {
+                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
+                "code": "001",
+                "display": "World"
+              }
+            ]
+          }
+        ],
+        "uniqueId": [
+          {
+            "type": "uri",
+            "value": "http://hl7.org/fhir/request-status",
+            "preferred": true
+          },
+          {
+            "type": "oid",
+            "value": "2.16.840.1.113883.4.642.4.112",
+            "preferred": false
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "http://hl7.org/fhir/NamingSystem/timing-abbreviation",
+      "resource": {
+        "resourceType": "NamingSystem",
+        "id": "timing-abbreviation",
+        "name": "TimingAbbreviation",
+        "status": "draft",
+        "kind": "codesystem",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International / FHIR Infrastructure",
         "contact": [
           {
@@ -881,7 +811,7 @@
             ]
           }
         ],
-        "description": "Use of contact point.",
+        "description": "Code for a known / defined timing pattern.",
         "jurisdiction": [
           {
             "coding": [
@@ -896,13 +826,8 @@
         "uniqueId": [
           {
             "type": "uri",
-            "value": "http://hl7.org/fhir/contact-point-use",
+            "value": "http://terminology.hl7.org/CodeSystem/timing-abbreviation",
             "preferred": true
-          },
-          {
-            "type": "oid",
-            "value": "2.16.840.1.113883.4.642.1.74",
-            "preferred": false
           }
         ]
       }
@@ -913,9 +838,9 @@
         "resourceType": "NamingSystem",
         "id": "document-reference-status",
         "name": "DocumentReferenceStatus",
-        "status": "draft",
+        "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International / Orders and Observations",
         "contact": [
           {
@@ -954,214 +879,14 @@
       }
     },
     {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/administrative-gender",
+      "fullUrl": "http://hl7.org/fhir/NamingSystem/event-timing",
       "resource": {
         "resourceType": "NamingSystem",
-        "id": "administrative-gender",
-        "name": "AdministrativeGender",
+        "id": "event-timing",
+        "name": "EventTiming",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
-        "publisher": "HL7 International / Patient Administration",
-        "contact": [
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://www.hl7.org/Special/committees/pafm"
-              }
-            ]
-          }
-        ],
-        "description": "The gender of a person used for administrative purposes.",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/administrative-gender",
-            "preferred": true
-          },
-          {
-            "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.2",
-            "preferred": false
-          }
-        ]
-      }
-    },
-    {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/FHIR-version",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "FHIR-version",
-        "name": "FHIRVersion",
-        "status": "active",
-        "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
-        "publisher": "HL7 International / FHIR Infrastructure",
-        "contact": [
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://www.hl7.org/Special/committees/fiwg"
-              }
-            ]
-          }
-        ],
-        "description": "All published FHIR Versions.",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/FHIR-version",
-            "preferred": true
-          },
-          {
-            "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.1310",
-            "preferred": false
-          }
-        ]
-      }
-    },
-    {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/SEVCO",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "SEVCO",
-        "name": "SEVCO",
-        "status": "active",
-        "kind": "codesystem",
-        "date": "2024-12-11T00:00:00+00:00",
-        "publisher": "Computable Publishing LLC",
-        "contact": [
-          {
-            "name": "Brian S. Alper",
-            "telecom": [
-              {
-                "system": "email",
-                "value": "balper@computablepublishing.com"
-              }
-            ]
-          }
-        ],
-        "description": "The Scientific Evidence Code System (SEVCO) includes terms for describing scientific research, including study design, risk of bias, and statistical concepts. For additional derivation details for any term, see https://fevir.net/resources/CodeSystem/27270\n\nFor SEVCO Release 2.0:\n\nAuthors/Editors: Brian S. Alper, Harold Lehmann, Joanne Dehnbostel, Janice Tufte, Mario Tristan, Paul Whaley, Kenneth Wilkins, Khalid Shahin, Erfan Shamsoddin, Michael Panzer, Asiyah Yu Lin, Ellen Jepson, Ilkka Kunnamo, Neeraj Ojha, Olga Vovk, Airton Tetelbom Stein, Bhagvan Kommadi, Carlos Alva-Diaz, Cauê Monaco, Homa Keshavarz, Javier Bracchiglione, Kevin O\u0027Brien. Li Wang, Muhammad Afzal, Philippe Rocca-Serra, Saphia Mokrane, Sheyu Li, Xing Song, Yuan Gao\n\nAdditional Endorsers: Jesús López-Alcalde, Eric Harvey, Paola Rosati, Robin Ann Yurk, Alejandro Piscoya, Cauê Monaco, Cheow Peng Ooi, Nisha Mathew, Leo Orozco, Nelle Stocquart, Sorana D. Bolboaca, KM Saif-Ur-Rahman, A.G. Radhika, Andrew Beck, Louis Leff, Tatyana Shamliyan, Sunu Alice Cherian, Yasser Sami Amer, Sebastien Bailly, Eric Au, Paul Harris, Ahmad Sofi-Mahmudi, Elma Omeragic. Jennifer Hunter, Lara Kahaleh, Lenny Vasanthan, Mahnoor Ahmed, Morufu Olalekan Raimi, Sean Grant, Sumalatha Arunachala, Yaowaluk Ngoenwiwatkul\n\nAdditional Reviewers: Rebecca Baker, Arnav Agarwal, Kailei Nong\n\nfor SEVCO Release 1.1 -- see https://fevir.net/resources/CodeSystem/103845\nfor SEVCO Release 1.0 -- see https://fevir.net/resources/CodeSystem/52433",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "https://fevir.net/sevco",
-            "preferred": true
-          }
-        ]
-      }
-    },
-    {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/request-priority",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "request-priority",
-        "name": "RequestPriority",
-        "status": "draft",
-        "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
-        "publisher": "HL7 International / Clinical Decision Support",
-        "contact": [
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://hl7.org/fhir"
-              },
-              {
-                "system": "email",
-                "value": "fhir@lists.hl7.org"
-              }
-            ]
-          },
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://www.hl7.org/Special/committees/fiwg"
-              }
-            ]
-          },
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://www.hl7.org/Special/committees/dss"
-              }
-            ]
-          }
-        ],
-        "description": "Identifies the level of importance to be assigned to actioning the request.",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/request-priority",
-            "preferred": true
-          },
-          {
-            "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.116",
-            "preferred": false
-          }
-        ]
-      }
-    },
-    {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/reference-version-rules",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "reference-version-rules",
-        "name": "ReferenceVersionRules",
-        "status": "active",
-        "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International / FHIR Infrastructure",
         "contact": [
           {
@@ -1185,7 +910,7 @@
             ]
           }
         ],
-        "description": "Whether a reference needs to be version specific or version independent, or whether either can be used.",
+        "description": "Real-world event relating to the schedule.",
         "jurisdiction": [
           {
             "coding": [
@@ -1200,12 +925,12 @@
         "uniqueId": [
           {
             "type": "uri",
-            "value": "http://hl7.org/fhir/reference-version-rules",
+            "value": "http://hl7.org/fhir/event-timing",
             "preferred": true
           },
           {
             "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.90",
+            "value": "2.16.840.1.113883.4.642.1.76",
             "preferred": false
           }
         ]
@@ -1219,7 +944,7 @@
         "name": "ConstraintSeverity",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International / FHIR Infrastructure",
         "contact": [
           {
@@ -1264,6 +989,226 @@
           {
             "type": "oid",
             "value": "2.16.840.1.113883.4.642.1.82",
+            "preferred": false
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "http://hl7.org/fhir/NamingSystem/search-param-type",
+      "resource": {
+        "resourceType": "NamingSystem",
+        "id": "search-param-type",
+        "name": "SearchParamType",
+        "status": "active",
+        "kind": "codesystem",
+        "date": "2025-11-17T19:23:40+00:00",
+        "publisher": "HL7 International / FHIR Infrastructure",
+        "contact": [
+          {
+            "telecom": [
+              {
+                "system": "url",
+                "value": "http://www.hl7.org/Special/committees/fiwg"
+              }
+            ]
+          }
+        ],
+        "description": "Data types allowed to be used for search parameters.",
+        "jurisdiction": [
+          {
+            "coding": [
+              {
+                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
+                "code": "001",
+                "display": "World"
+              }
+            ]
+          }
+        ],
+        "uniqueId": [
+          {
+            "type": "uri",
+            "value": "http://hl7.org/fhir/search-param-type",
+            "preferred": true
+          },
+          {
+            "type": "oid",
+            "value": "2.16.840.1.113883.4.642.4.12",
+            "preferred": false
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "http://hl7.org/fhir/NamingSystem/resource-aggregation-mode",
+      "resource": {
+        "resourceType": "NamingSystem",
+        "id": "resource-aggregation-mode",
+        "name": "AggregationMode",
+        "status": "active",
+        "kind": "codesystem",
+        "date": "2025-11-17T19:23:40+00:00",
+        "publisher": "HL7 International / FHIR Infrastructure",
+        "contact": [
+          {
+            "telecom": [
+              {
+                "system": "url",
+                "value": "http://hl7.org/fhir"
+              },
+              {
+                "system": "email",
+                "value": "fhir@lists.hl7.org"
+              }
+            ]
+          },
+          {
+            "telecom": [
+              {
+                "system": "url",
+                "value": "http://www.hl7.org/Special/committees/fiwg"
+              }
+            ]
+          }
+        ],
+        "description": "How resource references can be aggregated.",
+        "jurisdiction": [
+          {
+            "coding": [
+              {
+                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
+                "code": "001",
+                "display": "World"
+              }
+            ]
+          }
+        ],
+        "uniqueId": [
+          {
+            "type": "uri",
+            "value": "http://hl7.org/fhir/resource-aggregation-mode",
+            "preferred": true
+          },
+          {
+            "type": "oid",
+            "value": "2.16.840.1.113883.4.642.4.86",
+            "preferred": false
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "http://hl7.org/fhir/NamingSystem/address-use",
+      "resource": {
+        "resourceType": "NamingSystem",
+        "id": "address-use",
+        "name": "AddressUse",
+        "status": "active",
+        "kind": "codesystem",
+        "date": "2025-11-17T19:23:40+00:00",
+        "publisher": "HL7 International / FHIR Infrastructure",
+        "contact": [
+          {
+            "telecom": [
+              {
+                "system": "url",
+                "value": "http://hl7.org/fhir"
+              },
+              {
+                "system": "email",
+                "value": "fhir@lists.hl7.org"
+              }
+            ]
+          },
+          {
+            "telecom": [
+              {
+                "system": "url",
+                "value": "http://www.hl7.org/Special/committees/fiwg"
+              }
+            ]
+          }
+        ],
+        "description": "The use of an address.",
+        "jurisdiction": [
+          {
+            "coding": [
+              {
+                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
+                "code": "001",
+                "display": "World"
+              }
+            ]
+          }
+        ],
+        "uniqueId": [
+          {
+            "type": "uri",
+            "value": "http://hl7.org/fhir/address-use",
+            "preferred": true
+          },
+          {
+            "type": "oid",
+            "value": "2.16.840.1.113883.4.642.1.68",
+            "preferred": false
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "http://hl7.org/fhir/NamingSystem/address-type",
+      "resource": {
+        "resourceType": "NamingSystem",
+        "id": "address-type",
+        "name": "AddressType",
+        "status": "active",
+        "kind": "codesystem",
+        "date": "2025-11-17T19:23:40+00:00",
+        "publisher": "HL7 International / FHIR Infrastructure",
+        "contact": [
+          {
+            "telecom": [
+              {
+                "system": "url",
+                "value": "http://hl7.org/fhir"
+              },
+              {
+                "system": "email",
+                "value": "fhir@lists.hl7.org"
+              }
+            ]
+          },
+          {
+            "telecom": [
+              {
+                "system": "url",
+                "value": "http://www.hl7.org/Special/committees/fiwg"
+              }
+            ]
+          }
+        ],
+        "description": "The type of an address (physical / postal).",
+        "jurisdiction": [
+          {
+            "coding": [
+              {
+                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
+                "code": "001",
+                "display": "World"
+              }
+            ]
+          }
+        ],
+        "uniqueId": [
+          {
+            "type": "uri",
+            "value": "http://hl7.org/fhir/address-type",
+            "preferred": true
+          },
+          {
+            "type": "oid",
+            "value": "2.16.840.1.113883.4.642.1.70",
             "preferred": false
           }
         ]
@@ -2037,6 +1982,51 @@
       }
     },
     {
+      "fullUrl": "http://hl7.org/fhir/NamingSystem/actordefinition-actor-code",
+      "resource": {
+        "resourceType": "NamingSystem",
+        "id": "actordefinition-actor-code",
+        "name": "ActorDefinitionActorCode",
+        "status": "active",
+        "kind": "codesystem",
+        "date": "2021-01-04T23:01:24+00:00",
+        "publisher": "HL7 (FHIR Project)",
+        "contact": [
+          {
+            "telecom": [
+              {
+                "system": "url",
+                "value": "http://hl7.org/fhir"
+              },
+              {
+                "system": "email",
+                "value": "fhir@lists.hl7.org"
+              }
+            ]
+          }
+        ],
+        "description": "Code for the type of actor - system or human.",
+        "jurisdiction": [
+          {
+            "coding": [
+              {
+                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
+                "code": "001",
+                "display": "World"
+              }
+            ]
+          }
+        ],
+        "uniqueId": [
+          {
+            "type": "uri",
+            "value": "http://hl7.org/fhir/actordefinition-actor-code",
+            "preferred": true
+          }
+        ]
+      }
+    },
+    {
       "fullUrl": "http://hl7.org/fhir/NamingSystem/actordefinition-actor-type",
       "resource": {
         "resourceType": "NamingSystem",
@@ -2060,7 +2050,7 @@
             ]
           }
         ],
-        "description": "The type of actor - system or human.",
+        "description": "The type of actor - system or human or other.",
         "jurisdiction": [
           {
             "coding": [
@@ -2089,7 +2079,7 @@
         "name": "AdditionalBindingPurposeCodes",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International / FHIR Infrastructure",
         "contact": [
           {
@@ -2117,55 +2107,6 @@
           {
             "type": "uri",
             "value": "http://hl7.org/fhir/CodeSystem/additional-binding-purpose",
-            "preferred": true
-          }
-        ]
-      }
-    },
-    {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/additional-resources",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "additional-resources",
-        "name": "AdditionalResource",
-        "status": "active",
-        "kind": "codesystem",
-        "date": "2025-03-14T06:51:03+00:00",
-        "publisher": "HL7 International / FHIR Infrastructure",
-        "contact": [
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://www.hl7.org/Special/committees/fmg"
-              }
-            ]
-          },
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://www.hl7.org/Special/committees/fiwg"
-              }
-            ]
-          }
-        ],
-        "description": "The list of approved additional resources (as defined in R6)",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/tools/CodeSystem/additional-resources",
             "preferred": true
           }
         ]
@@ -2229,7 +2170,7 @@
         "name": "AdministrationSubPotentReason",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International",
         "description": "This value set is provided as an example. The value set to instantiate this attribute should be drawn from a robust terminology code system that consists of or contains concepts to support the medication administration process.",
         "jurisdiction": [
@@ -2712,7 +2653,7 @@
         "name": "ASTMSignatureTypeCodes",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "ASTM",
         "description": "The Digital Signature Purposes, an indication of the reason an entity signs a document. This is included in the signed information and can be used when determining accountability for various actions concerning the document. Examples include: author, transcriptionist/recorder, and witness.",
         "jurisdiction": [
@@ -2891,60 +2832,14 @@
       }
     },
     {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/binding-strength",
+      "fullUrl": "http://hl7.org/fhir/NamingSystem/contact-point-use",
       "resource": {
         "resourceType": "NamingSystem",
-        "id": "binding-strength",
-        "name": "BindingStrength",
+        "id": "contact-point-use",
+        "name": "ContactPointUse",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
-        "publisher": "HL7 International / FHIR Infrastructure",
-        "contact": [
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://www.hl7.org/Special/committees/fiwg"
-              }
-            ]
-          }
-        ],
-        "description": "Indication of the degree of conformance expectations associated with a binding.",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/binding-strength",
-            "preferred": true
-          },
-          {
-            "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.44",
-            "preferred": false
-          }
-        ]
-      }
-    },
-    {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/property-representation",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "property-representation",
-        "name": "PropertyRepresentation",
-        "status": "active",
-        "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International / FHIR Infrastructure",
         "contact": [
           {
@@ -2968,7 +2863,7 @@
             ]
           }
         ],
-        "description": "How a property is represented when serialized.",
+        "description": "Use of contact point.",
         "jurisdiction": [
           {
             "coding": [
@@ -2983,28 +2878,40 @@
         "uniqueId": [
           {
             "type": "uri",
-            "value": "http://hl7.org/fhir/property-representation",
+            "value": "http://hl7.org/fhir/contact-point-use",
             "preferred": true
           },
           {
             "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.88",
+            "value": "2.16.840.1.113883.4.642.1.74",
             "preferred": false
           }
         ]
       }
     },
     {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/concept-map-relationship",
+      "fullUrl": "http://hl7.org/fhir/NamingSystem/reference-version-rules",
       "resource": {
         "resourceType": "NamingSystem",
-        "id": "concept-map-relationship",
-        "name": "ConceptMapRelationship",
+        "id": "reference-version-rules",
+        "name": "ReferenceVersionRules",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International / FHIR Infrastructure",
         "contact": [
+          {
+            "telecom": [
+              {
+                "system": "url",
+                "value": "http://hl7.org/fhir"
+              },
+              {
+                "system": "email",
+                "value": "fhir@lists.hl7.org"
+              }
+            ]
+          },
           {
             "telecom": [
               {
@@ -3014,7 +2921,7 @@
             ]
           }
         ],
-        "description": "The relationship between concepts.",
+        "description": "Whether a reference needs to be version specific or version independent, or whether either can be used.",
         "jurisdiction": [
           {
             "coding": [
@@ -3029,12 +2936,12 @@
         "uniqueId": [
           {
             "type": "uri",
-            "value": "http://hl7.org/fhir/concept-map-relationship",
+            "value": "http://hl7.org/fhir/reference-version-rules",
             "preferred": true
           },
           {
             "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.1986",
+            "value": "2.16.840.1.113883.4.642.4.90",
             "preferred": false
           }
         ]
@@ -3191,186 +3098,6 @@
       }
     },
     {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/biologicallyderivedproductdispense-match-status",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "biologicallyderivedproductdispense-match-status",
-        "name": "BiologicallyDerivedProductDispenseMatchStatus",
-        "status": "active",
-        "kind": "codesystem",
-        "date": "2023-01-29T20:19:50+00:00",
-        "publisher": "HL7 (FHIR Project)",
-        "contact": [
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://hl7.org/fhir"
-              },
-              {
-                "system": "email",
-                "value": "fhir@lists.hl7.org"
-              }
-            ]
-          }
-        ],
-        "description": "Biologically Derived Product Dispense Match Status",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/CodeSystem/biologicallyderivedproductdispense-match-status",
-            "preferred": true
-          }
-        ]
-      }
-    },
-    {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/biologicallyderivedproductdispense-origin-relationship",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "biologicallyderivedproductdispense-origin-relationship",
-        "name": "BiologicallyDerivedProductDispenseOriginRelationship",
-        "status": "active",
-        "kind": "codesystem",
-        "date": "2023-01-29T20:19:50+00:00",
-        "publisher": "HL7 (FHIR Project)",
-        "contact": [
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://hl7.org/fhir"
-              },
-              {
-                "system": "email",
-                "value": "fhir@lists.hl7.org"
-              }
-            ]
-          }
-        ],
-        "description": "Biologically Derived Product Dispense Origin Relationship",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/CodeSystem/biologicallyderivedproductdispense-origin-relationship",
-            "preferred": true
-          }
-        ]
-      }
-    },
-    {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/biologicallyderivedproductdispense-performer-function",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "biologicallyderivedproductdispense-performer-function",
-        "name": "BiologicallyDerivedProductDispensePerformerFunction",
-        "status": "active",
-        "kind": "codesystem",
-        "date": "2023-01-29T20:19:50+00:00",
-        "publisher": "HL7 (FHIR Project)",
-        "contact": [
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://hl7.org/fhir"
-              },
-              {
-                "system": "email",
-                "value": "fhir@lists.hl7.org"
-              }
-            ]
-          }
-        ],
-        "description": "Biologically Derived Product Dispense Performer Function",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/CodeSystem/biologicallyderivedproductdispense-performer-function",
-            "preferred": true
-          }
-        ]
-      }
-    },
-    {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/biologicallyderivedproductdispense-status",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "biologicallyderivedproductdispense-status",
-        "name": "BiologicallyDerivedProductDispenseStatus",
-        "status": "active",
-        "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
-        "publisher": "HL7 (FHIR Project)",
-        "contact": [
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://hl7.org/fhir"
-              },
-              {
-                "system": "email",
-                "value": "fhir@lists.hl7.org"
-              }
-            ]
-          }
-        ],
-        "description": "Biologically Derived Product Dispense Status Codes",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/biologicallyderivedproductdispense-status",
-            "preferred": true
-          }
-        ]
-      }
-    },
-    {
       "fullUrl": "http://hl7.org/fhir/NamingSystem/bundle-type",
       "resource": {
         "resourceType": "NamingSystem",
@@ -3421,15 +3148,15 @@
       }
     },
     {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/request-intent",
+      "fullUrl": "http://hl7.org/fhir/NamingSystem/identifier-use",
       "resource": {
         "resourceType": "NamingSystem",
-        "id": "request-intent",
-        "name": "RequestIntent",
-        "status": "draft",
+        "id": "identifier-use",
+        "name": "IdentifierUse",
+        "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
-        "publisher": "HL7 International / Clinical Decision Support",
+        "date": "2025-11-17T19:23:40+00:00",
+        "publisher": "HL7 International / FHIR Infrastructure",
         "contact": [
           {
             "telecom": [
@@ -3450,17 +3177,9 @@
                 "value": "http://www.hl7.org/Special/committees/fiwg"
               }
             ]
-          },
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://www.hl7.org/Special/committees/dss"
-              }
-            ]
           }
         ],
-        "description": "Codes indicating the degree of authority/intentionality associated with a request.",
+        "description": "Identifies the purpose for this identifier, if known .",
         "jurisdiction": [
           {
             "coding": [
@@ -3475,12 +3194,12 @@
         "uniqueId": [
           {
             "type": "uri",
-            "value": "http://hl7.org/fhir/request-intent",
+            "value": "http://hl7.org/fhir/identifier-use",
             "preferred": true
           },
           {
             "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.114",
+            "value": "2.16.840.1.113883.4.642.1.58",
             "preferred": false
           }
         ]
@@ -3592,9 +3311,9 @@
         "resourceType": "NamingSystem",
         "id": "catalog-type",
         "name": "CatalogType",
-        "status": "draft",
+        "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International",
         "description": "CatalogType",
         "jurisdiction": [
@@ -3618,38 +3337,26 @@
       }
     },
     {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/resource-aggregation-mode",
+      "fullUrl": "http://hl7.org/fhir/NamingSystem/administrative-gender",
       "resource": {
         "resourceType": "NamingSystem",
-        "id": "resource-aggregation-mode",
-        "name": "AggregationMode",
+        "id": "administrative-gender",
+        "name": "AdministrativeGender",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
-        "publisher": "HL7 International / FHIR Infrastructure",
+        "date": "2025-11-17T19:23:40+00:00",
+        "publisher": "HL7 International / Patient Administration",
         "contact": [
           {
             "telecom": [
               {
                 "system": "url",
-                "value": "http://hl7.org/fhir"
-              },
-              {
-                "system": "email",
-                "value": "fhir@lists.hl7.org"
-              }
-            ]
-          },
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://www.hl7.org/Special/committees/fiwg"
+                "value": "http://www.hl7.org/Special/committees/pafm"
               }
             ]
           }
         ],
-        "description": "How resource references can be aggregated.",
+        "description": "The gender of a person used for administrative purposes.",
         "jurisdiction": [
           {
             "coding": [
@@ -3664,12 +3371,12 @@
         "uniqueId": [
           {
             "type": "uri",
-            "value": "http://hl7.org/fhir/resource-aggregation-mode",
+            "value": "http://hl7.org/fhir/administrative-gender",
             "preferred": true
           },
           {
             "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.86",
+            "value": "2.16.840.1.113883.4.642.4.2",
             "preferred": false
           }
         ]
@@ -3683,7 +3390,7 @@
         "name": "Indicator",
         "status": "retired",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International / FHIR Infrastructure",
         "contact": [
           {
@@ -3780,56 +3487,6 @@
       }
     },
     {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/chargeitem-status",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "chargeitem-status",
-        "name": "ChargeItemStatus",
-        "status": "active",
-        "kind": "codesystem",
-        "date": "2021-01-04T23:01:24+00:00",
-        "publisher": "HL7 (FHIR Project)",
-        "contact": [
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://hl7.org/fhir"
-              },
-              {
-                "system": "email",
-                "value": "fhir@lists.hl7.org"
-              }
-            ]
-          }
-        ],
-        "description": "Codes identifying the lifecycle stage of a ChargeItem.",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/chargeitem-status",
-            "preferred": true
-          },
-          {
-            "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.847",
-            "preferred": false
-          }
-        ]
-      }
-    },
-    {
       "fullUrl": "http://hl7.org/fhir/NamingSystem/claim-decision",
       "resource": {
         "resourceType": "NamingSystem",
@@ -3837,7 +3494,7 @@
         "name": "ClaimAdjudicationDecisionCodes",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International",
         "description": "This value set provides Claim Adjudication Decision codes.",
         "jurisdiction": [
@@ -3873,7 +3530,7 @@
         "name": "ClaimAdjudicationDecisionReasonCodes",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International",
         "description": "This value set provides example Claim Adjudication Decision Reason codes.",
         "jurisdiction": [
@@ -3909,7 +3566,7 @@
         "name": "ClaimProcessingOutcomeCodes",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International",
         "description": "This value set includes Claim Processing Outcome codes.",
         "jurisdiction": [
@@ -4251,16 +3908,24 @@
         "resourceType": "NamingSystem",
         "id": "color-names",
         "name": "ColorCodes",
-        "status": "draft",
+        "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
-        "publisher": "FHIR Infrastructure",
+        "date": "2025-11-17T19:23:40+00:00",
+        "publisher": "HL7 International / Health Care Devices",
         "contact": [
           {
             "telecom": [
               {
                 "system": "url",
                 "value": "http://hl7.org/fhir"
+              }
+            ]
+          },
+          {
+            "telecom": [
+              {
+                "system": "url",
+                "value": "http://www.hl7.org/Special/committees/healthcaredevices"
               }
             ]
           }
@@ -4299,14 +3964,22 @@
         "name": "ColorRGB",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
-        "publisher": "FHIR Infrastructure",
+        "date": "2025-11-17T19:23:40+00:00",
+        "publisher": "HL7 International / Health Care Devices",
         "contact": [
           {
             "telecom": [
               {
                 "system": "url",
                 "value": "http://hl7.org/fhir"
+              }
+            ]
+          },
+          {
+            "telecom": [
+              {
+                "system": "url",
+                "value": "http://www.hl7.org/Special/committees/healthcaredevices"
               }
             ]
           }
@@ -4383,6 +4056,55 @@
             "type": "oid",
             "value": "2.16.840.1.113883.4.642.4.1923",
             "preferred": false
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "http://hl7.org/fhir/NamingSystem/comparison-operation",
+      "resource": {
+        "resourceType": "NamingSystem",
+        "id": "comparison-operation",
+        "name": "ComparisonOperationCS",
+        "status": "active",
+        "kind": "codesystem",
+        "date": "2025-11-17T19:23:40+00:00",
+        "publisher": "HL7 International / Pharmacy",
+        "contact": [
+          {
+            "telecom": [
+              {
+                "system": "url",
+                "value": "http://www.hl7.org/Special/committees/fiwg"
+              }
+            ]
+          },
+          {
+            "telecom": [
+              {
+                "system": "url",
+                "value": "http://www.hl7.org/Special/committees/medication"
+              }
+            ]
+          }
+        ],
+        "description": "Additional Binding Purpose",
+        "jurisdiction": [
+          {
+            "coding": [
+              {
+                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
+                "code": "001",
+                "display": "World"
+              }
+            ]
+          }
+        ],
+        "uniqueId": [
+          {
+            "type": "uri",
+            "value": "http://hl7.org/fhir/CodeSystem/comparison-operation",
+            "preferred": true
           }
         ]
       }
@@ -4545,7 +4267,7 @@
         "name": "ConceptProperties",
         "status": "draft",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International / Terminology Infrastructure",
         "contact": [
           {
@@ -4651,9 +4373,9 @@
         "resourceType": "NamingSystem",
         "id": "concept-subsumption-outcome",
         "name": "ConceptSubsumptionOutcome",
-        "status": "draft",
+        "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International / Terminology Infrastructure",
         "contact": [
           {
@@ -4757,7 +4479,7 @@
         "name": "ConceptMapProperties",
         "status": "draft",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "FHIR Project",
         "description": "A set of common concept properties for use on ConceptMap",
         "jurisdiction": [
@@ -4881,106 +4603,6 @@
       }
     },
     {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/condition-precondition-type",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "condition-precondition-type",
-        "name": "ConditionPreconditionType",
-        "status": "active",
-        "kind": "codesystem",
-        "date": "2021-01-04T23:01:24+00:00",
-        "publisher": "HL7 (FHIR Project)",
-        "contact": [
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://hl7.org/fhir"
-              },
-              {
-                "system": "email",
-                "value": "fhir@lists.hl7.org"
-              }
-            ]
-          }
-        ],
-        "description": "Kind of precondition for the condition.",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/condition-precondition-type",
-            "preferred": true
-          },
-          {
-            "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.2037",
-            "preferred": false
-          }
-        ]
-      }
-    },
-    {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/condition-questionnaire-purpose",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "condition-questionnaire-purpose",
-        "name": "ConditionQuestionnairePurpose",
-        "status": "active",
-        "kind": "codesystem",
-        "date": "2021-01-04T23:01:24+00:00",
-        "publisher": "HL7 (FHIR Project)",
-        "contact": [
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://hl7.org/fhir"
-              },
-              {
-                "system": "email",
-                "value": "fhir@lists.hl7.org"
-              }
-            ]
-          }
-        ],
-        "description": "The use of a questionnaire.",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/condition-questionnaire-purpose",
-            "preferred": true
-          },
-          {
-            "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.2036",
-            "preferred": false
-          }
-        ]
-      }
-    },
-    {
       "fullUrl": "http://hl7.org/fhir/NamingSystem/conditional-delete-status",
       "resource": {
         "resourceType": "NamingSystem",
@@ -5088,7 +4710,7 @@
         "name": "ConformanceExpectation",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International / FHIR Infrastructure",
         "contact": [
           {
@@ -6126,14 +5748,14 @@
       }
     },
     {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/event-timing",
+      "fullUrl": "http://hl7.org/fhir/NamingSystem/name-use",
       "resource": {
         "resourceType": "NamingSystem",
-        "id": "event-timing",
-        "name": "EventTiming",
+        "id": "name-use",
+        "name": "NameUse",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International / FHIR Infrastructure",
         "contact": [
           {
@@ -6157,7 +5779,7 @@
             ]
           }
         ],
-        "description": "Real-world event relating to the schedule.",
+        "description": "The use of a human name.",
         "jurisdiction": [
           {
             "coding": [
@@ -6172,128 +5794,12 @@
         "uniqueId": [
           {
             "type": "uri",
-            "value": "http://hl7.org/fhir/event-timing",
+            "value": "http://hl7.org/fhir/name-use",
             "preferred": true
           },
           {
             "type": "oid",
-            "value": "2.16.840.1.113883.4.642.1.76",
-            "preferred": false
-          }
-        ]
-      }
-    },
-    {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/quantity-comparator",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "quantity-comparator",
-        "name": "QuantityComparator",
-        "status": "active",
-        "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
-        "publisher": "HL7 International / FHIR Infrastructure",
-        "contact": [
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://hl7.org/fhir"
-              },
-              {
-                "system": "email",
-                "value": "fhir@lists.hl7.org"
-              }
-            ]
-          },
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://www.hl7.org/Special/committees/fiwg"
-              }
-            ]
-          }
-        ],
-        "description": "How the Quantity should be understood and represented.",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/quantity-comparator",
-            "preferred": true
-          },
-          {
-            "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.60",
-            "preferred": false
-          }
-        ]
-      }
-    },
-    {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/resource-slicing-rules",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "resource-slicing-rules",
-        "name": "SlicingRules",
-        "status": "active",
-        "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
-        "publisher": "HL7 International / FHIR Infrastructure",
-        "contact": [
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://hl7.org/fhir"
-              },
-              {
-                "system": "email",
-                "value": "fhir@lists.hl7.org"
-              }
-            ]
-          },
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://www.hl7.org/Special/committees/fiwg"
-              }
-            ]
-          }
-        ],
-        "description": "How slices are interpreted when evaluating an instance.",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/resource-slicing-rules",
-            "preferred": true
-          },
-          {
-            "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.84",
+            "value": "2.16.840.1.113883.4.642.4.66",
             "preferred": false
           }
         ]
@@ -6307,7 +5813,7 @@
         "name": "DatesEventTypeCodes",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International",
         "description": "This value set includes sample Dates Event Type codes.",
         "jurisdiction": [
@@ -6379,6 +5885,64 @@
           {
             "type": "oid",
             "value": "2.16.840.1.113883.4.642.4.513",
+            "preferred": false
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "http://hl7.org/fhir/NamingSystem/sort-direction",
+      "resource": {
+        "resourceType": "NamingSystem",
+        "id": "sort-direction",
+        "name": "SortDirection",
+        "status": "active",
+        "kind": "codesystem",
+        "date": "2025-11-17T19:23:40+00:00",
+        "publisher": "HL7 International / Clinical Decision Support",
+        "contact": [
+          {
+            "telecom": [
+              {
+                "system": "url",
+                "value": "http://hl7.org/fhir"
+              },
+              {
+                "system": "email",
+                "value": "fhir@lists.hl7.org"
+              }
+            ]
+          },
+          {
+            "telecom": [
+              {
+                "system": "url",
+                "value": "http://www.hl7.org/Special/committees/dss"
+              }
+            ]
+          }
+        ],
+        "description": "The possible sort directions, ascending or descending.",
+        "jurisdiction": [
+          {
+            "coding": [
+              {
+                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
+                "code": "001",
+                "display": "World"
+              }
+            ]
+          }
+        ],
+        "uniqueId": [
+          {
+            "type": "uri",
+            "value": "http://hl7.org/fhir/sort-direction",
+            "preferred": true
+          },
+          {
+            "type": "oid",
+            "value": "2.16.840.1.113883.4.642.4.980",
             "preferred": false
           }
         ]
@@ -6632,7 +6196,7 @@
         "name": "ProcedureDeviceActionCodes",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International",
         "description": "Example value set for Procedure Device Action code (what happened to a device during a procedure.",
         "jurisdiction": [
@@ -6918,7 +6482,7 @@
         "name": "DevicePropertyType",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 Orders and Observations Workgroup",
         "description": "The fixed characteristics or conditions of the device. These codes are for example purposes only.",
         "jurisdiction": [
@@ -7037,6 +6601,51 @@
             "type": "oid",
             "value": "2.16.840.1.113883.4.642.4.210",
             "preferred": false
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "http://hl7.org/fhir/NamingSystem/devicealert-activationState",
+      "resource": {
+        "resourceType": "NamingSystem",
+        "id": "devicealert-activationState",
+        "name": "DeviceAlertActivationState",
+        "status": "active",
+        "kind": "codesystem",
+        "date": "2023-12-09T23:01:24+00:00",
+        "publisher": "HL7 International / Health Care Devices",
+        "contact": [
+          {
+            "telecom": [
+              {
+                "system": "url",
+                "value": "http://www.hl7.org/Special/committees/healthcaredevices"
+              },
+              {
+                "system": "email",
+                "value": "fhir@lists.hl7.org"
+              }
+            ]
+          }
+        ],
+        "description": "Describes the activation state of a DeviceAlert.",
+        "jurisdiction": [
+          {
+            "coding": [
+              {
+                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
+                "code": "001",
+                "display": "World"
+              }
+            ]
+          }
+        ],
+        "uniqueId": [
+          {
+            "type": "uri",
+            "value": "http://hl7.org/fhir/devicealert-activationState",
+            "preferred": true
           }
         ]
       }
@@ -7222,6 +6831,51 @@
       }
     },
     {
+      "fullUrl": "http://hl7.org/fhir/NamingSystem/devicealert-priority",
+      "resource": {
+        "resourceType": "NamingSystem",
+        "id": "devicealert-priority",
+        "name": "DeviceAlertPriority",
+        "status": "active",
+        "kind": "codesystem",
+        "date": "2023-12-09T23:01:24+00:00",
+        "publisher": "HL7 International / Health Care Devices",
+        "contact": [
+          {
+            "telecom": [
+              {
+                "system": "url",
+                "value": "http://www.hl7.org/Special/committees/healthcaredevices"
+              },
+              {
+                "system": "email",
+                "value": "fhir@lists.hl7.org"
+              }
+            ]
+          }
+        ],
+        "description": "Describes the priority of a DeviceAlert.",
+        "jurisdiction": [
+          {
+            "coding": [
+              {
+                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
+                "code": "001",
+                "display": "World"
+              }
+            ]
+          }
+        ],
+        "uniqueId": [
+          {
+            "type": "uri",
+            "value": "http://hl7.org/fhir/devicealert-priority",
+            "preferred": true
+          }
+        ]
+      }
+    },
+    {
       "fullUrl": "http://hl7.org/fhir/NamingSystem/devicealert-signalType",
       "resource": {
         "resourceType": "NamingSystem",
@@ -7364,7 +7018,7 @@
         "name": "DeviceAssociationAssociationStatusCodes",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International",
         "description": "Codes that describe the state of a device’s association (e.g., implanted, attached, on, off, standby, defective).",
         "jurisdiction": [
@@ -7395,7 +7049,7 @@
         "name": "DeviceAssociation",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International",
         "description": "DeviceAssociation Relationship Codes",
         "jurisdiction": [
@@ -7426,7 +7080,7 @@
         "name": "DeviceAssociation",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International",
         "description": "DeviceAssociation Status Codes",
         "jurisdiction": [
@@ -7457,7 +7111,7 @@
         "name": "DeviceAssociation",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International",
         "description": "DeviceAssociation Status Reason Codes",
         "jurisdiction": [
@@ -7575,228 +7229,6 @@
           {
             "type": "oid",
             "value": "2.16.840.1.113883.4.642.4.1933",
-            "preferred": false
-          }
-        ]
-      }
-    },
-    {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/devicedispense-status",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "devicedispense-status",
-        "name": "DeviceDispenseStatusCodes",
-        "status": "active",
-        "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
-        "publisher": "HL7 International",
-        "description": "DeviceDispense Status Codes",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/devicedispense-status",
-            "preferred": true
-          },
-          {
-            "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.2020",
-            "preferred": false
-          }
-        ]
-      }
-    },
-    {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/devicedispense-status-reason",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "devicedispense-status-reason",
-        "name": "DeviceDispenseStatusReasonCodes",
-        "status": "active",
-        "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
-        "publisher": "HL7 International",
-        "description": "DeviceDispense Status Reason Codes",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/CodeSystem/devicedispense-status-reason",
-            "preferred": true
-          },
-          {
-            "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.2110",
-            "preferred": false
-          }
-        ]
-      }
-    },
-    {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/deviceusage-adherence-code",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "deviceusage-adherence-code",
-        "name": "DeviceUsageAdherenceCode",
-        "status": "active",
-        "kind": "codesystem",
-        "date": "2021-01-04T23:01:24+00:00",
-        "publisher": "HL7 (FHIR Project)",
-        "contact": [
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://hl7.org/fhir"
-              },
-              {
-                "system": "email",
-                "value": "fhir@lists.hl7.org"
-              }
-            ]
-          }
-        ],
-        "description": "A coded concept indicating the usage of the device.",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/deviceusage-adherence-code",
-            "preferred": true
-          },
-          {
-            "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.1854",
-            "preferred": false
-          }
-        ]
-      }
-    },
-    {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/deviceusage-adherence-reason",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "deviceusage-adherence-reason",
-        "name": "DeviceUsageAdherenceReason",
-        "status": "active",
-        "kind": "codesystem",
-        "date": "2021-01-04T23:01:24+00:00",
-        "publisher": "HL7 (FHIR Project)",
-        "contact": [
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://hl7.org/fhir"
-              },
-              {
-                "system": "email",
-                "value": "fhir@lists.hl7.org"
-              }
-            ]
-          }
-        ],
-        "description": "A coded concept indicating the reason for the usage of the device.",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/deviceusage-adherence-reason",
-            "preferred": true
-          },
-          {
-            "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.1855",
-            "preferred": false
-          }
-        ]
-      }
-    },
-    {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/deviceusage-status",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "deviceusage-status",
-        "name": "DeviceUsageStatus",
-        "status": "active",
-        "kind": "codesystem",
-        "date": "2021-01-04T23:01:24+00:00",
-        "publisher": "HL7 (FHIR Project)",
-        "contact": [
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://hl7.org/fhir"
-              },
-              {
-                "system": "email",
-                "value": "fhir@lists.hl7.org"
-              }
-            ]
-          }
-        ],
-        "description": "A coded concept indicating the current status of the Device Usage.",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/deviceusage-status",
-            "preferred": true
-          },
-          {
-            "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.2059",
             "preferred": false
           }
         ]
@@ -7998,14 +7430,112 @@
       }
     },
     {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/contributor-type",
+      "fullUrl": "http://hl7.org/fhir/NamingSystem/dosage-condition-code",
       "resource": {
         "resourceType": "NamingSystem",
-        "id": "contributor-type",
-        "name": "ContributorType",
+        "id": "dosage-condition-code",
+        "name": "DosageConditionCodes",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
+        "publisher": "HL7 International / Pharmacy",
+        "contact": [
+          {
+            "telecom": [
+              {
+                "system": "url",
+                "value": "http://www.hl7.org/Special/committees/fiwg"
+              }
+            ]
+          },
+          {
+            "telecom": [
+              {
+                "system": "url",
+                "value": "http://www.hl7.org/Special/committees/medication"
+              }
+            ]
+          }
+        ],
+        "description": "Additional Binding Purpose",
+        "jurisdiction": [
+          {
+            "coding": [
+              {
+                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
+                "code": "001",
+                "display": "World"
+              }
+            ]
+          }
+        ],
+        "uniqueId": [
+          {
+            "type": "uri",
+            "value": "http://hl7.org/fhir/CodeSystem/dosage-condition-code",
+            "preferred": true
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "http://hl7.org/fhir/NamingSystem/dose-limit-scope",
+      "resource": {
+        "resourceType": "NamingSystem",
+        "id": "dose-limit-scope",
+        "name": "DoseLimitScopeCodes",
+        "status": "active",
+        "kind": "codesystem",
+        "date": "2025-11-17T19:23:40+00:00",
+        "publisher": "HL7 International / Pharmacy",
+        "contact": [
+          {
+            "telecom": [
+              {
+                "system": "url",
+                "value": "http://www.hl7.org/Special/committees/fiwg"
+              }
+            ]
+          },
+          {
+            "telecom": [
+              {
+                "system": "url",
+                "value": "http://www.hl7.org/Special/committees/medication"
+              }
+            ]
+          }
+        ],
+        "description": "Additional Binding Purpose",
+        "jurisdiction": [
+          {
+            "coding": [
+              {
+                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
+                "code": "001",
+                "display": "World"
+              }
+            ]
+          }
+        ],
+        "uniqueId": [
+          {
+            "type": "uri",
+            "value": "http://hl7.org/fhir/CodeSystem/dose-limit-scope",
+            "preferred": true
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "http://hl7.org/fhir/NamingSystem/request-priority",
+      "resource": {
+        "resourceType": "NamingSystem",
+        "id": "request-priority",
+        "name": "RequestPriority",
+        "status": "active",
+        "kind": "codesystem",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International / Clinical Decision Support",
         "contact": [
           {
@@ -8024,12 +7554,20 @@
             "telecom": [
               {
                 "system": "url",
+                "value": "http://www.hl7.org/Special/committees/fiwg"
+              }
+            ]
+          },
+          {
+            "telecom": [
+              {
+                "system": "url",
                 "value": "http://www.hl7.org/Special/committees/dss"
               }
             ]
           }
         ],
-        "description": "The type of contributor.",
+        "description": "Identifies the level of importance to be assigned to actioning the request.",
         "jurisdiction": [
           {
             "coding": [
@@ -8044,12 +7582,136 @@
         "uniqueId": [
           {
             "type": "uri",
-            "value": "http://hl7.org/fhir/contributor-type",
+            "value": "http://hl7.org/fhir/request-priority",
             "preferred": true
           },
           {
             "type": "oid",
-            "value": "2.16.840.1.113883.4.642.1.94",
+            "value": "2.16.840.1.113883.4.642.4.116",
+            "preferred": false
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "http://hl7.org/fhir/NamingSystem/related-artifact-type",
+      "resource": {
+        "resourceType": "NamingSystem",
+        "id": "related-artifact-type",
+        "name": "RelatedArtifactType",
+        "status": "active",
+        "kind": "codesystem",
+        "date": "2025-11-17T19:23:40+00:00",
+        "publisher": "HL7 International / FHIR Infrastructure",
+        "contact": [
+          {
+            "telecom": [
+              {
+                "system": "url",
+                "value": "http://hl7.org/fhir"
+              },
+              {
+                "system": "email",
+                "value": "fhir@lists.hl7.org"
+              }
+            ]
+          },
+          {
+            "telecom": [
+              {
+                "system": "url",
+                "value": "http://www.hl7.org/Special/committees/fiwg"
+              }
+            ]
+          }
+        ],
+        "description": "The type of relationship to the related artifact.",
+        "jurisdiction": [
+          {
+            "coding": [
+              {
+                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
+                "code": "001",
+                "display": "World"
+              }
+            ]
+          }
+        ],
+        "uniqueId": [
+          {
+            "type": "uri",
+            "value": "http://hl7.org/fhir/related-artifact-type",
+            "preferred": true
+          },
+          {
+            "type": "oid",
+            "value": "2.16.840.1.113883.4.642.4.100",
+            "preferred": false
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "http://hl7.org/fhir/NamingSystem/request-intent",
+      "resource": {
+        "resourceType": "NamingSystem",
+        "id": "request-intent",
+        "name": "RequestIntent",
+        "status": "active",
+        "kind": "codesystem",
+        "date": "2025-11-17T19:23:40+00:00",
+        "publisher": "HL7 International / Clinical Decision Support",
+        "contact": [
+          {
+            "telecom": [
+              {
+                "system": "url",
+                "value": "http://hl7.org/fhir"
+              },
+              {
+                "system": "email",
+                "value": "fhir@lists.hl7.org"
+              }
+            ]
+          },
+          {
+            "telecom": [
+              {
+                "system": "url",
+                "value": "http://www.hl7.org/Special/committees/fiwg"
+              }
+            ]
+          },
+          {
+            "telecom": [
+              {
+                "system": "url",
+                "value": "http://www.hl7.org/Special/committees/dss"
+              }
+            ]
+          }
+        ],
+        "description": "Codes indicating the degree of authority/intentionality associated with a request.",
+        "jurisdiction": [
+          {
+            "coding": [
+              {
+                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
+                "code": "001",
+                "display": "World"
+              }
+            ]
+          }
+        ],
+        "uniqueId": [
+          {
+            "type": "uri",
+            "value": "http://hl7.org/fhir/request-intent",
+            "preferred": true
+          },
+          {
+            "type": "oid",
+            "value": "2.16.840.1.113883.4.642.4.114",
             "preferred": false
           }
         ]
@@ -8063,7 +7725,7 @@
         "name": "Eligibility",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International",
         "description": "Example set of HealthcareService eligibility codes",
         "jurisdiction": [
@@ -8094,7 +7756,7 @@
         "name": "ClaimProcessingCodes",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "FHIR Project team",
         "contact": [
           {
@@ -8706,7 +8368,7 @@
         "name": "ClaimProcessingCodes",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "FHIR Project team",
         "contact": [
           {
@@ -8802,7 +8464,7 @@
         "name": "ETSISignatureTypeCodes",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "ETSI",
         "description": "The ETSI TS 101 733 V2.2.1 (2013-04) - Electronic Signatures and Infrastructures (ESI) - defines a set of Commitment Types (Purpose of Signature). ETSI TS 101 903 V1.2.2 defines vocabulary identifiers for these Commitment Types. Digital Signature Purposes, an indication of the reason an entity signs a document. This is included in the signed information and can be used when determining accountability for various actions concerning the document. ",
         "jurisdiction": [
@@ -8976,7 +8638,7 @@
         "resourceType": "NamingSystem",
         "id": "evidence-variable-event",
         "name": "EvidenceVariableEvent",
-        "status": "draft",
+        "status": "active",
         "kind": "codesystem",
         "date": "2021-01-04T23:01:24+00:00",
         "publisher": "HL7 International / Clinical Decision Support",
@@ -9449,72 +9111,14 @@
       }
     },
     {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/trigger-type",
+      "fullUrl": "http://hl7.org/fhir/NamingSystem/property-representation",
       "resource": {
         "resourceType": "NamingSystem",
-        "id": "trigger-type",
-        "name": "TriggerType",
+        "id": "property-representation",
+        "name": "PropertyRepresentation",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
-        "publisher": "HL7 International / Clinical Decision Support",
-        "contact": [
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://hl7.org/fhir"
-              },
-              {
-                "system": "email",
-                "value": "fhir@lists.hl7.org"
-              }
-            ]
-          },
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://www.hl7.org/Special/committees/dss"
-              }
-            ]
-          }
-        ],
-        "description": "The type of trigger.",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/trigger-type",
-            "preferred": true
-          },
-          {
-            "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.104",
-            "preferred": false
-          }
-        ]
-      }
-    },
-    {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/address-use",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "address-use",
-        "name": "AddressUse",
-        "status": "active",
-        "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International / FHIR Infrastructure",
         "contact": [
           {
@@ -9538,7 +9142,7 @@
             ]
           }
         ],
-        "description": "The use of an address.",
+        "description": "How a property is represented when serialized.",
         "jurisdiction": [
           {
             "coding": [
@@ -9553,40 +9157,28 @@
         "uniqueId": [
           {
             "type": "uri",
-            "value": "http://hl7.org/fhir/address-use",
+            "value": "http://hl7.org/fhir/property-representation",
             "preferred": true
           },
           {
             "type": "oid",
-            "value": "2.16.840.1.113883.4.642.1.68",
+            "value": "2.16.840.1.113883.4.642.4.88",
             "preferred": false
           }
         ]
       }
     },
     {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/timing-abbreviation",
+      "fullUrl": "http://hl7.org/fhir/NamingSystem/concept-map-relationship",
       "resource": {
         "resourceType": "NamingSystem",
-        "id": "timing-abbreviation",
-        "name": "TimingAbbreviation",
-        "status": "draft",
+        "id": "concept-map-relationship",
+        "name": "ConceptMapRelationship",
+        "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International / FHIR Infrastructure",
         "contact": [
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://hl7.org/fhir"
-              },
-              {
-                "system": "email",
-                "value": "fhir@lists.hl7.org"
-              }
-            ]
-          },
           {
             "telecom": [
               {
@@ -9596,7 +9188,7 @@
             ]
           }
         ],
-        "description": "Code for a known / defined timing pattern.",
+        "description": "The relationship between concepts.",
         "jurisdiction": [
           {
             "coding": [
@@ -9611,8 +9203,13 @@
         "uniqueId": [
           {
             "type": "uri",
-            "value": "http://terminology.hl7.org/CodeSystem/timing-abbreviation",
+            "value": "http://hl7.org/fhir/concept-map-relationship",
             "preferred": true
+          },
+          {
+            "type": "oid",
+            "value": "2.16.840.1.113883.4.642.4.1986",
+            "preferred": false
           }
         ]
       }
@@ -9661,7 +9258,7 @@
         "name": "FHIROldTypes",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International / FHIR Infrastructure",
         "contact": [
           {
@@ -9785,7 +9382,7 @@
         "name": "FHIRPathTypesCodeSystem",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International / FHIR Infrastructure",
         "contact": [
           {
@@ -9931,7 +9528,7 @@
         "name": "FinancialResourceStatusCodes",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International",
         "description": "This value set includes Status codes.",
         "jurisdiction": [
@@ -9954,292 +9551,6 @@
           {
             "type": "oid",
             "value": "2.16.840.1.113883.4.642.4.593",
-            "preferred": false
-          }
-        ]
-      }
-    },
-    {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/formularyitem-status",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "formularyitem-status",
-        "name": "FormularyItemStatusCodes",
-        "status": "active",
-        "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
-        "publisher": "HL7 International",
-        "description": "FormularyItem Status Codes",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/CodeSystem/formularyitem-status",
-            "preferred": true
-          },
-          {
-            "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.1988",
-            "preferred": false
-          }
-        ]
-      }
-    },
-    {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/genomicstudy-changetype",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "genomicstudy-changetype",
-        "name": "GenomicStudyChangeType",
-        "status": "active",
-        "kind": "codesystem",
-        "date": "2022-08-17T20:48:24+00:00",
-        "publisher": "HL7 (FHIR Project)",
-        "contact": [
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://hl7.org/fhir"
-              },
-              {
-                "system": "email",
-                "value": "fhir@lists.hl7.org"
-              }
-            ]
-          }
-        ],
-        "description": "The change type relevant to GenomicStudy analysis.",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/genomicstudy-changetype",
-            "preferred": true
-          },
-          {
-            "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.1977",
-            "preferred": false
-          }
-        ]
-      }
-    },
-    {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/genomicstudy-dataformat",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "genomicstudy-dataformat",
-        "name": "GenomicStudyDataFormat",
-        "status": "active",
-        "kind": "codesystem",
-        "date": "2022-08-17T19:49:24+00:00",
-        "publisher": "HL7 (FHIR Project)",
-        "contact": [
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://hl7.org/fhir"
-              },
-              {
-                "system": "email",
-                "value": "fhir@lists.hl7.org"
-              }
-            ]
-          }
-        ],
-        "description": "The data format relevant to genomics. These formats and relevant codes were pulled from [Integrative Genomics Viewer Documentation](https://software.broadinstitute.org/software/igv/FileFormats) by Broad Institute.",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/genomicstudy-dataformat",
-            "preferred": true
-          },
-          {
-            "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.1978",
-            "preferred": false
-          }
-        ]
-      }
-    },
-    {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/genomicstudy-methodtype",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "genomicstudy-methodtype",
-        "name": "GenomicStudyMethodType",
-        "status": "active",
-        "kind": "codesystem",
-        "date": "2022-08-16T21:49:24+00:00",
-        "publisher": "HL7 (FHIR Project)",
-        "contact": [
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://hl7.org/fhir"
-              },
-              {
-                "system": "email",
-                "value": "fhir@lists.hl7.org"
-              }
-            ]
-          }
-        ],
-        "description": "The method type of the GenomicStudy analysis. These method types and relevant codes were pulled from [National Library of Medicine-Genetic Testing Registry](https://www.ncbi.nlm.nih.gov/gtr/) (NCBI-GTR) values of describing different testing methods on various levels: [major method category](https://ftp.ncbi.nlm.nih.gov/pub/GTR/standard_terms/Major_method_category.txt), [method category](https://ftp.ncbi.nlm.nih.gov/pub/GTR/standard_terms/Method_category.txt), and [primary methodology](https://ftp.ncbi.nlm.nih.gov/pub/GTR/standard_terms/Primary_test_methodology.txt)",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/genomicstudy-methodtype",
-            "preferred": true
-          },
-          {
-            "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.1979",
-            "preferred": false
-          }
-        ]
-      }
-    },
-    {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/genomicstudy-status",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "genomicstudy-status",
-        "name": "GenomicStudyStatus",
-        "status": "active",
-        "kind": "codesystem",
-        "date": "2021-01-04T23:01:24+00:00",
-        "publisher": "HL7 (FHIR Project)",
-        "contact": [
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://hl7.org/fhir"
-              },
-              {
-                "system": "email",
-                "value": "fhir@lists.hl7.org"
-              }
-            ]
-          }
-        ],
-        "description": "The status of the GenomicStudy.",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/genomicstudy-status",
-            "preferred": true
-          },
-          {
-            "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.1976",
-            "preferred": false
-          }
-        ]
-      }
-    },
-    {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/genomicstudy-type",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "genomicstudy-type",
-        "name": "GenomicStudyType",
-        "status": "active",
-        "kind": "codesystem",
-        "date": "2022-08-17T21:19:24+00:00",
-        "publisher": "HL7 (FHIR Project)",
-        "contact": [
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://hl7.org/fhir"
-              },
-              {
-                "system": "email",
-                "value": "fhir@lists.hl7.org"
-              }
-            ]
-          }
-        ],
-        "description": "The type relevant to GenomicStudy.",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/genomicstudy-type",
-            "preferred": true
-          },
-          {
-            "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.1975",
             "preferred": false
           }
         ]
@@ -10303,7 +9614,7 @@
         "name": "GoalAcceptStatus",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International / Patient Care",
         "contact": [
           {
@@ -10487,7 +9798,7 @@
         "resourceType": "NamingSystem",
         "id": "group-involvement",
         "name": "GroupInvolvement",
-        "status": "draft",
+        "status": "active",
         "kind": "codesystem",
         "date": "2021-01-04T23:01:24+00:00",
         "publisher": "HL7 International / FHIR Infrastructure",
@@ -10790,7 +10101,7 @@
         "name": "GuideParameterCode",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International",
         "description": "GuideParameterCode",
         "jurisdiction": [
@@ -10920,7 +10231,7 @@
         "resourceType": "NamingSystem",
         "id": "knowledge-representation-level",
         "name": "KnowledgeRepresentationLevel",
-        "status": "draft",
+        "status": "active",
         "kind": "codesystem",
         "date": "2019-05-08T00:00:00+00:00",
         "publisher": "HL7 International / FHIR Infrastructure",
@@ -10976,7 +10287,7 @@
         "name": "CodeSystemSummaryExampleACMEBodySites",
         "status": "draft",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International / Terminology Infrastructure",
         "contact": [
           {
@@ -11022,7 +10333,7 @@
         "name": "UsageContextAgreementScope",
         "status": "draft",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International / FHIR Infrastructure",
         "contact": [
           {
@@ -11134,7 +10445,7 @@
         "name": "MessageEvent",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International / Infrastructure And Messaging",
         "contact": [
           {
@@ -11292,64 +10603,6 @@
       }
     },
     {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/related-artifact-type-expanded",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "related-artifact-type-expanded",
-        "name": "RelatedArtifactTypeExpanded",
-        "status": "draft",
-        "kind": "codesystem",
-        "date": "2020-12-28T05:55:11+00:00",
-        "publisher": "HL7 International / Clinical Decision Support",
-        "contact": [
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://hl7.org/fhir"
-              },
-              {
-                "system": "email",
-                "value": "fhir@lists.hl7.org"
-              }
-            ]
-          },
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://www.hl7.org/Special/committees/dss"
-              }
-            ]
-          }
-        ],
-        "description": "The type of relationship to the cited artifact.",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/related-artifact-type-expanded",
-            "preferred": true
-          },
-          {
-            "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.1884",
-            "preferred": false
-          }
-        ]
-      }
-    },
-    {
       "fullUrl": "http://hl7.org/fhir/NamingSystem/relationship",
       "resource": {
         "resourceType": "NamingSystem",
@@ -11357,7 +10610,7 @@
         "name": "BeneficiaryRelationshipCodes",
         "status": "draft",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International / Financial Management",
         "contact": [
           {
@@ -11409,9 +10662,9 @@
         "resourceType": "NamingSystem",
         "id": "resource-status",
         "name": "FHIRCanonicalStatusCodes",
-        "status": "draft",
+        "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "FHIR Project",
         "description": "The master set of status codes used throughout FHIR. All status codes are mapped to one of these codes.",
         "jurisdiction": [
@@ -11447,7 +10700,7 @@
         "name": "FHIRRestfulInteractions",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International / FHIR Infrastructure",
         "contact": [
           {
@@ -11493,7 +10746,7 @@
         "name": "FHIRSafetyCheckListEntries",
         "status": "draft",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International / FHIR Infrastructure",
         "contact": [
           {
@@ -11540,29 +10793,25 @@
       }
     },
     {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/sample-security-structural-roles",
+      "fullUrl": "http://hl7.org/fhir/NamingSystem/security-structural-roles-example",
       "resource": {
         "resourceType": "NamingSystem",
-        "id": "sample-security-structural-roles",
-        "name": "SampleSecurityStructuralRoles",
-        "status": "draft",
+        "id": "security-structural-roles-example",
+        "name": "SecurityStructuralRolesExamples",
+        "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-01T00:00:00+00:00",
         "publisher": "HL7 International / Security",
         "contact": [
           {
             "telecom": [
               {
                 "system": "url",
-                "value": "http://hl7.org/fhir"
-              }
-            ]
-          },
-          {
-            "telecom": [
+                "value": "http://www.hl7.org/Special/committees/secure"
+              },
               {
-                "system": "url",
-                "value": "http://www.hl7.org/Special/committees/security/index.cfm"
+                "system": "email",
+                "value": "fhir@lists.hl7.org"
               }
             ]
           }
@@ -11582,7 +10831,7 @@
         "uniqueId": [
           {
             "type": "uri",
-            "value": "http://hl7.org/fhir/sample-security-structural-roles",
+            "value": "http://hl7.org/fhir/security-structural-roles-example",
             "preferred": true
           },
           {
@@ -11601,7 +10850,7 @@
         "name": "SimpleFormatCodes",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International / FHIR Infrastructure",
         "contact": [
           {
@@ -11645,7 +10894,7 @@
         "resourceType": "NamingSystem",
         "id": "virtual-service-type",
         "name": "VirtualServiceType",
-        "status": "draft",
+        "status": "active",
         "kind": "codesystem",
         "date": "2021-01-04T23:01:24+00:00",
         "publisher": "HL7 International / Patient Administration",
@@ -11837,7 +11086,7 @@
         "name": "LinkRelationTypes",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "Internet Assigned Numbers Authority (IANA)",
         "contact": [
           {
@@ -11878,9 +11127,9 @@
         "name": "MedicationAdministrationCategoryCodes",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International",
-        "description": "Medication Administration Category Codes \n **Note to Balloters: This code system is expected to move to [terminology.fhir.org](http://terminology.fhir.org)**",
+        "description": "Medication Administration Category Codes \n **Note to Balloters: This code system is expected to move to [terminology.hl7.org](http://terminology.hl7.org)**",
         "jurisdiction": [
           {
             "coding": [
@@ -11909,7 +11158,7 @@
         "name": "MedicationAdministrationStatusCodes",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International",
         "description": "MedicationAdministration Status Codes",
         "jurisdiction": [
@@ -11945,7 +11194,7 @@
         "name": "MedicationDoseAid",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International",
         "description": "Medication dose aid",
         "jurisdiction": [
@@ -11981,7 +11230,7 @@
         "name": "MedicationIngredientStrengthCodes",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International",
         "description": "Medication Ingredient Strength Codes",
         "jurisdiction": [
@@ -12017,7 +11266,7 @@
         "name": "MedicationIntendedPerformerRole",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International",
         "description": "Medication Intended Performer Role",
         "jurisdiction": [
@@ -12053,7 +11302,7 @@
         "name": "MedicationStatementAdherenceCodes",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International",
         "description": "MedicationStatement Adherence Codes",
         "jurisdiction": [
@@ -12089,7 +11338,7 @@
         "name": "MedicationStatementStatusCodes",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International",
         "description": "MedicationStatement Status Codes",
         "jurisdiction": [
@@ -12125,7 +11374,7 @@
         "name": "MedicationStatusCodes",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International",
         "description": "Medication Status Codes",
         "jurisdiction": [
@@ -12161,9 +11410,9 @@
         "name": "MedicationDispenseCategoryCodes",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International",
-        "description": "Medication Dispense Category Codes \n **Note to Balloters: This code system is expected to move to [terminology.fhir.org](http://terminology.fhir.org)**",
+        "description": "Medication Dispense Category Codes \n **Note to Balloters: This code system is expected to move to [terminology.hl7.org](http://terminology.hl7.org)**",
         "jurisdiction": [
           {
             "coding": [
@@ -12197,7 +11446,7 @@
         "name": "MedicationDispenseStatusCodes",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International",
         "description": "Medication Dispense Status Codes",
         "jurisdiction": [
@@ -12233,7 +11482,7 @@
         "name": "MedicationDispenseStatusReasonCodes",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International",
         "description": "Medication Dispense Status Reason Codes",
         "jurisdiction": [
@@ -12269,9 +11518,9 @@
         "name": "MedicationRequestCategoryCodes",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International",
-        "description": "Medication Request Category Codes \n **Note to Balloters: This code system is expected to move to [terminology.fhir.org](http://terminology.fhir.org)**",
+        "description": "Medication Request Category Codes \n **Note to Balloters: This code system is expected to move to [terminology.hl7.org](http://terminology.hl7.org)**",
         "jurisdiction": [
           {
             "coding": [
@@ -12300,7 +11549,7 @@
         "name": "MedicationRequestDispenserInstructions",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International",
         "description": "MedicationRequest dispenser instructions",
         "jurisdiction": [
@@ -12331,7 +11580,7 @@
         "name": "MedicationRequestIntentCodes",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International",
         "description": "MedicationRequest Intent Codes",
         "jurisdiction": [
@@ -12367,7 +11616,7 @@
         "name": "MedicationRequestStatusCodes",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International",
         "description": "MedicationRequest Status Codes",
         "jurisdiction": [
@@ -12403,7 +11652,7 @@
         "name": "NutritionIntakeStatusReason",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International",
         "description": "Nutrition Intake Status Reason Codes",
         "jurisdiction": [
@@ -12439,7 +11688,7 @@
         "name": "ObservationInterpretationContextCodes",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International / Orders and Observations",
         "contact": [
           {
@@ -12480,7 +11729,7 @@
         "name": "ServiceRequestStatusReasonCodes",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International - Orders and Observations",
         "contact": [
           {
@@ -12572,7 +11821,7 @@
         "name": "TaskCode",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International",
         "description": "Codes indicating the type of action that is expected to be performed",
         "jurisdiction": [
@@ -12595,56 +11844,6 @@
           {
             "type": "oid",
             "value": "2.16.840.1.113883.4.642.4.1397",
-            "preferred": false
-          }
-        ]
-      }
-    },
-    {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/verificationresult-status",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "verificationresult-status",
-        "name": "Status",
-        "status": "active",
-        "kind": "codesystem",
-        "date": "2018-06-05T14:06:02+00:00",
-        "publisher": "HL7 (FHIR Project)",
-        "contact": [
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://hl7.org/fhir"
-              },
-              {
-                "system": "email",
-                "value": "fhir@lists.hl7.org"
-              }
-            ]
-          }
-        ],
-        "description": "The validation status of the target",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/CodeSystem/verificationresult-status",
-            "preferred": true
-          },
-          {
-            "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.2069",
             "preferred": false
           }
         ]
@@ -13151,168 +12350,6 @@
       }
     },
     {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/inventoryitem-nametype",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "inventoryitem-nametype",
-        "name": "InventoryItemNameType",
-        "status": "active",
-        "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
-        "publisher": "HL7 International",
-        "description": "InventoryItem Name Type",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/inventoryitem-nametype",
-            "preferred": true
-          }
-        ]
-      }
-    },
-    {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/inventoryitem-status",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "inventoryitem-status",
-        "name": "InventoryItemStatus",
-        "status": "active",
-        "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
-        "publisher": "HL7 International",
-        "description": "InventoryItem Status Codes",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/inventoryitem-status",
-            "preferred": true
-          }
-        ]
-      }
-    },
-    {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/inventoryreport-counttype",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "inventoryreport-counttype",
-        "name": "InventoryCountType",
-        "status": "active",
-        "kind": "codesystem",
-        "date": "2021-01-04T23:01:24+00:00",
-        "publisher": "HL7 (FHIR Project)",
-        "contact": [
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://hl7.org/fhir"
-              },
-              {
-                "system": "email",
-                "value": "fhir@lists.hl7.org"
-              }
-            ]
-          }
-        ],
-        "description": "The type of count.",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/inventoryreport-counttype",
-            "preferred": true
-          },
-          {
-            "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.1926",
-            "preferred": false
-          }
-        ]
-      }
-    },
-    {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/inventoryreport-status",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "inventoryreport-status",
-        "name": "InventoryReportStatus",
-        "status": "active",
-        "kind": "codesystem",
-        "date": "2021-01-04T23:01:24+00:00",
-        "publisher": "HL7 (FHIR Project)",
-        "contact": [
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://hl7.org/fhir"
-              },
-              {
-                "system": "email",
-                "value": "fhir@lists.hl7.org"
-              }
-            ]
-          }
-        ],
-        "description": "The status of the InventoryReport.",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/inventoryreport-status",
-            "preferred": true
-          },
-          {
-            "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.1927",
-            "preferred": false
-          }
-        ]
-      }
-    },
-    {
       "fullUrl": "http://hl7.org/fhir/NamingSystem/invoice-status",
       "resource": {
         "resourceType": "NamingSystem",
@@ -13557,56 +12594,6 @@
           {
             "type": "oid",
             "value": "2.16.840.1.113883.4.642.4.424",
-            "preferred": false
-          }
-        ]
-      }
-    },
-    {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/linkage-type",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "linkage-type",
-        "name": "LinkageType",
-        "status": "active",
-        "kind": "codesystem",
-        "date": "2021-01-04T23:01:24+00:00",
-        "publisher": "HL7 (FHIR Project)",
-        "contact": [
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://hl7.org/fhir"
-              },
-              {
-                "system": "email",
-                "value": "fhir@lists.hl7.org"
-              }
-            ]
-          }
-        ],
-        "description": "Used to distinguish different roles a resource can play within a set of linked resources.",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/linkage-type",
-            "preferred": true
-          },
-          {
-            "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.315",
             "preferred": false
           }
         ]
@@ -14206,7 +13193,7 @@
         "name": "MeasureDefinitionExample",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "Clinical Quality Information Workgroup",
         "description": "Example Measure Definitions for the Measure Resource.",
         "jurisdiction": [
@@ -14242,7 +13229,7 @@
         "name": "MeasureGroupExample",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "Clinical Quality Information Workgroup",
         "description": "Example Measure Groups for the Measure Resource.",
         "jurisdiction": [
@@ -14378,7 +13365,7 @@
         "name": "MeasureStratifierExample",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "Clinical Quality Information Workgroup",
         "description": "This example code system defines codes for common types of measure stratification.",
         "jurisdiction": [
@@ -14414,7 +13401,7 @@
         "name": "MeasureSupplementalDataExample",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "Clinical Quality Information Workgroup",
         "description": "Identifier supplemental data in a population for measuring purposes.",
         "jurisdiction": [
@@ -14450,7 +13437,7 @@
         "name": "MeasureReportStratifierValueExample",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "Clinical Quality Information Workgroup",
         "description": "Example Region Value Measure Groups for the Measure Resource.",
         "jurisdiction": [
@@ -14473,42 +13460,6 @@
           {
             "type": "oid",
             "value": "2.16.840.1.113883.4.642.4.1947",
-            "preferred": false
-          }
-        ]
-      }
-    },
-    {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/medication-cost-category",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "medication-cost-category",
-        "name": "MedicationCostCategoryCodes",
-        "status": "active",
-        "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
-        "publisher": "HL7 International",
-        "description": "Medication Cost Category Codes",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/medication-cost-category",
-            "preferred": true
-          },
-          {
-            "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.2068",
             "preferred": false
           }
         ]
@@ -16012,7 +14963,7 @@
         "name": "OrganizationAffiliationRole",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International",
         "description": "This example code system defines a set of codes that can be used to indicate the role of one Organization in relation to its affiliation with another.",
         "jurisdiction": [
@@ -16293,7 +15244,7 @@
         "name": "PaymentIssuerTypeCodes",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "FHIR Project team",
         "contact": [
           {
@@ -16339,7 +15290,7 @@
         "name": "PaymentKindCodes",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "FHIR Project team",
         "contact": [
           {
@@ -16385,7 +15336,7 @@
         "name": "ClaimProcessingCodes",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "FHIR Project team",
         "contact": [
           {
@@ -16731,7 +15682,7 @@
         "name": "QualificationStatus",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International",
         "description": "Set of statuses that apply to qualifications of practitioners and organizations",
         "jurisdiction": [
@@ -16767,7 +15718,7 @@
         "name": "QuestionnaireAnswerConstraint",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International",
         "description": "Codes that describe the types of constraints possible on a question item that has a list of permitted answers",
         "jurisdiction": [
@@ -16853,7 +15804,7 @@
         "name": "QuestionnaireItemDisabledDisplay",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International",
         "description": "QuestionnaireItemDisabledDisplay",
         "jurisdiction": [
@@ -17039,7 +15990,7 @@
         "name": "ReasonMedicationNotGivenCodes",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International",
         "description": "This value set is provided as an example. The value set to instantiate this attribute should be drawn from a robust terminology code system that consists of or contains concepts to support the medication process.",
         "jurisdiction": [
@@ -17513,9 +16464,9 @@
         "resourceType": "NamingSystem",
         "id": "resource-validation-mode",
         "name": "ResourceValidationMode",
-        "status": "draft",
+        "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International",
         "description": "ResourceValidationMode",
         "jurisdiction": [
@@ -17701,7 +16652,7 @@
         "name": "RiskAssessmentMethod",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 (FHIR Project)",
         "contact": [
           {
@@ -17746,7 +16697,7 @@
         "name": "RiskAssessmentOutcome",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 (FHIR Project)",
         "contact": [
           {
@@ -18036,7 +16987,7 @@
         "name": "ICD10ProcedureCodes",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International",
         "description": "This value set includes sample ICD-10 Procedure codes.",
         "jurisdiction": [
@@ -18522,7 +17473,7 @@
         "name": "SubscriptionStatus",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International",
         "description": "This codesystem defines a set of codes that can be used to filter Subscription triggers.",
         "jurisdiction": [
@@ -19551,11 +18502,11 @@
       }
     },
     {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/supplydelivery-stage",
+      "fullUrl": "http://hl7.org/fhir/NamingSystem/synchronicity-control",
       "resource": {
         "resourceType": "NamingSystem",
-        "id": "supplydelivery-stage",
-        "name": "SupplyDeliveryStage",
+        "id": "synchronicity-control",
+        "name": "OperationSynchronicityControl",
         "status": "active",
         "kind": "codesystem",
         "date": "2021-01-04T23:01:24+00:00",
@@ -19574,7 +18525,7 @@
             ]
           }
         ],
-        "description": "Stage of the supply delivery.",
+        "description": "Indicates that an operation must always be handled as synchronous or asynchronous, or that the server must provide both, and clients can choose",
         "jurisdiction": [
           {
             "coding": [
@@ -19589,213 +18540,8 @@
         "uniqueId": [
           {
             "type": "uri",
-            "value": "http://hl7.org/fhir/supplydelivery-stage",
+            "value": "http://hl7.org/fhir/synchronicity-control",
             "preferred": true
-          },
-          {
-            "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.2131",
-            "preferred": false
-          }
-        ]
-      }
-    },
-    {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/supplydelivery-status",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "supplydelivery-status",
-        "name": "SupplyDeliveryStatus",
-        "status": "active",
-        "kind": "codesystem",
-        "date": "2021-01-04T23:01:24+00:00",
-        "publisher": "HL7 (FHIR Project)",
-        "contact": [
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://hl7.org/fhir"
-              },
-              {
-                "system": "email",
-                "value": "fhir@lists.hl7.org"
-              }
-            ]
-          }
-        ],
-        "description": "Status of the supply delivery.",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/supplydelivery-status",
-            "preferred": true
-          },
-          {
-            "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.701",
-            "preferred": false
-          }
-        ]
-      }
-    },
-    {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/supplydelivery-supplyitemcondition",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "supplydelivery-supplyitemcondition",
-        "name": "SupplyDeliverySupplyItemCondition",
-        "status": "active",
-        "kind": "codesystem",
-        "date": "2021-01-04T23:01:24+00:00",
-        "publisher": "HL7 (FHIR Project)",
-        "contact": [
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://hl7.org/fhir"
-              },
-              {
-                "system": "email",
-                "value": "fhir@lists.hl7.org"
-              }
-            ]
-          }
-        ],
-        "description": "Status of the supply delivery.",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/supplydelivery-supplyitemcondition",
-            "preferred": true
-          },
-          {
-            "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.2132",
-            "preferred": false
-          }
-        ]
-      }
-    },
-    {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/supplydelivery-supplyitemtype",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "supplydelivery-supplyitemtype",
-        "name": "SupplyDeliverySupplyItemType",
-        "status": "active",
-        "kind": "codesystem",
-        "date": "2021-01-04T23:01:24+00:00",
-        "publisher": "HL7 (FHIR Project)",
-        "contact": [
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://hl7.org/fhir"
-              },
-              {
-                "system": "email",
-                "value": "fhir@lists.hl7.org"
-              }
-            ]
-          }
-        ],
-        "description": "Status of the supply delivery.",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/supplydelivery-supplyitemtype",
-            "preferred": true
-          },
-          {
-            "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.1905",
-            "preferred": false
-          }
-        ]
-      }
-    },
-    {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/supplyrequest-status",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "supplyrequest-status",
-        "name": "SupplyRequestStatus",
-        "status": "active",
-        "kind": "codesystem",
-        "date": "2021-01-04T23:01:24+00:00",
-        "publisher": "HL7 (FHIR Project)",
-        "contact": [
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://hl7.org/fhir"
-              },
-              {
-                "system": "email",
-                "value": "fhir@lists.hl7.org"
-              }
-            ]
-          }
-        ],
-        "description": "Status of the supply request.",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/supplyrequest-status",
-            "preferred": true
-          },
-          {
-            "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.696",
-            "preferred": false
           }
         ]
       }
@@ -20231,187 +18977,6 @@
       }
     },
     {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/title-type",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "title-type",
-        "name": "TitleType",
-        "status": "active",
-        "kind": "codesystem",
-        "date": "2020-12-28T05:55:11+00:00",
-        "publisher": "HL7 (FHIR Project)",
-        "contact": [
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://hl7.org/fhir"
-              },
-              {
-                "system": "email",
-                "value": "fhir@lists.hl7.org"
-              }
-            ]
-          }
-        ],
-        "description": "Used to express the reason and specific aspect for the variant title, such as language and specific language.",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/title-type",
-            "preferred": true
-          },
-          {
-            "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.1875",
-            "preferred": false
-          }
-        ]
-      }
-    },
-    {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/transport-code",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "transport-code",
-        "name": "TransportCode",
-        "status": "active",
-        "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
-        "publisher": "HL7 International",
-        "description": "Example codes for transport events demonstrating different types of transport activities",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/transport-code",
-            "preferred": true
-          }
-        ]
-      }
-    },
-    {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/transport-status",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "transport-status",
-        "name": "TransportStatus",
-        "status": "active",
-        "kind": "codesystem",
-        "date": "2021-01-04T23:01:24+00:00",
-        "publisher": "HL7 (FHIR Project)",
-        "contact": [
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://hl7.org/fhir"
-              },
-              {
-                "system": "email",
-                "value": "fhir@lists.hl7.org"
-              }
-            ]
-          }
-        ],
-        "description": "Status of transport.",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/transport-status",
-            "preferred": true
-          },
-          {
-            "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.1929",
-            "preferred": false
-          }
-        ]
-      }
-    },
-    {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/transport-status-reason",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "transport-status-reason",
-        "name": "TransportStatusReason",
-        "status": "active",
-        "kind": "codesystem",
-        "date": "2021-01-04T23:01:24+00:00",
-        "publisher": "HL7 (FHIR Project)",
-        "contact": [
-          {
-            "telecom": [
-              {
-                "system": "url",
-                "value": "http://hl7.org/fhir"
-              },
-              {
-                "system": "email",
-                "value": "fhir@lists.hl7.org"
-              }
-            ]
-          }
-        ],
-        "description": "Status of transport.",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://hl7.org/fhir/transport-status-reason",
-            "preferred": true
-          },
-          {
-            "type": "oid",
-            "value": "2.16.840.1.113883.4.642.4.1930",
-            "preferred": false
-          }
-        ]
-      }
-    },
-    {
       "fullUrl": "http://hl7.org/fhir/NamingSystem/type-derivation-rule",
       "resource": {
         "resourceType": "NamingSystem",
@@ -20715,7 +19280,7 @@
         "status": "active",
         "kind": "codesystem",
         "date": "2021-01-04T23:01:24+00:00",
-        "publisher": "HL7 (FHIR Project)",
+        "publisher": "HL7 International / Clinical Decision Support",
         "contact": [
           {
             "telecom": [
@@ -20726,6 +19291,14 @@
               {
                 "system": "email",
                 "value": "fhir@lists.hl7.org"
+              }
+            ]
+          },
+          {
+            "telecom": [
+              {
+                "system": "url",
+                "value": "http://www.hl7.org/Special/committees/dss"
               }
             ]
           }
@@ -21007,48 +19580,6 @@
       }
     },
     {
-      "fullUrl": "http://hl7.org/fhir/NamingSystem/nucc-provider-taxonomy",
-      "resource": {
-        "resourceType": "NamingSystem",
-        "id": "nucc-provider-taxonomy",
-        "name": "NUCC_Provider_Taxonomy",
-        "status": "active",
-        "kind": "codesystem",
-        "date": "2022-07-01T00:00:00+00:00",
-        "publisher": "American Medical Association",
-        "contact": [
-          {
-            "name": "National Uniform Claim Committee (NUCC)",
-            "telecom": [
-              {
-                "system": "email",
-                "value": "nuccinfo@nucc.org"
-              }
-            ]
-          }
-        ],
-        "description": "The Health Care Provider Taxonomy code is a unique alphanumeric code, ten characters in length. The code set is structured into three distinct \u0027Levels\u0027 including Provider Type, Classification, and Area of Specialization.",
-        "jurisdiction": [
-          {
-            "coding": [
-              {
-                "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
-                "code": "001",
-                "display": "World"
-              }
-            ]
-          }
-        ],
-        "uniqueId": [
-          {
-            "type": "uri",
-            "value": "http://nucc.org/provider-taxonomy",
-            "preferred": true
-          }
-        ]
-      }
-    },
-    {
       "fullUrl": "http://hl7.org/fhir/NamingSystem/list-item-flag",
       "resource": {
         "resourceType": "NamingSystem",
@@ -21056,7 +19587,7 @@
         "name": "PatientMedicineChangeTypes",
         "status": "active",
         "kind": "codesystem",
-        "date": "2025-11-03T08:55:27+00:00",
+        "date": "2025-11-17T19:23:40+00:00",
         "publisher": "HL7 International",
         "description": "Example Item Flags for the List Resource. In this case, these are the kind of flags that would be used on a medication list at the end of a consultation.",
         "jurisdiction": [

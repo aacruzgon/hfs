@@ -175,7 +175,7 @@
           "kind": "applicability",
           "expression": {
             "description": "Check whether the existing patient is using opioids concurrently with benzodiazepines.",
-            "language": "text/cql",
+            "language": "text/cql-identifier",
             "expression": "Inclusion Criteria"
           }
         }
@@ -186,21 +186,21 @@
         {
           "path": "action.description",
           "expression": {
-            "language": "text/cql",
+            "language": "text/cql-identifier",
             "expression": "Get Detail"
           }
         },
         {
           "path": "action.title",
           "expression": {
-            "language": "text/cql",
+            "language": "text/cql-identifier",
             "expression": "Get Summary"
           }
         },
         {
           "path": "action.extension",
           "expression": {
-            "language": "text/cql",
+            "language": "text/cql-identifier",
             "expression": "Get Indicator"
           }
         }

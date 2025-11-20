@@ -41,9 +41,8 @@
     "reference": "Practitioner/f007",
     "display": "Patrick Pump"
   },
-  "dosageInstruction": [
-    {
-      "sequence": 1,
+  "dosageInstruction": {
+    "simple": {
       "text": "Administer in 100cc NS as follows: First treatment infuse over 90 minutes, if no reaction then second treatment infuse over 60 minutes, if no reaction then on third and following treatments give over 30 minutes.",
       "timing": {
         "event": [
@@ -91,7 +90,7 @@
         }
       ]
     }
-  ],
+  },
   "meta": {
     "tag": [
       {
