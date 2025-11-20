@@ -140,11 +140,7 @@ impl<'a> ser::SerializeStruct for StructDetector<'a> {
     type Ok = ();
     type Error = ContentFound;
 
-    fn serialize_field<T>(
-        &mut self,
-        _key: &'static str,
-        value: &T,
-    ) -> Result<(), Self::Error>
+    fn serialize_field<T>(&mut self, _key: &'static str, value: &T) -> Result<(), Self::Error>
     where
         T: ?Sized + Serialize,
     {
@@ -170,11 +166,7 @@ impl<'a> ser::SerializeStructVariant for StructDetector<'a> {
     type Ok = ();
     type Error = ContentFound;
 
-    fn serialize_field<T>(
-        &mut self,
-        _key: &'static str,
-        value: &T,
-    ) -> Result<(), Self::Error>
+    fn serialize_field<T>(&mut self, _key: &'static str, value: &T) -> Result<(), Self::Error>
     where
         T: ?Sized + Serialize,
     {
@@ -295,11 +287,7 @@ impl<'a> Serializer for &'a mut ContentDetector {
         Err(ContentFound)
     }
 
-    fn serialize_newtype_struct<T>(
-        self,
-        _name: &'static str,
-        value: &T,
-    ) -> Result<(), Self::Error>
+    fn serialize_newtype_struct<T>(self, _name: &'static str, value: &T) -> Result<(), Self::Error>
     where
         T: ?Sized + Serialize,
     {
