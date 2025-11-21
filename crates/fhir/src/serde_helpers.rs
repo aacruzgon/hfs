@@ -397,8 +397,8 @@ mod tests {
         assert!(has_non_empty_content(&42u128));
 
         // Floats
-        assert!(has_non_empty_content(&3.14f32));
-        assert!(has_non_empty_content(&3.14f64));
+        assert!(has_non_empty_content(&2.5f32));
+        assert!(has_non_empty_content(&2.5f64));
         assert!(has_non_empty_content(&0.0f64));
 
         // Char
@@ -452,7 +452,7 @@ mod tests {
     fn test_tuples() {
         // Tuples with content
         assert!(has_non_empty_content(&(1, 2)));
-        assert!(has_non_empty_content(&(1, "text", 3.14)));
+        assert!(has_non_empty_content(&(1, "text", 2.5)));
 
         // Empty tuple is unit type
         assert!(!has_non_empty_content(&()));
@@ -532,6 +532,7 @@ mod tests {
     }
 
     #[derive(Serialize)]
+    #[allow(clippy::enum_variant_names)]
     enum TestEnum {
         UnitVariant,
         NewtypeVariant(i32),
