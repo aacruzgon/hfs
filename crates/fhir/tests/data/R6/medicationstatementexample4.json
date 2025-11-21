@@ -30,35 +30,18 @@
       "text": "Patient indicates they miss the occasional dose"
     }
   ],
-  "dosage": [
-    {
-      "text": "one capsule three times daily",
-      "timing": {
-        "repeat": {
-          "frequency": 3,
-          "period": 1,
-          "periodUnit": "d"
-        }
-      },
-      "asNeeded": false,
-      "route": {
-        "coding": [
-          {
-            "system": "http://snomed.info/sct",
-            "code": "260548002",
-            "display": "Oral"
-          }
-        ]
-      },
-      "maxDosePerPeriod": [
+  "dosage": {
+    "safety": {
+      "doseLimit": [
         {
-          "numerator": {
+          "valueQuantity": {
             "value": 3,
             "unit": "capsules",
             "system": "http://snomed.info/sct",
             "code": "385055001"
           },
-          "denominator": {
+          "scope": "period",
+          "period": {
             "value": 1,
             "system": "http://unitsofmeasure.org",
             "code": "d"
@@ -66,7 +49,7 @@
         }
       ]
     }
-  ],
+  },
   "adherence": {
     "code": {
       "coding": [

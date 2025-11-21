@@ -30,7 +30,7 @@
   "actor": [
     {
       "key": "Clin",
-      "type": "practitioner",
+      "type": "person",
       "title": "Clinician",
       "description": "Clinician"
     },
@@ -48,13 +48,13 @@
     },
     {
       "key": "LabMan",
-      "type": "practitioner",
+      "type": "person",
       "title": "Lab Man",
       "description": "Lab Person"
     },
     {
       "key": "Lab",
-      "type": "device",
+      "type": "other",
       "title": "Lab",
       "description": "Lab"
     }

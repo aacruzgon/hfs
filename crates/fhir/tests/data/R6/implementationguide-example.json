@@ -48,7 +48,7 @@
   ],
   "dependsOn": [
     {
-      "uri": "http://hl7.org/fhir/ImplementationGuide/uscore"
+      "uri": "http://example.org/fhir/ImplementationGuide/base"
     }
   ],
   "global": [

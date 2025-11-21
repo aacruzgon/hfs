@@ -30,9 +30,8 @@
     "reference": "Practitioner/f007",
     "display": "Patrick Pump"
   },
-  "dosageInstruction": [
-    {
-      "sequence": 1,
+  "dosageInstruction": {
+    "simple": {
       "text": "1800 mg (1000 mg/m2) orally twice daily from days 1-14 of cycle",
       "doseAndRate": [
         {
@@ -71,7 +70,7 @@
         }
       ]
     }
-  ],
+  },
   "meta": {
     "tag": [
       {

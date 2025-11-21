@@ -63,9 +63,8 @@
   },
   "whenPrepared": "2015-06-25T07:13:00+05:00",
   "whenHandedOver": "2015-06-26T07:13:00+05:00",
-  "dosageInstruction": [
-    {
-      "sequence": 1,
+  "dosageInstruction": {
+    "simple": {
       "text": "Instil one drop in each eye twice daily",
       "timing": {
         "repeat": {
@@ -112,7 +111,7 @@
         }
       ]
     }
-  ],
+  },
   "meta": {
     "tag": [
       {

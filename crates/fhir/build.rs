@@ -82,6 +82,29 @@ fn main() {
 
     let mut archive = ZipArchive::new(file).unwrap();
 
+    // Clean out the resources directory before extracting (removes old files that may no longer exist in the zip)
+    println!("cargo:warning=Cleaning resources directory before extraction...");
+    for entry in fs::read_dir(&resources_dir).unwrap() {
+        let entry = entry.unwrap();
+        let path = entry.path();
+
+        // Skip the zip file itself
+        if path.file_name() == Some(std::ffi::OsStr::new("examples.json.zip")) {
+            continue;
+        }
+
+        if path.is_file() {
+            fs::remove_file(&path).unwrap_or_else(|e| {
+                println!("Warning: Failed to delete file {:?}: {}", path, e);
+            });
+        } else if path.is_dir() {
+            fs::remove_dir_all(&path).unwrap_or_else(|e| {
+                println!("Warning: Failed to delete directory {:?}: {}", path, e);
+            });
+        }
+    }
+    println!("cargo:warning=Resources directory cleaned");
+
     // Extract everything
     for i in 0..archive.len() {
         let mut file = archive.by_index(i).unwrap();

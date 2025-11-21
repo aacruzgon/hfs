@@ -56,6 +56,9 @@
   ],
   "purpose": "Need to search by identifier for various infrastructural cases - mainly retrieving packages, and matching as part of a chain",
   "code": "_id",
+  "aliasCode": [
+    "logical-id"
+  ],
   "base": [
     "Resource"
   ],

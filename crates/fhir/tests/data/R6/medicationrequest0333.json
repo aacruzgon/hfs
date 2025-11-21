@@ -77,9 +77,8 @@
       "text": "Patient told to take with food"
     }
   ],
-  "dosageInstruction": [
-    {
-      "sequence": 1,
+  "dosageInstruction": {
+    "simple": {
       "text": "one tablet one time daily in the morning for rib pain",
       "additionalInstruction": [
         {
@@ -148,7 +147,7 @@
         }
       ]
     }
-  ],
+  },
   "dispenseRequest": {
     "validityPeriod": {
       "start": "2015-01-15",

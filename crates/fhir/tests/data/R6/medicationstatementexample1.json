@@ -137,9 +137,8 @@
       "text": "Patient indicates they miss the occasional dose"
     }
   ],
-  "dosage": [
-    {
-      "sequence": 1,
+  "dosage": {
+    "simple": {
       "text": "1-2 tablets once daily at bedtime as needed for restless legs",
       "additionalInstruction": [
         {
@@ -201,7 +200,7 @@
         }
       ]
     }
-  ],
+  },
   "meta": {
     "tag": [
       {

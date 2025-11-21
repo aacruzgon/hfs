@@ -50,9 +50,8 @@
     "code": "d"
   },
   "whenPrepared": "2015-06-25T07:13:00+05:00",
-  "dosageInstruction": [
-    {
-      "sequence": 1,
+  "dosageInstruction": {
+    "simple": {
       "text": "20 Units SC three times daily",
       "timing": {
         "repeat": {
@@ -90,7 +89,7 @@
         }
       ]
     }
-  ],
+  },
   "meta": {
     "tag": [
       {

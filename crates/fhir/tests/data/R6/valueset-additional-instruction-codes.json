@@ -2,14 +2,11 @@
   "resourceType": "ValueSet",
   "id": "additional-instruction-codes",
   "meta": {
-    "lastUpdated": "2025-11-03T08:55:27.392+00:00",
-    "profile": [
-      "http://hl7.org/fhir/StructureDefinition/shareablevalueset"
-    ]
+    "lastUpdated": "2025-11-17T19:23:40.261+00:00"
   },
   "text": {
     "status": "generated",
-    "div": "\u003cdiv xmlns\u003d\"http://www.w3.org/1999/xhtml\"\u003e\u003cp class\u003d\"res-header-id\"\u003e\u003cb\u003eGenerated Narrative: ValueSet additional-instruction-codes\u003c/b\u003e\u003c/p\u003e\u003ca name\u003d\"additional-instruction-codes\"\u003e \u003c/a\u003e\u003ca name\u003d\"hcadditional-instruction-codes\"\u003e \u003c/a\u003e\u003cdiv style\u003d\"display: inline-block; background-color: #d9e0e7; padding: 6px; margin: 4px; border: 1px solid #8da1b4; border-radius: 5px; line-height: 60%\"\u003e\u003cp style\u003d\"margin-bottom: 0px\"/\u003e\u003cp style\u003d\"margin-bottom: 0px\"\u003eProfile: \u003ca href\u003d\"shareablevalueset.html\"\u003eShareable ValueSet\u003c/a\u003e\u003c/p\u003e\u003c/div\u003e\u003cul\u003e\u003cli\u003eInclude codes from\u003ca href\u003d\"http://www.snomed.org/\"\u003e\u003ccode\u003ehttp://snomed.info/sct\u003c/code\u003e\u003c/a\u003e\u003cspan title\u003d\"Version is not explicity stated. No matching Code System found\"\u003e version Not Stated (use latest from terminology server)\u003c/span\u003e where concept  is-a 419492006 (Additional dosage instructions (qualifier value))\u003c/li\u003e\u003c/ul\u003e\u003c/div\u003e"
+    "div": "\u003cdiv xmlns\u003d\"http://www.w3.org/1999/xhtml\"\u003e\u003cp class\u003d\"res-header-id\"\u003e\u003cb\u003eGenerated Narrative: ValueSet additional-instruction-codes\u003c/b\u003e\u003c/p\u003e\u003ca name\u003d\"additional-instruction-codes\"\u003e \u003c/a\u003e\u003ca name\u003d\"hcadditional-instruction-codes\"\u003e \u003c/a\u003e\u003cul\u003e\u003cli\u003eInclude codes from\u003ca href\u003d\"http://www.snomed.org/\"\u003e\u003ccode\u003ehttp://snomed.info/sct\u003c/code\u003e\u003c/a\u003e\u003cspan title\u003d\"Version is not explicity stated. No matching Code System found\"\u003e version Not Stated (use latest from terminology server)\u003c/span\u003e where concept  is-a 419492006 (Additional dosage instructions (qualifier value))\u003c/li\u003e\u003c/ul\u003e\u003c/div\u003e"
   },
   "extension": [
     {
@@ -18,7 +15,7 @@
     },
     {
       "url": "http://hl7.org/fhir/StructureDefinition/structuredefinition-standards-status",
-      "valueCode": "draft"
+      "valueCode": "informative"
     },
     {
       "url": "http://hl7.org/fhir/StructureDefinition/structuredefinition-fmm",
@@ -37,7 +34,7 @@
   "title": "SNOMED CT Additional Dosage Instructions",
   "status": "draft",
   "experimental": true,
-  "date": "2025-11-03T08:55:27+00:00",
+  "date": "2025-11-17T19:23:40+00:00",
   "publisher": "HL7 International / FHIR Infrastructure",
   "contact": [
     {

@@ -53,7 +53,7 @@
         {
           "kind": "applicability",
           "expression": {
-            "language": "text/cql",
+            "language": "text/cql-identifier",
             "expression": "NoScreening"
           }
         }
@@ -62,7 +62,7 @@
         {
           "path": "$this",
           "expression": {
-            "language": "text/cql",
+            "language": "text/cql-identifier",
             "expression": "ChlamydiaScreeningRequest"
           }
         }

@@ -77,7 +77,7 @@
         {
           "kind": "applicability",
           "expression": {
-            "language": "text/cql",
+            "language": "text/cql-identifier",
             "expression": "Should Notify Provider to Sign Assessment Order"
           }
         }
@@ -97,7 +97,7 @@
             {
               "path": "/",
               "expression": {
-                "language": "text/cql",
+                "language": "text/cql-identifier",
                 "expression": "Communication Request to Provider"
               }
             }

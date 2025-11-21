@@ -304,7 +304,7 @@
       "path": "dispenseRequest.numberOfRepeatsAllowed",
       "expression": {
         "description": "dispenseRequest.numberOfRepeatsAllowed is three (3)",
-        "language": "text/cql",
+        "language": "text/cql-expression",
         "expression": "3"
       }
     },
@@ -312,7 +312,7 @@
       "path": "dispenseRequest.quantity",
       "expression": {
         "description": "dispenseRequest.quantity is thirty (30) tablets",
-        "language": "text/cql",
+        "language": "text/cql-expression",
         "expression": "30 \u0027{tbl}\u0027"
       }
     }

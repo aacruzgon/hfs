@@ -99,9 +99,8 @@
     "reference": "Practitioner/f007",
     "display": "Patrick Pump"
   },
-  "dosageInstruction": [
-    {
-      "sequence": 1,
+  "dosageInstruction": {
+    "simple": {
       "text": "Dopamine 4mcg/kg/min",
       "timing": {
         "repeat": {
@@ -137,7 +136,7 @@
         }
       ]
     }
-  ],
+  },
   "meta": {
     "tag": [
       {

@@ -101,7 +101,7 @@
         {
           "kind": "applicability",
           "expression": {
-            "language": "text/cql",
+            "language": "text/cql-identifier",
             "expression": "Is Patient Pregnant"
           }
         }
@@ -112,7 +112,7 @@
             {
               "kind": "applicability",
               "expression": {
-                "language": "text/cql",
+                "language": "text/cql-identifier",
                 "expression": "Should Administer Zika Virus Exposure Assessment"
               }
             }
@@ -124,7 +124,7 @@
             {
               "kind": "applicability",
               "expression": {
-                "language": "text/cql",
+                "language": "text/cql-identifier",
                 "expression": "Should Order Serum + Urine rRT-PCR Test"
               }
             }
@@ -136,7 +136,7 @@
             {
               "kind": "applicability",
               "expression": {
-                "language": "text/cql",
+                "language": "text/cql-identifier",
                 "expression": "Should Order Serum Zika Virus IgM + Dengue Virus IgM"
               }
             }
@@ -148,7 +148,7 @@
             {
               "kind": "applicability",
               "expression": {
-                "language": "text/cql",
+                "language": "text/cql-identifier",
                 "expression": "Should Consider IgM Antibody Testing"
               }
             }
@@ -160,7 +160,7 @@
             {
               "kind": "applicability",
               "expression": {
-                "language": "text/cql",
+                "language": "text/cql-identifier",
                 "expression": "Should Provide Mosquito Prevention and Contraception Advice"
               }
             }

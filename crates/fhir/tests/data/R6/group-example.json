@@ -32,24 +32,59 @@
   "type": "animal",
   "membership": "enumerated",
   "code": {
+    "coding": [
+      {
+        "system": "http://example.org/fhir/CodeSystem/group-example-type",
+        "code": "horse",
+        "display": "Horse"
+      }
+    ],
     "text": "Horse"
   },
   "quantity": 25,
   "characteristic": [
     {
       "code": {
+        "coding": [
+          {
+            "system": "http://example.org/fhir/CodeSystem/group-example-characteristic",
+            "code": "gender",
+            "display": "Gender"
+          }
+        ],
         "text": "gender"
       },
       "valueCodeableConcept": {
+        "coding": [
+          {
+            "system": "http://example.org/fhir/CodeSystem/group-example-gender",
+            "code": "mixed",
+            "display": "Mixed"
+          }
+        ],
         "text": "mixed"
       },
       "exclude": false
     },
     {
       "code": {
+        "coding": [
+          {
+            "system": "http://example.org/fhir/CodeSystem/group-example-characteristic",
+            "code": "owner",
+            "display": "Owner"
+          }
+        ],
         "text": "owner"
       },
       "valueCodeableConcept": {
+        "coding": [
+          {
+            "system": "http://example.org/fhir/CodeSystem/group-example-owner",
+            "code": "john-smith",
+            "display": "John Smith"
+          }
+        ],
         "text": "John Smith"
       },
       "exclude": false

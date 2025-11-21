@@ -61,9 +61,8 @@
     "code": "d"
   },
   "whenPrepared": "2015-03-16T17:13:00+05:00",
-  "dosageInstruction": [
-    {
-      "sequence": 1,
+  "dosageInstruction": {
+    "simple": {
       "text": "75mcg daily daily",
       "timing": {
         "repeat": {
@@ -101,7 +100,7 @@
         }
       ]
     }
-  ],
+  },
   "substitution": {
     "wasSubstituted": true,
     "type": {

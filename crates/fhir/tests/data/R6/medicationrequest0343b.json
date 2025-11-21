@@ -45,9 +45,8 @@
     "reference": "Practitioner/f007",
     "display": "Patrick Pump"
   },
-  "dosageInstruction": [
-    {
-      "sequence": 1,
+  "dosageInstruction": {
+    "simple": {
       "text": "4mg IM twice daily as needed for nausea",
       "timing": {
         "repeat": {
@@ -87,7 +86,7 @@
         }
       ]
     }
-  ],
+  },
   "meta": {
     "tag": [
       {

@@ -2,14 +2,11 @@
   "resourceType": "CodeSystem",
   "id": "metric-category",
   "meta": {
-    "lastUpdated": "2025-11-03T08:55:27.392+00:00",
-    "profile": [
-      "http://hl7.org/fhir/StructureDefinition/shareablecodesystem"
-    ]
+    "lastUpdated": "2025-11-17T19:23:40.261+00:00"
   },
   "text": {
     "status": "generated",
-    "div": "\u003cdiv xmlns\u003d\"http://www.w3.org/1999/xhtml\"\u003e\u003cp class\u003d\"res-header-id\"\u003e\u003cb\u003eGenerated Narrative: CodeSystem metric-category\u003c/b\u003e\u003c/p\u003e\u003ca name\u003d\"metric-category\"\u003e \u003c/a\u003e\u003ca name\u003d\"hcmetric-category\"\u003e \u003c/a\u003e\u003cdiv style\u003d\"display: inline-block; background-color: #d9e0e7; padding: 6px; margin: 4px; border: 1px solid #8da1b4; border-radius: 5px; line-height: 60%\"\u003e\u003cp style\u003d\"margin-bottom: 0px\"/\u003e\u003cp style\u003d\"margin-bottom: 0px\"\u003eProfile: \u003ca href\u003d\"shareablecodesystem.html\"\u003eShareable CodeSystem\u003c/a\u003e\u003c/p\u003e\u003c/div\u003e\u003cp\u003eThis case-sensitive code system \u003ccode\u003ehttp://hl7.org/fhir/metric-category\u003c/code\u003e defines the following codes:\u003c/p\u003e\u003ctable class\u003d\"codes\"\u003e\u003ctr\u003e\u003ctd style\u003d\"white-space:nowrap\"\u003e\u003cb\u003eCode\u003c/b\u003e\u003c/td\u003e\u003ctd\u003e\u003cb\u003eDisplay\u003c/b\u003e\u003c/td\u003e\u003ctd\u003e\u003cb\u003eDefinition\u003c/b\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd style\u003d\"white-space:nowrap\"\u003emeasurement\u003ca name\u003d\"metric-category-measurement\"\u003e \u003c/a\u003e\u003c/td\u003e\u003ctd\u003eMeasurement\u003c/td\u003e\u003ctd\u003eObservations generated for this DeviceMetric are measured.\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd style\u003d\"white-space:nowrap\"\u003esetting\u003ca name\u003d\"metric-category-setting\"\u003e \u003c/a\u003e\u003c/td\u003e\u003ctd\u003eSetting\u003c/td\u003e\u003ctd\u003eObservations generated for this DeviceMetric is a setting that will influence the behavior of the Device.\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd style\u003d\"white-space:nowrap\"\u003ecalculation\u003ca name\u003d\"metric-category-calculation\"\u003e \u003c/a\u003e\u003c/td\u003e\u003ctd\u003eCalculation\u003c/td\u003e\u003ctd\u003eObservations generated for this DeviceMetric are calculated.\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd style\u003d\"white-space:nowrap\"\u003eunspecified\u003ca name\u003d\"metric-category-unspecified\"\u003e \u003c/a\u003e\u003c/td\u003e\u003ctd\u003eUnspecified\u003c/td\u003e\u003ctd\u003eThe category of this DeviceMetric is unspecified.\u003c/td\u003e\u003c/tr\u003e\u003c/table\u003e\u003c/div\u003e"
+    "div": "\u003cdiv xmlns\u003d\"http://www.w3.org/1999/xhtml\"\u003e\u003cp class\u003d\"res-header-id\"\u003e\u003cb\u003eGenerated Narrative: CodeSystem metric-category\u003c/b\u003e\u003c/p\u003e\u003ca name\u003d\"metric-category\"\u003e \u003c/a\u003e\u003ca name\u003d\"hcmetric-category\"\u003e \u003c/a\u003e\u003cp\u003eThis case-sensitive code system \u003ccode\u003ehttp://hl7.org/fhir/metric-category\u003c/code\u003e defines the following codes:\u003c/p\u003e\u003ctable class\u003d\"codes\"\u003e\u003ctr\u003e\u003ctd style\u003d\"white-space:nowrap\"\u003e\u003cb\u003eCode\u003c/b\u003e\u003c/td\u003e\u003ctd\u003e\u003cb\u003eDisplay\u003c/b\u003e\u003c/td\u003e\u003ctd\u003e\u003cb\u003eDefinition\u003c/b\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd style\u003d\"white-space:nowrap\"\u003emeasurement\u003ca name\u003d\"metric-category-measurement\"\u003e \u003c/a\u003e\u003c/td\u003e\u003ctd\u003eMeasurement\u003c/td\u003e\u003ctd\u003eObservations generated for this DeviceMetric are measured.\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd style\u003d\"white-space:nowrap\"\u003esetting\u003ca name\u003d\"metric-category-setting\"\u003e \u003c/a\u003e\u003c/td\u003e\u003ctd\u003eSetting\u003c/td\u003e\u003ctd\u003eObservations generated for this DeviceMetric is a setting that will influence the behavior of the Device.\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd style\u003d\"white-space:nowrap\"\u003ecalculation\u003ca name\u003d\"metric-category-calculation\"\u003e \u003c/a\u003e\u003c/td\u003e\u003ctd\u003eCalculation\u003c/td\u003e\u003ctd\u003eObservations generated for this DeviceMetric are calculated.\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd style\u003d\"white-space:nowrap\"\u003eunspecified\u003ca name\u003d\"metric-category-unspecified\"\u003e \u003c/a\u003e\u003c/td\u003e\u003ctd\u003eUnspecified\u003c/td\u003e\u003ctd\u003eThe category of this DeviceMetric is unspecified.\u003c/td\u003e\u003c/tr\u003e\u003c/table\u003e\u003c/div\u003e"
   },
   "extension": [
     {
@@ -18,7 +15,7 @@
     },
     {
       "url": "http://hl7.org/fhir/StructureDefinition/structuredefinition-standards-status",
-      "valueCode": "trial-use"
+      "valueCode": "normative"
     },
     {
       "url": "http://hl7.org/fhir/StructureDefinition/structuredefinition-fmm",

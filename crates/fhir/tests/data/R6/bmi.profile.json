@@ -20,7 +20,7 @@
     },
     {
       "url": "http://hl7.org/fhir/StructureDefinition/structuredefinition-standards-status",
-      "valueCode": "trial-use"
+      "valueCode": "normative"
     },
     {
       "url": "http://hl7.org/fhir/tools/StructureDefinition/profile-summary",
@@ -627,7 +627,6 @@
             "targetProfile": [
               "http://hl7.org/fhir/StructureDefinition/CarePlan",
               "http://hl7.org/fhir/StructureDefinition/DeviceRequest",
-              "http://hl7.org/fhir/StructureDefinition/ImmunizationRecommendation",
               "http://hl7.org/fhir/StructureDefinition/MedicationRequest",
               "http://hl7.org/fhir/StructureDefinition/NutritionOrder",
               "http://hl7.org/fhir/StructureDefinition/ServiceRequest"
@@ -969,8 +968,7 @@
               "http://hl7.org/fhir/StructureDefinition/MedicationStatement",
               "http://hl7.org/fhir/StructureDefinition/Procedure",
               "http://hl7.org/fhir/StructureDefinition/Immunization",
-              "http://hl7.org/fhir/StructureDefinition/ImagingStudy",
-              "http://hl7.org/fhir/StructureDefinition/GenomicStudy"
+              "http://hl7.org/fhir/StructureDefinition/ImagingStudy"
             ]
           }
         ],
@@ -1218,7 +1216,7 @@
         "path": "Observation.code",
         "short": "Body Mass Index (BMI)",
         "definition": "Body Mass Index (BMI)",
-        "comment": "*All* code-value and, if present, component.code-component.value pairs need to be taken into account to correctly understand the meaning of the observation. All codings in Observation.code are expected to be sufficiently precise to allow a user with the code and value to be able to understand the value - though not all codes will necessarily convey the same level of detail. Codings in Observation.category SHOULD be concepts that are too broad to be able to understand the meaning of the Observation.value without also having an Observation.code.",
+        "comment": "*All* code-value and, if present, component.code-component.value pairs need to be taken into account to correctly understand the meaning of the observation. All codings in Observation.code are expected to be sufficiently precise to allow a user with the code and value to be able to understand the value - though not all codes will necessarily convey the same level of detail. Codings in Observation.category SHOULD be concepts that are too broad to be able to understand the meaning of the Observation.value without also having an Observation.code.\n\nSee [Interoperability Issues using code value pairs in FHIR](observation.html#code-interop) for additional information.",
         "requirements": "Knowing what kind of observation is being made is essential to understanding the observation.",
         "alias": [
           "Name"
@@ -1660,7 +1658,7 @@
         },
         "short": "The quantity for the vital sign being observed.",
         "definition": "The quantity for the vital sign being observed.",
-        "comment": "- An observation may have:\n  1.  a single value here\n  1.  both a value and a set of related or component values\n  1.  only a set of related or component values.\n-  If a value is present, the datatype for this element should be determined by the `code`.\n-  *CodeableConcept* with just a text would be used instead of a string if the field was usually coded, or if the type associated with the `code` defines a coded value.\n-  *Attachment* is used if the observation result value is a binary file such as an image.  If the observation result value is derived from the binary file (for example \u0027X\u0027 detected and here is the the proof in this image), the binary file may be directly represented using *DocumentReference* and referenced by `derivedFrom`.\n- The usage of valueReference is restricted to the MolecularDefinition resources as a definitional resource, not as a patient-specific finding. \n- For additional guidance, see the [Notes section](observation.html#notes) below.",
+        "comment": "- An observation may have:\n  1.  a single value here\n  1.  both a value and a set of related or component values\n  1.  only a set of related or component values.\n-  If a value is present, the datatype for this element should be determined by the `code`.\n-  *CodeableConcept* with just a text would be used instead of a string if the field was usually coded, or if the type associated with the `code` defines a coded value.\n-  *Attachment* is used if the observation result value is a binary file such as an image.  If the observation result value is derived from the binary file (for example \u0027X\u0027 detected and here is the the proof in this image), the binary file may be directly represented using *DocumentReference* and referenced by `derivedFrom`.\n- The usage of valueReference is restricted to the MolecularDefinition resources as a definitional resource, not as a patient-specific finding. \n- For additional guidance, see the [Notes section](observation.html#notes) below. \n- See [Interoperability Issues using code value pairs in FHIR](observation.html#code-interop) for additional information.",
         "requirements": "An observation exists to have a value, though it might not if it is in error, or if it represents a group of observations.",
         "min": 0,
         "max": "1",
@@ -1728,7 +1726,7 @@
         "sliceName": "valueQuantity",
         "short": "The quantity for the vital sign being observed.",
         "definition": "The quantity for the vital sign being observed.",
-        "comment": "- An observation may have:\n  1.  a single value here\n  1.  both a value and a set of related or component values\n  1.  only a set of related or component values.\n-  If a value is present, the datatype for this element should be determined by the `code`.\n-  *CodeableConcept* with just a text would be used instead of a string if the field was usually coded, or if the type associated with the `code` defines a coded value.\n-  *Attachment* is used if the observation result value is a binary file such as an image.  If the observation result value is derived from the binary file (for example \u0027X\u0027 detected and here is the the proof in this image), the binary file may be directly represented using *DocumentReference* and referenced by `derivedFrom`.\n- The usage of valueReference is restricted to the MolecularDefinition resources as a definitional resource, not as a patient-specific finding. \n- For additional guidance, see the [Notes section](observation.html#notes) below.",
+        "comment": "- An observation may have:\n  1.  a single value here\n  1.  both a value and a set of related or component values\n  1.  only a set of related or component values.\n-  If a value is present, the datatype for this element should be determined by the `code`.\n-  *CodeableConcept* with just a text would be used instead of a string if the field was usually coded, or if the type associated with the `code` defines a coded value.\n-  *Attachment* is used if the observation result value is a binary file such as an image.  If the observation result value is derived from the binary file (for example \u0027X\u0027 detected and here is the the proof in this image), the binary file may be directly represented using *DocumentReference* and referenced by `derivedFrom`.\n- The usage of valueReference is restricted to the MolecularDefinition resources as a definitional resource, not as a patient-specific finding. \n- For additional guidance, see the [Notes section](observation.html#notes) below. \n- See [Interoperability Issues using code value pairs in FHIR](observation.html#code-interop) for additional information.",
         "requirements": "An observation exists to have a value, though it might not if it is in error, or if it represents a group of observations.",
         "min": 0,
         "max": "1",
@@ -3192,10 +3190,7 @@
             "code": "Attachment"
           },
           {
-            "code": "Reference",
-            "targetProfile": [
-              "http://hl7.org/fhir/StructureDefinition/MolecularDefinition"
-            ]
+            "code": "Reference"
           }
         ],
         "condition": [

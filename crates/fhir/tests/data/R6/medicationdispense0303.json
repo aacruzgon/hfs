@@ -83,9 +83,8 @@
     "code": "d"
   },
   "whenPrepared": "2016-04-15T07:14:00+05:00",
-  "dosageInstruction": [
-    {
-      "sequence": 1,
+  "dosageInstruction": {
+    "simple": {
       "text": "one to two tablets every 4-6 hours as needed for rib pain",
       "additionalInstruction": [
         {
@@ -136,7 +135,7 @@
         ]
       }
     }
-  ],
+  },
   "meta": {
     "tag": [
       {

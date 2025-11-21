@@ -7,7 +7,7 @@
       "valueCode": "fhir"
     }
   ],
-  "url": "http://example.org/FHIR/R5/SubscriptionTopic/example",
+  "url": "http://example.org/FHIR/SubscriptionTopic/example",
   "identifier": [
     {
       "system": "urn:ietf:rfc:3986",

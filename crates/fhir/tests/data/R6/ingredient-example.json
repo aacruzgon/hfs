@@ -46,7 +46,7 @@
         },
         "concentrationRatio": {
           "numerator": {
-            "value": 5,
+            "value": 0.5,
             "unit": "mg",
             "system": "http://unitsofmeasure.org",
             "code": "mg"
@@ -72,7 +72,7 @@
             },
             "strengthRatio": {
               "numerator": {
-                "value": 5.03,
+                "value": 0.503,
                 "unit": "mg",
                 "system": "http://unitsofmeasure.org",
                 "code": "mg"

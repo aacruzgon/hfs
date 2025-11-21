@@ -1,11 +1,6 @@
 {
   "resourceType": "NamingSystem",
   "id": "example-metadata",
-  "meta": {
-    "profile": [
-      "http://hl7.org/fhir/StructureDefinition/shareablenamingsystem"
-    ]
-  },
   "extension": [
     {
       "url": "http://hl7.org/fhir/StructureDefinition/structuredefinition-wg",

@@ -53,9 +53,8 @@
     "reference": "Practitioner/f007",
     "display": "Patrick Pump"
   },
-  "dosageInstruction": [
-    {
-      "sequence": 1,
+  "dosageInstruction": {
+    "simple": {
       "text": "Administer 500mg IM as a single dose",
       "timing": {
         "repeat": {
@@ -91,7 +90,7 @@
         }
       ]
     }
-  ],
+  },
   "meta": {
     "tag": [
       {

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Benchmark script to compare JSON serde performance between main and serde-context-json branches
+# Benchmark script to compare JSON serde performance between the current and main branches
 # This script tests all FHIR versions (R4, R4B, R5, R6) against their respective JSON examples
 
 set -e
@@ -142,13 +142,13 @@ extract_timings() {
 # Save current branch to return to it later
 CURRENT_BRANCH=$(git branch --show-current)
 
-# Run benchmarks on main branch
-echo "Step 1/3: Benchmarking main branch..."
-run_benchmark "main" "$MAIN_RESULTS"
+# Run benchmarks on current branch first (before switching)
+echo "Step 1/3: Benchmarking current branch ($CURRENT_BRANCH)..."
+run_benchmark "$CURRENT_BRANCH" "$REFACTOR_RESULTS"
 
-# Run benchmarks on refactor branch
-echo "Step 2/3: Benchmarking serde-context-json branch..."
-run_benchmark "serde-context-json" "$REFACTOR_RESULTS"
+# Run benchmarks on main branch
+echo "Step 2/3: Benchmarking main branch..."
+run_benchmark "main" "$MAIN_RESULTS"
 
 # Return to original branch
 echo "Returning to original branch: $CURRENT_BRANCH"

@@ -2,7 +2,7 @@
   "resourceType": "CodeSystem",
   "id": "request-priority",
   "meta": {
-    "lastUpdated": "2025-11-03T08:55:27.392+00:00"
+    "lastUpdated": "2025-11-17T19:23:40.261+00:00"
   },
   "text": {
     "status": "generated",
@@ -15,7 +15,7 @@
     },
     {
       "url": "http://hl7.org/fhir/StructureDefinition/structuredefinition-standards-status",
-      "valueCode": "trial-use"
+      "valueCode": "normative"
     },
     {
       "url": "http://hl7.org/fhir/StructureDefinition/structuredefinition-fmm",
@@ -32,9 +32,9 @@
   "version": "6.0.0-ballot3",
   "name": "RequestPriority",
   "title": "RequestPriority",
-  "status": "draft",
+  "status": "active",
   "experimental": false,
-  "date": "2025-11-03T08:55:27+00:00",
+  "date": "2025-11-17T19:23:40+00:00",
   "publisher": "HL7 International / Clinical Decision Support",
   "contact": [
     {

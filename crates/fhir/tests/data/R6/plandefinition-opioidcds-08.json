@@ -175,7 +175,7 @@
           "kind": "applicability",
           "expression": {
             "description": "Check whether the existing patient exhibits risk factors for opioid-related harms, such as concurrent use with benzodiazepine, a history of substance abuse, and/or an average MME greater than 50 mg/day.",
-            "language": "text/cql",
+            "language": "text/cql-identifier",
             "expression": "Inclusion Criteria"
           }
         }
@@ -186,21 +186,21 @@
         {
           "path": "action.description",
           "expression": {
-            "language": "text/cql",
+            "language": "text/cql-identifier",
             "expression": "Get Detail"
           }
         },
         {
           "path": "action.title",
           "expression": {
-            "language": "text/cql",
+            "language": "text/cql-identifier",
             "expression": "Get Summary"
           }
         },
         {
           "path": "action.extension",
           "expression": {
-            "language": "text/cql",
+            "language": "text/cql-identifier",
             "expression": "Get Indicator"
           }
         }

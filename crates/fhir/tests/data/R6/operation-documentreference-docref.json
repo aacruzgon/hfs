@@ -12,7 +12,7 @@
     },
     {
       "url": "http://hl7.org/fhir/StructureDefinition/structuredefinition-standards-status",
-      "valueCode": "trial-use"
+      "valueCode": "normative"
     },
     {
       "url": "http://hl7.org/fhir/StructureDefinition/structuredefinition-wg",
@@ -23,10 +23,10 @@
   "version": "6.0.0-ballot3",
   "name": "Docref",
   "title": "Fetch DocumentReference",
-  "status": "draft",
+  "status": "active",
   "kind": "operation",
   "experimental": false,
-  "date": "2025-11-03T08:55:27+00:00",
+  "date": "2025-11-17T19:23:40+00:00",
   "publisher": "HL7 International / Orders and Observations",
   "contact": [
     {
@@ -104,6 +104,12 @@
       "documentation": " The type relates to document type e.g. C-CDA Clinical Summary of Care (CCD) \u003d LOINC 34133-9: Summary of episode note, and International Patient Summary (IPS) \u003d LOINC 60591-5: Patient summary document.  If no type is provided, the summary document, if available, SHALL be in scope, and all other document types MAY be in scope. It is at the server\u0027s discretion how to respond if multiple types are provided. The server MAY return documents to any of the specified types. The server\u0027s CapabilityStatement should document its behavior and what types it supports",
       "type": "CodeableConcept",
       "binding": {
+        "extension": [
+          {
+            "url": "http://hl7.org/fhir/StructureDefinition/elementdefinition-bindingName",
+            "valueString": "??"
+          }
+        ],
         "strength": "required",
         "valueSet": "http://hl7.org/fhir/ValueSet/doc-typecodes|6.0.0-ballot3"
       }

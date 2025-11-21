@@ -80,9 +80,8 @@
       "display": "Donald Duck"
     }
   ],
-  "dosageInstruction": [
-    {
-      "sequence": 1,
+  "dosageInstruction": {
+    "simple": {
       "text": "500mg IV q6h x 3 days",
       "timing": {
         "repeat": {
@@ -129,7 +128,7 @@
         }
       ]
     }
-  ],
+  },
   "meta": {
     "tag": [
       {

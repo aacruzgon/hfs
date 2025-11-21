@@ -2,14 +2,11 @@
   "resourceType": "ValueSet",
   "id": "vaccine-code",
   "meta": {
-    "lastUpdated": "2025-11-03T08:55:27.392+00:00",
-    "profile": [
-      "http://hl7.org/fhir/StructureDefinition/shareablevalueset"
-    ]
+    "lastUpdated": "2025-11-17T19:23:40.261+00:00"
   },
   "text": {
     "status": "additional",
-    "div": "\u003cdiv xmlns\u003d\"http://www.w3.org/1999/xhtml\"\u003e\n      \n      \n      \n      \u003cp\u003eAround the world, various different coding systems are used for immunizations:\u003c/p\u003e\n      \n      \n      \n      \u003cul\u003e \n        \n        \n        \n        \u003cli\u003eUSA: CVX (\n          \n          \n          \n          \u003ca href\u003d\"http://hl7.org/fhir/sid/cvx\"\u003ehttp://hl7.org/fhir/sid/cvx\u003c/a\u003e)\n        \n        \n        \n        \u003c/li\u003e\n        \n        \n        \n        \u003cli\u003eAustralia: ACIR (\n          \n          \n          \n          \u003ca href\u003d\"http://www.medicareaustralia.gov.au/provider/vendors/files/9560-1301-acir-idi-vaccine-codes.pdf\"\u003eurn:oid:1.2.36.1.2001.1005.17\u003c/a\u003e)\n        \n        \n        \n        \u003c/li\u003e\n      \n      \n      \n      \u003c/ul\u003e\n    \n    \n    \n    \u003c/div\u003e"
+    "div": "\u003cdiv xmlns\u003d\"http://www.w3.org/1999/xhtml\"\u003e\n      \n      \n      \n      \n      \u003cp\u003eAround the world, various different coding systems are used for immunizations:\u003c/p\u003e\n      \n      \n      \n      \n      \u003cul\u003e \n        \n        \n        \n        \n        \u003cli\u003eUSA: CVX (\n          \n          \n          \n          \n          \u003ca href\u003d\"http://hl7.org/fhir/sid/cvx\"\u003ehttp://hl7.org/fhir/sid/cvx\u003c/a\u003e)\n        \n        \n        \n        \n        \u003c/li\u003e\n        \n        \n        \n        \n        \u003cli\u003eAustralia: ACIR (\n          \n          \n          \n          \n          \u003ca href\u003d\"http://www.medicareaustralia.gov.au/provider/vendors/files/9560-1301-acir-idi-vaccine-codes.pdf\"\u003eurn:oid:1.2.36.1.2001.1005.17\u003c/a\u003e)\n        \n        \n        \n        \n        \u003c/li\u003e\n      \n      \n      \n      \n      \u003c/ul\u003e\n    \n    \n    \n    \n    \u003c/div\u003e"
   },
   "extension": [
     {
@@ -18,7 +15,7 @@
     },
     {
       "url": "http://hl7.org/fhir/StructureDefinition/structuredefinition-standards-status",
-      "valueCode": "draft"
+      "valueCode": "informative"
     },
     {
       "url": "http://hl7.org/fhir/StructureDefinition/structuredefinition-fmm",

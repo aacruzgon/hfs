@@ -53,9 +53,8 @@
     "reference": "Practitioner/f007",
     "display": "Patrick Pump"
   },
-  "dosageInstruction": [
-    {
-      "sequence": 1,
+  "dosageInstruction": {
+    "simple": {
       "text": "1.8 mg/kg IV infusion over 20 minutes every 3 weeks for 16 cycles",
       "timing": {
         "repeat": {
@@ -105,14 +104,21 @@
           }
         }
       ],
-      "maxDosePerLifetime": {
-        "value": 400,
-        "unit": "mg",
-        "system": "http://unitsofmeasure.org",
-        "code": "mg"
+      "safety": {
+        "doseLimit": [
+          {
+            "valueQuantity": {
+              "value": 400,
+              "unit": "mg",
+              "system": "http://unitsofmeasure.org",
+              "code": "mg"
+            },
+            "scope": "administration"
+          }
+        ]
       }
     }
-  ],
+  },
   "meta": {
     "tag": [
       {

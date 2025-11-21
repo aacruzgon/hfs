@@ -322,8 +322,8 @@
             }
           }
         ],
-        "dosageInstruction": [
-          {
+        "dosageInstruction": {
+          "simple": {
             "additionalInstruction": [
               {
                 "text": "Take with Food"
@@ -365,7 +365,7 @@
               }
             ]
           }
-        ]
+        }
       }
     },
     {

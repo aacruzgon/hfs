@@ -62,9 +62,8 @@
   },
   "whenPrepared": "2015-01-15",
   "whenHandedOver": "2016-01-15",
-  "dosageInstruction": [
-    {
-      "sequence": 1,
+  "dosageInstruction": {
+    "simple": {
       "text": "10 drops four times daily - apply in mouth using cotton swab or finger",
       "timing": {
         "repeat": {
@@ -93,7 +92,7 @@
         }
       ]
     }
-  ],
+  },
   "meta": {
     "tag": [
       {

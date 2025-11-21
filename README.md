@@ -134,7 +134,7 @@ Generated from FHIR StructureDefinitions, type-safe Rust representations of all 
 Generates the FHIR data models from official HL7 specifications.
 - Transforms FHIR StructureDefinitions into Rust types
 - Automatically downloads the latest R6 specs from the HL7 build server
-- Run with: `cargo run -p helios-fhir-gen -- --all`
+- See [Code Generation](#code-generation) section and [helios-fhir-gen README](crates/fhir-gen/README.md) for usage details
 
 ### 3. [`helios-fhirpath`](crates/fhirpath) - FHIRPath Expression Engine
 Complete implementation of the [FHIRPath 3.0.0-ballot specification](https://hl7.org/fhirpath/2025Jan/).
@@ -268,7 +268,7 @@ cargo build --workspace --exclude pysof
 
 ## Running Tests
 ```bash
-# Run all tests
+# Run all tests (R4 only by default)
 cargo test
 
 # Run tests for all FHIR versions

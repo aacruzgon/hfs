@@ -44,9 +44,8 @@
     "reference": "Practitioner/f007",
     "display": "Patrick Pump"
   },
-  "dosageInstruction": [
-    {
-      "sequence": 1,
+  "dosageInstruction": {
+    "simple": {
       "text": "Take 1-2 tablets once daily at bedtime as needed for restless legs",
       "additionalInstruction": [
         {
@@ -108,7 +107,7 @@
         }
       ]
     }
-  ],
+  },
   "meta": {
     "tag": [
       {

@@ -175,7 +175,7 @@
           "kind": "applicability",
           "expression": {
             "description": "Is total MME \u003e\u003d 50?",
-            "language": "text/cql",
+            "language": "text/cql-identifier",
             "expression": "Is MME 50 Or More?"
           }
         }
@@ -186,21 +186,21 @@
         {
           "path": "action.title",
           "expression": {
-            "language": "text/cql",
+            "language": "text/cql-identifier",
             "expression": "getSummary"
           }
         },
         {
           "path": "action.description",
           "expression": {
-            "language": "text/cql",
+            "language": "text/cql-identifier",
             "expression": "getDetail"
           }
         },
         {
           "path": "activity.extension",
           "expression": {
-            "language": "text/cql",
+            "language": "text/cql-identifier",
             "expression": "getIndicator"
           }
         }

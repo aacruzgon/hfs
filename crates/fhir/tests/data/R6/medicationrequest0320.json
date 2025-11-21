@@ -43,9 +43,8 @@
       }
     }
   ],
-  "dosageInstruction": [
-    {
-      "sequence": 1,
+  "dosageInstruction": {
+    "simple": {
       "text": "20 Units SC three times daily",
       "timing": {
         "repeat": {
@@ -83,7 +82,7 @@
         }
       ]
     }
-  ],
+  },
   "dispenseRequest": {
     "validityPeriod": {
       "start": "2015-01-15",

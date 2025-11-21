@@ -2,7 +2,7 @@
   "resourceType": "CodeSystem",
   "id": "resource-status",
   "meta": {
-    "lastUpdated": "2025-11-03T08:55:27.392+00:00"
+    "lastUpdated": "2025-11-17T19:23:40.261+00:00"
   },
   "text": {
     "status": "generated",
@@ -11,7 +11,7 @@
   "extension": [
     {
       "url": "http://hl7.org/fhir/StructureDefinition/structuredefinition-standards-status",
-      "valueCode": "trial-use"
+      "valueCode": "normative"
     },
     {
       "url": "http://hl7.org/fhir/StructureDefinition/structuredefinition-fmm",
@@ -32,7 +32,7 @@
   "version": "6.0.0-ballot3",
   "name": "FHIRCanonicalStatusCodes",
   "title": "Canonical Status Codes for FHIR Resources",
-  "status": "draft",
+  "status": "active",
   "experimental": true,
   "publisher": "FHIR Project",
   "description": "The master set of status codes used throughout FHIR. All status codes are mapped to one of these codes.",

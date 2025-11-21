@@ -2,10 +2,7 @@
   "resourceType": "ValueSet",
   "id": "approach-site-codes",
   "meta": {
-    "lastUpdated": "2025-11-03T08:55:27.392+00:00",
-    "profile": [
-      "http://hl7.org/fhir/StructureDefinition/shareablevalueset"
-    ]
+    "lastUpdated": "2025-11-17T19:23:40.261+00:00"
   },
   "text": {
     "status": "generated",
@@ -18,7 +15,7 @@
     },
     {
       "url": "http://hl7.org/fhir/StructureDefinition/structuredefinition-standards-status",
-      "valueCode": "draft"
+      "valueCode": "informative"
     },
     {
       "url": "http://hl7.org/fhir/StructureDefinition/structuredefinition-fmm",
@@ -37,7 +34,7 @@
   "title": "SNOMED CT Anatomical Structure for Administration Site Codes",
   "status": "draft",
   "experimental": true,
-  "date": "2025-11-03T08:55:27+00:00",
+  "date": "2025-11-17T19:23:40+00:00",
   "publisher": "HL7 International / FHIR Infrastructure",
   "contact": [
     {

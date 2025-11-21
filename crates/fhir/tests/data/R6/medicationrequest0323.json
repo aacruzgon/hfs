@@ -85,9 +85,8 @@
     "reference": "Practitioner/f007",
     "display": "Patrick Pump"
   },
-  "dosageInstruction": [
-    {
-      "sequence": 1,
+  "dosageInstruction": {
+    "simple": {
       "text": "1000mL infused at 50ml/hour for 4 hours - hung at 2200 hours",
       "timing": {
         "event": [
@@ -154,7 +153,7 @@
         }
       ]
     }
-  ],
+  },
   "meta": {
     "tag": [
       {

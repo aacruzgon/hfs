@@ -30,7 +30,7 @@
               {
                 "url": "http://hl7.org/fhir/StructureDefinition/cqf-expression",
                 "valueExpression": {
-                  "language": "text/cql",
+                  "language": "text/cql-expression-expression",
                   "expression": "Now()"
                 }
               }
@@ -94,7 +94,7 @@
         {
           "path": "medicationRequest.priority",
           "expression": {
-            "language": "text/cql",
+            "language": "text/cql-expression-expression",
             "expression": "\u0027routine\u0027"
           }
         }
@@ -207,7 +207,7 @@
         {
           "path": "medicationRequest.priority",
           "expression": {
-            "language": "text/cql",
+            "language": "text/cql-expression-expression",
             "expression": "\u0027routine\u0027"
           }
         }
@@ -320,7 +320,7 @@
         {
           "path": "medicationRequest.priority",
           "expression": {
-            "language": "text/cql",
+            "language": "text/cql-expression-expression",
             "expression": "\u0027routine\u0027"
           }
         }
@@ -398,9 +398,16 @@
               }
             }
           ],
-          "maxDosePerAdministration": {
-            "value": 3,
-            "unit": "{tbl}"
+          "safety": {
+            "doseLimit": [
+              {
+                "valueQuantity": {
+                  "value": 3,
+                  "unit": "{tbl}"
+                },
+                "scope": "administration"
+              }
+            ]
           }
         }
       ],
@@ -408,7 +415,7 @@
         {
           "path": "medicationRequest.priority",
           "expression": {
-            "language": "text/cql",
+            "language": "text/cql-expression-expression",
             "expression": "routine"
           }
         }
@@ -715,49 +722,49 @@
                 {
                   "path": "timing.event",
                   "expression": {
-                    "language": "text/cql",
+                    "language": "text/cql-expression-expression",
                     "expression": "Now()"
                   }
                 },
                 {
                   "path": "specialty",
                   "expression": {
-                    "language": "text/cql",
+                    "language": "text/cql-expression-expression",
                     "expression": "Code \u0027261QM0850X\u0027 from CardiologyChestPainLogic.\"NUCC Provider Taxonomy\" display \u0027Adult Mental Health\u0027"
                   }
                 },
                 {
                   "path": "occurrenceDateTime",
                   "expression": {
-                    "language": "text/cql",
+                    "language": "text/cql-expression-expression",
                     "expression": "CardiologyChestPainLogic.ServiceRequestFulfillmentTime"
                   }
                 },
                 {
                   "path": "subject",
                   "expression": {
-                    "language": "text/cql",
+                    "language": "text/cql-expression-expression",
                     "expression": "CardiologyChestPainLogic.Patient"
                   }
                 },
                 {
                   "path": "requester.agent",
                   "expression": {
-                    "language": "text/cql",
+                    "language": "text/cql-expression-expression",
                     "expression": "CardiologyChestPainLogic.Practitioner"
                   }
                 },
                 {
                   "path": "reasonCode",
                   "expression": {
-                    "language": "text/cql",
+                    "language": "text/cql-expression",
                     "expression": "CardiologyChestPainLogic.CardiologyReferralReason"
                   }
                 },
                 {
                   "path": "reasonReference",
                   "expression": {
-                    "language": "text/cql",
+                    "language": "text/cql-expression",
                     "expression": "CardiologyChestPainLogic.RiskAssessment"
                   }
                 }
@@ -793,21 +800,21 @@
                     {
                       "path": "status",
                       "expression": {
-                        "language": "text/cql",
+                        "language": "text/cql-expression",
                         "expression": "\u0027draft\u0027"
                       }
                     },
                     {
                       "path": "patient",
                       "expression": {
-                        "language": "text/cql",
+                        "language": "text/cql-expression",
                         "expression": "CardiologyChestPainLogic.Patient"
                       }
                     },
                     {
                       "path": "prescriber",
                       "expression": {
-                        "language": "text/cql",
+                        "language": "text/cql-expression",
                         "expression": "CardiologyChestPainLogic.Practitioner"
                       }
                     }
@@ -820,21 +827,21 @@
                     {
                       "path": "status",
                       "expression": {
-                        "language": "text/cql",
+                        "language": "text/cql-expression",
                         "expression": "\u0027draft\u0027"
                       }
                     },
                     {
                       "path": "patient",
                       "expression": {
-                        "language": "text/cql",
+                        "language": "text/cql-expression",
                         "expression": "CardiologyChestPainLogic.Patient"
                       }
                     },
                     {
                       "path": "prescriber",
                       "expression": {
-                        "language": "text/cql",
+                        "language": "text/cql-expression",
                         "expression": "CardiologyChestPainLogic.Practitioner"
                       }
                     }
@@ -847,21 +854,21 @@
                     {
                       "path": "status",
                       "expression": {
-                        "language": "text/cql",
+                        "language": "text/cql-expression",
                         "expression": "\u0027draft\u0027"
                       }
                     },
                     {
                       "path": "patient",
                       "expression": {
-                        "language": "text/cql",
+                        "language": "text/cql-expression",
                         "expression": "CardiologyChestPainLogic.Patient"
                       }
                     },
                     {
                       "path": "prescriber",
                       "expression": {
-                        "language": "text/cql",
+                        "language": "text/cql-expression",
                         "expression": "CardiologyChestPainLogic.Practitioner"
                       }
                     }
@@ -881,21 +888,21 @@
                     {
                       "path": "status",
                       "expression": {
-                        "language": "text/cql",
+                        "language": "text/cql-expression",
                         "expression": "\u0027draft\u0027"
                       }
                     },
                     {
                       "path": "patient",
                       "expression": {
-                        "language": "text/cql",
+                        "language": "text/cql-expression",
                         "expression": "CardiologyChestPainLogic.Patient"
                       }
                     },
                     {
                       "path": "prescriber",
                       "expression": {
-                        "language": "text/cql",
+                        "language": "text/cql-expression",
                         "expression": "CardiologyChestPainLogic.Practitioner"
                       }
                     }

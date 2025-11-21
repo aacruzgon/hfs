@@ -50,16 +50,14 @@
       "param": [
         "sender",
         "recipient"
-      ],
-      "documentation": "The device used as the message sender and recipient"
+      ]
     },
     {
       "code": "CommunicationRequest",
       "param": [
         "sender",
         "recipient"
-      ],
-      "documentation": "The device used as the message sender and recipient"
+      ]
     }
   ]
 }

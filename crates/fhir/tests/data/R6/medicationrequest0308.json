@@ -38,9 +38,8 @@
     "reference": "Practitioner/f204",
     "display": "Carla Espinoza"
   },
-  "dosageInstruction": [
-    {
-      "sequence": 1,
+  "dosageInstruction": {
+    "simple": {
       "text": "1 tablet every four hours as needed for pain",
       "additionalInstruction": [
         {
@@ -100,7 +99,7 @@
         }
       ]
     }
-  ],
+  },
   "dispenseRequest": {
     "validityPeriod": {
       "start": "2015-01-15",
