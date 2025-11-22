@@ -281,7 +281,7 @@ pub fn fhir_serde_derive(input: TokenStream) -> TokenStream {
         &ty_generics,
         where_clause,
     )
-    .unwrap_or_else(proc_macro2::TokenStream::new);
+    .unwrap_or_default();
 
     let expanded = quote! {
         // --- Serialize Implementation ---
@@ -1285,8 +1285,6 @@ fn generate_is_empty_impl(
                     }
                 } else if is_option {
                     quote! { self.#field_name_ident.is_none() }
-                } else if is_vec {
-                    quote! { self.#field_name_ident.is_empty() }
                 } else {
                     quote! { self.#field_name_ident.is_empty() }
                 };
