@@ -14,6 +14,7 @@ Built in Rust for speed, exposed to Python with a simple, Pythonic API. Part of 
 - 🚀 **High Performance**: Native Rust implementation with minimal Python overhead
 - 📊 **Multiple Output Formats**: CSV, JSON, NDJSON, and Parquet
 - 🔄 **Parallel Processing**: Automatic multithreading with 5-7x speedup on multi-core systems
+- 📦 **Streaming Support**: Memory-efficient chunked processing for large NDJSON files
 - 🌐 **Multi-Version FHIR**: Supports R4, R4B, R5, and R6 (based on build features)
 - 🎯 **Type-Safe**: Leverages Rust's type safety with a Pythonic interface
 - ⚡ **GIL-Free**: Python GIL released during processing for true parallelism
@@ -167,6 +168,59 @@ print(f"Version: {pysof.get_version()}")
 print(pysof.get_status())
 ```
 
+### Streaming Large NDJSON Files
+
+For memory-efficient processing of large NDJSON files, use the `ChunkedProcessor` iterator or `process_ndjson_to_file` function:
+
+```python
+import pysof
+
+view_definition = {
+    "resourceType": "ViewDefinition",
+    "status": "active",
+    "resource": "Patient",
+    "select": [{"column": [
+        {"name": "id", "path": "id"},
+        {"name": "gender", "path": "gender"}
+    ]}]
+}
+
+# Iterator approach - process chunks incrementally
+for chunk in pysof.ChunkedProcessor(view_definition, "patients.ndjson", chunk_size=500):
+    print(f"Chunk {chunk['chunk_index']}: {len(chunk['rows'])} rows")
+    for row in chunk["rows"]:
+        process_row(row)
+    if chunk["is_last"]:
+        print("Processing complete!")
+
+# Access column names before iterating
+processor = pysof.ChunkedProcessor(view_definition, "patients.ndjson")
+print(f"Columns: {processor.columns}")
+for chunk in processor:
+    # Process chunks...
+    pass
+
+# File-to-file approach - most memory efficient
+stats = pysof.process_ndjson_to_file(
+    view_definition,
+    "input.ndjson",
+    "output.csv",
+    "csv",  # or "csv_with_header", "ndjson"
+    chunk_size=1000,
+    skip_invalid=True,  # Continue past invalid JSON lines
+    fhir_version="R4"
+)
+print(f"Processed {stats['resources_processed']} resources")
+print(f"Output {stats['output_rows']} rows in {stats['chunks_processed']} chunks")
+print(f"Skipped {stats['skipped_lines']} invalid lines")
+```
+
+**When to use streaming:**
+- Processing NDJSON files larger than available memory
+- Working with datasets of 100K+ resources
+- Building ETL pipelines that process data incrementally
+- When you need fault-tolerant processing (skip invalid lines)
+
 ### Error Handling
 
 ```python
@@ -190,13 +244,25 @@ except pysof.SofError as e:
 
 pysof automatically processes FHIR resources in parallel using rayon:
 
-- **5-7x speedup** on typical workloads with multi-core CPUs
+- **5-7x speedup** on typical batch workloads with multi-core CPUs
+- **Streaming benefits**: `ChunkedProcessor` and `process_ndjson_to_file` also use parallel processing
 - **Zero configuration** - parallelization is always enabled
 - **Python GIL released** during processing for true parallel execution
 
-### Controlling Thread Count
+### Performance Benchmarks
 
-Set the `RAYON_NUM_THREADS` environment variable before importing pysof:
+| Mode | Dataset | Time | Memory | Notes |
+|------|---------|------|--------|-------|
+| **Batch** | 10k Patients | ~2.7s | 1.6 GB | All resources in memory |
+| **Streaming** | 10k Patients | ~0.9s | 45 MB | 35x less memory, 2.9x faster |
+| **Batch** | 93k Encounters | ~4s | 3.9 GB | All resources in memory |
+| **Streaming** | 93k Encounters | ~2.8s | 25 MB | 155x less memory, 1.4x faster |
+
+Streaming mode (`ChunkedProcessor`, `process_ndjson_to_file`) is recommended for large NDJSON files.
+
+### Controlling Thread Count (RAYON_NUM_THREADS)
+
+Set the `RAYON_NUM_THREADS` environment variable to control parallel processing:
 
 ```python
 import os
@@ -217,10 +283,15 @@ $env:RAYON_NUM_THREADS=4
 python my_script.py
 ```
 
+**When to adjust thread count:**
+- **Reduce threads** (`RAYON_NUM_THREADS=2-4`): On shared systems, containers with CPU limits, or when running multiple instances
+- **Increase threads**: Rarely needed; rayon auto-detects available cores
+- **Single thread** (`RAYON_NUM_THREADS=1`): For debugging or deterministic output ordering
+
 **Performance Tips:**
 - Use all available cores for large datasets (default behavior)
 - Limit threads on shared systems to avoid resource contention
-- Reduce thread count if memory-constrained
+- Prefer streaming mode (`ChunkedProcessor`) for NDJSON files > 100MB
 
 ## 📋 Supported Features
 

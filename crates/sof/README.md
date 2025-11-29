@@ -86,6 +86,10 @@ sof-cli -v view-definition.json -s s3://my-bucket/fhir-data/patients.ndjson -f c
 
 # NDJSON content detection (works even without .ndjson extension)
 sof-cli -v view-definition.json -b patient-data.txt -f csv  # Auto-detects NDJSON content
+
+# Streaming mode for large NDJSON files (memory-efficient chunked processing)
+sof-cli -v view-definition.json -b large-patients.ndjson -f csv --chunk-size 500
+sof-cli -v view-definition.json -b data.ndjson -f ndjson --skip-invalid
 ```
 
 #### CLI Features
@@ -100,6 +104,10 @@ sof-cli -v view-definition.json -b patient-data.txt -f csv  # Auto-detects NDJSO
 - **Result Filtering**:
   - Filter resources by modification time with `--since` (RFC3339 format)
   - Limit number of results with `--limit` (1-10000)
+- **Streaming Mode**: Memory-efficient chunked processing for large NDJSON files
+  - Automatically enabled when using `--bundle` with `.ndjson` files
+  - Configurable chunk size with `--chunk-size` (default: 1000 resources)
+  - Skip invalid lines with `--skip-invalid` for fault-tolerant processing
 - **FHIR Version Support**: R4 by default; other versions (R4B, R5, R6) require compilation with feature flags
 - **Error Handling**: Clear, actionable error messages for debugging
 
@@ -121,6 +129,8 @@ sof-cli -v view-definition.json -b patient-data.txt -f csv  # Auto-detects NDJSO
                               Options: none, snappy, gzip, lz4, brotli, zstd
     --max-file-size <MB>       Maximum file size for Parquet output (10-10000MB) [default: 1000]
                               When exceeded, creates numbered files (e.g., output_001.parquet)
+    --chunk-size <N>           Number of resources per chunk for streaming NDJSON [default: 1000]
+    --skip-invalid             Skip invalid JSON lines in NDJSON files instead of failing
 -h, --help                     Print help
 
 * Additional FHIR versions (R4B, R5, R6) available when compiled with corresponding features
@@ -213,9 +223,33 @@ In addition to standard JSON, the CLI and server support **NDJSON** (newline-del
 ```
 
 **Error Handling:**
-- Invalid lines are skipped with warnings printed to stderr
+- Invalid lines are skipped with warnings printed to stderr (or use `--skip-invalid` in streaming mode)
 - Processing continues as long as at least one valid FHIR resource is found
 - Empty lines and whitespace-only lines are ignored
+
+**Streaming Mode (Memory-Efficient Processing):**
+
+When processing large NDJSON files with `--bundle`, the CLI automatically uses streaming mode for memory-efficient processing:
+
+```bash
+# Stream large NDJSON file with default chunk size (1000 resources)
+sof-cli -v view.json -b large-patients.ndjson -f csv
+
+# Custom chunk size for memory-constrained environments
+sof-cli -v view.json -b patients.ndjson -f csv --chunk-size 100
+
+# Skip invalid lines and continue processing
+sof-cli -v view.json -b patients.ndjson -f ndjson --skip-invalid
+
+# Output to file with streaming
+sof-cli -v view.json -b huge-dataset.ndjson -f csv -o output.csv --chunk-size 500
+```
+
+Streaming mode features:
+- **Bounded memory**: Only `--chunk-size` resources are loaded at a time (~10MB per 1000 resources)
+- **Progressive output**: Results are written incrementally, ideal for large datasets
+- **Fault tolerance**: Use `--skip-invalid` to continue past malformed JSON lines
+- **Statistics**: Reports resources processed, chunks, and output rows on completion
 
 **Usage Examples:**
 ```bash
@@ -917,25 +951,40 @@ curl -X POST "http://localhost:8080/ViewDefinition/$run?_format=application/parq
 
 The SQL-on-FHIR implementation leverages multi-core processors for optimal performance through parallel resource processing:
 
-- **Automatic Parallelization**: FHIR resources in bundles are processed in parallel using `rayon`
-- **5-7x Performance Improvement**: Benchmarks show 5-7x speedup for typical workloads on multi-core systems
+- **Automatic Parallelization**: FHIR resources are processed in parallel using `rayon` for both batch and streaming modes
+- **Streaming Mode Benefits**: Streaming NDJSON processing uses parallel chunk processing, achieving throughput comparable to or better than batch mode while using 35-150x less memory
 - **Zero Configuration**: Parallel processing is always enabled with intelligent work distribution
 - **Thread Pool Control**: Optionally control thread count via `RAYON_NUM_THREADS` environment variable
 
+#### RAYON_NUM_THREADS Environment Variable
+
+The `RAYON_NUM_THREADS` environment variable controls the number of threads used for parallel processing:
+
 ```bash
-# Use all available CPU cores (default)
+# Use all available CPU cores (default behavior)
 sof-cli --view view.json --bundle large-bundle.json
 
 # Limit to 4 threads for resource-constrained environments
 RAYON_NUM_THREADS=4 sof-cli --view view.json --bundle large-bundle.json
 
+# Use single thread (disables parallelization)
+RAYON_NUM_THREADS=1 sof-cli --view view.json --bundle data.ndjson
+
 # Server with custom thread pool
 RAYON_NUM_THREADS=8 sof-server
+
+# Python (pysof) also respects this variable
+RAYON_NUM_THREADS=4 python my_script.py
 ```
+
+**When to adjust thread count:**
+- **Reduce threads** (`RAYON_NUM_THREADS=2-4`): On shared systems, containers with CPU limits, or when running multiple instances
+- **Increase threads**: Rarely needed; rayon auto-detects available cores
+- **Single thread** (`RAYON_NUM_THREADS=1`): For debugging, profiling, or deterministic output ordering
 
 #### Performance Benchmarks
 
-Typical performance improvements with multi-threading:
+**Batch Mode (Bundle processing):**
 
 | Bundle Size | Sequential Time | Parallel Time | Speedup |
 |-------------|----------------|---------------|---------|
@@ -944,11 +993,19 @@ Typical performance improvements with multi-threading:
 | 100 patients | 229.4ms | 35.7ms | 6.4x |
 | 500 patients | 1109ms | 152ms | 7.3x |
 
+**Streaming Mode (NDJSON processing):**
+
+| Dataset | Batch Mode | Streaming Mode | Memory Reduction |
+|---------|-----------|----------------|------------------|
+| 10k Patients (32MB) | 2.66s, 1.6GB | 0.93s, 45MB | **35x less memory, 2.9x faster** |
+| 93k Encounters (136MB) | 3.97s, 3.9GB | 2.75s, 25MB | **155x less memory, 1.4x faster** |
+
 The parallel processing ensures:
 - Each FHIR resource is processed independently on available threads
 - Column ordering is maintained consistently across parallel operations
 - Thread-safe evaluation contexts for FHIRPath expressions
 - Efficient load balancing through work-stealing algorithms
+- Both batch and streaming modes benefit from parallelization
 
 ## Architecture
 

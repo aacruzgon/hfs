@@ -189,6 +189,7 @@ use helios_fhirpath::{EvaluationContext, EvaluationResult, evaluate_expression};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::io::{BufRead, Write};
 use thiserror::Error;
 use traits::*;
 
@@ -975,6 +976,863 @@ pub struct RunOptions {
     pub page: Option<usize>,
     /// Parquet-specific configuration options
     pub parquet_options: Option<ParquetOptions>,
+}
+
+// =============================================================================
+// Streaming/Chunked Processing Types
+// =============================================================================
+
+/// Configuration for chunked NDJSON processing.
+///
+/// Controls how NDJSON files are read and processed in chunks to reduce
+/// memory usage when handling large files.
+///
+/// # Examples
+///
+/// ```rust
+/// use helios_sof::ChunkConfig;
+///
+/// // Default configuration (1000 resources per chunk)
+/// let config = ChunkConfig::default();
+///
+/// // Custom configuration for memory-constrained environments
+/// let config = ChunkConfig {
+///     chunk_size: 100,
+///     skip_invalid_lines: true,
+/// };
+/// ```
+#[derive(Debug, Clone)]
+pub struct ChunkConfig {
+    /// Number of resources to process per chunk.
+    /// Default: 1000 (approximately 10MB memory usage per chunk)
+    pub chunk_size: usize,
+    /// If true, skip lines that fail to parse as valid JSON.
+    /// If false (default), return an error on the first invalid line.
+    pub skip_invalid_lines: bool,
+}
+
+impl Default for ChunkConfig {
+    fn default() -> Self {
+        Self {
+            chunk_size: 1000,
+            skip_invalid_lines: false,
+        }
+    }
+}
+
+/// A chunk of parsed FHIR resources from an NDJSON file.
+///
+/// Represents a batch of resources that have been read and parsed,
+/// ready for processing through a ViewDefinition.
+#[derive(Debug)]
+pub struct ResourceChunk {
+    /// The parsed FHIR resources in this chunk
+    pub resources: Vec<serde_json::Value>,
+    /// Zero-based index of this chunk (0, 1, 2, ...)
+    pub chunk_index: usize,
+    /// True if this is the last chunk in the file
+    pub is_last: bool,
+}
+
+/// Result from processing a single chunk of resources.
+///
+/// Contains the output rows generated from processing one chunk,
+/// along with metadata about the chunk position.
+#[derive(Debug, Clone)]
+pub struct ChunkedResult {
+    /// Column names (same for all chunks)
+    pub columns: Vec<String>,
+    /// Processed rows from this chunk
+    pub rows: Vec<ProcessedRow>,
+    /// Zero-based index of this chunk
+    pub chunk_index: usize,
+    /// True if this is the last chunk
+    pub is_last: bool,
+    /// Number of resources that were in the input chunk
+    pub resources_in_chunk: usize,
+}
+
+/// Statistics from chunked processing.
+///
+/// Provides summary information about a completed chunked processing run.
+#[derive(Debug, Clone, Default)]
+pub struct ProcessingStats {
+    /// Total number of lines read from the NDJSON file
+    pub total_lines_read: usize,
+    /// Number of FHIR resources successfully processed
+    pub resources_processed: usize,
+    /// Number of output rows generated
+    pub output_rows: usize,
+    /// Number of lines skipped due to parse errors (when skip_invalid_lines is true)
+    pub skipped_lines: usize,
+    /// Number of chunks processed
+    pub chunks_processed: usize,
+}
+
+/// Reads NDJSON files in chunks, yielding parsed resources.
+///
+/// This iterator reads an NDJSON file line by line, collecting resources
+/// into chunks of the configured size. Each iteration yields a `ResourceChunk`
+/// containing up to `chunk_size` parsed FHIR resources.
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// use helios_sof::{NdjsonChunkReader, ChunkConfig};
+/// use std::io::BufReader;
+/// use std::fs::File;
+///
+/// let file = File::open("patients.ndjson").unwrap();
+/// let reader = BufReader::new(file);
+/// let config = ChunkConfig::default();
+///
+/// let mut chunk_reader = NdjsonChunkReader::new(reader, config);
+///
+/// while let Some(result) = chunk_reader.next() {
+///     match result {
+///         Ok(chunk) => {
+///             println!("Chunk {}: {} resources", chunk.chunk_index, chunk.resources.len());
+///         }
+///         Err(e) => {
+///             eprintln!("Error reading chunk: {}", e);
+///             break;
+///         }
+///     }
+/// }
+/// ```
+pub struct NdjsonChunkReader<R: BufRead> {
+    reader: R,
+    config: ChunkConfig,
+    current_chunk: usize,
+    finished: bool,
+    line_buffer: String,
+    line_number: usize,
+    /// Resource type filter - only include resources of this type
+    resource_type_filter: Option<String>,
+    /// Number of lines skipped due to invalid JSON
+    skipped_lines: usize,
+}
+
+impl<R: BufRead> NdjsonChunkReader<R> {
+    /// Create a new NDJSON chunk reader with the given configuration.
+    pub fn new(reader: R, config: ChunkConfig) -> Self {
+        Self {
+            reader,
+            config,
+            current_chunk: 0,
+            finished: false,
+            line_buffer: String::new(),
+            line_number: 0,
+            resource_type_filter: None,
+            skipped_lines: 0,
+        }
+    }
+
+    /// Set a resource type filter to only include resources of a specific type.
+    ///
+    /// This is useful when processing NDJSON files that contain multiple resource types.
+    pub fn with_resource_type_filter(mut self, resource_type: Option<String>) -> Self {
+        self.resource_type_filter = resource_type;
+        self
+    }
+
+    /// Get the total number of lines read so far.
+    pub fn lines_read(&self) -> usize {
+        self.line_number
+    }
+
+    /// Get the number of lines skipped due to invalid JSON.
+    pub fn skipped_lines(&self) -> usize {
+        self.skipped_lines
+    }
+}
+
+impl<R: BufRead> Iterator for NdjsonChunkReader<R> {
+    type Item = Result<ResourceChunk, SofError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.finished {
+            return None;
+        }
+
+        let mut resources = Vec::with_capacity(self.config.chunk_size);
+
+        while resources.len() < self.config.chunk_size {
+            self.line_buffer.clear();
+            match self.reader.read_line(&mut self.line_buffer) {
+                Ok(0) => {
+                    // EOF reached
+                    self.finished = true;
+                    break;
+                }
+                Ok(_) => {
+                    self.line_number += 1;
+                    let line = self.line_buffer.trim();
+
+                    // Skip empty lines
+                    if line.is_empty() {
+                        continue;
+                    }
+
+                    // Parse the JSON
+                    match serde_json::from_str::<serde_json::Value>(line) {
+                        Ok(value) => {
+                            // Apply resource type filter if set
+                            if let Some(ref filter) = self.resource_type_filter {
+                                let resource_type =
+                                    value.get("resourceType").and_then(|v| v.as_str());
+                                if resource_type != Some(filter.as_str()) {
+                                    continue;
+                                }
+                            }
+                            resources.push(value);
+                        }
+                        Err(e) => {
+                            if self.config.skip_invalid_lines {
+                                // Skip this line and continue
+                                self.skipped_lines += 1;
+                                continue;
+                            } else {
+                                return Some(Err(SofError::InvalidSourceContent(format!(
+                                    "Invalid JSON at line {}: {}",
+                                    self.line_number, e
+                                ))));
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    return Some(Err(SofError::IoError(e)));
+                }
+            }
+        }
+
+        // If we have no resources and we're finished, don't return an empty chunk
+        if resources.is_empty() && self.finished {
+            return None;
+        }
+
+        let chunk = ResourceChunk {
+            resources,
+            chunk_index: self.current_chunk,
+            is_last: self.finished,
+        };
+        self.current_chunk += 1;
+
+        Some(Ok(chunk))
+    }
+}
+
+/// Pre-validated ViewDefinition for efficient reuse across multiple chunks.
+///
+/// This struct caches the validation and constant extraction from a ViewDefinition,
+/// allowing efficient processing of multiple chunks without re-validating each time.
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// use helios_sof::{PreparedViewDefinition, SofViewDefinition, ResourceChunk};
+///
+/// # #[cfg(feature = "R4")]
+/// # {
+/// // Parse and prepare ViewDefinition once
+/// let view_json: serde_json::Value = serde_json::from_str(r#"{
+///     "resourceType": "ViewDefinition",
+///     "resource": "Patient",
+///     "select": [{"column": [{"name": "id", "path": "id"}]}]
+/// }"#).unwrap();
+/// let view_def: helios_fhir::r4::ViewDefinition = serde_json::from_value(view_json).unwrap();
+/// let sof_view = SofViewDefinition::R4(view_def);
+///
+/// let prepared = PreparedViewDefinition::new(sof_view).unwrap();
+///
+/// // Process multiple chunks efficiently
+/// // for chunk in chunk_iterator {
+/// //     let result = prepared.process_chunk(chunk)?;
+/// //     // ... handle result
+/// // }
+/// # }
+/// ```
+#[derive(Debug, Clone)]
+pub struct PreparedViewDefinition {
+    view_definition: SofViewDefinition,
+    target_resource_type: String,
+    variables: HashMap<String, EvaluationResult>,
+    column_names: Vec<String>,
+}
+
+impl PreparedViewDefinition {
+    /// Create a new PreparedViewDefinition by validating and extracting metadata.
+    ///
+    /// This performs all validation upfront so that chunk processing is efficient.
+    pub fn new(view_definition: SofViewDefinition) -> Result<Self, SofError> {
+        // Extract target resource type and column names based on version
+        let (target_resource_type, variables, column_names) = match &view_definition {
+            #[cfg(feature = "R4")]
+            SofViewDefinition::R4(vd) => {
+                validate_view_definition(vd)?;
+                let vars = extract_view_definition_constants(vd)?;
+                let resource_type = vd
+                    .resource()
+                    .ok_or_else(|| {
+                        SofError::InvalidViewDefinition("Resource type is required".to_string())
+                    })?
+                    .to_string();
+                let mut columns = Vec::new();
+                if let Some(selects) = vd.select() {
+                    collect_all_columns(selects, &mut columns)?;
+                }
+                (resource_type, vars, columns)
+            }
+            #[cfg(feature = "R4B")]
+            SofViewDefinition::R4B(vd) => {
+                validate_view_definition(vd)?;
+                let vars = extract_view_definition_constants(vd)?;
+                let resource_type = vd
+                    .resource()
+                    .ok_or_else(|| {
+                        SofError::InvalidViewDefinition("Resource type is required".to_string())
+                    })?
+                    .to_string();
+                let mut columns = Vec::new();
+                if let Some(selects) = vd.select() {
+                    collect_all_columns(selects, &mut columns)?;
+                }
+                (resource_type, vars, columns)
+            }
+            #[cfg(feature = "R5")]
+            SofViewDefinition::R5(vd) => {
+                validate_view_definition(vd)?;
+                let vars = extract_view_definition_constants(vd)?;
+                let resource_type = vd
+                    .resource()
+                    .ok_or_else(|| {
+                        SofError::InvalidViewDefinition("Resource type is required".to_string())
+                    })?
+                    .to_string();
+                let mut columns = Vec::new();
+                if let Some(selects) = vd.select() {
+                    collect_all_columns(selects, &mut columns)?;
+                }
+                (resource_type, vars, columns)
+            }
+            #[cfg(feature = "R6")]
+            SofViewDefinition::R6(vd) => {
+                validate_view_definition(vd)?;
+                let vars = extract_view_definition_constants(vd)?;
+                let resource_type = vd
+                    .resource()
+                    .ok_or_else(|| {
+                        SofError::InvalidViewDefinition("Resource type is required".to_string())
+                    })?
+                    .to_string();
+                let mut columns = Vec::new();
+                if let Some(selects) = vd.select() {
+                    collect_all_columns(selects, &mut columns)?;
+                }
+                (resource_type, vars, columns)
+            }
+        };
+
+        Ok(Self {
+            view_definition,
+            target_resource_type,
+            variables,
+            column_names,
+        })
+    }
+
+    /// Get the column names that will be produced by this ViewDefinition.
+    pub fn columns(&self) -> &[String] {
+        &self.column_names
+    }
+
+    /// Get the target resource type for this ViewDefinition.
+    pub fn target_resource_type(&self) -> &str {
+        &self.target_resource_type
+    }
+
+    /// Process a chunk of resources through this ViewDefinition.
+    ///
+    /// Returns a `ChunkedResult` containing the rows generated from the chunk.
+    /// Uses parallel processing via rayon for improved throughput.
+    pub fn process_chunk(&self, chunk: ResourceChunk) -> Result<ChunkedResult, SofError> {
+        // Process resources in parallel using rayon
+        let results: Result<Vec<Vec<ProcessedRow>>, SofError> = chunk
+            .resources
+            .par_iter()
+            .filter_map(|resource_json| {
+                // Check resource type matches
+                let resource_type = resource_json
+                    .get("resourceType")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+
+                if resource_type != self.target_resource_type {
+                    None
+                } else {
+                    // Process single resource based on version
+                    Some(self.process_single_resource(resource_json))
+                }
+            })
+            .collect();
+
+        // Flatten results from all resources
+        let all_rows: Vec<ProcessedRow> = results?.into_iter().flatten().collect();
+
+        Ok(ChunkedResult {
+            columns: self.column_names.clone(),
+            rows: all_rows,
+            chunk_index: chunk.chunk_index,
+            is_last: chunk.is_last,
+            resources_in_chunk: chunk.resources.len(),
+        })
+    }
+
+    /// Process a single resource JSON value through the ViewDefinition.
+    fn process_single_resource(
+        &self,
+        resource_json: &serde_json::Value,
+    ) -> Result<Vec<ProcessedRow>, SofError> {
+        match &self.view_definition {
+            #[cfg(feature = "R4")]
+            SofViewDefinition::R4(vd) => self.process_single_resource_generic(vd, resource_json),
+            #[cfg(feature = "R4B")]
+            SofViewDefinition::R4B(vd) => self.process_single_resource_generic(vd, resource_json),
+            #[cfg(feature = "R5")]
+            SofViewDefinition::R5(vd) => self.process_single_resource_generic(vd, resource_json),
+            #[cfg(feature = "R6")]
+            SofViewDefinition::R6(vd) => self.process_single_resource_generic(vd, resource_json),
+        }
+    }
+
+    fn process_single_resource_generic<VD>(
+        &self,
+        view_definition: &VD,
+        resource_json: &serde_json::Value,
+    ) -> Result<Vec<ProcessedRow>, SofError>
+    where
+        VD: ViewDefinitionTrait,
+        VD::Select: ViewDefinitionSelectTrait,
+    {
+        // Create evaluation context from JSON by parsing into typed FhirResource
+        let fhir_resource =
+            parse_json_to_fhir_resource(resource_json.clone(), self.view_definition.version())?;
+        let mut context = EvaluationContext::new(vec![fhir_resource]);
+
+        // Add variables to the context
+        for (name, value) in &self.variables {
+            context.set_variable_result(name, value.clone());
+        }
+
+        // Apply where clauses
+        if let Some(where_clauses) = view_definition.where_clauses() {
+            for where_clause in where_clauses {
+                let path = where_clause.path().ok_or_else(|| {
+                    SofError::InvalidViewDefinition("Where clause path is required".to_string())
+                })?;
+
+                match evaluate_expression(path, &context) {
+                    Ok(result) => {
+                        if !can_be_coerced_to_boolean(&result) {
+                            return Err(SofError::InvalidViewDefinition(format!(
+                                "Where clause path '{}' returns type '{}' which cannot be used as a boolean condition.",
+                                path,
+                                result.type_name()
+                            )));
+                        }
+                        if !is_truthy(&result) {
+                            // Resource doesn't match where clause, return empty rows
+                            return Ok(Vec::new());
+                        }
+                    }
+                    Err(e) => {
+                        return Err(SofError::FhirPathError(format!(
+                            "Error evaluating where clause '{}': {}",
+                            path, e
+                        )));
+                    }
+                }
+            }
+        }
+
+        // Generate rows
+        let select_clauses = view_definition.select().ok_or_else(|| {
+            SofError::InvalidViewDefinition("At least one select clause is required".to_string())
+        })?;
+
+        let mut all_columns = self.column_names.clone();
+        generate_row_combinations(&context, select_clauses, &mut all_columns, &self.variables)
+    }
+}
+
+/// Iterator that combines NDJSON reading with ViewDefinition processing.
+///
+/// This iterator reads chunks from an NDJSON file and processes them
+/// through a ViewDefinition, yielding `ChunkedResult` for each chunk.
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// use helios_sof::{NdjsonChunkIterator, SofViewDefinition, ChunkConfig};
+/// use std::io::BufReader;
+/// use std::fs::File;
+///
+/// # #[cfg(feature = "R4")]
+/// # {
+/// // Set up ViewDefinition
+/// let view_json: serde_json::Value = serde_json::from_str(r#"{
+///     "resourceType": "ViewDefinition",
+///     "resource": "Patient",
+///     "select": [{"column": [{"name": "id", "path": "id"}]}]
+/// }"#).unwrap();
+/// let view_def: helios_fhir::r4::ViewDefinition = serde_json::from_value(view_json).unwrap();
+/// let sof_view = SofViewDefinition::R4(view_def);
+///
+/// // Process file in chunks
+/// let file = File::open("patients.ndjson").unwrap();
+/// let reader = BufReader::new(file);
+///
+/// let iterator = NdjsonChunkIterator::new(sof_view, reader, ChunkConfig::default()).unwrap();
+///
+/// for result in iterator {
+///     match result {
+///         Ok(chunk_result) => {
+///             println!("Chunk {}: {} rows", chunk_result.chunk_index, chunk_result.rows.len());
+///         }
+///         Err(e) => {
+///             eprintln!("Error: {}", e);
+///             break;
+///         }
+///     }
+/// }
+/// # }
+/// ```
+pub struct NdjsonChunkIterator<R: BufRead> {
+    reader: NdjsonChunkReader<R>,
+    prepared_vd: PreparedViewDefinition,
+}
+
+impl<R: BufRead> NdjsonChunkIterator<R> {
+    /// Create a new chunk iterator from a ViewDefinition and NDJSON reader.
+    pub fn new(
+        view_definition: SofViewDefinition,
+        reader: R,
+        config: ChunkConfig,
+    ) -> Result<Self, SofError> {
+        let prepared_vd = PreparedViewDefinition::new(view_definition)?;
+        let resource_type = prepared_vd.target_resource_type().to_string();
+        let chunk_reader =
+            NdjsonChunkReader::new(reader, config).with_resource_type_filter(Some(resource_type));
+
+        Ok(Self {
+            reader: chunk_reader,
+            prepared_vd,
+        })
+    }
+
+    /// Get the column names that will be produced by this iterator.
+    pub fn columns(&self) -> &[String] {
+        self.prepared_vd.columns()
+    }
+
+    /// Get the total number of lines read so far.
+    pub fn lines_read(&self) -> usize {
+        self.reader.lines_read()
+    }
+
+    /// Get the number of lines skipped due to invalid JSON.
+    pub fn skipped_lines(&self) -> usize {
+        self.reader.skipped_lines()
+    }
+}
+
+impl<R: BufRead> Iterator for NdjsonChunkIterator<R> {
+    type Item = Result<ChunkedResult, SofError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.reader.next()? {
+            Ok(chunk) => Some(self.prepared_vd.process_chunk(chunk)),
+            Err(e) => Some(Err(e)),
+        }
+    }
+}
+
+// =============================================================================
+// Streaming Output Functions
+// =============================================================================
+
+/// Write CSV header row.
+fn write_csv_header<W: Write>(columns: &[String], writer: &mut W) -> Result<(), SofError> {
+    let mut wtr = csv::Writer::from_writer(writer);
+    wtr.write_record(columns)?;
+    wtr.flush()?;
+    Ok(())
+}
+
+/// Write CSV rows from a chunk (no header).
+fn write_csv_chunk<W: Write>(result: &ChunkedResult, writer: &mut W) -> Result<(), SofError> {
+    let mut wtr = csv::Writer::from_writer(writer);
+
+    for row in &result.rows {
+        let record: Vec<String> = row
+            .values
+            .iter()
+            .map(|v| match v {
+                Some(val) => {
+                    if let serde_json::Value::String(s) = val {
+                        s.clone()
+                    } else {
+                        serde_json::to_string(val).unwrap_or_default()
+                    }
+                }
+                None => String::new(),
+            })
+            .collect();
+        wtr.write_record(&record)?;
+    }
+
+    wtr.flush()?;
+    Ok(())
+}
+
+/// Write NDJSON rows from a chunk.
+fn write_ndjson_chunk<W: Write>(result: &ChunkedResult, writer: &mut W) -> Result<(), SofError> {
+    for row in &result.rows {
+        let mut row_obj = serde_json::Map::new();
+        for (i, column) in result.columns.iter().enumerate() {
+            let value = row
+                .values
+                .get(i)
+                .and_then(|v| v.as_ref())
+                .cloned()
+                .unwrap_or(serde_json::Value::Null);
+            row_obj.insert(column.clone(), value);
+        }
+        let line = serde_json::to_string(&serde_json::Value::Object(row_obj))?;
+        writer.write_all(line.as_bytes())?;
+        writer.write_all(b"\n")?;
+    }
+
+    Ok(())
+}
+
+/// Process an NDJSON input stream and write output incrementally.
+///
+/// This is the main entry point for streaming/chunked NDJSON processing.
+/// It reads the input in chunks, processes each chunk through the ViewDefinition,
+/// and writes the output incrementally to the writer.
+///
+/// # Arguments
+///
+/// * `view_definition` - The ViewDefinition to execute
+/// * `input` - A buffered reader for the NDJSON input
+/// * `output` - A writer for the output (file, stdout, etc.)
+/// * `content_type` - The desired output format (CSV, NDJSON, JSON)
+/// * `config` - Configuration for chunk processing
+///
+/// # Returns
+///
+/// Statistics about the processing run, including row counts and chunk counts.
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// use helios_sof::{process_ndjson_chunked, SofViewDefinition, ContentType, ChunkConfig};
+/// use std::io::{BufReader, BufWriter};
+/// use std::fs::File;
+///
+/// # #[cfg(feature = "R4")]
+/// # {
+/// // Set up ViewDefinition
+/// let view_json: serde_json::Value = serde_json::from_str(r#"{
+///     "resourceType": "ViewDefinition",
+///     "resource": "Patient",
+///     "select": [{"column": [{"name": "id", "path": "id"}]}]
+/// }"#).unwrap();
+/// let view_def: helios_fhir::r4::ViewDefinition = serde_json::from_value(view_json).unwrap();
+/// let sof_view = SofViewDefinition::R4(view_def);
+///
+/// // Process file
+/// let input = BufReader::new(File::open("patients.ndjson").unwrap());
+/// let mut output = BufWriter::new(File::create("output.csv").unwrap());
+///
+/// let stats = process_ndjson_chunked(
+///     sof_view,
+///     input,
+///     &mut output,
+///     ContentType::CsvWithHeader,
+///     ChunkConfig::default(),
+/// ).unwrap();
+///
+/// println!("Processed {} resources, {} output rows",
+///     stats.resources_processed, stats.output_rows);
+/// # }
+/// ```
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The ViewDefinition is invalid
+/// - The input contains invalid JSON (when `skip_invalid_lines` is false)
+/// - Writing to the output fails
+/// - Parquet format is requested (not supported for streaming)
+pub fn process_ndjson_chunked<R: BufRead, W: Write>(
+    view_definition: SofViewDefinition,
+    input: R,
+    mut output: W,
+    content_type: ContentType,
+    config: ChunkConfig,
+) -> Result<ProcessingStats, SofError> {
+    // Validate content type supports streaming
+    if content_type == ContentType::Parquet {
+        return Err(SofError::UnsupportedContentType(
+            "Parquet output is not supported for streaming. Use batch processing instead."
+                .to_string(),
+        ));
+    }
+
+    let mut iterator = NdjsonChunkIterator::new(view_definition, input, config)?;
+    let columns = iterator.columns().to_vec();
+
+    let mut stats = ProcessingStats::default();
+    let mut is_first_chunk = true;
+
+    // Write header if needed
+    if content_type == ContentType::CsvWithHeader {
+        write_csv_header(&columns, &mut output)?;
+    }
+
+    // For JSON output, we need special handling to create a valid array
+    if content_type == ContentType::Json {
+        output.write_all(b"[\n")?;
+    }
+
+    for result in iterator.by_ref() {
+        let chunk_result = result?;
+
+        stats.resources_processed += chunk_result.resources_in_chunk;
+        stats.output_rows += chunk_result.rows.len();
+        stats.chunks_processed += 1;
+
+        // Write chunk output
+        match content_type {
+            ContentType::Csv | ContentType::CsvWithHeader => {
+                write_csv_chunk(&chunk_result, &mut output)?;
+            }
+            ContentType::NdJson => {
+                write_ndjson_chunk(&chunk_result, &mut output)?;
+            }
+            ContentType::Json => {
+                // Write JSON rows with proper comma handling
+                for (i, row) in chunk_result.rows.iter().enumerate() {
+                    if !is_first_chunk || i > 0 {
+                        output.write_all(b",\n")?;
+                    }
+
+                    let mut row_obj = serde_json::Map::new();
+                    for (j, column) in chunk_result.columns.iter().enumerate() {
+                        let value = row
+                            .values
+                            .get(j)
+                            .and_then(|v| v.as_ref())
+                            .cloned()
+                            .unwrap_or(serde_json::Value::Null);
+                        row_obj.insert(column.clone(), value);
+                    }
+                    let json = serde_json::to_string_pretty(&serde_json::Value::Object(row_obj))?;
+                    output.write_all(json.as_bytes())?;
+                }
+            }
+            ContentType::Parquet => unreachable!(), // Already checked above
+        }
+
+        output.flush()?;
+        is_first_chunk = false;
+    }
+
+    // Close JSON array if needed
+    if content_type == ContentType::Json {
+        output.write_all(b"\n]")?;
+    }
+
+    output.flush()?;
+
+    // Update stats with line/skip counts from the iterator
+    stats.total_lines_read = iterator.lines_read();
+    stats.skipped_lines = iterator.skipped_lines();
+
+    Ok(stats)
+}
+
+/// Create an iterator for chunked NDJSON processing.
+///
+/// This is a convenience function that creates an `NdjsonChunkIterator`.
+/// Use this when you want more control over how chunks are processed.
+///
+/// # Arguments
+///
+/// * `view_definition` - The ViewDefinition to execute
+/// * `reader` - A buffered reader for the NDJSON input
+/// * `config` - Configuration for chunk processing
+///
+/// # Returns
+///
+/// An iterator that yields `ChunkedResult` for each processed chunk.
+pub fn iter_ndjson_chunks<R: BufRead>(
+    view_definition: SofViewDefinition,
+    reader: R,
+    config: ChunkConfig,
+) -> Result<NdjsonChunkIterator<R>, SofError> {
+    NdjsonChunkIterator::new(view_definition, reader, config)
+}
+
+// =============================================================================
+// End Streaming/Chunked Processing Types
+// =============================================================================
+
+/// Parse a JSON value into a FhirResource for the given FHIR version.
+///
+/// This is used internally for streaming/chunked processing where we have
+/// raw JSON that needs to be converted to typed resources for FHIRPath evaluation.
+fn parse_json_to_fhir_resource(
+    json: serde_json::Value,
+    version: FhirVersion,
+) -> Result<helios_fhir::FhirResource, SofError> {
+    match version {
+        #[cfg(feature = "R4")]
+        FhirVersion::R4 => {
+            let resource: helios_fhir::r4::Resource =
+                serde_json::from_value(json).map_err(|e| {
+                    SofError::InvalidSourceContent(format!("Invalid R4 resource: {}", e))
+                })?;
+            Ok(helios_fhir::FhirResource::R4(Box::new(resource)))
+        }
+        #[cfg(feature = "R4B")]
+        FhirVersion::R4B => {
+            let resource: helios_fhir::r4b::Resource =
+                serde_json::from_value(json).map_err(|e| {
+                    SofError::InvalidSourceContent(format!("Invalid R4B resource: {}", e))
+                })?;
+            Ok(helios_fhir::FhirResource::R4B(Box::new(resource)))
+        }
+        #[cfg(feature = "R5")]
+        FhirVersion::R5 => {
+            let resource: helios_fhir::r5::Resource =
+                serde_json::from_value(json).map_err(|e| {
+                    SofError::InvalidSourceContent(format!("Invalid R5 resource: {}", e))
+                })?;
+            Ok(helios_fhir::FhirResource::R5(Box::new(resource)))
+        }
+        #[cfg(feature = "R6")]
+        FhirVersion::R6 => {
+            let resource: helios_fhir::r6::Resource =
+                serde_json::from_value(json).map_err(|e| {
+                    SofError::InvalidSourceContent(format!("Invalid R6 resource: {}", e))
+                })?;
+            Ok(helios_fhir::FhirResource::R6(Box::new(resource)))
+        }
+    }
 }
 
 /// Execute a ViewDefinition transformation with additional filtering options.
