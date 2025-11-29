@@ -129,12 +129,13 @@ use chrono::{DateTime, Utc};
 use clap::Parser;
 use helios_fhir::FhirVersion;
 use helios_sof::{
-    ContentType, ParquetOptions, RunOptions, SofBundle, SofViewDefinition,
+    ChunkConfig, ContentType, ParquetOptions, ProcessingStats, RunOptions, SofBundle,
+    SofViewDefinition,
     data_source::{DataSource, UniversalDataSource, parse_fhir_content},
-    run_view_definition_with_options,
+    process_ndjson_chunked, run_view_definition_with_options,
 };
-use std::fs;
-use std::io::{self, Read};
+use std::fs::{self, File};
+use std::io::{self, BufReader, BufWriter, Read};
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
@@ -228,6 +229,21 @@ struct Args {
         help = "Maximum file size in MB for Parquet files. When exceeded, creates multiple numbered files (e.g., output_001.parquet, output_002.parquet). Range: 10-10000MB"
     )]
     max_file_size: Option<u32>,
+
+    /// Chunk size for NDJSON streaming (number of resources per chunk)
+    #[arg(
+        long,
+        default_value = "1000",
+        help = "Number of resources to process per chunk when streaming NDJSON files. Larger values use more memory but may improve throughput. Default: 1000 (~10MB memory usage per chunk)"
+    )]
+    chunk_size: usize,
+
+    /// Skip invalid lines in NDJSON files instead of failing
+    #[arg(
+        long,
+        help = "Continue processing when encountering invalid JSON lines in NDJSON files instead of returning an error"
+    )]
+    skip_invalid: bool,
 }
 
 /// Normalize a source path to a URL.
@@ -319,26 +335,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    // Load data from source if provided
-    let source_bundle = if let Some(source) = &args.source {
-        let data_source = UniversalDataSource::new();
-        // Convert relative/absolute file paths to file:// URLs
-        let source_url = normalize_source_path(source)?;
-        Some(data_source.load(&source_url).await?)
-    } else {
-        None
-    };
-
-    // Read Bundle from file if provided
-    // Use parse_fhir_content to support both JSON and NDJSON
-    let file_bundle = if let Some(bundle_path) = &args.bundle {
-        let bundle_content = fs::read_to_string(bundle_path)?;
-        let bundle_path_str = bundle_path.to_string_lossy();
-        Some(parse_fhir_content(&bundle_content, &bundle_path_str)?)
-    } else {
-        None
-    };
-
     // Parse ViewDefinition based on specified FHIR version
     let view_definition: SofViewDefinition = match args.fhir_version {
         #[cfg(feature = "R4")]
@@ -363,6 +359,94 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
+    // Check if we should use streaming mode for NDJSON
+    // Streaming is used when:
+    // 1. --bundle is provided with a .ndjson file extension
+    // 2. --source is not also provided (no bundle merging needed)
+    // 3. Output format is not Parquet (doesn't support streaming)
+    let use_streaming = args
+        .bundle
+        .as_ref()
+        .is_some_and(|p| p.to_string_lossy().to_lowercase().ends_with(".ndjson"))
+        && args.source.is_none();
+
+    // Determine content type early (needed for streaming check)
+    let content_type = if args.format == "csv" {
+        if args.no_headers {
+            ContentType::Csv
+        } else {
+            ContentType::CsvWithHeader
+        }
+    } else {
+        ContentType::from_string(&args.format)?
+    };
+
+    // Use streaming path for NDJSON files
+    if use_streaming && content_type != ContentType::Parquet {
+        let bundle_path = args.bundle.as_ref().unwrap();
+        let file = File::open(bundle_path)?;
+        let reader = BufReader::new(file);
+
+        let chunk_config = ChunkConfig {
+            chunk_size: args.chunk_size,
+            skip_invalid_lines: args.skip_invalid,
+        };
+
+        // Create output writer
+        let stats: ProcessingStats = match &args.output {
+            Some(path) => {
+                let file = File::create(path)?;
+                let mut writer = BufWriter::new(file);
+                process_ndjson_chunked(
+                    view_definition,
+                    reader,
+                    &mut writer,
+                    content_type,
+                    chunk_config,
+                )?
+            }
+            None => {
+                let stdout = io::stdout();
+                let mut handle = stdout.lock();
+                process_ndjson_chunked(
+                    view_definition,
+                    reader,
+                    &mut handle,
+                    content_type,
+                    chunk_config,
+                )?
+            }
+        };
+
+        eprintln!(
+            "Processed {} resources in {} chunks, {} output rows",
+            stats.resources_processed, stats.chunks_processed, stats.output_rows
+        );
+
+        return Ok(());
+    }
+
+    // Non-streaming path: load all data into memory
+    // Load data from source if provided
+    let source_bundle = if let Some(source) = &args.source {
+        let data_source = UniversalDataSource::new();
+        // Convert relative/absolute file paths to file:// URLs
+        let source_url = normalize_source_path(source)?;
+        Some(data_source.load(&source_url).await?)
+    } else {
+        None
+    };
+
+    // Read Bundle from file if provided
+    // Use parse_fhir_content to support both JSON and NDJSON
+    let file_bundle = if let Some(bundle_path) = &args.bundle {
+        let bundle_content = fs::read_to_string(bundle_path)?;
+        let bundle_path_str = bundle_path.to_string_lossy();
+        Some(parse_fhir_content(&bundle_content, &bundle_path_str)?)
+    } else {
+        None
+    };
+
     // Determine the final bundle based on available sources
     let bundle: SofBundle = match (source_bundle, file_bundle) {
         // Only source provided
@@ -381,16 +465,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         (None, None) => unreachable!("No data source provided"),
     };
 
-    // Determine content type
-    let content_type = if args.format == "csv" {
-        if args.no_headers {
-            ContentType::Csv
-        } else {
-            ContentType::CsvWithHeader
-        }
-    } else {
-        ContentType::from_string(&args.format)?
-    };
+    // content_type already determined above before streaming check
 
     // Parse and validate the since parameter
     let since = if let Some(since_str) = &args.since {

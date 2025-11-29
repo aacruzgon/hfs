@@ -3,6 +3,7 @@
   - FHIRPath Lab Debugger support
 
 - SQL On FHIR
+  - Add streaming support for sof-cli, pysof and sof-server
   - Support the group parameter on $run
 
 - My CapabilityStatement for $run needs help - name, and unsure about operation vs. resource

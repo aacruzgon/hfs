@@ -5,12 +5,15 @@
 
 use chrono::{DateTime, Utc};
 use helios_sof::{
-    ContentType, RunOptions, SofBundle, SofError as RustSofError, SofViewDefinition,
-    run_view_definition, run_view_definition_with_options,
+    ChunkConfig, ChunkedResult, ContentType, NdjsonChunkReader, PreparedViewDefinition,
+    ProcessingStats, RunOptions, SofBundle, SofError as RustSofError, SofViewDefinition,
+    process_ndjson_chunked, run_view_definition, run_view_definition_with_options,
 };
 use pyo3::exceptions::{PyException, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
+use std::fs::File;
+use std::io::BufReader;
 
 // Custom Python exception types - using different names to avoid conflicts
 pyo3::create_exception!(
@@ -445,6 +448,315 @@ fn py_get_supported_fhir_versions() -> PyResult<Vec<String>> {
     Ok(versions)
 }
 
+/// Internal struct to hold the chunk iterator state.
+/// We use Box<dyn Iterator> to avoid lifetime issues with PyO3.
+struct ChunkedIteratorInner {
+    reader: NdjsonChunkReader<BufReader<File>>,
+    prepared_vd: PreparedViewDefinition,
+}
+
+impl ChunkedIteratorInner {
+    fn next_chunk(&mut self) -> Option<Result<ChunkedResult, RustSofError>> {
+        self.reader.next().map(|chunk_result| {
+            chunk_result.and_then(|chunk| self.prepared_vd.process_chunk(chunk))
+        })
+    }
+}
+
+/// Iterator for processing NDJSON files in chunks.
+///
+/// This class provides a Python iterator interface for processing large NDJSON files
+/// containing FHIR resources. Instead of loading the entire file into memory, it
+/// processes resources in configurable chunks, yielding results incrementally.
+///
+/// Args:
+///     view_definition (dict): ViewDefinition resource as a Python dictionary
+///     input_path (str): Path to the NDJSON file containing FHIR resources
+///     chunk_size (int, optional): Number of resources per chunk. Defaults to 1000.
+///     skip_invalid (bool, optional): Skip invalid JSON lines. Defaults to False.
+///     fhir_version (str, optional): FHIR version ("R4", "R4B", "R5", "R6"). Defaults to "R4".
+///
+/// Yields:
+///     dict: A dictionary containing:
+///         - "columns": List of column names
+///         - "rows": List of row values (each row is a list of values)
+///         - "chunk_index": Zero-based index of this chunk
+///         - "is_last": True if this is the final chunk
+///
+/// Example:
+///     >>> import pysof
+///     >>> view_def = {"resourceType": "ViewDefinition", "resource": "Patient", ...}
+///     >>> for chunk in pysof.ChunkedProcessor(view_def, "patients.ndjson"):
+///     ...     for row in chunk["rows"]:
+///     ...         process_row(row)
+#[pyclass]
+struct ChunkedProcessor {
+    inner: Option<ChunkedIteratorInner>,
+    columns: Option<Vec<String>>,
+}
+
+#[pymethods]
+impl ChunkedProcessor {
+    #[new]
+    #[pyo3(signature = (view_definition, input_path, *, chunk_size=1000, skip_invalid=false, fhir_version="R4"))]
+    fn new(
+        view_definition: &Bound<'_, PyAny>,
+        input_path: &str,
+        chunk_size: usize,
+        skip_invalid: bool,
+        fhir_version: &str,
+    ) -> PyResult<Self> {
+        // Parse ViewDefinition based on FHIR version
+        let view_def_json: serde_json::Value = pythonize::depythonize(view_definition)?;
+
+        let sof_view_def: SofViewDefinition = match fhir_version {
+            #[cfg(feature = "R4")]
+            "R4" => {
+                let view_def: helios_fhir::r4::ViewDefinition =
+                    serde_json::from_value(view_def_json).map_err(json_error_to_py_err)?;
+                SofViewDefinition::R4(view_def)
+            }
+            #[cfg(feature = "R4B")]
+            "R4B" => {
+                let view_def: helios_fhir::r4b::ViewDefinition =
+                    serde_json::from_value(view_def_json).map_err(json_error_to_py_err)?;
+                SofViewDefinition::R4B(view_def)
+            }
+            #[cfg(feature = "R5")]
+            "R5" => {
+                let view_def: helios_fhir::r5::ViewDefinition =
+                    serde_json::from_value(view_def_json).map_err(json_error_to_py_err)?;
+                SofViewDefinition::R5(view_def)
+            }
+            #[cfg(feature = "R6")]
+            "R6" => {
+                let view_def: helios_fhir::r6::ViewDefinition =
+                    serde_json::from_value(view_def_json).map_err(json_error_to_py_err)?;
+                SofViewDefinition::R6(view_def)
+            }
+            _ => {
+                return Err(PyUnsupportedContentTypeError::new_err(format!(
+                    "Unsupported FHIR version: {}",
+                    fhir_version
+                )));
+            }
+        };
+
+        // Open the file
+        let file = File::open(input_path).map_err(|e| PyIoError::new_err(e.to_string()))?;
+        let reader = BufReader::new(file);
+
+        // Create config
+        let config = ChunkConfig {
+            chunk_size,
+            skip_invalid_lines: skip_invalid,
+        };
+
+        // Create prepared ViewDefinition
+        let prepared_vd =
+            PreparedViewDefinition::new(sof_view_def).map_err(rust_sof_error_to_py_err)?;
+
+        // Get column names
+        let columns = Some(prepared_vd.columns().to_vec());
+
+        // Create chunk reader with resource type filter
+        let resource_type = Some(prepared_vd.target_resource_type().to_string());
+        let chunk_reader =
+            NdjsonChunkReader::new(reader, config).with_resource_type_filter(resource_type);
+
+        Ok(Self {
+            inner: Some(ChunkedIteratorInner {
+                reader: chunk_reader,
+                prepared_vd,
+            }),
+            columns,
+        })
+    }
+
+    fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
+
+    fn __next__(&mut self, py: Python<'_>) -> PyResult<Option<PyObject>> {
+        let inner = match &mut self.inner {
+            Some(inner) => inner,
+            None => return Ok(None),
+        };
+
+        // Release GIL during chunk processing
+        let result = py.allow_threads(|| inner.next_chunk());
+
+        match result {
+            Some(Ok(chunk)) => {
+                // Convert ChunkedResult to Python dict
+                let dict = pyo3::types::PyDict::new(py);
+
+                // Add columns
+                dict.set_item("columns", &chunk.columns)?;
+
+                // Convert rows - each row is a list of values
+                let rows: Vec<PyObject> = chunk
+                    .rows
+                    .iter()
+                    .map(|row| {
+                        let values: Vec<PyObject> = row
+                            .values
+                            .iter()
+                            .map(|v| match v {
+                                Some(val) => pythonize::pythonize(py, val)
+                                    .map(|b| b.into())
+                                    .unwrap_or_else(|_| py.None()),
+                                None => py.None(),
+                            })
+                            .collect();
+                        pyo3::types::PyList::new(py, values).unwrap().into()
+                    })
+                    .collect();
+                dict.set_item("rows", pyo3::types::PyList::new(py, rows)?)?;
+
+                dict.set_item("chunk_index", chunk.chunk_index)?;
+                dict.set_item("is_last", chunk.is_last)?;
+
+                Ok(Some(dict.into()))
+            }
+            Some(Err(e)) => Err(rust_sof_error_to_py_err(e)),
+            None => {
+                // Iteration complete
+                self.inner = None;
+                Ok(None)
+            }
+        }
+    }
+
+    /// Get the column names for this ViewDefinition.
+    ///
+    /// Returns:
+    ///     List[str]: Column names in order
+    #[getter]
+    fn columns(&self) -> Option<Vec<String>> {
+        self.columns.clone()
+    }
+}
+
+/// Convert ProcessingStats to a Python dictionary
+fn stats_to_pydict(py: Python<'_>, stats: &ProcessingStats) -> PyResult<PyObject> {
+    let dict = pyo3::types::PyDict::new(py);
+    dict.set_item("total_lines_read", stats.total_lines_read)?;
+    dict.set_item("resources_processed", stats.resources_processed)?;
+    dict.set_item("output_rows", stats.output_rows)?;
+    dict.set_item("skipped_lines", stats.skipped_lines)?;
+    dict.set_item("chunks_processed", stats.chunks_processed)?;
+    Ok(dict.into())
+}
+
+/// Process an NDJSON file and write output to a file.
+///
+/// This function processes an NDJSON file containing FHIR resources using a ViewDefinition
+/// and writes the output directly to a file. It uses chunked processing for memory efficiency.
+///
+/// Args:
+///     view_definition (dict): ViewDefinition resource as a Python dictionary
+///     input_path (str): Path to the NDJSON file containing FHIR resources
+///     output_path (str): Path to write the output file
+///     format (str): Output format ("csv", "csv_with_header", "ndjson")
+///     chunk_size (int, optional): Number of resources per chunk. Defaults to 1000.
+///     skip_invalid (bool, optional): Skip invalid JSON lines. Defaults to False.
+///     fhir_version (str, optional): FHIR version ("R4", "R4B", "R5", "R6"). Defaults to "R4".
+///
+/// Returns:
+///     dict: Processing statistics containing:
+///         - "total_lines_read": Total lines read from input
+///         - "resources_processed": Number of FHIR resources processed
+///         - "output_rows": Number of output rows written
+///         - "skipped_lines": Number of invalid lines skipped
+///         - "chunks_processed": Number of chunks processed
+///
+/// Raises:
+///     InvalidViewDefinitionError: ViewDefinition structure is invalid
+///     FhirPathError: FHIRPath expression evaluation failed
+///     IoError: File operation failed
+///     UnsupportedContentTypeError: Unsupported output format (e.g., Parquet not supported for streaming)
+#[pyfunction]
+#[pyo3(signature = (view_definition, input_path, output_path, format, *, chunk_size=1000, skip_invalid=false, fhir_version="R4"))]
+#[allow(clippy::too_many_arguments)]
+fn py_process_ndjson_to_file(
+    py: Python<'_>,
+    view_definition: &Bound<'_, PyAny>,
+    input_path: &str,
+    output_path: &str,
+    format: &str,
+    chunk_size: usize,
+    skip_invalid: bool,
+    fhir_version: &str,
+) -> PyResult<PyObject> {
+    // Parse content type
+    let content_type = ContentType::from_string(format).map_err(rust_sof_error_to_py_err)?;
+
+    // Parse ViewDefinition based on FHIR version
+    let view_def_json: serde_json::Value = pythonize::depythonize(view_definition)?;
+
+    let sof_view_def: SofViewDefinition = match fhir_version {
+        #[cfg(feature = "R4")]
+        "R4" => {
+            let view_def: helios_fhir::r4::ViewDefinition =
+                serde_json::from_value(view_def_json).map_err(json_error_to_py_err)?;
+            SofViewDefinition::R4(view_def)
+        }
+        #[cfg(feature = "R4B")]
+        "R4B" => {
+            let view_def: helios_fhir::r4b::ViewDefinition =
+                serde_json::from_value(view_def_json).map_err(json_error_to_py_err)?;
+            SofViewDefinition::R4B(view_def)
+        }
+        #[cfg(feature = "R5")]
+        "R5" => {
+            let view_def: helios_fhir::r5::ViewDefinition =
+                serde_json::from_value(view_def_json).map_err(json_error_to_py_err)?;
+            SofViewDefinition::R5(view_def)
+        }
+        #[cfg(feature = "R6")]
+        "R6" => {
+            let view_def: helios_fhir::r6::ViewDefinition =
+                serde_json::from_value(view_def_json).map_err(json_error_to_py_err)?;
+            SofViewDefinition::R6(view_def)
+        }
+        _ => {
+            return Err(PyUnsupportedContentTypeError::new_err(format!(
+                "Unsupported FHIR version: {}",
+                fhir_version
+            )));
+        }
+    };
+
+    // Open files
+    let input_file = File::open(input_path).map_err(|e| PyIoError::new_err(e.to_string()))?;
+    let input_reader = BufReader::new(input_file);
+
+    let output_file = File::create(output_path).map_err(|e| PyIoError::new_err(e.to_string()))?;
+    let output_writer = std::io::BufWriter::new(output_file);
+
+    // Create config
+    let config = ChunkConfig {
+        chunk_size,
+        skip_invalid_lines: skip_invalid,
+    };
+
+    // Process - release GIL during processing
+    let stats = py
+        .allow_threads(|| {
+            process_ndjson_chunked(
+                sof_view_def,
+                input_reader,
+                output_writer,
+                content_type,
+                config,
+            )
+        })
+        .map_err(rust_sof_error_to_py_err)?;
+
+    stats_to_pydict(py, &stats)
+}
+
 /// Python module definition
 #[pymodule]
 fn _pysof(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -458,6 +770,10 @@ fn _pysof(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(py_validate_bundle, m)?)?;
     m.add_function(wrap_pyfunction!(py_parse_content_type, m)?)?;
     m.add_function(wrap_pyfunction!(py_get_supported_fhir_versions, m)?)?;
+    m.add_function(wrap_pyfunction!(py_process_ndjson_to_file, m)?)?;
+
+    // Add classes
+    m.add_class::<ChunkedProcessor>()?;
 
     // Add exception classes with the Python names (not Py prefixed)
     m.add("SofError", m.py().get_type::<PySofError>())?;
