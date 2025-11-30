@@ -729,6 +729,7 @@ jobs:
           done
 
       - name: Generate changelog
+        id: changelog
         run: |
           if [ -f CHANGELOG.md ]; then
             # Extract changelog for this version
