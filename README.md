@@ -110,7 +110,7 @@ cargo run --bin sof-cli -- --view examples/patient-view.json --bundle examples/p
 
 # Start the SQL-on-FHIR server
 cargo run --bin sof-server
-# Then POST to http://localhost:8080/ViewDefinition/$run
+# Then POST to http://localhost:8080/ViewDefinition/$viewdefinition-run
 
 # Start the FHIRPath server
 cargo run --bin fhirpath-server
@@ -149,7 +149,7 @@ Complete implementation of the [FHIRPath 3.0.0-ballot specification](https://hl7
 Transform FHIR resources into tabular data using [ViewDefinitions](https://sql-on-fhir.org/ig/latest/index.html).
 - **Executables:**
   - `sof-cli` - Command-line tool for batch transformations
-  - `sof-server` - HTTP server with `ViewDefinition/$run` operation
+  - `sof-server` - HTTP server with `ViewDefinition/$viewdefinition-run` operation
 - Supports multiple input formats: JSON, NDJSON, and FHIR Bundles from local/cloud storage
 - Supports multiple output formats: CSV, JSON, NDJSON, and Parquet
 
@@ -221,7 +221,7 @@ The main Helios FHIR Server application (coming soon).
 - Multiple input formats: JSON, NDJSON (newline-delimited), and FHIR Bundles
 - Multiple output formats: CSV, JSON, NDJSON, Parquet
 - Streaming support for large datasets
-- HTTP API with `$run` operation
+- HTTP API with `$viewdefinition-run` operation
 - Cloud storage support: S3, GCS, Azure Blob Storage
 
 ## FHIR REST API (Coming Soon)
