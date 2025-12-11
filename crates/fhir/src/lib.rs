@@ -1432,6 +1432,9 @@ pub mod parameters;
 // Re-export commonly used types from parameters module
 pub use parameters::{ParameterValueAccessor, VersionIndependentParameters};
 
+// Internal helpers used by the derive macro; not part of the public API
+#[doc(hidden)]
+
 /// Multi-version FHIR resource container supporting version-agnostic operations.
 ///
 /// This enum provides a unified interface for working with FHIR resources across
@@ -1927,14 +1930,6 @@ pub struct Element<V, E> {
     pub value: Option<V>,
 }
 
-impl<V, E> Element<V, E> {
-    /// Returns `true` if no value, id, or extensions are present.
-    #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.value.is_none() && self.id.is_none() && self.extension.is_none()
-    }
-}
-
 // Custom Deserialize for Element<V, E>
 // Remove PartialEq/Eq bounds for V and E as they are not needed for deserialization itself
 impl<'de, V, E> Deserialize<'de> for Element<V, E>
@@ -2421,12 +2416,6 @@ impl<E> DecimalElement<E> {
             extension: None,
             value: Some(precise_value),
         }
-    }
-
-    /// Returns `true` if the element has no value, id, or extensions.
-    #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.value.is_none() && self.id.is_none() && self.extension.is_none()
     }
 }
 

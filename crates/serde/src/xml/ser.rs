@@ -6,8 +6,8 @@
 
 use crate::error::{Result, SerdeError};
 use crate::xml::utils;
-use quick_xml::events::{BytesStart, BytesEnd, Event};
 use quick_xml::Writer;
+use quick_xml::events::{BytesEnd, BytesStart, Event};
 use serde::ser::{self, Serialize};
 use std::io::Write;
 
@@ -16,7 +16,7 @@ use std::io::Write;
 /// # Examples
 ///
 /// ```ignore
-/// use helios_hfs_serde::xml::to_xml_string;
+/// use helios_serde::xml::to_xml_string;
 /// use helios_fhir::r4::Patient;
 ///
 /// let patient = Patient::default();
@@ -52,7 +52,6 @@ where
     serializer.finish()?;
     Ok(())
 }
-
 
 /// Buffer for pending field/_field pairs that need to be merged.
 #[derive(Debug)]
@@ -167,9 +166,8 @@ pub struct XmlSerializer<W: Write> {
     writer: Writer<W>,
     pending_field: Option<PendingField>,
     namespace_written: bool,
-    root_element_written: bool,
-    pending_root_element: Option<String>,
     xml_declaration_written: bool,
+    open_resource_stack: Vec<String>,
 }
 
 impl<W: Write> XmlSerializer<W> {
@@ -179,9 +177,8 @@ impl<W: Write> XmlSerializer<W> {
             writer: Writer::new(writer),
             pending_field: None,
             namespace_written: false,
-            root_element_written: false,
-            pending_root_element: None,
             xml_declaration_written: false,
+            open_resource_stack: Vec::new(),
         }
     }
 
@@ -195,8 +192,8 @@ impl<W: Write> XmlSerializer<W> {
             }
         }
 
-        // Close root element if it was written
-        if let Some(root_name) = self.pending_root_element.take() {
+        // Close any remaining open resource elements (should only trigger for root)
+        while let Some(root_name) = self.open_resource_stack.pop() {
             self.write_end_element(&root_name)?;
         }
 
@@ -289,9 +286,7 @@ impl<W: Write> XmlSerializer<W> {
             }
 
             // Check if we have extension children
-            let has_extensions = ext_data
-                .map(|e| !e.extensions.is_empty())
-                .unwrap_or(false);
+            let has_extensions = ext_data.map(|e| !e.extensions.is_empty()).unwrap_or(false);
 
             // Only write element if it has attributes or extension children
             if !has_attributes && !has_extensions {
@@ -426,7 +421,8 @@ impl<W: Write> XmlSerializer<W> {
                 }
 
                 // Write end tag
-                self.writer.write_event(Event::End(BytesEnd::new(field_name)))?;
+                self.writer
+                    .write_event(Event::End(BytesEnd::new(field_name)))?;
             }
         }
 
@@ -446,11 +442,12 @@ impl<W: Write> XmlSerializer<W> {
     /// Writes the XML declaration if not already written.
     fn write_xml_declaration(&mut self) -> Result<()> {
         if !self.xml_declaration_written {
-            self.writer.write_event(Event::Decl(quick_xml::events::BytesDecl::new(
-                "1.0",
-                Some("UTF-8"),
-                None,
-            )))?;
+            self.writer
+                .write_event(Event::Decl(quick_xml::events::BytesDecl::new(
+                    "1.0",
+                    Some("UTF-8"),
+                    None,
+                )))?;
             self.xml_declaration_written = true;
         }
         Ok(())
@@ -481,6 +478,20 @@ impl<W: Write> XmlSerializer<W> {
         let end = BytesEnd::new(name);
         self.writer.write_event(Event::End(end))?;
 
+        Ok(())
+    }
+
+    fn start_resource_element(&mut self, name: &str) -> Result<()> {
+        let add_namespace = self.open_resource_stack.is_empty();
+        self.write_start_element(name, add_namespace)?;
+        self.open_resource_stack.push(name.to_string());
+        Ok(())
+    }
+
+    fn end_resource_element(&mut self) -> Result<()> {
+        if let Some(name) = self.open_resource_stack.pop() {
+            self.write_end_element(&name)?;
+        }
         Ok(())
     }
 }
@@ -558,7 +569,9 @@ impl<'a, W: Write> ser::Serializer for &'a mut XmlSerializer<W> {
     }
 
     fn serialize_bytes(self, _v: &[u8]) -> Result<()> {
-        Err(SerdeError::Custom("Bytes not supported in FHIR XML".to_string()))
+        Err(SerdeError::Custom(
+            "Bytes not supported in FHIR XML".to_string(),
+        ))
     }
 
     fn serialize_none(self) -> Result<()> {
@@ -611,9 +624,7 @@ impl<'a, W: Write> ser::Serializer for &'a mut XmlSerializer<W> {
     }
 
     fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq> {
-        Ok(SeqSerializer {
-            serializer: self,
-        })
+        Ok(SeqSerializer { serializer: self })
     }
 
     fn serialize_tuple(self, _len: usize) -> Result<Self::SerializeTuple> {
@@ -642,6 +653,7 @@ impl<'a, W: Write> ser::Serializer for &'a mut XmlSerializer<W> {
         Ok(MapSerializer {
             serializer: self,
             current_key: None,
+            resource_element_open: false,
         })
     }
 
@@ -649,6 +661,7 @@ impl<'a, W: Write> ser::Serializer for &'a mut XmlSerializer<W> {
         Ok(MapSerializer {
             serializer: self,
             current_key: None,
+            resource_element_open: false,
         })
     }
 
@@ -807,9 +820,7 @@ impl<'a, W: Write> ser::Serializer for &'a mut NamedSeqSerializer<'a, W> {
     }
 
     fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq> {
-        Ok(NamedSeqElements {
-            parent: self,
-        })
+        Ok(NamedSeqElements { parent: self })
     }
 
     fn serialize_tuple(self, _len: usize) -> Result<Self::SerializeTuple> {
@@ -821,7 +832,9 @@ impl<'a, W: Write> ser::Serializer for &'a mut NamedSeqSerializer<'a, W> {
         _name: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeTupleStruct> {
-        Err(SerdeError::Custom("Tuple structs not supported".to_string()))
+        Err(SerdeError::Custom(
+            "Tuple structs not supported".to_string(),
+        ))
     }
 
     fn serialize_tuple_variant(
@@ -831,19 +844,21 @@ impl<'a, W: Write> ser::Serializer for &'a mut NamedSeqSerializer<'a, W> {
         _variant: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeTupleVariant> {
-        Err(SerdeError::Custom("Tuple variants not supported".to_string()))
+        Err(SerdeError::Custom(
+            "Tuple variants not supported".to_string(),
+        ))
     }
 
     fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap> {
-        Err(SerdeError::Custom("Maps not supported in sequences".to_string()))
+        Err(SerdeError::Custom(
+            "Maps not supported in sequences".to_string(),
+        ))
     }
 
-    fn serialize_struct(
-        self,
-        _name: &'static str,
-        _len: usize,
-    ) -> Result<Self::SerializeStruct> {
-        Err(SerdeError::Custom("Structs not supported in sequences".to_string()))
+    fn serialize_struct(self, _name: &'static str, _len: usize) -> Result<Self::SerializeStruct> {
+        Err(SerdeError::Custom(
+            "Structs not supported in sequences".to_string(),
+        ))
     }
 
     fn serialize_struct_variant(
@@ -853,7 +868,9 @@ impl<'a, W: Write> ser::Serializer for &'a mut NamedSeqSerializer<'a, W> {
         _variant: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeStructVariant> {
-        Err(SerdeError::Custom("Struct variants not supported".to_string()))
+        Err(SerdeError::Custom(
+            "Struct variants not supported".to_string(),
+        ))
     }
 }
 
@@ -996,9 +1013,7 @@ fn extract_extensions<T: ?Sized + Serialize>(value: &T) -> Result<Vec<ExtensionE
             Ok(())
         }
         fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq> {
-            Ok(ExtensionSeqExtractor {
-                parent: self,
-            })
+            Ok(ExtensionSeqExtractor { parent: self })
         }
         fn serialize_tuple(self, _len: usize) -> Result<Self::SerializeTuple> {
             Err(SerdeError::Custom("Unexpected tuple".to_string()))
@@ -1022,7 +1037,11 @@ fn extract_extensions<T: ?Sized + Serialize>(value: &T) -> Result<Vec<ExtensionE
         fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap> {
             Err(SerdeError::Custom("Unexpected map".to_string()))
         }
-        fn serialize_struct(self, _name: &'static str, _len: usize) -> Result<Self::SerializeStruct> {
+        fn serialize_struct(
+            self,
+            _name: &'static str,
+            _len: usize,
+        ) -> Result<Self::SerializeStruct> {
             Err(SerdeError::Custom("Unexpected struct".to_string()))
         }
         fn serialize_struct_variant(
@@ -1190,7 +1209,11 @@ fn extract_single_extension<T: ?Sized + Serialize>(value: &T) -> Result<Option<E
         fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap> {
             Ok(SingleExtensionMapExtractor { parent: self })
         }
-        fn serialize_struct(self, _name: &'static str, _len: usize) -> Result<Self::SerializeStruct> {
+        fn serialize_struct(
+            self,
+            _name: &'static str,
+            _len: usize,
+        ) -> Result<Self::SerializeStruct> {
             Ok(SingleExtensionMapExtractor { parent: self })
         }
         fn serialize_struct_variant(
@@ -1300,10 +1323,7 @@ fn extract_single_extension<T: ?Sized + Serialize>(value: &T) -> Result<Option<E
             })
         };
 
-        Ok(Some(ExtensionElement {
-            url,
-            content,
-        }))
+        Ok(Some(ExtensionElement { url, content }))
     } else {
         Ok(None)
     }
@@ -2144,10 +2164,9 @@ fn extract_array_extension_data<T: ?Sized + Serialize>(
             } else {
                 // Extract id and extensions from this element
                 let (id, extensions) = extract_extension_fields(value)?;
-                self.parent.extension_data.push(Some(ArrayExtensionData {
-                    id,
-                    extensions,
-                }));
+                self.parent
+                    .extension_data
+                    .push(Some(ArrayExtensionData { id, extensions }));
             }
             Ok(())
         }
@@ -2462,7 +2481,21 @@ fn is_array_value<T: ?Sized + Serialize>(value: &T) -> Result<bool> {
 /// Attempts to serialize a value as a primitive (string, number, boolean).
 /// Returns Some(string) if successful, None if it's a complex type.
 fn try_serialize_as_primitive<T: ?Sized + Serialize>(value: &T) -> Result<Option<String>> {
+    const RAW_VALUE_TOKEN: &str = "$serde_json::private::RawValue";
+    const SERDE_JSON_NUMBER_TOKEN: &str = "$serde_json::private::Number";
+
     struct PrimitiveCapture(Option<String>);
+
+    enum PrimitiveStructKind {
+        RawValue,
+        JsonNumber,
+    }
+
+    struct PrimitiveStruct<'a> {
+        capture: &'a mut PrimitiveCapture,
+        kind: PrimitiveStructKind,
+        has_value: bool,
+    }
 
     impl<'a> ser::Serializer for &'a mut PrimitiveCapture {
         type Ok = ();
@@ -2472,7 +2505,7 @@ fn try_serialize_as_primitive<T: ?Sized + Serialize>(value: &T) -> Result<Option
         type SerializeTupleStruct = ser::Impossible<(), SerdeError>;
         type SerializeTupleVariant = ser::Impossible<(), SerdeError>;
         type SerializeMap = ser::Impossible<(), SerdeError>;
-        type SerializeStruct = ser::Impossible<(), SerdeError>;
+        type SerializeStruct = PrimitiveStruct<'a>;
         type SerializeStructVariant = ser::Impossible<(), SerdeError>;
 
         fn serialize_bool(self, v: bool) -> Result<()> {
@@ -2627,11 +2660,22 @@ fn try_serialize_as_primitive<T: ?Sized + Serialize>(value: &T) -> Result<Option
 
         fn serialize_struct(
             self,
-            _name: &'static str,
+            name: &'static str,
             _len: usize,
         ) -> Result<Self::SerializeStruct> {
-            // Not a primitive
-            Err(SerdeError::Custom("Not a primitive".to_string()))
+            match name {
+                RAW_VALUE_TOKEN => Ok(PrimitiveStruct {
+                    capture: self,
+                    kind: PrimitiveStructKind::RawValue,
+                    has_value: false,
+                }),
+                SERDE_JSON_NUMBER_TOKEN => Ok(PrimitiveStruct {
+                    capture: self,
+                    kind: PrimitiveStructKind::JsonNumber,
+                    has_value: false,
+                }),
+                _ => Err(SerdeError::Custom("Not a primitive".to_string())),
+            }
         }
 
         fn serialize_struct_variant(
@@ -2643,6 +2687,61 @@ fn try_serialize_as_primitive<T: ?Sized + Serialize>(value: &T) -> Result<Option
         ) -> Result<Self::SerializeStructVariant> {
             // Not a primitive
             Err(SerdeError::Custom("Not a primitive".to_string()))
+        }
+    }
+
+    impl<'a> ser::SerializeStruct for PrimitiveStruct<'a> {
+        type Ok = ();
+        type Error = SerdeError;
+
+        fn serialize_field<T: ?Sized + Serialize>(
+            &mut self,
+            key: &'static str,
+            value: &T,
+        ) -> Result<()> {
+            let expected_key = match self.kind {
+                PrimitiveStructKind::RawValue => RAW_VALUE_TOKEN,
+                PrimitiveStructKind::JsonNumber => SERDE_JSON_NUMBER_TOKEN,
+            };
+
+            if key != expected_key {
+                return Err(SerdeError::Custom(format!(
+                    "Unexpected field while serializing {expected_key}"
+                )));
+            }
+
+            if self.has_value {
+                return Err(SerdeError::Custom(format!(
+                    "Duplicate field while serializing {expected_key}"
+                )));
+            }
+
+            let mut inner = PrimitiveCapture(None);
+            value.serialize(&mut inner)?;
+
+            if let Some(raw) = inner.0 {
+                self.capture.0 = Some(raw);
+                self.has_value = true;
+                Ok(())
+            } else {
+                Err(SerdeError::Custom(format!(
+                    "{expected_key} did not serialize to a primitive string"
+                )))
+            }
+        }
+
+        fn end(self) -> Result<()> {
+            if self.has_value {
+                Ok(())
+            } else {
+                let missing = match self.kind {
+                    PrimitiveStructKind::RawValue => "RawValue",
+                    PrimitiveStructKind::JsonNumber => "Number",
+                };
+                Err(SerdeError::Custom(format!(
+                    "{missing} missing inner value during serialization"
+                )))
+            }
         }
     }
 
@@ -2658,6 +2757,7 @@ fn try_serialize_as_primitive<T: ?Sized + Serialize>(value: &T) -> Result<Option
 pub struct MapSerializer<'a, W: Write> {
     serializer: &'a mut XmlSerializer<W>,
     current_key: Option<String>,
+    resource_element_open: bool,
 }
 
 impl<'a, W: Write> ser::SerializeMap for MapSerializer<'a, W> {
@@ -2822,13 +2922,11 @@ impl<'a, W: Write> ser::SerializeMap for MapSerializer<'a, W> {
             .ok_or_else(|| SerdeError::Custom("No key for value".to_string()))?;
 
         // Special handling for resourceType field at root level
-        if key == "resourceType" && !self.serializer.root_element_written {
+        if key == "resourceType" && !self.resource_element_open {
             // Get the resource type value (should be a string)
             if let Some(resource_type) = try_serialize_as_primitive(value)? {
-                // Write root element with FHIR namespace
-                self.serializer.write_start_element(&resource_type, true)?;
-                self.serializer.root_element_written = true;
-                self.serializer.pending_root_element = Some(resource_type);
+                self.serializer.start_resource_element(&resource_type)?;
+                self.resource_element_open = true;
                 return Ok(());
             } else {
                 return Err(SerdeError::Custom(
@@ -2869,11 +2967,12 @@ impl<'a, W: Write> ser::SerializeMap for MapSerializer<'a, W> {
                                 while values.len() < ext_data.len() {
                                     values.push(None);
                                 }
-                                self.serializer.pending_field = Some(PendingField::Array(ArrayFieldBuffer {
-                                    name: base_name.to_string(),
-                                    values,
-                                    extension_data: ext_data,
-                                }));
+                                self.serializer.pending_field =
+                                    Some(PendingField::Array(ArrayFieldBuffer {
+                                        name: base_name.to_string(),
+                                        values,
+                                        extension_data: ext_data,
+                                    }));
                                 return Ok(());
                             }
                         }
@@ -3049,6 +3148,10 @@ impl<'a, W: Write> ser::SerializeMap for MapSerializer<'a, W> {
                 PendingField::Array(array) => self.serializer.write_array_field(array)?,
             }
         }
+
+        if self.resource_element_open {
+            self.serializer.end_resource_element()?;
+        }
         Ok(())
     }
 }
@@ -3095,7 +3198,9 @@ impl<'a, W: Write> ser::SerializeTupleStruct for &'a mut XmlSerializer<W> {
     where
         T: ?Sized + Serialize,
     {
-        Err(SerdeError::Custom("Tuple structs not supported".to_string()))
+        Err(SerdeError::Custom(
+            "Tuple structs not supported".to_string(),
+        ))
     }
 
     fn end(self) -> Result<()> {
@@ -3111,7 +3216,9 @@ impl<'a, W: Write> ser::SerializeTupleVariant for &'a mut XmlSerializer<W> {
     where
         T: ?Sized + Serialize,
     {
-        Err(SerdeError::Custom("Tuple variants not supported".to_string()))
+        Err(SerdeError::Custom(
+            "Tuple variants not supported".to_string(),
+        ))
     }
 
     fn end(self) -> Result<()> {
@@ -3127,7 +3234,9 @@ impl<'a, W: Write> ser::SerializeStructVariant for &'a mut XmlSerializer<W> {
     where
         T: ?Sized + Serialize,
     {
-        Err(SerdeError::Custom("Struct variants not supported".to_string()))
+        Err(SerdeError::Custom(
+            "Struct variants not supported".to_string(),
+        ))
     }
 
     fn end(self) -> Result<()> {

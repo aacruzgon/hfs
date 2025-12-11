@@ -3,7 +3,6 @@
 ///! This module provides thin wrappers around `serde_json` functions,
 ///! allowing FHIR resources to be serialized and deserialized using
 ///! the existing `FhirSerde` derive macro implementations.
-
 use crate::error::Result;
 use serde::{Deserialize, Serialize};
 
@@ -12,7 +11,7 @@ use serde::{Deserialize, Serialize};
 /// # Examples
 ///
 /// ```ignore
-/// use helios_hfs_serde::json::from_json_str;
+/// use helios_serde::json::from_json_str;
 /// use helios_fhir::r4::Patient;
 ///
 /// let json = r#"{"resourceType": "Patient", "id": "example"}"#;
@@ -30,7 +29,7 @@ where
 /// # Examples
 ///
 /// ```ignore
-/// use helios_hfs_serde::json::to_json_string;
+/// use helios_serde::json::to_json_string;
 /// use helios_fhir::r4::Patient;
 ///
 /// let patient = Patient::default();
@@ -48,7 +47,7 @@ where
 /// # Examples
 ///
 /// ```ignore
-/// use helios_hfs_serde::json::to_json_string_pretty;
+/// use helios_serde::json::to_json_string_pretty;
 /// use helios_fhir::r4::Patient;
 ///
 /// let patient = Patient::default();
@@ -66,7 +65,7 @@ where
 /// # Examples
 ///
 /// ```ignore
-/// use helios_hfs_serde::json::from_json_slice;
+/// use helios_serde::json::from_json_slice;
 /// use helios_fhir::r4::Patient;
 ///
 /// let json_bytes = br#"{"resourceType": "Patient", "id": "example"}"#;
@@ -84,7 +83,7 @@ where
 /// # Examples
 ///
 /// ```ignore
-/// use helios_hfs_serde::json::to_json_vec;
+/// use helios_serde::json::to_json_vec;
 /// use helios_fhir::r4::Patient;
 ///
 /// let patient = Patient::default();
@@ -102,7 +101,7 @@ where
 /// # Examples
 ///
 /// ```ignore
-/// use helios_hfs_serde::json::to_json_value;
+/// use helios_serde::json::to_json_value;
 /// use helios_fhir::r4::Patient;
 ///
 /// let patient = Patient::default();
@@ -120,7 +119,7 @@ where
 /// # Examples
 ///
 /// ```ignore
-/// use helios_hfs_serde::json::from_json_value;
+/// use helios_serde::json::from_json_value;
 /// use helios_fhir::r4::Patient;
 /// use serde_json::json;
 ///

@@ -22,8 +22,11 @@ serde_json = { workspace = true }
 helios-fhir = { path = "../fhir", version = "0.1.30" }
 quick-xml = { version = "0.38", features = ["serialize"] }
 rust_decimal = { version = "1.0", features = ["serde-with-arbitrary-precision"] }
+serde_path_to_error = "0.1"
 
 [dev-dependencies]
 rust_decimal_macros = "1.0"
 rust_decimal = "1.0"
 helios-fhir-macro = { path = "../fhir-macro", version = "0.1.30" }
+reqwest = { version = "0.12", features = ["blocking"] }
+zip = "0.6"

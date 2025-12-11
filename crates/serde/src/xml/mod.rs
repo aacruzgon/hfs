@@ -118,7 +118,7 @@
 //! ## Examples
 //!
 //! ```ignore
-//! use helios_hfs_serde::xml::{to_xml_string, from_xml_str};
+//! use helios_serde::xml::{to_xml_string, from_xml_str};
 //! use helios_fhir::r4::Patient;
 //!
 //! // Serialize to XML
@@ -133,14 +133,12 @@
 //! let patient: Patient = from_xml_str(&xml)?;
 //! ```
 
-mod utils;
+pub mod de;
 pub mod ser;
-
-// Deserializer will be added in Phase 4
-// pub mod de;
+mod utils;
 
 // Re-export serialization functions
 pub use ser::{to_xml_string, to_xml_vec, to_xml_writer};
 
-// Deserialization functions will be uncommented when implemented
-// pub use de::{from_xml_str, from_xml_slice, from_xml_reader};
+// Re-export deserialization functions
+pub use de::{from_xml_reader, from_xml_slice, from_xml_str};

@@ -1,21 +1,107 @@
-use helios_hfs_serde::xml::to_xml_string;
-use helios_hfs_serde::Result;
-use serde::Serialize;
+use helios_serde::Result;
+use helios_serde::xml::{from_xml_str, to_xml_string};
+use serde::{Deserialize, Serialize};
 
-#[derive(Serialize)]
+#[cfg(feature = "R4")]
+#[test]
+fn test_xml_deserialize_r4_resource() -> Result<()> {
+    // Test with a simple resource without nested complex types
+    let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<Patient xmlns="http://hl7.org/fhir">
+    <id value="example"/>
+    <active value="true"/>
+</Patient>"#;
+
+    let result = from_xml_str::<helios_fhir::r4::Resource>(xml);
+    match &result {
+        Ok(_) => println!("Parse succeeded!"),
+        Err(e) => println!("Parse error: {}", e),
+    }
+    assert!(result.is_ok());
+    Ok(())
+}
+
+#[cfg(feature = "R4")]
+#[test]
+fn test_xml_deserialize_participant_type_single_entry() -> Result<()> {
+    let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<AppointmentResponse xmlns="http://hl7.org/fhir">
+    <participantType>
+        <coding>
+            <system value="http://terminology.hl7.org/CodeSystem/v3-ParticipationType"/>
+            <code value="ADM"/>
+        </coding>
+    </participantType>
+</AppointmentResponse>"#;
+
+    let result = from_xml_str::<helios_fhir::r4::AppointmentResponse>(xml);
+    assert!(result.is_ok(), "Failed to parse XML: {:?}", result);
+    let response = result?;
+    let participant_type = response.participant_type.expect("participantType missing");
+    assert_eq!(participant_type.len(), 1);
+    assert!(
+        participant_type[0].coding.is_some(),
+        "coding entries missing"
+    );
+    Ok(())
+}
+
+#[cfg(feature = "R4")]
+#[test]
+fn test_xml_deserialize_r4_appointment_response_example() -> Result<()> {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("serde crate has parent directory")
+        .join("fhir")
+        .join("tests")
+        .join("data")
+        .join("xml")
+        .join("R4")
+        .join("appointmentresponse-example-req(exampleresp).xml");
+
+    let xml = std::fs::read_to_string(&path)?;
+    let response = from_xml_str::<helios_fhir::r4::AppointmentResponse>(&xml)?;
+    println!("participant_type = {:?}", response.participant_type);
+    assert!(response.participant_type.is_some());
+    Ok(())
+}
+
+#[cfg(feature = "R4")]
+#[test]
+#[ignore]
+fn debug_xml_to_json_value() -> Result<()> {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("serde crate has parent directory")
+        .join("fhir")
+        .join("tests")
+        .join("data")
+        .join("xml")
+        .join("R4")
+        .join("appointmentresponse-example-req(exampleresp).xml");
+
+    let xml = std::fs::read_to_string(&path)?;
+    let value = from_xml_str::<serde_json::Value>(&xml)?;
+    println!("{}", serde_json::to_string_pretty(&value)?);
+    let resource: helios_fhir::r4::Resource = serde_json::from_value(value)?;
+    println!("Parsed resource variant: {:?}", resource);
+    Ok(())
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 struct SimpleResource {
     #[serde(rename = "resourceType")]
     resource_type: String,
     id: Option<String>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 struct Name {
     family: Option<String>,
     given: Option<Vec<String>>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 struct PatientResource {
     #[serde(rename = "resourceType")]
     resource_type: String,
@@ -62,12 +148,12 @@ fn test_xml_serialize_nested_struct() -> Result<()> {
     Ok(())
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 struct PrimitiveExtension {
     id: Option<String>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 struct ResourceWithExtension {
     #[serde(rename = "resourceType")]
     resource_type: String,
@@ -98,7 +184,7 @@ fn test_xml_serialize_with_primitive_extension() -> Result<()> {
     Ok(())
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 struct ResourceWithArrays {
     #[serde(rename = "resourceType")]
     resource_type: String,
@@ -122,7 +208,7 @@ fn test_xml_serialize_array_of_primitives() -> Result<()> {
     Ok(())
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 struct ResourceWithComplexArray {
     #[serde(rename = "resourceType")]
     resource_type: String,
@@ -172,7 +258,7 @@ fn test_xml_serialize_empty_optional() -> Result<()> {
     Ok(())
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 struct ResourceWithArrayExtensions {
     #[serde(rename = "resourceType")]
     resource_type: String,
@@ -185,7 +271,11 @@ struct ResourceWithArrayExtensions {
 fn test_xml_serialize_array_with_extensions() -> Result<()> {
     let resource = ResourceWithArrayExtensions {
         resource_type: "Patient".to_string(),
-        given: Some(vec![Some("Alice".to_string()), None, Some("Marie".to_string())]),
+        given: Some(vec![
+            Some("Alice".to_string()),
+            None,
+            Some("Marie".to_string()),
+        ]),
         given_ext: Some(vec![
             None,
             Some(PrimitiveExtension {
@@ -211,13 +301,13 @@ fn test_xml_serialize_array_with_extensions() -> Result<()> {
     Ok(())
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 struct Text {
     status: String,
     div: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 struct ResourceWithNarrative {
     #[serde(rename = "resourceType")]
     resource_type: String,
@@ -230,7 +320,8 @@ fn test_xml_serialize_with_narrative() -> Result<()> {
         resource_type: "Patient".to_string(),
         text: Some(Text {
             status: "generated".to_string(),
-            div: "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>Test content</p></div>".to_string(),
+            div: "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>Test content</p></div>"
+                .to_string(),
         }),
     };
 
@@ -249,7 +340,28 @@ fn test_xml_serialize_with_narrative() -> Result<()> {
     Ok(())
 }
 
-#[derive(Serialize)]
+#[test]
+fn test_xml_roundtrip_with_narrative() -> Result<()> {
+    let original = ResourceWithNarrative {
+        resource_type: "Patient".to_string(),
+        text: Some(Text {
+            status: "generated".to_string(),
+            div: "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>Test content</p></div>"
+                .to_string(),
+        }),
+    };
+
+    let xml = to_xml_string(&original)?;
+    println!("Serialized XML: {}", xml);
+
+    let deserialized: ResourceWithNarrative = from_xml_str(&xml)?;
+
+    assert_eq!(original, deserialized);
+
+    Ok(())
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 struct ResourceWithEmptyArray {
     #[serde(rename = "resourceType")]
     resource_type: String,
@@ -290,11 +402,30 @@ fn test_xml_serialize_none_array() -> Result<()> {
     Ok(())
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 struct ResourceWithNullElements {
     #[serde(rename = "resourceType")]
     resource_type: String,
     given: Option<Vec<Option<String>>>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+struct MiniCoding {
+    system: Option<String>,
+    code: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+struct MiniParticipantType {
+    coding: Option<Vec<MiniCoding>>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+struct MiniAppointmentResponse {
+    #[serde(rename = "resourceType")]
+    resource_type: String,
+    #[serde(rename = "participantType")]
+    participant_type: Option<Vec<MiniParticipantType>>,
 }
 
 #[test]
@@ -318,7 +449,12 @@ fn test_xml_serialize_array_all_nulls() -> Result<()> {
 fn test_xml_serialize_array_mixed_nulls() -> Result<()> {
     let resource = ResourceWithNullElements {
         resource_type: "Patient".to_string(),
-        given: Some(vec![None, Some("John".to_string()), None, Some("Doe".to_string())]),
+        given: Some(vec![
+            None,
+            Some("John".to_string()),
+            None,
+            Some("Doe".to_string()),
+        ]),
     };
 
     let xml = to_xml_string(&resource)?;
@@ -334,20 +470,20 @@ fn test_xml_serialize_array_mixed_nulls() -> Result<()> {
     Ok(())
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 struct Extension {
     url: String,
     #[serde(rename = "valueString", skip_serializing_if = "Option::is_none")]
     value_string: Option<String>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 struct PrimitiveExtensionWithContent {
     id: Option<String>,
     extension: Option<Vec<Extension>>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 struct ResourceWithComplexExtension {
     #[serde(rename = "resourceType")]
     resource_type: String,
@@ -387,19 +523,19 @@ fn test_xml_serialize_with_complex_extension() -> Result<()> {
     Ok(())
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 struct ExtensionWithDecimal {
     url: String,
     #[serde(rename = "valueDecimal", skip_serializing_if = "Option::is_none")]
     value_decimal: Option<rust_decimal::Decimal>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 struct PrimitiveExtensionWithDecimal {
     extension: Option<Vec<ExtensionWithDecimal>>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 struct ResourceWithDecimalExtension {
     #[serde(rename = "resourceType")]
     resource_type: String,
@@ -434,6 +570,193 @@ fn test_xml_serialize_decimal_precision() -> Result<()> {
     // rust_decimal preserves the exact decimal representation
     assert!(xml.contains("valueDecimal"));
     assert!(xml.contains("value=\"123456789.123456789123456789\""));
+
+    Ok(())
+}
+
+// ====================
+// Deserialization Tests
+// ====================
+
+#[test]
+fn test_xml_deserialize_simple_resource() -> Result<()> {
+    let xml = r#"<?xml version="1.0" encoding="UTF-8"?><Patient xmlns="http://hl7.org/fhir"><id value="example"/></Patient>"#;
+
+    let resource: SimpleResource = from_xml_str(xml)?;
+
+    assert_eq!(resource.resource_type, "Patient");
+    assert_eq!(resource.id, Some("example".to_string()));
+
+    Ok(())
+}
+
+#[test]
+fn test_xml_roundtrip_simple() -> Result<()> {
+    let original = SimpleResource {
+        resource_type: "Patient".to_string(),
+        id: Some("example".to_string()),
+    };
+
+    // Serialize
+    let xml = to_xml_string(&original)?;
+
+    // Deserialize
+    let deserialized: SimpleResource = from_xml_str(&xml)?;
+
+    // Should match
+    assert_eq!(original, deserialized);
+
+    Ok(())
+}
+
+#[test]
+fn test_xml_deserialize_nested_struct() -> Result<()> {
+    let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+    <Patient xmlns="http://hl7.org/fhir">
+        <id value="example"/>
+        <name>
+            <family value="Doe"/>
+            <given value="John"/>
+        </name>
+    </Patient>"#;
+
+    let resource: PatientResource = from_xml_str(xml)?;
+
+    assert_eq!(resource.resource_type, "Patient");
+    assert_eq!(resource.id, Some("example".to_string()));
+    assert_eq!(resource.name.as_ref().unwrap().len(), 1);
+    assert_eq!(
+        resource.name.as_ref().unwrap()[0].family,
+        Some("Doe".to_string())
+    );
+    assert_eq!(
+        resource.name.as_ref().unwrap()[0].given.as_ref().unwrap()[0],
+        "John"
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_xml_roundtrip_nested_struct() -> Result<()> {
+    let original = PatientResource {
+        resource_type: "Patient".to_string(),
+        id: Some("example".to_string()),
+        name: Some(vec![Name {
+            family: Some("Doe".to_string()),
+            given: Some(vec!["John".to_string()]),
+        }]),
+    };
+
+    let xml = to_xml_string(&original)?;
+    let deserialized: PatientResource = from_xml_str(&xml)?;
+
+    assert_eq!(original, deserialized);
+
+    Ok(())
+}
+
+#[test]
+fn test_xml_deserialize_array_of_primitives() -> Result<()> {
+    let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+    <Patient xmlns="http://hl7.org/fhir">
+        <given value="Alice"/>
+        <given value="Marie"/>
+    </Patient>"#;
+
+    let resource: ResourceWithArrays = from_xml_str(xml)?;
+
+    assert_eq!(resource.resource_type, "Patient");
+    assert_eq!(resource.given.as_ref().unwrap().len(), 2);
+    assert_eq!(resource.given.as_ref().unwrap()[0], "Alice");
+    assert_eq!(resource.given.as_ref().unwrap()[1], "Marie");
+
+    Ok(())
+}
+
+#[test]
+fn test_xml_roundtrip_array_of_primitives() -> Result<()> {
+    let original = ResourceWithArrays {
+        resource_type: "Patient".to_string(),
+        given: Some(vec!["Alice".to_string(), "Marie".to_string()]),
+    };
+
+    let xml = to_xml_string(&original)?;
+    let deserialized: ResourceWithArrays = from_xml_str(&xml)?;
+
+    assert_eq!(original, deserialized);
+
+    Ok(())
+}
+
+#[test]
+fn test_xml_deserialize_primitive_extension() -> Result<()> {
+    let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+    <Patient xmlns="http://hl7.org/fhir">
+        <birthDate id="bd1" value="1974-12-25"/>
+    </Patient>"#;
+
+    let resource: ResourceWithExtension = from_xml_str(xml)?;
+
+    assert_eq!(resource.resource_type, "Patient");
+    assert_eq!(resource.birth_date, Some("1974-12-25".to_string()));
+    assert_eq!(
+        resource.birth_date_ext.as_ref().unwrap().id,
+        Some("bd1".to_string())
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_xml_deserialize_participant_type_array() -> Result<()> {
+    let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+    <AppointmentResponse xmlns="http://hl7.org/fhir">
+        <participantType>
+            <coding>
+                <system value="http://example.org"/>
+                <code value="ATND"/>
+            </coding>
+        </participantType>
+    </AppointmentResponse>"#;
+
+    let resource: MiniAppointmentResponse = from_xml_str(xml)?;
+    assert_eq!(resource.resource_type, "AppointmentResponse");
+    assert!(
+        resource
+            .participant_type
+            .as_ref()
+            .unwrap()
+            .first()
+            .unwrap()
+            .coding
+            .as_ref()
+            .unwrap()
+            .first()
+            .unwrap()
+            .code
+            .as_ref()
+            .unwrap()
+            == "ATND"
+    );
+    Ok(())
+}
+
+#[test]
+fn test_xml_roundtrip_primitive_extension() -> Result<()> {
+    let original = ResourceWithExtension {
+        resource_type: "Patient".to_string(),
+        birth_date: Some("1974-12-25".to_string()),
+        birth_date_ext: Some(PrimitiveExtension {
+            id: Some("bd1".to_string()),
+        }),
+    };
+
+    let xml = to_xml_string(&original)?;
+
+    let deserialized: ResourceWithExtension = from_xml_str(&xml)?;
+
+    assert_eq!(original, deserialized);
 
     Ok(())
 }

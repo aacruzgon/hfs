@@ -37,7 +37,7 @@
 ///! ### JSON Serialization
 ///!
 ///! ```ignore
-///! use helios_hfs_serde::json::{to_json_string, from_json_str};
+///! use helios_serde::json::{to_json_string, from_json_str};
 ///! use helios_fhir::r4::Patient;
 ///!
 ///! // Serialize to JSON
@@ -51,7 +51,7 @@
 ///! ### XML Serialization (Coming Soon)
 ///!
 ///! ```ignore
-///! use helios_hfs_serde::xml::{to_xml_string, from_xml_str};
+///! use helios_serde::xml::{to_xml_string, from_xml_str};
 ///! use helios_fhir::r4::Patient;
 ///!
 ///! // Serialize to XML
@@ -61,7 +61,6 @@
 ///! // Deserialize from XML
 ///! let patient: Patient = from_xml_str(&xml)?;
 ///! ```
-
 pub mod error;
 pub mod json;
 pub mod xml;

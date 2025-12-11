@@ -1508,10 +1508,13 @@ dependencies = [
  "helios-fhir",
  "helios-fhir-macro",
  "quick-xml 0.38.3",
+ "reqwest",
  "rust_decimal",
  "rust_decimal_macros",
  "serde",
  "serde_json",
+ "serde_path_to_error",
+ "zip 0.6.6",
 ]
 
 [[package]]
