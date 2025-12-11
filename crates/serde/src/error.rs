@@ -7,6 +7,9 @@ pub enum SerdeError {
     /// XML serialization or deserialization error
     Xml(quick_xml::Error),
 
+    /// IO error during serialization/deserialization
+    Io(std::io::Error),
+
     /// Custom error message
     Custom(String),
 }
@@ -16,6 +19,7 @@ impl std::fmt::Display for SerdeError {
         match self {
             SerdeError::Json(e) => write!(f, "JSON error: {}", e),
             SerdeError::Xml(e) => write!(f, "XML error: {}", e),
+            SerdeError::Io(e) => write!(f, "IO error: {}", e),
             SerdeError::Custom(msg) => write!(f, "{}", msg),
         }
     }
@@ -26,6 +30,7 @@ impl std::error::Error for SerdeError {
         match self {
             SerdeError::Json(e) => Some(e),
             SerdeError::Xml(e) => Some(e),
+            SerdeError::Io(e) => Some(e),
             SerdeError::Custom(_) => None,
         }
     }
@@ -43,6 +48,12 @@ impl From<quick_xml::Error> for SerdeError {
     }
 }
 
+impl From<std::io::Error> for SerdeError {
+    fn from(err: std::io::Error) -> Self {
+        SerdeError::Io(err)
+    }
+}
+
 impl From<String> for SerdeError {
     fn from(msg: String) -> Self {
         SerdeError::Custom(msg)
@@ -51,6 +62,20 @@ impl From<String> for SerdeError {
 
 impl From<&str> for SerdeError {
     fn from(msg: &str) -> Self {
+        SerdeError::Custom(msg.to_string())
+    }
+}
+
+// Implement serde::ser::Error for serialization
+impl serde::ser::Error for SerdeError {
+    fn custom<T: std::fmt::Display>(msg: T) -> Self {
+        SerdeError::Custom(msg.to_string())
+    }
+}
+
+// Implement serde::de::Error for deserialization (will be needed in Phase 4)
+impl serde::de::Error for SerdeError {
+    fn custom<T: std::fmt::Display>(msg: T) -> Self {
         SerdeError::Custom(msg.to_string())
     }
 }

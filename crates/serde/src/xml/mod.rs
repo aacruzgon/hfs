@@ -133,12 +133,14 @@
 //! let patient: Patient = from_xml_str(&xml)?;
 //! ```
 
-pub mod utils;
+mod utils;
+pub mod ser;
 
-// Serializer and deserializer will be added in Phase 3-4
-// pub mod ser;
+// Deserializer will be added in Phase 4
 // pub mod de;
 
-// Re-export main functions (will be uncommented when implemented)
-// pub use ser::{to_xml_string, to_xml_vec, to_xml_writer};
+// Re-export serialization functions
+pub use ser::{to_xml_string, to_xml_vec, to_xml_writer};
+
+// Deserialization functions will be uncommented when implemented
 // pub use de::{from_xml_str, from_xml_slice, from_xml_reader};

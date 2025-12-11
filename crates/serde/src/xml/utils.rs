@@ -19,16 +19,6 @@ pub const XML_DECLARATION: &str = r#"<?xml version="1.0" encoding="UTF-8"?>"#;
 /// Checks if a field name represents an extension field in FHIR JSON.
 ///
 /// Extension fields start with an underscore (e.g., `_birthDate`).
-///
-/// # Examples
-///
-/// ```
-/// # use helios_hfs_serde::xml::utils::is_extension_field;
-/// assert!(is_extension_field("_birthDate"));
-/// assert!(is_extension_field("_given"));
-/// assert!(!is_extension_field("birthDate"));
-/// assert!(!is_extension_field("given"));
-/// ```
 pub fn is_extension_field(key: &str) -> bool {
     key.starts_with('_')
 }
@@ -37,15 +27,6 @@ pub fn is_extension_field(key: &str) -> bool {
 ///
 /// Returns the field name without the leading underscore. If the field
 /// doesn't start with underscore, returns the original name.
-///
-/// # Examples
-///
-/// ```
-/// # use helios_hfs_serde::xml::utils::strip_underscore;
-/// assert_eq!(strip_underscore("_birthDate"), "birthDate");
-/// assert_eq!(strip_underscore("_given"), "given");
-/// assert_eq!(strip_underscore("birthDate"), "birthDate");
-/// ```
 pub fn strip_underscore(key: &str) -> &str {
     key.strip_prefix('_').unwrap_or(key)
 }
@@ -58,17 +39,6 @@ pub fn strip_underscore(key: &str) -> &str {
 /// - `value`: The primitive value
 ///
 /// All other data is represented as child elements.
-///
-/// # Examples
-///
-/// ```
-/// # use helios_hfs_serde::xml::utils::should_be_attribute;
-/// assert!(should_be_attribute("id"));
-/// assert!(should_be_attribute("url"));
-/// assert!(should_be_attribute("value"));
-/// assert!(!should_be_attribute("extension"));
-/// assert!(!should_be_attribute("coding"));
-/// ```
 pub fn should_be_attribute(key: &str) -> bool {
     matches!(key, "id" | "url" | "value")
 }
@@ -82,20 +52,6 @@ pub fn should_be_attribute(key: &str) -> bool {
 /// - null
 ///
 /// Arrays and objects are not primitives.
-///
-/// # Examples
-///
-/// ```
-/// # use serde_json::json;
-/// # use helios_hfs_serde::xml::utils::is_primitive_value;
-/// assert!(is_primitive_value(&json!("hello")));
-/// assert!(is_primitive_value(&json!(42)));
-/// assert!(is_primitive_value(&json!(3.14)));
-/// assert!(is_primitive_value(&json!(true)));
-/// assert!(is_primitive_value(&json!(null)));
-/// assert!(!is_primitive_value(&json!({"key": "value"})));
-/// assert!(!is_primitive_value(&json!([1, 2, 3])));
-/// ```
 pub fn is_primitive_value(value: &serde_json::Value) -> bool {
     match value {
         serde_json::Value::Null
@@ -109,16 +65,6 @@ pub fn is_primitive_value(value: &serde_json::Value) -> bool {
 /// Checks if an element name represents a FHIR resource.
 ///
 /// FHIR resources are identified by having an uppercase first letter.
-///
-/// # Examples
-///
-/// ```
-/// # use helios_hfs_serde::xml::utils::is_resource_name;
-/// assert!(is_resource_name("Patient"));
-/// assert!(is_resource_name("Observation"));
-/// assert!(!is_resource_name("active"));
-/// assert!(!is_resource_name("birthDate"));
-/// ```
 pub fn is_resource_name(name: &str) -> bool {
     name.chars()
         .next()
@@ -130,15 +76,6 @@ pub fn is_resource_name(name: &str) -> bool {
 ///
 /// The `div` element requires special handling because it can contain
 /// arbitrary XHTML content and uses a different namespace.
-///
-/// # Examples
-///
-/// ```
-/// # use helios_hfs_serde::xml::utils::is_div_element;
-/// assert!(is_div_element("div"));
-/// assert!(!is_div_element("text"));
-/// assert!(!is_div_element("Div"));
-/// ```
 pub fn is_div_element(name: &str) -> bool {
     name == "div"
 }
@@ -151,14 +88,6 @@ pub fn is_div_element(name: &str) -> bool {
 /// - `&` → `&amp;`
 /// - `'` → `&apos;`
 /// - `"` → `&quot;`
-///
-/// # Examples
-///
-/// ```
-/// # use helios_hfs_serde::xml::utils::escape_xml_text;
-/// assert_eq!(escape_xml_text("Hello & <World>"), "Hello &amp; &lt;World&gt;");
-/// assert_eq!(escape_xml_text(r#"Say "Hi""#), r#"Say &quot;Hi&quot;"#);
-/// ```
 pub fn escape_xml_text(text: &str) -> String {
     text.replace('&', "&amp;")
         .replace('<', "&lt;")
@@ -175,14 +104,6 @@ pub fn escape_xml_text(text: &str) -> String {
 /// - `&amp;` → `&`
 /// - `&apos;` → `'`
 /// - `&quot;` → `"`
-///
-/// # Examples
-///
-/// ```
-/// # use helios_hfs_serde::xml::utils::unescape_xml_text;
-/// assert_eq!(unescape_xml_text("Hello &amp; &lt;World&gt;"), "Hello & <World>");
-/// assert_eq!(unescape_xml_text(r#"Say &quot;Hi&quot;"#), r#"Say "Hi""#);
-/// ```
 pub fn unescape_xml_text(text: &str) -> String {
     text.replace("&lt;", "<")
         .replace("&gt;", ">")
@@ -192,14 +113,6 @@ pub fn unescape_xml_text(text: &str) -> String {
 }
 
 /// Converts a Rust boolean to its string representation for XML.
-///
-/// # Examples
-///
-/// ```
-/// # use helios_hfs_serde::xml::utils::bool_to_string;
-/// assert_eq!(bool_to_string(true), "true");
-/// assert_eq!(bool_to_string(false), "false");
-/// ```
 pub fn bool_to_string(b: bool) -> &'static str {
     if b {
         "true"
@@ -211,18 +124,6 @@ pub fn bool_to_string(b: bool) -> &'static str {
 /// Parses a boolean from its XML string representation.
 ///
 /// Accepts "true" and "false" (case-insensitive), as well as "1" and "0".
-///
-/// # Examples
-///
-/// ```
-/// # use helios_hfs_serde::xml::utils::parse_bool;
-/// assert_eq!(parse_bool("true"), Some(true));
-/// assert_eq!(parse_bool("false"), Some(false));
-/// assert_eq!(parse_bool("1"), Some(true));
-/// assert_eq!(parse_bool("0"), Some(false));
-/// assert_eq!(parse_bool("TRUE"), Some(true));
-/// assert_eq!(parse_bool("invalid"), None);
-/// ```
 pub fn parse_bool(s: &str) -> Option<bool> {
     match s.to_lowercase().as_str() {
         "true" | "1" => Some(true),
