@@ -64,9 +64,7 @@
 
 pub mod error;
 pub mod json;
-
-// XML module will be implemented in Phase 2-4
-// pub mod xml;
+pub mod xml;
 
 // Re-export common types and functions
 pub use error::{Result, SerdeError};
