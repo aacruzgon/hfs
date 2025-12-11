@@ -1,0 +1,28 @@
+[package]
+name = "helios-serde"
+version.workspace = true
+edition.workspace = true
+description = "Serialization module providing JSON and XML support for FHIR resources in the Helios FHIR Server."
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage = "https://github.com/HeliosSoftware/hfs/tree/main/crates/serde"
+readme = "README.md"
+
+[features]
+default = ["R4"]
+R4 = ["helios-fhir/R4"]
+R4B = ["helios-fhir/R4B"]
+R5 = ["helios-fhir/R5"]
+R6 = ["helios-fhir/R6"]
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+helios-fhir = { path = "../fhir", version = "0.1.30" }
+quick-xml = { version = "0.38", features = ["serialize"] }
+
+[dev-dependencies]
+rust_decimal_macros = "1.0"
+rust_decimal = "1.0"
+helios-fhir-macro = { path = "../fhir-macro", version = "0.1.30" }

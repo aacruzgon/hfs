@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?><Bundle xmlns="http://hl7.org/fhir">
+  <id value="example-observation-device-flowratemetric"/>
+  <meta>
+    <security>
+      <system value="http://terminology.hl7.org/CodeSystem/v3-ActReason"/>
+      <code value="HTEST"/>
+      <display value="test health data"/>
+    </security>
+  </meta>
+  <type value="collection"/>
+  <entry>
+    <fullUrl value="http://hl7.org/fhir/Observation/example-observation-device-flowratemetric"/>
+    <resource>
+      <Observation>
+        <id value="example-observation-device-flowratemetric"/>
+        <text>
+          <status value="generated"/><div xmlns="http://www.w3.org/1999/xhtml"><p class="res-header-id"><b>Generated Narrative: Observation example-observation-device-flowratemetric</b></p><a name="example-observation-device-flowratemetric"> </a><a name="hcexample-observation-device-flowratemetric"> </a><p><b>identifier</b>: <code>http://goodcare.org/observation/id</code>/1191144-10</p><p><b>status</b>: Final</p><p><b>code</b>: <span title="Codes:{http://loinc.org 8977-1}">Fluid intake intravascular 8 hour</span></p><p><b>subject</b>: <a href="broken-link.html">Device/example-IV-pump</a></p><p><b>focus</b>: <a href="broken-link.html">DeviceMetric/example-iv-pump-flowratemetric</a></p><p><b>effective</b>: 2024-12-05T09:30:10+01:00</p><p><b>value</b>: 150 milliliter per 8 hour<span style="background: LightGoldenRodYellow"> (Details: UCUM  codemL/(8.h) = 'mL/(8.h)')</span></p><p><b>device</b>: <a href="broken-link.html">Device/example-IV-pump</a></p></div>
+        </text>
+        <identifier>
+          <system value="http://goodcare.org/observation/id"/>
+          <value value="1191144-10"/>
+        </identifier>
+        <status value="final"/>
+        <code>
+          <coding>
+            <system value="http://loinc.org"/>
+            <code value="8977-1"/>
+            <display value="Fluid intake intravascular 8 hour"/>
+          </coding>
+        </code>
+        <subject>
+          <reference value="Device/example-IV-pump"/>
+        </subject>
+        <focus>
+          <reference value="DeviceMetric/example-iv-pump-flowratemetric"/>
+        </focus>
+        <effectiveDateTime value="2024-12-05T09:30:10+01:00"/>
+        <valueQuantity>
+          <value value="150"/>
+          <unit value="milliliter per 8 hour"/>
+          <system value="http://unitsofmeasure.org"/>
+          <code value="mL/(8.h)"/>
+        </valueQuantity>
+        <device>
+          <reference value="Device/example-IV-pump"/>
+        </device>
+      </Observation>
+    </resource>
+  </entry>
+  <entry>
+    <fullUrl value="http://hl7.org/fhir/DeviceAssociation/example-device-patient-association"/>
+    <resource>
+      <DeviceAssociation>
+        <id value="example-device-patient-association"/>
+        <text>
+          <status value="generated"/><div xmlns="http://www.w3.org/1999/xhtml"><p class="res-header-id"><b>Generated Narrative: DeviceAssociation example-device-patient-association</b></p><a name="example-device-patient-association"> </a><a name="hcexample-device-patient-association"> </a><p><b>device</b>: <a href="broken-link.html">Device/example-IV-pump</a></p><p><b>status</b>: Active</p><p><b>associationStatus</b>: <span title="Codes:{http://hl7.org/fhir/CodeSystem/deviceassociation-association-status attached}">Attached</span></p><p><b>subject</b>: <a href="patient-example-a.html">Donald Duck</a></p></div>
+        </text>
+        <device>
+          <reference value="Device/example-IV-pump"/>
+        </device>
+        <status value="active"/>
+        <associationStatus>
+          <coding>
+            <system value="http://hl7.org/fhir/CodeSystem/deviceassociation-association-status"/>
+            <code value="attached"/>
+            <display value="Attached"/>
+          </coding>
+        </associationStatus>
+        <subject>
+          <reference value="Patient/pat1"/>
+          <display value="Donald Duck"/>
+        </subject>
+      </DeviceAssociation>
+    </resource>
+  </entry>
+  <entry>
+    <fullUrl value="http://hl7.org/fhir/DeviceMetric/example-iv-pump-flowratemetric"/>
+    <resource>
+      <DeviceMetric>
+        <id value="example-iv-pump-flowratemetric"/>
+        <text>
+          <status value="generated"/><div xmlns="http://www.w3.org/1999/xhtml"><p class="res-header-id"><b>Generated Narrative: DeviceMetric example-iv-pump-flowratemetric</b></p><a name="example-iv-pump-flowratemetric"> </a><a name="hcexample-iv-pump-flowratemetric"> </a><p><b>status</b>: Active</p><p><b>operationalStatus</b>: On</p><p><b>type</b>: <span title="Codes:{urn:iso:std:iso:11073:10101 157784}">MDC_FLOW_FLUID_PUMP</span></p><p><b>unit</b>: <span title="Codes:{http://unitsofmeasure.org mL/(8.h)}">mL/(8.h)</span></p><p><b>device</b>: <a href="broken-link.html">Device/example-IV-pump</a></p><p><b>category</b>: <span title="Codes:{http://hl7.org/fhir/metric-category measurement}">Measurement</span></p></div>
+        </text>
+        <status value="active"/>
+        <operationalStatus value="on"/>
+        <type>
+          <coding>
+            <system value="urn:iso:std:iso:11073:10101"/>
+            <code value="157784"/>
+            <display value="MDC_FLOW_FLUID_PUMP"/>
+          </coding>
+        </type>
+        <unit>
+          <coding>
+            <system value="http://unitsofmeasure.org"/>
+            <code value="mL/(8.h)"/>
+            <display value="mL/(8.h)"/>
+          </coding>
+        </unit>
+        <device>
+          <reference value="Device/example-IV-pump"/>
+        </device>
+        <category>
+          <coding>
+            <system value="http://hl7.org/fhir/metric-category"/>
+            <code value="measurement"/>
+            <display value="Measurement"/>
+          </coding>
+        </category>
+      </DeviceMetric>
+    </resource>
+  </entry>
+</Bundle>

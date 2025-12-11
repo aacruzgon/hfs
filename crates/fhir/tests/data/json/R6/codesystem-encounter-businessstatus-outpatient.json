@@ -1,0 +1,74 @@
+{
+  "resourceType": "CodeSystem",
+  "id": "encounter-businessstatus-outpatient",
+  "meta": {
+    "lastUpdated": "2025-11-27T16:48:47.349+00:00"
+  },
+  "text": {
+    "status": "generated",
+    "div": "\u003cdiv xmlns\u003d\"http://www.w3.org/1999/xhtml\"\u003e\u003cp class\u003d\"res-header-id\"\u003e\u003cb\u003eGenerated Narrative: CodeSystem encounter-businessstatus-outpatient\u003c/b\u003e\u003c/p\u003e\u003ca name\u003d\"encounter-businessstatus-outpatient\"\u003e \u003c/a\u003e\u003ca name\u003d\"hcencounter-businessstatus-outpatient\"\u003e \u003c/a\u003e\u003cdiv style\u003d\"display: inline-block; background-color: #d9e0e7; padding: 6px; margin: 4px; border: 1px solid #8da1b4; border-radius: 5px; line-height: 60%\"\u003e\u003cp style\u003d\"margin-bottom: 0px\"\u003eLast updated: 2025-10-29T00:00:00Z\u003c/p\u003e\u003c/div\u003e\u003cp\u003eThis case-sensitive code system \u003ccode\u003ehttp://hl7.org/fhir/encounter-businessstatus-outpatient\u003c/code\u003e defines the following codes:\u003c/p\u003e\u003ctable class\u003d\"codes\"\u003e\u003ctr\u003e\u003ctd style\u003d\"white-space:nowrap\"\u003e\u003cb\u003eCode\u003c/b\u003e\u003c/td\u003e\u003ctd\u003e\u003cb\u003eDisplay\u003c/b\u003e\u003c/td\u003e\u003ctd\u003e\u003cb\u003eDefinition\u003c/b\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd style\u003d\"white-space:nowrap\"\u003echeck-in\u003ca name\u003d\"encounter-businessstatus-outpatient-check-in\"\u003e \u003c/a\u003e\u003c/td\u003e\u003ctd\u003eCheck-in\u003c/td\u003e\u003ctd\u003eThe patient has checked in for the outpatient visit.\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd style\u003d\"white-space:nowrap\"\u003echeck-out\u003ca name\u003d\"encounter-businessstatus-outpatient-check-out\"\u003e \u003c/a\u003e\u003c/td\u003e\u003ctd\u003eCheck-out\u003c/td\u003e\u003ctd\u003eThe patient has checked out from the outpatient visit.\u003c/td\u003e\u003c/tr\u003e\u003c/table\u003e\u003c/div\u003e"
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/structuredefinition-wg",
+      "valueCode": "pa"
+    },
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/structuredefinition-standards-status",
+      "valueCode": "normative"
+    },
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/structuredefinition-fmm",
+      "valueInteger": 1
+    }
+  ],
+  "url": "http://hl7.org/fhir/encounter-businessstatus-outpatient",
+  "version": "6.0.0-ballot3",
+  "name": "EncounterBusinessStatusOutpatient",
+  "title": "Encounter Business Status - Outpatient",
+  "status": "active",
+  "experimental": false,
+  "date": "2025-10-29T00:00:00+00:00",
+  "publisher": "HL7 (FHIR Project)",
+  "contact": [
+    {
+      "telecom": [
+        {
+          "system": "url",
+          "value": "http://hl7.org/fhir"
+        },
+        {
+          "system": "email",
+          "value": "fhir@lists.hl7.org"
+        }
+      ]
+    }
+  ],
+  "description": "Business statuses for outpatient encounters.",
+  "jurisdiction": [
+    {
+      "coding": [
+        {
+          "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
+          "code": "001",
+          "display": "World"
+        }
+      ]
+    }
+  ],
+  "caseSensitive": true,
+  "valueSet": "http://hl7.org/fhir/ValueSet/encounter-businessstatus-outpatient",
+  "content": "complete",
+  "concept": [
+    {
+      "code": "check-in",
+      "display": "Check-in",
+      "definition": "The patient has checked in for the outpatient visit."
+    },
+    {
+      "code": "check-out",
+      "display": "Check-out",
+      "definition": "The patient has checked out from the outpatient visit."
+    }
+  ]
+}

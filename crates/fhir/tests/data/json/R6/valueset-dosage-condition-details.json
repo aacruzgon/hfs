@@ -1,0 +1,124 @@
+{
+  "resourceType": "ValueSet",
+  "id": "dosage-condition-details",
+  "meta": {
+    "lastUpdated": "2025-11-27T16:48:47.349+00:00"
+  },
+  "text": {
+    "status": "generated",
+    "div": "\u003cdiv xmlns\u003d\"http://www.w3.org/1999/xhtml\"\u003e\u003cp class\u003d\"res-header-id\"\u003e\u003cb\u003eGenerated Narrative: ValueSet dosage-condition-details\u003c/b\u003e\u003c/p\u003e\u003ca name\u003d\"dosage-condition-details\"\u003e \u003c/a\u003e\u003ca name\u003d\"hcdosage-condition-details\"\u003e \u003c/a\u003e\u003cul\u003e\u003cli\u003eInclude these codes as defined in \u003ca href\u003d\"http://www.snomed.org/\"\u003e\u003ccode\u003ehttp://snomed.info/sct\u003c/code\u003e\u003c/a\u003e\u003cspan title\u003d\"Version is not explicity stated. No matching Code System found\"\u003e version Not Stated (use latest from terminology server)\u003c/span\u003e\u003ctable class\u003d\"none\"\u003e\u003ctr\u003e\u003ctd style\u003d\"white-space:nowrap\"\u003e\u003cb\u003eCode\u003c/b\u003e\u003c/td\u003e\u003ctd\u003e\u003cb\u003eDisplay\u003c/b\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e\u003ca href\u003d\"http://snomed.info/id/22253000\"\u003e22253000\u003c/a\u003e\u003c/td\u003e\u003ctd\u003ePain\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e\u003ca href\u003d\"http://snomed.info/id/76948002\"\u003e76948002\u003c/a\u003e\u003c/td\u003e\u003ctd\u003eSevere pain\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e\u003ca href\u003d\"http://snomed.info/id/37796009\"\u003e37796009\u003c/a\u003e\u003c/td\u003e\u003ctd\u003eMigraine\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e\u003ca href\u003d\"http://snomed.info/id/725119006\"\u003e725119006\u003c/a\u003e\u003c/td\u003e\u003ctd\u003eGeneralized rash\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e\u003ca href\u003d\"http://snomed.info/id/257551009\"\u003e257551009\u003c/a\u003e\u003c/td\u003e\u003ctd\u003eInfection\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e\u003ca href\u003d\"http://snomed.info/id/225581002\"\u003e225581002\u003c/a\u003e\u003c/td\u003e\u003ctd\u003eSight deteriorating\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e\u003ca href\u003d\"http://snomed.info/id/719232003\"\u003e719232003\u003c/a\u003e\u003c/td\u003e\u003ctd\u003eDifficulty walking\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e\u003ca href\u003d\"http://snomed.info/id/302758002\"\u003e302758002\u003c/a\u003e\u003c/td\u003e\u003ctd\u003eTiredness\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e\u003ca href\u003d\"http://snomed.info/id/80449002\"\u003e80449002\u003c/a\u003e\u003c/td\u003e\u003ctd\u003eMuscle fatigue\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e\u003ca href\u003d\"http://snomed.info/id/267036007\"\u003e267036007\u003c/a\u003e\u003c/td\u003e\u003ctd\u003eDyspnea\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e\u003ca href\u003d\"http://snomed.info/id/309253009\"\u003e309253009\u003c/a\u003e\u003c/td\u003e\u003ctd\u003eDifficulty reading\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e\u003ca href\u003d\"http://snomed.info/id/278040002\"\u003e278040002\u003c/a\u003e\u003c/td\u003e\u003ctd\u003eLoss of hair\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e\u003ca href\u003d\"http://snomed.info/id/14140009\"\u003e14140009\u003c/a\u003e\u003c/td\u003e\u003ctd\u003eHyperkalemia\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e\u003ca href\u003d\"http://snomed.info/id/65971000052100\"\u003e65971000052100\u003c/a\u003e\u003c/td\u003e\u003ctd\u003eAcute psychosis\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e\u003ca href\u003d\"http://snomed.info/id/14760008\"\u003e14760008\u003c/a\u003e\u003c/td\u003e\u003ctd\u003eConstipation\u003c/td\u003e\u003c/tr\u003e\u003c/table\u003e\u003c/li\u003e\u003c/ul\u003e\u003c/div\u003e"
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/structuredefinition-standards-status",
+      "valueCode": "normative"
+    },
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/structuredefinition-wg",
+      "valueCode": "fhir"
+    },
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/structuredefinition-fmm",
+      "valueInteger": 1
+    }
+  ],
+  "url": "http://hl7.org/fhir/ValueSet/dosage-condition-details",
+  "version": "6.0.0-ballot3",
+  "name": "DosageConditionDetailsVS",
+  "title": "Dosage Condition Details VS",
+  "status": "active",
+  "experimental": true,
+  "date": "2025-11-27T16:48:47+00:00",
+  "publisher": "HL7 International / FHIR Infrastructure",
+  "contact": [
+    {
+      "telecom": [
+        {
+          "system": "url",
+          "value": "http://www.hl7.org/Special/committees/fiwg"
+        }
+      ]
+    }
+  ],
+  "description": "Dosage Condition Details Example ValueSet",
+  "jurisdiction": [
+    {
+      "coding": [
+        {
+          "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
+          "code": "001"
+        }
+      ]
+    }
+  ],
+  "copyright": "This resource includes content from SNOMED Clinical Terms® (SNOMED CT®) which is copyright of the International Health Terminology Standards Development Organisation (IHTSDO). Implementers of these specifications must have the appropriate SNOMED CT Affiliate license - for more information contact http://www.snomed.org/snomed-ct/get-snomed-ct or info@snomed.org",
+  "compose": {
+    "include": [
+      {
+        "system": "http://snomed.info/sct",
+        "concept": [
+          {
+            "code": "22253000",
+            "display": "Pain"
+          },
+          {
+            "code": "76948002",
+            "display": "Severe pain"
+          },
+          {
+            "code": "37796009",
+            "display": "Migraine"
+          },
+          {
+            "code": "725119006",
+            "display": "Generalized rash"
+          },
+          {
+            "code": "257551009",
+            "display": "Infection"
+          },
+          {
+            "code": "225581002",
+            "display": "Sight deteriorating"
+          },
+          {
+            "code": "719232003",
+            "display": "Difficulty walking"
+          },
+          {
+            "code": "302758002",
+            "display": "Tiredness"
+          },
+          {
+            "code": "80449002",
+            "display": "Muscle fatigue"
+          },
+          {
+            "code": "267036007",
+            "display": "Dyspnea"
+          },
+          {
+            "code": "309253009",
+            "display": "Difficulty reading"
+          },
+          {
+            "code": "278040002",
+            "display": "Loss of hair"
+          },
+          {
+            "code": "14140009",
+            "display": "Hyperkalemia"
+          },
+          {
+            "code": "65971000052100",
+            "display": "Acute psychosis"
+          },
+          {
+            "code": "14760008",
+            "display": "Constipation"
+          }
+        ]
+      }
+    ]
+  }
+}

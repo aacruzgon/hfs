@@ -1,0 +1,142 @@
+{
+  "resourceType": "CodeSystem",
+  "id": "diagnosticreport-relevant-information-types",
+  "meta": {
+    "lastUpdated": "2025-11-27T16:48:47.349+00:00"
+  },
+  "text": {
+    "status": "generated",
+    "div": "\u003cdiv xmlns\u003d\"http://www.w3.org/1999/xhtml\"\u003e\u003cp class\u003d\"res-header-id\"\u003e\u003cb\u003eGenerated Narrative: CodeSystem diagnosticreport-relevant-information-types\u003c/b\u003e\u003c/p\u003e\u003ca name\u003d\"diagnosticreport-relevant-information-types\"\u003e \u003c/a\u003e\u003ca name\u003d\"hcdiagnosticreport-relevant-information-types\"\u003e \u003c/a\u003e\u003cp\u003eThis case-sensitive code system \u003ccode\u003ehttp://hl7.org/fhir/diagnosticreport-relevant-information-types\u003c/code\u003e defines the following codes in a Is-A hierarchy:\u003c/p\u003e\u003ctable class\u003d\"codes\"\u003e\u003ctr\u003e\u003ctd\u003e\u003cb\u003eLvl\u003c/b\u003e\u003c/td\u003e\u003ctd style\u003d\"white-space:nowrap\"\u003e\u003cb\u003eCode\u003c/b\u003e\u003c/td\u003e\u003ctd\u003e\u003cb\u003eDisplay\u003c/b\u003e\u003c/td\u003e\u003ctd\u003e\u003cb\u003eDefinition\u003c/b\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e1\u003c/td\u003e\u003ctd style\u003d\"white-space:nowrap\"\u003eQST\u003ca name\u003d\"diagnosticreport-relevant-information-types-QST\"\u003e \u003c/a\u003e\u003c/td\u003e\u003ctd\u003eQuestion\u003c/td\u003e\u003ctd\u003eQuestion\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e2\u003c/td\u003e\u003ctd style\u003d\"white-space:nowrap\"\u003e  AOE\u003ca name\u003d\"diagnosticreport-relevant-information-types-AOE\"\u003e \u003c/a\u003e\u003c/td\u003e\u003ctd\u003eAsk at Order Entry\u003c/td\u003e\u003ctd\u003eAsk at Order Entry\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e2\u003c/td\u003e\u003ctd style\u003d\"white-space:nowrap\"\u003e  ASC\u003ca name\u003d\"diagnosticreport-relevant-information-types-ASC\"\u003e \u003c/a\u003e\u003c/td\u003e\u003ctd\u003eAsk at Specimen Collection\u003c/td\u003e\u003ctd\u003eAsk at Specimen Collection\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e1\u003c/td\u003e\u003ctd style\u003d\"white-space:nowrap\"\u003eRSLT\u003ca name\u003d\"diagnosticreport-relevant-information-types-RSLT\"\u003e \u003c/a\u003e\u003c/td\u003e\u003ctd\u003eResult\u003c/td\u003e\u003ctd\u003eResult\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e2\u003c/td\u003e\u003ctd style\u003d\"white-space:nowrap\"\u003e  MCS\u003ca name\u003d\"diagnosticreport-relevant-information-types-MCS\"\u003e \u003c/a\u003e\u003c/td\u003e\u003ctd\u003eMicro Culture Status\u003c/td\u003e\u003ctd\u003eSub-type of RSLT (Result) This term identifies observations that give overall culture outcome, when no specific organism is being named.\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e2\u003c/td\u003e\u003ctd style\u003d\"white-space:nowrap\"\u003e  MID\u003ca name\u003d\"diagnosticreport-relevant-information-types-MID\"\u003e \u003c/a\u003e\u003c/td\u003e\u003ctd\u003eMicro Isolate Descriptor\u003c/td\u003e\u003ctd\u003eSub-type of RSLT (Result) This term identifies any other observations about the isolate.\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e2\u003c/td\u003e\u003ctd style\u003d\"white-space:nowrap\"\u003e  MIG\u003ca name\u003d\"diagnosticreport-relevant-information-types-MIG\"\u003e \u003c/a\u003e\u003c/td\u003e\u003ctd\u003eMicro Isolate Growth Quantity\u003c/td\u003e\u003ctd\u003eSub-type of RSLT (Result) This term identifies growth levels of an isolate – can be numeric or categorical.\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e2\u003c/td\u003e\u003ctd style\u003d\"white-space:nowrap\"\u003e  MIN\u003ca name\u003d\"diagnosticreport-relevant-information-types-MIN\"\u003e \u003c/a\u003e\u003c/td\u003e\u003ctd\u003eMicro Isolate Name\u003c/td\u003e\u003ctd\u003eNSub-type of RSLT (Result) This term identifies observations that name a specific organism either at the species or the genus level.\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e2\u003c/td\u003e\u003ctd style\u003d\"white-space:nowrap\"\u003e  MOD\u003ca name\u003d\"diagnosticreport-relevant-information-types-MOD\"\u003e \u003c/a\u003e\u003c/td\u003e\u003ctd\u003eMicro Other Descriptor\u003c/td\u003e\u003ctd\u003eSub-type of RSLT (Result) This term identifies observations that do not fit the culture status, but is not at the isolate level.\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e2\u003c/td\u003e\u003ctd style\u003d\"white-space:nowrap\"\u003e  MSS\u003ca name\u003d\"diagnosticreport-relevant-information-types-MSS\"\u003e \u003c/a\u003e\u003c/td\u003e\u003ctd\u003eMicro Sample Stain\u003c/td\u003e\u003ctd\u003eSub-type of RSLT (Result) This term identifies observations on gram stains (and other stains or smears) on the clinical sample.\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e2\u003c/td\u003e\u003ctd style\u003d\"white-space:nowrap\"\u003e  SUP\u003ca name\u003d\"diagnosticreport-relevant-information-types-SUP\"\u003e \u003c/a\u003e\u003c/td\u003e\u003ctd\u003eSupplemental Result\u003c/td\u003e\u003ctd\u003eSupplemental Result\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e2\u003c/td\u003e\u003ctd style\u003d\"white-space:nowrap\"\u003e  SUR\u003ca name\u003d\"diagnosticreport-relevant-information-types-SUR\"\u003e \u003c/a\u003e\u003c/td\u003e\u003ctd\u003eSusceptibility Related\u003c/td\u003e\u003ctd\u003eSusceptibility Related\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e2\u003c/td\u003e\u003ctd style\u003d\"white-space:nowrap\"\u003e  UNSP\u003ca name\u003d\"diagnosticreport-relevant-information-types-UNSP\"\u003e \u003c/a\u003e\u003c/td\u003e\u003ctd\u003eUnspecified\u003c/td\u003e\u003ctd\u003eUnspecified\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e1\u003c/td\u003e\u003ctd style\u003d\"white-space:nowrap\"\u003eSCI\u003ca name\u003d\"diagnosticreport-relevant-information-types-SCI\"\u003e \u003c/a\u003e\u003c/td\u003e\u003ctd\u003eSupporting Clinical Information\u003c/td\u003e\u003ctd\u003eSupporting Clinical Information\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003e2\u003c/td\u003e\u003ctd style\u003d\"white-space:nowrap\"\u003e  PHX\u003ca name\u003d\"diagnosticreport-relevant-information-types-PHX\"\u003e \u003c/a\u003e\u003c/td\u003e\u003ctd\u003ePatient History\u003c/td\u003e\u003ctd\u003eHistorical patient data\u003c/td\u003e\u003c/tr\u003e\u003c/table\u003e\u003c/div\u003e"
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/structuredefinition-wg",
+      "valueCode": "oo"
+    },
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/structuredefinition-standards-status",
+      "valueCode": "informative"
+    }
+  ],
+  "url": "http://hl7.org/fhir/diagnosticreport-relevant-information-types",
+  "version": "6.0.0-ballot3",
+  "name": "DiagnosticReportRelevantInformationTypes",
+  "title": "Diagnostic Report Relevant Information Types",
+  "status": "active",
+  "experimental": false,
+  "date": "2025-11-01T10:01:24+11:00",
+  "publisher": "HL7 (FHIR Project)",
+  "contact": [
+    {
+      "telecom": [
+        {
+          "system": "url",
+          "value": "http://hl7.org/fhir"
+        },
+        {
+          "system": "email",
+          "value": "fhir@lists.hl7.org"
+        }
+      ]
+    }
+  ],
+  "description": "Concepts specifying how referenced information is considered relevant in a DiagnosticReport. Level 1 derives from v2-0936; Level 2 derives from v2-0937; PHX (Patient History) is added under SCI.",
+  "jurisdiction": [
+    {
+      "coding": [
+        {
+          "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
+          "code": "001",
+          "display": "World"
+        }
+      ]
+    }
+  ],
+  "caseSensitive": true,
+  "valueSet": "http://hl7.org/fhir/ValueSet/diagnosticreport-relevant-information-types",
+  "hierarchyMeaning": "is-a",
+  "content": "complete",
+  "concept": [
+    {
+      "code": "QST",
+      "display": "Question",
+      "definition": "Question",
+      "concept": [
+        {
+          "code": "AOE",
+          "display": "Ask at Order Entry",
+          "definition": "Ask at Order Entry"
+        },
+        {
+          "code": "ASC",
+          "display": "Ask at Specimen Collection",
+          "definition": "Ask at Specimen Collection"
+        }
+      ]
+    },
+    {
+      "code": "RSLT",
+      "display": "Result",
+      "definition": "Result",
+      "concept": [
+        {
+          "code": "MCS",
+          "display": "Micro Culture Status",
+          "definition": "Sub-type of RSLT (Result) This term identifies observations that give overall culture outcome, when no specific organism is being named."
+        },
+        {
+          "code": "MID",
+          "display": "Micro Isolate Descriptor",
+          "definition": "Sub-type of RSLT (Result) This term identifies any other observations about the isolate."
+        },
+        {
+          "code": "MIG",
+          "display": "Micro Isolate Growth Quantity",
+          "definition": "Sub-type of RSLT (Result) This term identifies growth levels of an isolate – can be numeric or categorical."
+        },
+        {
+          "code": "MIN",
+          "display": "Micro Isolate Name",
+          "definition": "NSub-type of RSLT (Result) This term identifies observations that name a specific organism either at the species or the genus level."
+        },
+        {
+          "code": "MOD",
+          "display": "Micro Other Descriptor",
+          "definition": "Sub-type of RSLT (Result) This term identifies observations that do not fit the culture status, but is not at the isolate level."
+        },
+        {
+          "code": "MSS",
+          "display": "Micro Sample Stain",
+          "definition": "Sub-type of RSLT (Result) This term identifies observations on gram stains (and other stains or smears) on the clinical sample."
+        },
+        {
+          "code": "SUP",
+          "display": "Supplemental Result",
+          "definition": "Supplemental Result"
+        },
+        {
+          "code": "SUR",
+          "display": "Susceptibility Related",
+          "definition": "Susceptibility Related"
+        },
+        {
+          "code": "UNSP",
+          "display": "Unspecified",
+          "definition": "Unspecified"
+        }
+      ]
+    },
+    {
+      "code": "SCI",
+      "display": "Supporting Clinical Information",
+      "definition": "Supporting Clinical Information",
+      "concept": [
+        {
+          "code": "PHX",
+          "display": "Patient History",
+          "definition": "Historical patient data"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?><BodyStructure xmlns="http://hl7.org/fhir">
+  <id value="dicom-includedStructure"/>
+  <meta>
+    <security>
+      <system value="http://terminology.hl7.org/CodeSystem/v3-ActReason"/>
+      <code value="HTEST"/>
+      <display value="test health data"/>
+    </security>
+  </meta>
+  <text>
+    <status value="generated"/><div xmlns="http://www.w3.org/1999/xhtml">
+      <p>DICOM-derived BodyStructure: Left Wrist</p>
+    </div>
+  </text>
+  <includedStructure>
+    <structure>
+      <coding>
+        <system value="http://snomed.info/sct"/>
+        <code value="74670003"/>
+        <display value="Wrist joint structure"/>
+      </coding>
+    </structure>
+    <laterality>
+      <coding>
+        <system value="http://snomed.info/sct"/>
+        <code value="7771000"/>
+        <display value="Left"/>
+      </coding>
+    </laterality>
+  </includedStructure>
+  <patient>
+    <reference value="Patient/dicom"/>
+  </patient>
+</BodyStructure>

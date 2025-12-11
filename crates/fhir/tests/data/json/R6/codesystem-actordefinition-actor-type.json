@@ -1,0 +1,85 @@
+{
+  "resourceType": "CodeSystem",
+  "id": "actordefinition-actor-type",
+  "meta": {
+    "lastUpdated": "2025-11-27T16:48:47.349+00:00"
+  },
+  "text": {
+    "status": "generated",
+    "div": "\u003cdiv xmlns\u003d\"http://www.w3.org/1999/xhtml\"\u003e\u003cp class\u003d\"res-header-id\"\u003e\u003cb\u003eGenerated Narrative: CodeSystem actordefinition-actor-type\u003c/b\u003e\u003c/p\u003e\u003ca name\u003d\"actordefinition-actor-type\"\u003e \u003c/a\u003e\u003ca name\u003d\"hcactordefinition-actor-type\"\u003e \u003c/a\u003e\u003cp\u003eThis case-sensitive code system \u003ccode\u003ehttp://hl7.org/fhir/actordefinition-actor-type\u003c/code\u003e defines the following codes in a Is-A hierarchy:\u003c/p\u003e\u003ctable class\u003d\"codes\"\u003e\u003ctr\u003e\u003ctd style\u003d\"white-space:nowrap\"\u003e\u003cb\u003eCode\u003c/b\u003e\u003c/td\u003e\u003ctd\u003e\u003cb\u003eDisplay\u003c/b\u003e\u003c/td\u003e\u003ctd\u003e\u003cb\u003eDefinition\u003c/b\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd style\u003d\"white-space:nowrap\"\u003eperson\u003ca name\u003d\"actordefinition-actor-type-person\"\u003e \u003c/a\u003e\u003c/td\u003e\u003ctd\u003ePerson\u003c/td\u003e\u003ctd\u003eA human being acting directly.\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd style\u003d\"white-space:nowrap\"\u003esystem\u003ca name\u003d\"actordefinition-actor-type-system\"\u003e \u003c/a\u003e\u003c/td\u003e\u003ctd\u003eSystem\u003c/td\u003e\u003ctd\u003eA software application or collection of such applications functioning as or represented as a single entity.  (This would be instantiated in FHIR as a Device.)\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd style\u003d\"white-space:nowrap\"\u003ecollective\u003ca name\u003d\"actordefinition-actor-type-collective\"\u003e \u003c/a\u003e\u003c/td\u003e\u003ctd\u003eCollective\u003c/td\u003e\u003ctd\u003eA group of people or animals\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd style\u003d\"white-space:nowrap\"\u003eother\u003ca name\u003d\"actordefinition-actor-type-other\"\u003e \u003c/a\u003e\u003c/td\u003e\u003ctd\u003eOther\u003c/td\u003e\u003ctd\u003eSome other kind of actor\u003c/td\u003e\u003c/tr\u003e\u003c/table\u003e\u003c/div\u003e"
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/structuredefinition-wg",
+      "valueCode": "fhir"
+    },
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/structuredefinition-standards-status",
+      "valueCode": "normative"
+    },
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/structuredefinition-fmm",
+      "valueInteger": 1
+    }
+  ],
+  "url": "http://hl7.org/fhir/actordefinition-actor-type",
+  "version": "6.0.0-ballot3",
+  "name": "ActorDefinitionActorType",
+  "title": "Actor Definition Actor Type",
+  "status": "active",
+  "experimental": false,
+  "date": "2021-01-05T10:01:24+11:00",
+  "publisher": "HL7 (FHIR Project)",
+  "contact": [
+    {
+      "telecom": [
+        {
+          "system": "url",
+          "value": "http://hl7.org/fhir"
+        },
+        {
+          "system": "email",
+          "value": "fhir@lists.hl7.org"
+        }
+      ]
+    }
+  ],
+  "description": "The type of actor - system or human or other.",
+  "jurisdiction": [
+    {
+      "coding": [
+        {
+          "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
+          "code": "001",
+          "display": "World"
+        }
+      ]
+    }
+  ],
+  "caseSensitive": true,
+  "valueSet": "http://hl7.org/fhir/ValueSet/actordefinition-actor-type",
+  "hierarchyMeaning": "is-a",
+  "content": "complete",
+  "concept": [
+    {
+      "code": "person",
+      "display": "Person",
+      "definition": "A human being acting directly."
+    },
+    {
+      "code": "system",
+      "display": "System",
+      "definition": "A software application or collection of such applications functioning as or represented as a single entity.  (This would be instantiated in FHIR as a Device.)"
+    },
+    {
+      "code": "collective",
+      "display": "Collective",
+      "definition": "A group of people or animals"
+    },
+    {
+      "code": "other",
+      "display": "Other",
+      "definition": "Some other kind of actor"
+    }
+  ]
+}

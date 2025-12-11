@@ -1,0 +1,65 @@
+{
+  "resourceType": "CodeSystem",
+  "id": "medicationrequest-dispenser-instructions",
+  "meta": {
+    "lastUpdated": "2025-11-27T16:48:47.349+00:00"
+  },
+  "text": {
+    "status": "generated",
+    "div": "\u003cdiv xmlns\u003d\"http://www.w3.org/1999/xhtml\"\u003e\u003cp class\u003d\"res-header-id\"\u003e\u003cb\u003eGenerated Narrative: CodeSystem medicationrequest-dispenser-instructions\u003c/b\u003e\u003c/p\u003e\u003ca name\u003d\"medicationrequest-dispenser-instructions\"\u003e \u003c/a\u003e\u003ca name\u003d\"hcmedicationrequest-dispenser-instructions\"\u003e \u003c/a\u003e\u003cp\u003eThis case-sensitive code system \u003ccode\u003ehttp://hl7.org/fhir/CodeSystem/medicationrequest-dispenser-instructions\u003c/code\u003e defines the following codes:\u003c/p\u003e\u003ctable class\u003d\"codes\"\u003e\u003ctr\u003e\u003ctd style\u003d\"white-space:nowrap\"\u003e\u003cb\u003eCode\u003c/b\u003e\u003c/td\u003e\u003ctd\u003e\u003cb\u003eDisplay\u003c/b\u003e\u003c/td\u003e\u003ctd\u003e\u003cb\u003eDefinition\u003c/b\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd style\u003d\"white-space:nowrap\"\u003edispense-as-written\u003ca name\u003d\"medicationrequest-dispenser-instructions-dispense-as-written\"\u003e \u003c/a\u003e\u003c/td\u003e\u003ctd\u003eDispenser as written\u003c/td\u003e\u003ctd\u003eMedication should be dispensed exactly as indicated in the request.\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd style\u003d\"white-space:nowrap\"\u003esplit-pack-allowed\u003ca name\u003d\"medicationrequest-dispenser-instructions-split-pack-allowed\"\u003e \u003c/a\u003e\u003c/td\u003e\u003ctd\u003eSplit pack allowed\u003c/td\u003e\u003ctd\u003eSplit pack allowed.\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd style\u003d\"white-space:nowrap\"\u003ecounsel-patient\u003ca name\u003d\"medicationrequest-dispenser-instructions-counsel-patient\"\u003e \u003c/a\u003e\u003c/td\u003e\u003ctd\u003eCounsel patient\u003c/td\u003e\u003ctd\u003eDispenser should provide counseling to the patient.\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd style\u003d\"white-space:nowrap\"\u003eadditional-monitoring-required\u003ca name\u003d\"medicationrequest-dispenser-instructions-additional-monitoring-required\"\u003e \u003c/a\u003e\u003c/td\u003e\u003ctd\u003eAdditional monitoring required\u003c/td\u003e\u003ctd\u003eFlag that extra monitoring is needed when dispensing.\u003c/td\u003e\u003c/tr\u003e\u003c/table\u003e\u003c/div\u003e"
+  },
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/structuredefinition-wg",
+      "valueCode": "phx"
+    },
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/structuredefinition-standards-status",
+      "valueCode": "informative"
+    }
+  ],
+  "url": "http://hl7.org/fhir/CodeSystem/medicationrequest-dispenser-instructions",
+  "version": "6.0.0-ballot3",
+  "name": "MedicationRequestDispenserInstructions",
+  "title": "MedicationRequest dispenser instructions",
+  "status": "active",
+  "experimental": false,
+  "publisher": "HL7 International",
+  "description": "MedicationRequest dispenser instructions",
+  "jurisdiction": [
+    {
+      "coding": [
+        {
+          "system": "http://unstats.un.org/unsd/methods/m49/m49.htm",
+          "code": "001",
+          "display": "World"
+        }
+      ]
+    }
+  ],
+  "caseSensitive": true,
+  "valueSet": "http://hl7.org/fhir/ValueSet/medicationrequest-dispenser-instructions",
+  "content": "complete",
+  "concept": [
+    {
+      "code": "dispense-as-written",
+      "display": "Dispenser as written",
+      "definition": "Medication should be dispensed exactly as indicated in the request."
+    },
+    {
+      "code": "split-pack-allowed",
+      "display": "Split pack allowed",
+      "definition": "Split pack allowed."
+    },
+    {
+      "code": "counsel-patient",
+      "display": "Counsel patient",
+      "definition": "Dispenser should provide counseling to the patient."
+    },
+    {
+      "code": "additional-monitoring-required",
+      "display": "Additional monitoring required",
+      "definition": "Flag that extra monitoring is needed when dispensing."
+    }
+  ]
+}

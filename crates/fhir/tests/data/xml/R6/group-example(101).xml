@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?><Group xmlns="http://hl7.org/fhir">
+  <id value="101"/>
+  <meta>
+    <security>
+      <system value="http://terminology.hl7.org/CodeSystem/v3-ActReason"/>
+      <code value="HTEST"/>
+      <display value="test health data"/>
+    </security>
+  </meta>
+  <text>
+    <status value="additional"/><div xmlns="http://www.w3.org/1999/xhtml">
+      <p>Herd of 25 horses</p>
+      <p>Gender: mixed</p>
+      <p>Owner: John Smith</p>
+    </div>
+  </text>
+  <extension url="http://hl7.org/fhir/StructureDefinition/structuredefinition-wg">
+    <valueCode value="fhir"/>
+  </extension>
+  <identifier>
+    <system value="http://someveterinarianclinic.org/fhir/NamingSystem/herds"/>
+    <value value="12345"/>
+  </identifier>
+  <name value="John's herd"/>
+  <publisher value="HL7 International / FHIR Infrastructure"/>
+  <contact>
+    <telecom>
+      <system value="url"/>
+      <value value="http://www.hl7.org/Special/committees/fiwg"/>
+    </telecom>
+  </contact>
+  <type value="animal"/>
+  <membership value="enumerated"/>
+  <code>
+    <coding>
+      <system value="http://example.org/fhir/CodeSystem/group-example-type"/>
+      <code value="horse"/>
+      <display value="Horse"/>
+    </coding>
+    <text value="Horse"/>
+  </code>
+  <quantity value="25"/>
+  <characteristic>
+    <code>
+      <coding>
+        <system value="http://example.org/fhir/CodeSystem/group-example-characteristic"/>
+        <code value="gender"/>
+        <display value="Gender"/>
+      </coding>
+      <text value="gender"/>
+    </code>
+    <valueCodeableConcept>
+      <coding>
+        <system value="http://example.org/fhir/CodeSystem/group-example-gender"/>
+        <code value="mixed"/>
+        <display value="Mixed"/>
+      </coding>
+      <text value="mixed"/>
+    </valueCodeableConcept>
+    <exclude value="false"/>
+  </characteristic>
+  <characteristic>
+    <code>
+      <coding>
+        <system value="http://example.org/fhir/CodeSystem/group-example-characteristic"/>
+        <code value="owner"/>
+        <display value="Owner"/>
+      </coding>
+      <text value="owner"/>
+    </code>
+    <valueCodeableConcept>
+      <coding>
+        <system value="http://example.org/fhir/CodeSystem/group-example-owner"/>
+        <code value="john-smith"/>
+        <display value="John Smith"/>
+      </coding>
+      <text value="John Smith"/>
+    </valueCodeableConcept>
+    <exclude value="false"/>
+  </characteristic>
+</Group>
