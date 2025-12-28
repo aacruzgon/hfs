@@ -837,15 +837,6 @@ impl<R: BufRead> XmlDeserializer<R> {
     }
 }
 
-/// Buffered extension data for field/_field pattern
-#[derive(Clone)]
-struct BufferedExtension {
-    field_name: String,
-    has_id: bool,
-    id_value: Option<String>,
-    event: Event<'static>,
-}
-
 /// Collected occurrence with element stack context
 #[derive(Clone)]
 struct CollectedOccurrence {
@@ -864,10 +855,6 @@ struct ElementMapAccess<'a, R: BufRead> {
     emitted_resource_type: bool,
     /// Whether the next value should be the resourceType value
     emit_resource_type_value: bool,
-    /// Buffered extension for _field emission
-    buffered_extension: Option<BufferedExtension>,
-    /// Whether we're emitting the extension field value
-    emitting_extension_value: bool,
     pending_field_name: Option<String>,
 }
 
@@ -887,35 +874,8 @@ impl<'a, R: BufRead> ElementMapAccess<'a, R> {
             pushed_element,
             emitted_resource_type: false,
             emit_resource_type_value: false,
-            buffered_extension: None,
-            emitting_extension_value: false,
             pending_field_name: None,
         }
-    }
-
-    /// Check if an element has value and/or id attributes
-    fn check_attributes(
-        &self,
-        e: &quick_xml::events::BytesStart,
-    ) -> Result<(bool, bool, Option<String>)> {
-        let mut has_value = false;
-        let mut has_id = false;
-        let mut id_value = None;
-
-        for attr in e.attributes() {
-            let attr =
-                attr.map_err(|e| SerdeError::Custom(format!("Failed to parse attribute: {}", e)))?;
-            match attr.key.as_ref() {
-                b"value" => has_value = true,
-                b"id" => {
-                    has_id = true;
-                    id_value = Some(String::from_utf8_lossy(&attr.value).to_string());
-                }
-                _ => {}
-            }
-        }
-
-        Ok((has_value, has_id, id_value))
     }
 
     fn collect_field_occurrences(
@@ -936,7 +896,10 @@ impl<'a, R: BufRead> ElementMapAccess<'a, R> {
             }
             let element_stack = self.de.element_stack.clone();
             let events = self.collect_single_occurrence(field_name)?;
-            occurrences.push_back(CollectedOccurrence { events, element_stack });
+            occurrences.push_back(CollectedOccurrence {
+                events,
+                element_stack,
+            });
         }
         Ok(occurrences)
     }
@@ -1009,16 +972,64 @@ impl<'a, R: BufRead> ElementMapAccess<'a, R> {
         &mut self,
         field_name: &str,
         occurrence: CollectedOccurrence,
+        force_value_object: bool,
     ) -> Result<JsonValue> {
-        self.de
-            .pending_element_name
-            .replace(field_name.to_string());
+        self.de.pending_element_name.replace(field_name.to_string());
         self.de.current_element_name = field_name.to_string();
         let saved_stack = std::mem::replace(&mut self.de.element_stack, occurrence.element_stack);
-        replay_events(self.de, occurrence.events);
-        let value =
-            JsonValue::deserialize(&mut *self.de).map_err(|err| SerdeError::Custom(err.to_string()))?;
+        replay_events(self.de, occurrence.events.clone());
+        let mut value = JsonValue::deserialize(&mut *self.de)
+            .map_err(|err| SerdeError::Custom(err.to_string()))?;
         self.de.element_stack = saved_stack;
+        if force_value_object {
+            if let Some(first_event) = occurrence.events.first() {
+                let mut value_attr: Option<JsonValue> = None;
+                let mut id_attr: Option<String> = None;
+                let mut attrs_iter = None;
+                match first_event {
+                    Event::Start(e) => attrs_iter = Some(e.attributes()),
+                    Event::Empty(e) => attrs_iter = Some(e.attributes()),
+                    _ => {}
+                }
+                if let Some(iter) = attrs_iter {
+                    for attr in iter {
+                        let attr = attr.map_err(|e| {
+                            SerdeError::Custom(format!("Failed to parse attribute: {}", e))
+                        })?;
+                        match attr.key.as_ref() {
+                            b"value" => {
+                                let attr_str = String::from_utf8_lossy(&attr.value).to_string();
+                                value_attr = Some(JsonValue::String(attr_str));
+                            }
+                            b"id" => {
+                                id_attr = Some(String::from_utf8_lossy(&attr.value).to_string());
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+
+                if value_attr.is_some() || id_attr.is_some() {
+                    let mut obj = match value {
+                        JsonValue::Object(map) => map,
+                        JsonValue::Null => serde_json::Map::new(),
+                        other => {
+                            let mut map = serde_json::Map::new();
+                            map.insert("value".to_string(), other);
+                            map
+                        }
+                    };
+
+                    if let Some(val) = value_attr {
+                        obj.insert("value".to_string(), val);
+                    }
+                    if let Some(id) = id_attr {
+                        obj.insert("id".to_string(), JsonValue::String(id));
+                    }
+                    value = JsonValue::Object(obj);
+                }
+            }
+        }
         Ok(value)
     }
 }
@@ -1049,62 +1060,19 @@ impl<'de, 'a, R: BufRead + 'a> de::MapAccess<'de> for ElementMapAccess<'a, R> {
             }
         }
 
-        // Check if we have a buffered extension to emit
-        if let Some(ref ext) = self.buffered_extension {
-            let field_name = format!("_{}", ext.field_name);
-            self.de.current_element_name = field_name.clone();
-            self.emitting_extension_value = true;
-            self.pending_field_name = Some(field_name.clone());
-            return seed.deserialize(field_name.into_deserializer()).map(Some);
-        }
-
         // Read next element
         loop {
             let event = self.de.next_event()?;
             match event {
                 Event::Start(e) => {
-                    // Check for field/_field pattern (element with value + extensions)
                     let name = String::from_utf8_lossy(e.name().as_ref()).to_string();
-                    let (has_value, has_id, id_value) = self.check_attributes(&e)?;
-
-                    if has_value && has_id {
-                        // This is a primitive with extension - emit field first, buffer _field
-                        self.de.current_element_name = name.clone();
-                        self.buffered_extension = Some(BufferedExtension {
-                            field_name: name.clone(),
-                            has_id,
-                            id_value,
-                            event: Event::Start(e),
-                        });
-                        self.pending_field_name = Some(name.clone());
-                        return seed.deserialize(name.into_deserializer()).map(Some);
-                    }
-
-                    // Normal element
                     self.de.current_element_name = name.clone();
                     self.de.push_front_event(Event::Start(e));
                     self.pending_field_name = Some(name.clone());
                     return seed.deserialize(name.into_deserializer()).map(Some);
                 }
                 Event::Empty(e) => {
-                    // Check for field/_field pattern
                     let name = String::from_utf8_lossy(e.name().as_ref()).to_string();
-                    let (has_value, has_id, id_value) = self.check_attributes(&e)?;
-
-                    if has_value && has_id {
-                        // This is a primitive with extension - emit field first, buffer _field
-                        self.de.current_element_name = name.clone();
-                        self.buffered_extension = Some(BufferedExtension {
-                            field_name: name.clone(),
-                            has_id,
-                            id_value,
-                            event: Event::Empty(e),
-                        });
-                        self.pending_field_name = Some(name.clone());
-                        return seed.deserialize(name.into_deserializer()).map(Some);
-                    }
-
-                    // Normal element
                     self.de.current_element_name = name.clone();
                     self.de.push_front_event(Event::Empty(e));
                     self.pending_field_name = Some(name.clone());
@@ -1134,24 +1102,6 @@ impl<'de, 'a, R: BufRead + 'a> de::MapAccess<'de> for ElementMapAccess<'a, R> {
             return seed.deserialize(de::value::StrDeserializer::<SerdeError>::new(&name));
         }
 
-        // Special case: extension value (for _field)
-        if self.emitting_extension_value {
-            self.emitting_extension_value = false;
-            let ext = self.buffered_extension.take().unwrap();
-            // Create a deserializer that provides extension fields (id, extension, etc.)
-            let deserializer = ExtensionDeserializer::new(ext);
-            return seed.deserialize(deserializer);
-        }
-
-        // Special case: reading primitive value when we have buffered extension
-        if let Some(ref ext) = self.buffered_extension {
-            // Put the event back and read the value attribute
-            self.de.push_front_event(ext.event.clone());
-            if self.pending_field_name.is_none() {
-                self.pending_field_name = Some(ext.field_name.clone());
-            }
-        }
-
         let field_name = self
             .pending_field_name
             .take()
@@ -1168,13 +1118,19 @@ impl<'de, 'a, R: BufRead + 'a> de::MapAccess<'de> for ElementMapAccess<'a, R> {
             || seed_type.contains("deserialize_single_or_vec<")
             || seed_type.ends_with("deserialize_single_or_vec")
             || seed_type.contains("SingleOrVecHelper");
-        let needs_json_value =
-            force_single_or_vec || seed_type.contains("serde::__private::de::content");
+        let force_value_object = seed_type.contains("PrimitiveOrElementHelper");
+        let needs_json_value = force_single_or_vec
+            || seed_type.contains("serde::__private::de::content")
+            || force_value_object;
 
         if needs_json_value {
             let mut values = Vec::new();
             for occurrence in occurrences {
-                let value = self.deserialize_occurrence_to_json(&field_name, occurrence)?;
+                let value = self.deserialize_occurrence_to_json(
+                    &field_name,
+                    occurrence,
+                    force_value_object,
+                )?;
                 values.push(value);
             }
             let json_value = if values.len() == 1 {
@@ -1187,7 +1143,8 @@ impl<'de, 'a, R: BufRead + 'a> de::MapAccess<'de> for ElementMapAccess<'a, R> {
                 .map_err(|err| SerdeError::Custom(err.to_string()));
         }
 
-        let field_deserializer = FieldValueDeserializer::new(self.de, field_name.clone(), occurrences);
+        let field_deserializer =
+            FieldValueDeserializer::new(self.de, field_name.clone(), occurrences);
         match seed.deserialize(field_deserializer) {
             Ok(value) => Ok(value),
             Err(err) => Err(SerdeError::Custom(format!("field {}: {}", field_name, err))),
@@ -1252,7 +1209,8 @@ impl<'de, 'a, R: BufRead> de::Deserializer<'de> for FieldValueDeserializer<'a, R
                 .pending_element_name
                 .replace(self.field_name.clone());
             self.de.current_element_name = self.field_name.clone();
-            let saved_stack = std::mem::replace(&mut self.de.element_stack, occurrence.element_stack);
+            let saved_stack =
+                std::mem::replace(&mut self.de.element_stack, occurrence.element_stack);
             replay_events(self.de, occurrence.events);
             let result = self.de.deserialize_any(visitor);
             self.de.element_stack = saved_stack;
@@ -1404,134 +1362,6 @@ fn is_whitespace_text(text: &BytesText) -> Result<bool> {
 }
 
 /// Custom deserializer for extension data that handles Option
-struct ExtensionDeserializer {
-    extension: BufferedExtension,
-}
-
-impl ExtensionDeserializer {
-    fn new(extension: BufferedExtension) -> Self {
-        Self { extension }
-    }
-}
-
-impl<'de> de::Deserializer<'de> for ExtensionDeserializer {
-    type Error = SerdeError;
-
-    fn deserialize_any<V>(self, _visitor: V) -> Result<V::Value>
-    where
-        V: Visitor<'de>,
-    {
-        Err(SerdeError::Custom(
-            "Extension deserialize_any not supported".to_string(),
-        ))
-    }
-
-    fn deserialize_option<V>(self, visitor: V) -> Result<V::Value>
-    where
-        V: Visitor<'de>,
-    {
-        // Always Some for extensions
-        visitor.visit_some(self)
-    }
-
-    fn deserialize_struct<V>(
-        self,
-        _name: &'static str,
-        _fields: &'static [&'static str],
-        visitor: V,
-    ) -> Result<V::Value>
-    where
-        V: Visitor<'de>,
-    {
-        visitor.visit_map(ExtensionMapAccess::new(self.extension))
-    }
-
-    serde::forward_to_deserialize_any! {
-        bool i8 i16 i32 i64 i128 u8 u16 u32 u64 u128 f32 f64 char str string
-        bytes byte_buf unit unit_struct newtype_struct seq tuple
-        tuple_struct map enum identifier ignored_any
-    }
-}
-
-/// MapAccess for extension fields (_field pattern)
-struct ExtensionMapAccess {
-    extension: BufferedExtension,
-    emitted_id: bool,
-}
-
-impl ExtensionMapAccess {
-    fn new(extension: BufferedExtension) -> Self {
-        Self {
-            extension,
-            emitted_id: false,
-        }
-    }
-}
-
-impl<'de> de::MapAccess<'de> for ExtensionMapAccess {
-    type Error = SerdeError;
-
-    fn next_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>>
-    where
-        K: de::DeserializeSeed<'de>,
-    {
-        if !self.emitted_id && self.extension.has_id {
-            self.emitted_id = true;
-            return seed
-                .deserialize(de::value::StrDeserializer::<SerdeError>::new("id"))
-                .map(Some);
-        }
-
-        Ok(None)
-    }
-
-    fn next_value_seed<V>(&mut self, seed: V) -> Result<V::Value>
-    where
-        V: de::DeserializeSeed<'de>,
-    {
-        if self.emitted_id {
-            let id = self.extension.id_value.as_ref().unwrap().clone();
-            // Create a deserializer for Option<String>
-            let opt_deser = OptionStringDeserializer { value: Some(id) };
-            return seed.deserialize(opt_deser);
-        }
-
-        Err(SerdeError::Custom("Unexpected value call".to_string()))
-    }
-}
-
-/// Simple deserializer for Option<String>
-struct OptionStringDeserializer {
-    value: Option<String>,
-}
-
-impl<'de> de::Deserializer<'de> for OptionStringDeserializer {
-    type Error = SerdeError;
-
-    fn deserialize_any<V>(self, visitor: V) -> Result<V::Value>
-    where
-        V: Visitor<'de>,
-    {
-        self.deserialize_option(visitor)
-    }
-
-    fn deserialize_option<V>(self, visitor: V) -> Result<V::Value>
-    where
-        V: Visitor<'de>,
-    {
-        match self.value {
-            Some(s) => visitor.visit_some(s.into_deserializer()),
-            None => visitor.visit_none(),
-        }
-    }
-
-    serde::forward_to_deserialize_any! {
-        bool i8 i16 i32 i64 i128 u8 u16 u32 u64 u128 f32 f64 char str string
-        bytes byte_buf unit unit_struct newtype_struct seq tuple
-        tuple_struct map struct enum identifier ignored_any
-    }
-}
-
 /// SeqAccess implementation for deserializing repeated XML elements as arrays
 struct ElementSeqAccess<'a, R: BufRead> {
     de: &'a mut XmlDeserializer<R>,
@@ -1616,7 +1446,8 @@ impl<'de, 'a, R: BufRead> de::SeqAccess<'de> for FieldSeqAccess<'a, R> {
                 .pending_element_name
                 .replace(self.field_name.clone());
             self.de.current_element_name = self.field_name.clone();
-            let saved_stack = std::mem::replace(&mut self.de.element_stack, occurrence.element_stack.clone());
+            let saved_stack =
+                std::mem::replace(&mut self.de.element_stack, occurrence.element_stack.clone());
             replay_events(self.de, occurrence.events);
             let result = seed.deserialize(&mut *self.de).map(Some);
             self.de.element_stack = saved_stack;
