@@ -41,6 +41,8 @@
 //! let precise = PreciseDecimal::from(Decimal::new(12340, 3)); // 12.340
 //! ```
 
+mod serde_helpers;
+
 use chrono::{DateTime as ChronoDateTime, NaiveDate, NaiveTime, Utc};
 use helios_fhirpath_support::{EvaluationResult, IntoEvaluationResult, TypeInfoResult};
 use rust_decimal::Decimal;

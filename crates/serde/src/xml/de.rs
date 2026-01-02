@@ -851,6 +851,33 @@ struct CollectedOccurrence {
     element_stack: Vec<String>,
 }
 
+fn occurrence_has_element_metadata(occurrence: &CollectedOccurrence) -> bool {
+    let mut has_id_attr = false;
+
+    if let Some(first_event) = occurrence.events.first() {
+        let mut attrs_iter = None;
+        match first_event {
+            Event::Start(e) => attrs_iter = Some(e.attributes()),
+            Event::Empty(e) => attrs_iter = Some(e.attributes()),
+            _ => {}
+        }
+        if let Some(iter) = attrs_iter {
+            for attr in iter.flatten() {
+                if attr.key.as_ref() == b"id" {
+                    has_id_attr = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    has_id_attr
+        || occurrence
+            .events
+            .iter()
+            .any(|event| matches!(event, Event::Start(e) if e.name().as_ref() == b"extension"))
+}
+
 /// MapAccess implementation for deserializing XML elements as struct fields
 struct ElementMapAccess<'a, R: BufRead> {
     de: &'a mut XmlDeserializer<R>,
@@ -984,7 +1011,6 @@ impl<'a, R: BufRead> ElementMapAccess<'a, R> {
         &mut self,
         field_name: &str,
         occurrence: CollectedOccurrence,
-        force_value_object: bool,
     ) -> Result<JsonValue> {
         self.de.pending_element_name.replace(field_name.to_string());
         self.de.current_element_name = field_name.to_string();
@@ -1029,26 +1055,31 @@ impl<'a, R: BufRead> ElementMapAccess<'a, R> {
             }
         }
 
-        if force_value_object || id_attr.is_some() || has_extension_child {
-            if value_attr.is_some() || id_attr.is_some() || force_value_object {
-                let mut obj = match value {
-                    JsonValue::Object(map) => map,
-                    JsonValue::Null => serde_json::Map::new(),
-                    other => {
-                        let mut map = serde_json::Map::new();
-                        map.insert("value".to_string(), other);
-                        map
-                    }
-                };
+        if id_attr.is_some() || has_extension_child {
+            let mut obj = match value {
+                JsonValue::Object(map) => map,
+                JsonValue::Null => serde_json::Map::new(),
+                other => {
+                    let mut map = serde_json::Map::new();
+                    map.insert("value".to_string(), other);
+                    map
+                }
+            };
 
-                if let Some(val) = value_attr {
-                    obj.insert("value".to_string(), val);
-                }
-                if let Some(id) = id_attr {
-                    obj.insert("id".to_string(), JsonValue::String(id));
-                }
-                value = JsonValue::Object(obj);
+            if let Some(val) = value_attr {
+                obj.insert("value".to_string(), val);
             }
+            if let Some(id) = id_attr {
+                obj.insert("id".to_string(), JsonValue::String(id));
+            }
+            if let Some(ext_value) = obj.get_mut("extension") {
+                if !ext_value.is_array() && !ext_value.is_null() {
+                    let existing = ext_value.take();
+                    *ext_value = JsonValue::Array(vec![existing]);
+                }
+            }
+
+            value = JsonValue::Object(obj);
         }
         Ok(value)
     }
@@ -1124,41 +1155,33 @@ impl<'de, 'a, R: BufRead + 'a> de::MapAccess<'de> for ElementMapAccess<'a, R> {
             .pending_field_name
             .take()
             .unwrap_or_else(|| self.de.current_element_name.clone());
-        let occurrences = self.collect_field_occurrences(&field_name)?;
+        let mut occurrences = self.collect_field_occurrences(&field_name)?;
         if occurrences.is_empty() {
             return Err(SerdeError::Custom(format!(
                 "field {} missing XML data",
                 field_name
             )));
         }
-        let seed_type = std::any::type_name::<V>();
-        let force_single_or_vec = seed_type.contains("deserialize_single_or_vec_option")
-            || seed_type.contains("deserialize_single_or_vec<")
-            || seed_type.ends_with("deserialize_single_or_vec")
-            || seed_type.contains("SingleOrVecHelper");
-        let force_value_object = seed_type.contains("PrimitiveOrElementHelper");
-        let needs_json_value = force_single_or_vec
-            || seed_type.contains("serde::__private::de::content")
-            || force_value_object;
 
-        if needs_json_value {
-            let mut values = Vec::new();
-            for occurrence in occurrences {
-                let value = self.deserialize_occurrence_to_json(
-                    &field_name,
-                    occurrence,
-                    force_value_object,
-                )?;
+        if occurrences
+            .iter()
+            .any(|occurrence| occurrence_has_element_metadata(occurrence))
+        {
+            let mut values = Vec::with_capacity(occurrences.len());
+            while let Some(occurrence) = occurrences.pop_front() {
+                let value = self
+                    .deserialize_occurrence_to_json(&field_name, occurrence)
+                    .map_err(|err| SerdeError::Custom(format!("field {}: {}", field_name, err)))?;
                 values.push(value);
             }
-            let json_value = if values.len() == 1 {
-                values.into_iter().next().unwrap()
-            } else {
+            let json_value = if values.len() > 1 {
                 JsonValue::Array(values)
+            } else {
+                values.into_iter().next().unwrap()
             };
             return seed
                 .deserialize(json_value.into_deserializer())
-                .map_err(|err| SerdeError::Custom(err.to_string()));
+                .map_err(|err| SerdeError::Custom(format!("field {}: {}", field_name, err)));
         }
 
         let field_deserializer =

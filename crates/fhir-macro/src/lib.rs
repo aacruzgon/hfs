@@ -2008,8 +2008,10 @@ fn generate_deserialize_impl(data: &Data, name: &Ident) -> proc_macro2::TokenStr
 
     let mut temp_struct_attributes = Vec::new();
     let mut constructor_attributes = Vec::new();
-    let single_or_vec_ident = format_ident!("SingleOrVecHelper{}", name);
-    let primitive_or_element_ident = format_ident!("PrimitiveOrElementHelper{}", name);
+    let single_or_vec_ident: proc_macro2::TokenStream =
+        quote! { crate::serde_helpers::SingleOrVec };
+    let primitive_or_element_ident: proc_macro2::TokenStream =
+        quote! { crate::serde_helpers::PrimitiveOrElement };
     let convert_fn_ident = format_ident!(
         "convert_xml_primitive_for_{}",
         name.to_string().to_snake_case()
@@ -2810,54 +2812,7 @@ fn generate_deserialize_impl(data: &Data, name: &Ident) -> proc_macro2::TokenStr
         }
     };
 
-    let inline_helper_defs = quote! {
-        #[derive(Clone, Debug, PartialEq, serde::Deserialize)]
-        #[serde(untagged)]
-        enum #single_or_vec_ident<T> {
-            Vec(Vec<T>),
-            Single(T),
-        }
-
-        impl<T> #single_or_vec_ident<T> {
-            fn into_vec(self) -> Vec<T> {
-                match self {
-                    #single_or_vec_ident::Single(value) => vec![value],
-                    #single_or_vec_ident::Vec(values) => values,
-                }
-            }
-        }
-
-        impl<T> ::core::default::Default for #single_or_vec_ident<T> {
-            fn default() -> Self {
-                #single_or_vec_ident::Vec(Vec::new())
-            }
-        }
-
-        #[derive(Clone, Debug, PartialEq)]
-        enum #primitive_or_element_ident<T> {
-            Primitive(serde_json::Value),
-            Element(T),
-        }
-
-        impl<'de, T> serde::Deserialize<'de> for #primitive_or_element_ident<T>
-        where
-            T: serde::Deserialize<'de>,
-        {
-            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-            where
-                D: serde::Deserializer<'de>,
-            {
-                let value = serde_json::Value::deserialize(deserializer)?;
-                if value.is_object() {
-                    let element = T::deserialize(value)
-                        .map_err(serde::de::Error::custom)?;
-                    Ok(#primitive_or_element_ident::Element(element))
-                } else {
-                    Ok(#primitive_or_element_ident::Primitive(value))
-                }
-            }
-        }
-
+    let convert_helper_fn = quote! {
         fn #convert_fn_ident<T>(
             value: serde_json::Value,
         ) -> Result<T, serde::de::value::Error>
@@ -2897,7 +2852,7 @@ fn generate_deserialize_impl(data: &Data, name: &Ident) -> proc_macro2::TokenStr
     };
 
     quote! {
-        #inline_helper_defs
+        #convert_helper_fn
         // Define the helper struct at the top level of the deserialize function
         #id_extension_helper_def
 

@@ -307,18 +307,13 @@ fn json_skip_list(version: &str) -> &'static [(&'static str, &'static str)] {
 }
 
 fn xml_skip_list(version: &str) -> &'static [(&'static str, &'static str)] {
-    const QUESTIONNAIRE_RESPONSE_AUTHOR: (&str, &str) = (
-        "questionnaireresponse-example-f201-lifelines(f201).xml",
-        "QuestionnaireResponse.author in this fixture serializes a complex extension rather than a string primitive, which the XML primitive parser does not yet support",
-    );
     const TESTSCRIPT_HISTORY: (&str, &str) = (
         "testscript-example-history(testscript-example-history).xml",
         "TestScript.profile contains extensions that require deserialize_any for Extension contents, which the XML parser does not implement yet",
     );
 
-    const R5_XML_SKIPS: &[(&str, &str)] = &[QUESTIONNAIRE_RESPONSE_AUTHOR, TESTSCRIPT_HISTORY];
+    const R5_XML_SKIPS: &[(&str, &str)] = &[TESTSCRIPT_HISTORY];
     const R6_XML_SKIPS: &[(&str, &str)] = &[
-        QUESTIONNAIRE_RESPONSE_AUTHOR,
         TESTSCRIPT_HISTORY,
         (
             "observationdefinition-example-ck-panel(example-ck-panel).xml",
