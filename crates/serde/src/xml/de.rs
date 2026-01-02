@@ -78,6 +78,8 @@ struct XmlDeserializer<R: BufRead> {
     current_element_name: String,
     /// Pending container element name for resourceType injection
     pending_element_name: Option<String>,
+    /// Whether the pending element represents a FHIR resource (needs resourceType key)
+    pending_is_resource: bool,
     /// Stack of element names representing the current XML path
     element_stack: Vec<String>,
 }
@@ -90,6 +92,7 @@ impl<R: BufRead> XmlDeserializer<R> {
             buffered_events: VecDeque::new(),
             current_element_name: String::new(),
             pending_element_name: None,
+            pending_is_resource: false,
             element_stack: Vec::new(),
         }
     }
@@ -190,6 +193,7 @@ impl<R: BufRead> XmlDeserializer<R> {
             let resource_name = String::from_utf8_lossy(start.name().as_ref()).to_string();
             self.current_element_name = resource_name.clone();
             self.pending_element_name = Some(resource_name);
+            self.pending_is_resource = true;
             // Consume the resource start event so standard map logic can run
             self.next_event()?;
             let value = <&mut Self as de::Deserializer<'de>>::deserialize_map(self, visitor)?;
@@ -334,6 +338,7 @@ impl<'de, 'a, R: BufRead> de::Deserializer<'de> for &'a mut XmlDeserializer<R> {
                         // Consume the empty event we just inspected
                         self.next_event()?;
                         self.pending_element_name = Some(element_name);
+                        self.pending_is_resource = self.element_stack.is_empty();
                         // Push the synthetic end event so map access knows when to stop
                         self.push_front_event(end_event);
                         return self.deserialize_map(visitor);
@@ -350,6 +355,7 @@ impl<'de, 'a, R: BufRead> de::Deserializer<'de> for &'a mut XmlDeserializer<R> {
                             return self.deserialize_wrapped_resource(visitor, &element_name);
                         }
                         self.pending_element_name = Some(element_name);
+                        self.pending_is_resource = self.element_stack.is_empty();
                         return self.deserialize_map(visitor);
                     }
                 }
@@ -656,6 +662,7 @@ impl<'de, 'a, R: BufRead> de::Deserializer<'de> for &'a mut XmlDeserializer<R> {
                     // Store the resource type as a field
                     let element_name = String::from_utf8_lossy(e.name().as_ref()).to_string();
                     self.pending_element_name = Some(element_name);
+                    self.pending_is_resource = self.element_stack.is_empty();
                     // Pass control to map access to read fields
                     return visitor.visit_map(ElementMapAccess::new(self));
                 }
@@ -851,6 +858,8 @@ struct ElementMapAccess<'a, R: BufRead> {
     element_name: Option<String>,
     /// Whether this map pushed a new element onto the stack
     pushed_element: bool,
+    /// Whether this element should emit a synthetic resourceType field
+    should_emit_resource_type: bool,
     /// Whether we've emitted resourceType yet
     emitted_resource_type: bool,
     /// Whether the next value should be the resourceType value
@@ -861,6 +870,8 @@ struct ElementMapAccess<'a, R: BufRead> {
 impl<'a, R: BufRead> ElementMapAccess<'a, R> {
     fn new(de: &'a mut XmlDeserializer<R>) -> Self {
         let element_name = de.pending_element_name.take();
+        let should_emit_resource_type =
+            element_name.is_some() && std::mem::take(&mut de.pending_is_resource);
         let pushed_element = match &element_name {
             Some(name) => {
                 de.element_stack.push(name.clone());
@@ -872,6 +883,7 @@ impl<'a, R: BufRead> ElementMapAccess<'a, R> {
             de,
             element_name,
             pushed_element,
+            should_emit_resource_type,
             emitted_resource_type: false,
             emit_resource_type_value: false,
             pending_field_name: None,
@@ -981,53 +993,61 @@ impl<'a, R: BufRead> ElementMapAccess<'a, R> {
         let mut value = JsonValue::deserialize(&mut *self.de)
             .map_err(|err| SerdeError::Custom(err.to_string()))?;
         self.de.element_stack = saved_stack;
-        if force_value_object {
-            if let Some(first_event) = occurrence.events.first() {
-                let mut value_attr: Option<JsonValue> = None;
-                let mut id_attr: Option<String> = None;
-                let mut attrs_iter = None;
-                match first_event {
-                    Event::Start(e) => attrs_iter = Some(e.attributes()),
-                    Event::Empty(e) => attrs_iter = Some(e.attributes()),
-                    _ => {}
-                }
-                if let Some(iter) = attrs_iter {
-                    for attr in iter {
-                        let attr = attr.map_err(|e| {
-                            SerdeError::Custom(format!("Failed to parse attribute: {}", e))
-                        })?;
-                        match attr.key.as_ref() {
-                            b"value" => {
-                                let attr_str = String::from_utf8_lossy(&attr.value).to_string();
-                                value_attr = Some(JsonValue::String(attr_str));
-                            }
-                            b"id" => {
-                                id_attr = Some(String::from_utf8_lossy(&attr.value).to_string());
-                            }
-                            _ => {}
-                        }
-                    }
-                }
 
-                if value_attr.is_some() || id_attr.is_some() {
-                    let mut obj = match value {
-                        JsonValue::Object(map) => map,
-                        JsonValue::Null => serde_json::Map::new(),
-                        other => {
-                            let mut map = serde_json::Map::new();
-                            map.insert("value".to_string(), other);
-                            map
-                        }
-                    };
+        let mut value_attr: Option<JsonValue> = None;
+        let mut id_attr: Option<String> = None;
+        let mut has_extension_child = false;
 
-                    if let Some(val) = value_attr {
-                        obj.insert("value".to_string(), val);
+        if let Some(first_event) = occurrence.events.first() {
+            let mut attrs_iter = None;
+            match first_event {
+                Event::Start(e) => attrs_iter = Some(e.attributes()),
+                Event::Empty(e) => attrs_iter = Some(e.attributes()),
+                _ => {}
+            }
+            if let Some(iter) = attrs_iter {
+                for attr in iter {
+                    let attr = attr.map_err(|e| {
+                        SerdeError::Custom(format!("Failed to parse attribute: {}", e))
+                    })?;
+                    match attr.key.as_ref() {
+                        b"value" => {
+                            let attr_str = String::from_utf8_lossy(&attr.value).to_string();
+                            value_attr = Some(JsonValue::String(attr_str));
+                        }
+                        b"id" => {
+                            id_attr = Some(String::from_utf8_lossy(&attr.value).to_string());
+                        }
+                        _ => {}
                     }
-                    if let Some(id) = id_attr {
-                        obj.insert("id".to_string(), JsonValue::String(id));
-                    }
-                    value = JsonValue::Object(obj);
                 }
+            }
+            if !has_extension_child {
+                has_extension_child = occurrence.events.iter().any(
+                    |event| matches!(event, Event::Start(e) if e.name().as_ref() == b"extension"),
+                );
+            }
+        }
+
+        if force_value_object || id_attr.is_some() || has_extension_child {
+            if value_attr.is_some() || id_attr.is_some() || force_value_object {
+                let mut obj = match value {
+                    JsonValue::Object(map) => map,
+                    JsonValue::Null => serde_json::Map::new(),
+                    other => {
+                        let mut map = serde_json::Map::new();
+                        map.insert("value".to_string(), other);
+                        map
+                    }
+                };
+
+                if let Some(val) = value_attr {
+                    obj.insert("value".to_string(), val);
+                }
+                if let Some(id) = id_attr {
+                    obj.insert("id".to_string(), JsonValue::String(id));
+                }
+                value = JsonValue::Object(obj);
             }
         }
         Ok(value)
@@ -1049,15 +1069,13 @@ impl<'de, 'a, R: BufRead + 'a> de::MapAccess<'de> for ElementMapAccess<'a, R> {
         K: de::DeserializeSeed<'de>,
     {
         // First, emit resourceType if we have an element name
-        if let Some(ref _name) = self.element_name {
-            if !self.emitted_resource_type {
-                self.emitted_resource_type = true;
-                self.emit_resource_type_value = true;
-                let key = "resourceType".to_string();
-                self.de.current_element_name = key.clone();
-                self.pending_field_name = Some(key.clone());
-                return seed.deserialize(key.into_deserializer()).map(Some);
-            }
+        if self.should_emit_resource_type && !self.emitted_resource_type {
+            self.emitted_resource_type = true;
+            self.emit_resource_type_value = true;
+            let key = "resourceType".to_string();
+            self.de.current_element_name = key.clone();
+            self.pending_field_name = Some(key.clone());
+            return seed.deserialize(key.into_deserializer()).map(Some);
         }
 
         // Read next element

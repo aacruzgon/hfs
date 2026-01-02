@@ -211,6 +211,23 @@ fn xml_examples_dir(version: &str) -> PathBuf {
     tests_data_root().join("xml").join(version)
 }
 
+fn should_skip_file(
+    filename: &str,
+    skip_entries: &[(&'static str, &'static str)],
+) -> Option<&'static str> {
+    for (pattern, reason) in skip_entries {
+        if pattern.ends_with('*') {
+            let prefix = &pattern[..pattern.len() - 1];
+            if filename.starts_with(prefix) {
+                return Some(*reason);
+            }
+        } else if filename == *pattern {
+            return Some(*reason);
+        }
+    }
+    None
+}
+
 fn json_skip_list(version: &str) -> &'static [(&'static str, &'static str)] {
     const R6_JSON_SKIPS: &[(&str, &str)] = &[
         (
@@ -294,41 +311,14 @@ fn xml_skip_list(version: &str) -> &'static [(&'static str, &'static str)] {
         "questionnaireresponse-example-f201-lifelines(f201).xml",
         "QuestionnaireResponse.author in this fixture serializes a complex extension rather than a string primitive, which the XML primitive parser does not yet support",
     );
-    const CONSENT_NOT_THIS: (&str, &str) = (
-        "consent-example-notThis(consent-example-notThis).xml",
-        "Consent.provision.actor choice uses repeating primitives with mixed extension content that the XML SingleOrVec helper cannot reconstruct yet",
-    );
-    const CONSENT_PKB: (&str, &str) = (
-        "consent-example-pkb(consent-example-pkb).xml",
-        "Consent provision clauses include repeating primitive arrays with embedded XHTML that currently deserialize as raw strings",
-    );
-    const CONSENT_NOT_ORG: (&str, &str) = (
-        "consent-example-notOrg(consent-example-notOrg).xml",
-        "Consent actor references for organizations mix primitives and extensions, tripping the XML SingleOrVec helper",
-    );
-    const CONSENT_NOT_AUTHOR: (&str, &str) = (
-        "consent-example-notAuthor(consent-example-notAuthor).xml",
-        "Consent.actor.from/role values interleave XHTML and repeated primitives not yet supported by the XML parser",
-    );
     const TESTSCRIPT_HISTORY: (&str, &str) = (
         "testscript-example-history(testscript-example-history).xml",
         "TestScript.profile contains extensions that require deserialize_any for Extension contents, which the XML parser does not implement yet",
     );
 
-    const R5_XML_SKIPS: &[(&str, &str)] = &[
-        QUESTIONNAIRE_RESPONSE_AUTHOR,
-        CONSENT_NOT_THIS,
-        CONSENT_PKB,
-        CONSENT_NOT_ORG,
-        CONSENT_NOT_AUTHOR,
-        TESTSCRIPT_HISTORY,
-    ];
+    const R5_XML_SKIPS: &[(&str, &str)] = &[QUESTIONNAIRE_RESPONSE_AUTHOR, TESTSCRIPT_HISTORY];
     const R6_XML_SKIPS: &[(&str, &str)] = &[
         QUESTIONNAIRE_RESPONSE_AUTHOR,
-        CONSENT_NOT_THIS,
-        CONSENT_PKB,
-        CONSENT_NOT_ORG,
-        CONSENT_NOT_AUTHOR,
         TESTSCRIPT_HISTORY,
         (
             "observationdefinition-example-ck-panel(example-ck-panel).xml",
@@ -371,7 +361,7 @@ fn test_json_examples_in_dir<R: DeserializeOwned + Serialize>(dir: &Path, fhir_v
             let filename = path.file_name().unwrap().to_string_lossy().to_string();
 
             // Check if this file should be skipped
-            if let Some((_, reason)) = skip_files.iter().find(|(name, _)| *name == filename) {
+            if let Some(reason) = should_skip_file(&filename, skip_files) {
                 println!("Skipping file: {} - Reason: {}", filename, reason);
                 continue;
             }
@@ -547,7 +537,7 @@ fn test_xml_examples_in_dir<R: DeserializeOwned + Serialize>(dir: &Path, fhir_ve
             }
 
             // Check if this file should be skipped
-            if let Some((_, reason)) = skip_files.iter().find(|(name, _)| *name == filename) {
+            if let Some(reason) = should_skip_file(&filename, skip_files) {
                 println!("Skipping file: {} - Reason: {}", filename, reason);
                 continue;
             }

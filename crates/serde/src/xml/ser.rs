@@ -2185,7 +2185,7 @@ fn extract_array_extension_data<T: ?Sized + Serialize>(
 
 /// Checks if a value is None.
 fn is_none_value<T: ?Sized + Serialize>(value: &T) -> Result<bool> {
-    struct NoneDetector(bool);
+    struct NoneDetector(bool, bool);
 
     impl<'a> ser::Serializer for &'a mut NoneDetector {
         type Ok = ();
@@ -2199,58 +2199,75 @@ fn is_none_value<T: ?Sized + Serialize>(value: &T) -> Result<bool> {
         type SerializeStructVariant = ser::Impossible<(), SerdeError>;
 
         fn serialize_bool(self, _v: bool) -> Result<()> {
+            self.0 = false;
             Ok(())
         }
         fn serialize_i8(self, _v: i8) -> Result<()> {
+            self.0 = false;
             Ok(())
         }
         fn serialize_i16(self, _v: i16) -> Result<()> {
+            self.0 = false;
             Ok(())
         }
         fn serialize_i32(self, _v: i32) -> Result<()> {
+            self.0 = false;
             Ok(())
         }
         fn serialize_i64(self, _v: i64) -> Result<()> {
+            self.0 = false;
             Ok(())
         }
         fn serialize_u8(self, _v: u8) -> Result<()> {
+            self.0 = false;
             Ok(())
         }
         fn serialize_u16(self, _v: u16) -> Result<()> {
+            self.0 = false;
             Ok(())
         }
         fn serialize_u32(self, _v: u32) -> Result<()> {
+            self.0 = false;
             Ok(())
         }
         fn serialize_u64(self, _v: u64) -> Result<()> {
+            self.0 = false;
             Ok(())
         }
         fn serialize_f32(self, _v: f32) -> Result<()> {
+            self.0 = false;
             Ok(())
         }
         fn serialize_f64(self, _v: f64) -> Result<()> {
+            self.0 = false;
             Ok(())
         }
         fn serialize_char(self, _v: char) -> Result<()> {
+            self.0 = false;
             Ok(())
         }
         fn serialize_str(self, _v: &str) -> Result<()> {
+            self.0 = false;
             Ok(())
         }
         fn serialize_bytes(self, _v: &[u8]) -> Result<()> {
+            self.0 = false;
             Ok(())
         }
         fn serialize_none(self) -> Result<()> {
             self.0 = true;
-            Err(SerdeError::Custom("None detected".to_string()))
+            Ok(())
         }
         fn serialize_some<T: ?Sized + Serialize>(self, _value: &T) -> Result<()> {
-            Err(SerdeError::Custom("Not none".to_string()))
+            self.0 = false;
+            Ok(())
         }
         fn serialize_unit(self) -> Result<()> {
+            self.0 = false;
             Ok(())
         }
         fn serialize_unit_struct(self, _name: &'static str) -> Result<()> {
+            self.0 = false;
             Ok(())
         }
         fn serialize_unit_variant(
@@ -2259,6 +2276,7 @@ fn is_none_value<T: ?Sized + Serialize>(value: &T) -> Result<bool> {
             _variant_index: u32,
             _variant: &'static str,
         ) -> Result<()> {
+            self.0 = false;
             Ok(())
         }
         fn serialize_newtype_struct<T: ?Sized + Serialize>(
@@ -2266,6 +2284,8 @@ fn is_none_value<T: ?Sized + Serialize>(value: &T) -> Result<bool> {
             _name: &'static str,
             _value: &T,
         ) -> Result<()> {
+            self.0 = false;
+            self.1 = true;
             Err(SerdeError::Custom("Not none".to_string()))
         }
         fn serialize_newtype_variant<T: ?Sized + Serialize>(
@@ -2275,12 +2295,18 @@ fn is_none_value<T: ?Sized + Serialize>(value: &T) -> Result<bool> {
             _variant: &'static str,
             _value: &T,
         ) -> Result<()> {
+            self.0 = false;
+            self.1 = true;
             Err(SerdeError::Custom("Not none".to_string()))
         }
         fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq> {
+            self.0 = false;
+            self.1 = true;
             Err(SerdeError::Custom("Not none".to_string()))
         }
         fn serialize_tuple(self, _len: usize) -> Result<Self::SerializeTuple> {
+            self.0 = false;
+            self.1 = true;
             Err(SerdeError::Custom("Not none".to_string()))
         }
         fn serialize_tuple_struct(
@@ -2288,6 +2314,8 @@ fn is_none_value<T: ?Sized + Serialize>(value: &T) -> Result<bool> {
             _name: &'static str,
             _len: usize,
         ) -> Result<Self::SerializeTupleStruct> {
+            self.0 = false;
+            self.1 = true;
             Err(SerdeError::Custom("Not none".to_string()))
         }
         fn serialize_tuple_variant(
@@ -2297,9 +2325,13 @@ fn is_none_value<T: ?Sized + Serialize>(value: &T) -> Result<bool> {
             _variant: &'static str,
             _len: usize,
         ) -> Result<Self::SerializeTupleVariant> {
+            self.0 = false;
+            self.1 = true;
             Err(SerdeError::Custom("Not none".to_string()))
         }
         fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap> {
+            self.0 = false;
+            self.1 = true;
             Err(SerdeError::Custom("Not none".to_string()))
         }
         fn serialize_struct(
@@ -2307,6 +2339,8 @@ fn is_none_value<T: ?Sized + Serialize>(value: &T) -> Result<bool> {
             _name: &'static str,
             _len: usize,
         ) -> Result<Self::SerializeStruct> {
+            self.0 = false;
+            self.1 = true;
             Err(SerdeError::Custom("Not none".to_string()))
         }
         fn serialize_struct_variant(
@@ -2316,22 +2350,23 @@ fn is_none_value<T: ?Sized + Serialize>(value: &T) -> Result<bool> {
             _variant: &'static str,
             _len: usize,
         ) -> Result<Self::SerializeStructVariant> {
+            self.0 = false;
+            self.1 = true;
             Err(SerdeError::Custom("Not none".to_string()))
         }
     }
 
-    let mut detector = NoneDetector(false);
+    let mut detector = NoneDetector(false, false);
     match value.serialize(&mut detector) {
-        Ok(()) => Ok(false),
-        Err(e) if e.to_string().contains("None detected") => Ok(true),
-        Err(e) if e.to_string().contains("Not none") => Ok(false),
+        Ok(()) => Ok(detector.0),
+        Err(e) if detector.1 => Ok(detector.0),
         Err(e) => Err(e),
     }
 }
 
 /// Checks if a value is an array/sequence.
 fn is_array_value<T: ?Sized + Serialize>(value: &T) -> Result<bool> {
-    struct ArrayDetector(bool);
+    struct ArrayDetector(bool, bool);
 
     impl<'a> ser::Serializer for &'a mut ArrayDetector {
         type Ok = ();
@@ -2345,57 +2380,75 @@ fn is_array_value<T: ?Sized + Serialize>(value: &T) -> Result<bool> {
         type SerializeStructVariant = ser::Impossible<(), SerdeError>;
 
         fn serialize_bool(self, _v: bool) -> Result<()> {
+            self.0 = false;
             Ok(())
         }
         fn serialize_i8(self, _v: i8) -> Result<()> {
+            self.0 = false;
             Ok(())
         }
         fn serialize_i16(self, _v: i16) -> Result<()> {
+            self.0 = false;
             Ok(())
         }
         fn serialize_i32(self, _v: i32) -> Result<()> {
+            self.0 = false;
             Ok(())
         }
         fn serialize_i64(self, _v: i64) -> Result<()> {
+            self.0 = false;
             Ok(())
         }
         fn serialize_u8(self, _v: u8) -> Result<()> {
+            self.0 = false;
             Ok(())
         }
         fn serialize_u16(self, _v: u16) -> Result<()> {
+            self.0 = false;
             Ok(())
         }
         fn serialize_u32(self, _v: u32) -> Result<()> {
+            self.0 = false;
             Ok(())
         }
         fn serialize_u64(self, _v: u64) -> Result<()> {
+            self.0 = false;
             Ok(())
         }
         fn serialize_f32(self, _v: f32) -> Result<()> {
+            self.0 = false;
             Ok(())
         }
         fn serialize_f64(self, _v: f64) -> Result<()> {
+            self.0 = false;
             Ok(())
         }
         fn serialize_char(self, _v: char) -> Result<()> {
+            self.0 = false;
             Ok(())
         }
         fn serialize_str(self, _v: &str) -> Result<()> {
+            self.0 = false;
             Ok(())
         }
         fn serialize_bytes(self, _v: &[u8]) -> Result<()> {
+            self.0 = false;
             Ok(())
         }
         fn serialize_none(self) -> Result<()> {
+            self.0 = false;
             Ok(())
         }
         fn serialize_some<T: ?Sized + Serialize>(self, value: &T) -> Result<()> {
+            self.0 = false;
             value.serialize(self)
         }
         fn serialize_unit(self) -> Result<()> {
+            self.0 = false;
             Ok(())
         }
         fn serialize_unit_struct(self, _name: &'static str) -> Result<()> {
+            self.0 = false;
             Ok(())
         }
         fn serialize_unit_variant(
@@ -2404,6 +2457,7 @@ fn is_array_value<T: ?Sized + Serialize>(value: &T) -> Result<bool> {
             _variant_index: u32,
             _variant: &'static str,
         ) -> Result<()> {
+            self.0 = false;
             Ok(())
         }
         fn serialize_newtype_struct<T: ?Sized + Serialize>(
@@ -2411,6 +2465,7 @@ fn is_array_value<T: ?Sized + Serialize>(value: &T) -> Result<bool> {
             _name: &'static str,
             value: &T,
         ) -> Result<()> {
+            self.0 = false;
             value.serialize(self)
         }
         fn serialize_newtype_variant<T: ?Sized + Serialize>(
@@ -2420,14 +2475,17 @@ fn is_array_value<T: ?Sized + Serialize>(value: &T) -> Result<bool> {
             _variant: &'static str,
             value: &T,
         ) -> Result<()> {
+            self.0 = false;
             value.serialize(self)
         }
         fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq> {
             self.0 = true;
+            self.1 = true;
             Err(SerdeError::Custom("Array detected".to_string()))
         }
         fn serialize_tuple(self, _len: usize) -> Result<Self::SerializeTuple> {
             self.0 = true;
+            self.1 = true;
             Err(SerdeError::Custom("Array detected".to_string()))
         }
         fn serialize_tuple_struct(
@@ -2436,6 +2494,7 @@ fn is_array_value<T: ?Sized + Serialize>(value: &T) -> Result<bool> {
             _len: usize,
         ) -> Result<Self::SerializeTupleStruct> {
             self.0 = true;
+            self.1 = true;
             Err(SerdeError::Custom("Array detected".to_string()))
         }
         fn serialize_tuple_variant(
@@ -2446,9 +2505,12 @@ fn is_array_value<T: ?Sized + Serialize>(value: &T) -> Result<bool> {
             _len: usize,
         ) -> Result<Self::SerializeTupleVariant> {
             self.0 = true;
+            self.1 = true;
             Err(SerdeError::Custom("Array detected".to_string()))
         }
         fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap> {
+            self.0 = false;
+            self.1 = true;
             Err(SerdeError::Custom("Not an array".to_string()))
         }
         fn serialize_struct(
@@ -2456,6 +2518,8 @@ fn is_array_value<T: ?Sized + Serialize>(value: &T) -> Result<bool> {
             _name: &'static str,
             _len: usize,
         ) -> Result<Self::SerializeStruct> {
+            self.0 = false;
+            self.1 = true;
             Err(SerdeError::Custom("Not an array".to_string()))
         }
         fn serialize_struct_variant(
@@ -2465,15 +2529,16 @@ fn is_array_value<T: ?Sized + Serialize>(value: &T) -> Result<bool> {
             _variant: &'static str,
             _len: usize,
         ) -> Result<Self::SerializeStructVariant> {
+            self.0 = false;
+            self.1 = true;
             Err(SerdeError::Custom("Not an array".to_string()))
         }
     }
 
-    let mut detector = ArrayDetector(false);
+    let mut detector = ArrayDetector(false, false);
     match value.serialize(&mut detector) {
-        Ok(()) => Ok(false),
-        Err(e) if e.to_string().contains("Array detected") => Ok(true),
-        Err(e) if e.to_string().contains("Not an array") => Ok(false),
+        Ok(()) => Ok(detector.0),
+        Err(e) if detector.1 => Ok(detector.0),
         Err(e) => Err(e),
     }
 }
@@ -2923,16 +2988,12 @@ impl<'a, W: Write> ser::SerializeMap for MapSerializer<'a, W> {
 
         // Special handling for resourceType field at root level
         if key == "resourceType" && !self.resource_element_open {
-            // Get the resource type value (should be a string)
             if let Some(resource_type) = try_serialize_as_primitive(value)? {
                 self.serializer.start_resource_element(&resource_type)?;
                 self.resource_element_open = true;
                 return Ok(());
-            } else {
-                return Err(SerdeError::Custom(
-                    "resourceType must be a string".to_string(),
-                ));
             }
+            // If the value isn't a primitive string, treat it as a regular field.
         }
 
         // Check if this is an extension field (starts with underscore)
