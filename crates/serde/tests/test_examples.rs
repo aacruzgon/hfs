@@ -306,40 +306,6 @@ fn json_skip_list(version: &str) -> &'static [(&'static str, &'static str)] {
     }
 }
 
-fn xml_skip_list(version: &str) -> &'static [(&'static str, &'static str)] {
-    const TESTSCRIPT_HISTORY: (&str, &str) = (
-        "testscript-example-history(testscript-example-history).xml",
-        "TestScript.profile contains extensions that require deserialize_any for Extension contents, which the XML parser does not implement yet",
-    );
-
-    const R5_XML_SKIPS: &[(&str, &str)] = &[TESTSCRIPT_HISTORY];
-    const R6_XML_SKIPS: &[(&str, &str)] = &[
-        TESTSCRIPT_HISTORY,
-        (
-            "observationdefinition-example-ck-panel(example-ck-panel).xml",
-            "ObservationDefinition.component in this R6 fixture embeds repeating primitives with extension wrappers that the XML parser cannot yet project into SingleOrVec helpers",
-        ),
-        (
-            "measure-EXM55-FHIR(measure-EXM55-FHIR).xml",
-            "R6 EXM55 Measure includes repeating primitive elements that serialize as raw strings, confusing the XML SingleOrVec helper",
-        ),
-        (
-            "devicedefinition-example(example).xml",
-            "DeviceDefinition.version nodes in this R6 fixture inline Extension objects where primitive strings are expected",
-        ),
-        (
-            "device-example-bpmonitor(device-example-bpmonitor).xml",
-            "Device.example `definition` primitive unexpectedly carries nested objects that our XML primitive parser can't coerce",
-        ),
-    ];
-
-    match version {
-        "R5" => R5_XML_SKIPS,
-        "R6" => R6_XML_SKIPS,
-        _ => &[],
-    }
-}
-
 fn test_json_examples_in_dir<R: DeserializeOwned + Serialize>(dir: &Path, fhir_version: &str) {
     if !dir.exists() {
         println!("Directory does not exist: {:?}", dir);
@@ -510,13 +476,11 @@ fn normalize_xml(xml: &str) -> Result<Vec<u8>, String> {
     Ok(writer.into_inner())
 }
 
-fn test_xml_examples_in_dir<R: DeserializeOwned + Serialize>(dir: &Path, fhir_version: &str) {
+fn test_xml_examples_in_dir<R: DeserializeOwned + Serialize>(dir: &Path, _fhir_version: &str) {
     if !dir.exists() {
         println!("Directory does not exist: {:?}", dir);
         return;
     }
-
-    let skip_files = xml_skip_list(fhir_version);
 
     for entry in fs::read_dir(dir).unwrap() {
         let entry = entry.unwrap();
@@ -528,12 +492,6 @@ fn test_xml_examples_in_dir<R: DeserializeOwned + Serialize>(dir: &Path, fhir_ve
             // Skip profile files (these are StructureDefinitions, not resource examples)
             if filename.contains(".profile.xml") {
                 println!("Skipping profile file: {}", filename);
-                continue;
-            }
-
-            // Check if this file should be skipped
-            if let Some(reason) = should_skip_file(&filename, skip_files) {
-                println!("Skipping file: {} - Reason: {}", filename, reason);
                 continue;
             }
 

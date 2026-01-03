@@ -1336,7 +1336,8 @@ fn extract_extension_value<T: ?Sized + Serialize>(
 ) -> Result<Option<ExtensionValue>> {
     // Try to extract as primitive first (string, number, boolean)
     let mut primitive_extractor = PrimitiveValueExtractor { value: None };
-    value.serialize(&mut primitive_extractor)?;
+    // Ignore errors from primitive extraction - complex types will fail here but that's expected
+    let _ = value.serialize(&mut primitive_extractor);
 
     if let Some(primitive_value) = primitive_extractor.value {
         // Primitive type - store as Primitive variant
