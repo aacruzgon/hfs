@@ -74,5 +74,7 @@ pub use json::{
     to_json_value, to_json_vec,
 };
 
-// XML re-exports will be added when implemented
-// pub use xml::{from_xml_str, from_xml_slice, to_xml_string, to_xml_vec};
+// Re-export XML functions at top level for convenience
+pub use xml::{
+    from_xml_reader, from_xml_slice, from_xml_str, to_xml_string, to_xml_vec, to_xml_writer,
+};
