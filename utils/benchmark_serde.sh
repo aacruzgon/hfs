@@ -202,17 +202,27 @@ run_benchmark() {
     local branch=$1
     local output_file=$2
     local worktree_path="$WORKTREE_DIR/$branch"
+    local current_branch=$(git branch --show-current)
+    local use_worktree=true
 
     echo "===============================================" | tee "$output_file"
     echo "Running benchmarks on branch: $branch" | tee -a "$output_file"
     echo "===============================================" | tee -a "$output_file"
     echo "" | tee -a "$output_file"
 
-    # Create worktree for this branch
-    echo "Creating worktree for branch $branch at $worktree_path..." | tee -a "$output_file"
-    rm -rf "$worktree_path"
-    mkdir -p "$WORKTREE_DIR"
-    git worktree add "$worktree_path" "$branch" 2>&1 | tee -a "$output_file"
+    # Check if we're already on the target branch
+    if [ "$branch" = "$current_branch" ]; then
+        echo "Already on branch $branch, running benchmark in current directory" | tee -a "$output_file"
+        echo "Working directory: $(pwd)" | tee -a "$output_file"
+        use_worktree=false
+        worktree_path="$ORIGINAL_DIR"
+    else
+        # Create worktree for this branch
+        echo "Creating worktree for branch $branch at $worktree_path..." | tee -a "$output_file"
+        rm -rf "$worktree_path"
+        mkdir -p "$WORKTREE_DIR"
+        git worktree add "$worktree_path" "$branch" 2>&1 | tee -a "$output_file"
+    fi
     echo "" | tee -a "$output_file"
 
     # Change to worktree directory
@@ -316,8 +326,10 @@ run_benchmark() {
     echo "Benchmark completed for branch: $branch" | tee -a "$output_file"
     echo "" | tee -a "$output_file"
 
-    # Return to original directory
-    cd - > /dev/null
+    # Return to original directory if we created a worktree
+    if [ "$use_worktree" = true ]; then
+        cd - > /dev/null
+    fi
 }
 
 # Function to extract timing information from results
