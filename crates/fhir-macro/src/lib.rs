@@ -759,14 +759,7 @@ fn generate_serialize_impl(data: &Data, name: &Ident) -> proc_macro2::TokenStrea
                                     }
                                     // Serialize the extension part if present
                                     if has_extension {
-                                        #[derive(serde::Serialize)]
-                                        struct IdAndExtensionHelper<'a> {
-                                            #[serde(skip_serializing_if = "Option::is_none")]
-                                            id: &'a Option<std::string::String>,
-                                            #[serde(skip_serializing_if = "Option::is_none")]
-                                            extension: &'a Option<Vec<Extension>>,
-                                        }
-                                        let extension_part = IdAndExtensionHelper {
+                                        let extension_part = helios_serde_support::IdAndExtensionHelper {
                                             id: &value.id,
                                             extension: &value.extension,
                                         };
@@ -1004,14 +997,7 @@ fn generate_serialize_impl(data: &Data, name: &Ident) -> proc_macro2::TokenStrea
                                             if element.id.is_some() || element.extension.is_some() {
                                                 has_extensions = true;
                                                 // Use helper struct for consistent serialization of id/extension
-                                                #[derive(serde::Serialize)]
-                                                struct IdAndExtensionHelper<'a> {
-                                                    #[serde(skip_serializing_if = "Option::is_none")]
-                                                    id: &'a Option<std::string::String>,
-                                                    #[serde(skip_serializing_if = "Option::is_none")]
-                                                    extension: &'a Option<Vec<Extension>>,
-                                                }
-                                                let extension_part = IdAndExtensionHelper {
+                                                let extension_part = helios_serde_support::IdAndExtensionHelper {
                                                     id: &element.id,
                                                     extension: &element.extension,
                                                 };
@@ -1054,14 +1040,7 @@ fn generate_serialize_impl(data: &Data, name: &Ident) -> proc_macro2::TokenStrea
                                             state.serialize_entry(&#effective_field_name_str, value)?;
                                         }
                                         if #extension_field_ident {
-                                            #[derive(serde::Serialize)]
-                                            struct IdAndExtensionHelper<'a> {
-                                                #[serde(skip_serializing_if = "Option::is_none")]
-                                                id: &'a Option<std::string::String>,
-                                                #[serde(skip_serializing_if = "Option::is_none")]
-                                                extension: &'a Option<Vec<Extension>>,
-                                            }
-                                            let extension_part = IdAndExtensionHelper {
+                                            let extension_part = helios_serde_support::IdAndExtensionHelper {
                                                 id: &field.id,
                                                 extension: &field.extension,
                                             };
@@ -1080,14 +1059,7 @@ fn generate_serialize_impl(data: &Data, name: &Ident) -> proc_macro2::TokenStrea
                                             state.serialize_field(&#effective_field_name_str, value)?;
                                         }
                                         if #extension_field_ident {
-                                            #[derive(serde::Serialize)]
-                                            struct IdAndExtensionHelper<'a> {
-                                                #[serde(skip_serializing_if = "Option::is_none")]
-                                                id: &'a Option<std::string::String>,
-                                                #[serde(skip_serializing_if = "Option::is_none")]
-                                                extension: &'a Option<Vec<Extension>>,
-                                            }
-                                            let extension_part = IdAndExtensionHelper {
+                                            let extension_part = helios_serde_support::IdAndExtensionHelper {
                                                 id: &field.id,
                                                 extension: &field.extension,
                                             };
@@ -1107,14 +1079,7 @@ fn generate_serialize_impl(data: &Data, name: &Ident) -> proc_macro2::TokenStrea
                                         state.serialize_entry(&#effective_field_name_str, value)?;
                                     }
                                     if #extension_field_ident {
-                                        #[derive(serde::Serialize)]
-                                        struct IdAndExtensionHelper<'a> {
-                                            #[serde(skip_serializing_if = "Option::is_none")]
-                                            id: &'a Option<std::string::String>,
-                                            #[serde(skip_serializing_if = "Option::is_none")]
-                                            extension: &'a Option<Vec<Extension>>,
-                                        }
-                                        let extension_part = IdAndExtensionHelper {
+                                        let extension_part = helios_serde_support::IdAndExtensionHelper {
                                             id: &#field_access.id,
                                             extension: &#field_access.extension,
                                         };
@@ -1130,14 +1095,7 @@ fn generate_serialize_impl(data: &Data, name: &Ident) -> proc_macro2::TokenStrea
                                         state.serialize_field(&#effective_field_name_str, value)?;
                                     }
                                     if #extension_field_ident {
-                                        #[derive(serde::Serialize)]
-                                        struct IdAndExtensionHelper<'a> {
-                                            #[serde(skip_serializing_if = "Option::is_none")]
-                                            id: &'a Option<std::string::String>,
-                                            #[serde(skip_serializing_if = "Option::is_none")]
-                                            extension: &'a Option<Vec<Extension>>,
-                                        }
-                                        let extension_part = IdAndExtensionHelper {
+                                        let extension_part = helios_serde_support::IdAndExtensionHelper {
                                             id: &#field_access.id,
                                             extension: &#field_access.extension,
                                         };
@@ -2009,9 +1967,9 @@ fn generate_deserialize_impl(data: &Data, name: &Ident) -> proc_macro2::TokenStr
     let mut temp_struct_attributes = Vec::new();
     let mut constructor_attributes = Vec::new();
     let single_or_vec_ident: proc_macro2::TokenStream =
-        quote! { crate::serde_helpers::SingleOrVec };
+        quote! { ::helios_serde_support::SingleOrVec };
     let primitive_or_element_ident: proc_macro2::TokenStream =
-        quote! { crate::serde_helpers::PrimitiveOrElement };
+        quote! { ::helios_serde_support::PrimitiveOrElement };
     let convert_fn_ident = format_ident!(
         "convert_xml_primitive_for_{}",
         name.to_string().to_snake_case()
@@ -2205,16 +2163,10 @@ fn generate_deserialize_impl(data: &Data, name: &Ident) -> proc_macro2::TokenStr
                 });
             } // End loop over variants
 
-            // Define the helper struct needed for enum deserialization
+            // Define the helper type alias needed for enum deserialization
             let id_extension_helper_def = quote! {
-                // Helper struct for deserializing the id/extension part from _fieldName
-                #[derive(Clone, Deserialize, Default)] // Add Default derive
-                struct IdAndExtensionHelper {
-                    #[serde(skip_serializing_if = "Option::is_none")] // Change from default
-                    id: Option<std::string::String>,
-                    #[serde(skip_serializing_if = "Option::is_none")] // Change from default
-                    extension: Option<Vec<Extension>>,
-                }
+                // Type alias for deserializing the id/extension part from _fieldName
+                type IdAndExtensionHelper = helios_serde_support::IdAndExtensionOwned<Extension>;
             };
 
             // Generate the enum deserialization implementation
@@ -2365,7 +2317,7 @@ fn generate_deserialize_impl(data: &Data, name: &Ident) -> proc_macro2::TokenStr
                                     };
                                     let vec_inner_type = get_vec_inner_type(vec_type)
                                         .expect("Vec inner type not found");
-                                    let entry_type = quote! { Option<#primitive_or_element_ident<#vec_inner_type>> };
+                                    let entry_type = quote! { Option<#primitive_or_element_ident<serde_json::Value, #vec_inner_type>> };
                                     let holder = quote! { #single_or_vec_path<#entry_type> };
                                     if is_option {
                                         quote! { Option<#holder> }
@@ -2396,7 +2348,7 @@ fn generate_deserialize_impl(data: &Data, name: &Ident) -> proc_macro2::TokenStr
                                 } else {
                                     field_ty
                                 };
-                                quote! { Option<#primitive_or_element_ident<#element_type>> }
+                                quote! { Option<#primitive_or_element_ident<serde_json::Value, #element_type>> }
                             } else {
                                 // Not an element, use the original type
                                 quote! { #field_ty }
@@ -2795,14 +2747,8 @@ fn generate_deserialize_impl(data: &Data, name: &Ident) -> proc_macro2::TokenStr
     }
 
     let id_extension_helper_def = quote! {
-        // Helper struct for deserializing the id/extension part from _fieldName
-        #[derive(Clone, Deserialize, Default)] // Add Default derive
-        struct IdAndExtensionHelper {
-            #[serde(skip_serializing_if = "Option::is_none")] // Change from default
-            id: Option<std::string::String>,
-            #[serde(skip_serializing_if = "Option::is_none")] // Change from default
-            extension: Option<Vec<Extension>>,
-        }
+        // Type alias for deserializing the id/extension part from _fieldName
+        type IdAndExtensionHelper = helios_serde_support::IdAndExtensionOwned<Extension>;
     };
 
     let temp_struct = quote! {

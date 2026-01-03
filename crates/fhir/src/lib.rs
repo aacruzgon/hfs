@@ -41,10 +41,10 @@
 //! let precise = PreciseDecimal::from(Decimal::new(12340, 3)); // 12.340
 //! ```
 
-mod serde_helpers;
-
 use chrono::{DateTime as ChronoDateTime, NaiveDate, NaiveTime, Utc};
 use helios_fhirpath_support::{EvaluationResult, IntoEvaluationResult, TypeInfoResult};
+use helios_serde_support::SingleOrVec;
+
 use rust_decimal::Decimal;
 use serde::{
     Deserialize, Serialize,
@@ -1848,7 +1848,9 @@ where
                     if extension.is_some() {
                         return Err(de::Error::duplicate_field("extension"));
                     }
-                    extension = Some(map.next_value()?);
+                    // Handle single or vec for extension field (XML compatibility)
+                    let single_or_vec: SingleOrVec<E> = map.next_value()?;
+                    extension = Some(single_or_vec.into_vec());
                 }
                 "value" => {
                     if value.is_some() {
@@ -2492,8 +2494,9 @@ where
                             if extension.is_some() {
                                 return Err(de::Error::duplicate_field("extension"));
                             }
-                            // Deserialize extension directly from its Value
-                            extension = Deserialize::deserialize(v).map_err(de::Error::custom)?;
+                            // Handle single or vec for extension field (XML compatibility)
+                            let single_or_vec: SingleOrVec<E> = Deserialize::deserialize(v).map_err(de::Error::custom)?;
+                            extension = Some(single_or_vec.into_vec());
                         }
                         "value" => {
                             if value.is_some() {

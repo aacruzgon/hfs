@@ -66,28 +66,6 @@ fn test_xml_deserialize_r4_appointment_response_example() -> Result<()> {
     Ok(())
 }
 
-#[cfg(feature = "R4")]
-#[test]
-#[ignore]
-fn debug_xml_to_json_value() -> Result<()> {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .expect("serde crate has parent directory")
-        .join("fhir")
-        .join("tests")
-        .join("data")
-        .join("xml")
-        .join("R4")
-        .join("appointmentresponse-example-req(exampleresp).xml");
-
-    let xml = std::fs::read_to_string(&path)?;
-    let value = from_xml_str::<serde_json::Value>(&xml)?;
-    println!("{}", serde_json::to_string_pretty(&value)?);
-    let resource: helios_fhir::r4::Resource = serde_json::from_value(value)?;
-    println!("Parsed resource variant: {:?}", resource);
-    Ok(())
-}
-
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 struct SimpleResource {
     #[serde(rename = "resourceType")]
@@ -148,13 +126,23 @@ fn test_xml_serialize_nested_struct() -> Result<()> {
     Ok(())
 }
 
+// Old split-field pattern (for JSON). No longer used in XML tests.
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 struct PrimitiveExtension {
     id: Option<String>,
 }
 
+// Element structure for XML primitives with metadata
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
-struct ResourceWithExtension {
+struct BirthDateElement {
+    #[serde(rename = "value")]
+    value: Option<String>,
+    id: Option<String>,
+}
+
+// Split-field pattern for serialization (used in real FHIR models)
+#[derive(Serialize, Debug)]
+struct ResourceForSerialization {
     #[serde(rename = "resourceType")]
     resource_type: String,
     #[serde(rename = "birthDate")]
@@ -163,9 +151,18 @@ struct ResourceWithExtension {
     birth_date_ext: Option<PrimitiveExtension>,
 }
 
+// New XML-compatible structure using PrimitiveOrElement for deserialization
+#[derive(Deserialize, Debug, PartialEq)]
+struct ResourceWithExtension {
+    #[serde(rename = "resourceType")]
+    resource_type: String,
+    #[serde(rename = "birthDate")]
+    birth_date: Option<helios_serde_support::PrimitiveOrElement<serde_json::Value, BirthDateElement>>,
+}
+
 #[test]
 fn test_xml_serialize_with_primitive_extension() -> Result<()> {
-    let resource = ResourceWithExtension {
+    let resource = ResourceForSerialization {
         resource_type: "Patient".to_string(),
         birth_date: Some("1974-12-25".to_string()),
         birth_date_ext: Some(PrimitiveExtension {
@@ -699,11 +696,44 @@ fn test_xml_deserialize_primitive_extension() -> Result<()> {
     let resource: ResourceWithExtension = from_xml_str(xml)?;
 
     assert_eq!(resource.resource_type, "Patient");
-    assert_eq!(resource.birth_date, Some("1974-12-25".to_string()));
-    assert_eq!(
-        resource.birth_date_ext.as_ref().unwrap().id,
-        Some("bd1".to_string())
-    );
+
+    // Check that birthDate was deserialized as an Element with both value and id
+    let birth_date = resource.birth_date.as_ref().expect("birthDate should be present");
+    match birth_date {
+        helios_serde_support::PrimitiveOrElement::Element(elem) => {
+            assert_eq!(elem.value, Some("1974-12-25".to_string()));
+            assert_eq!(elem.id, Some("bd1".to_string()));
+        }
+        helios_serde_support::PrimitiveOrElement::Primitive(val) => {
+            panic!("Expected Element variant, got Primitive: {:?}", val);
+        }
+    }
+
+    Ok(())
+}
+
+#[test]
+fn test_xml_deserialize_primitive_extension_non_self_closing() -> Result<()> {
+    // Test Start element (not self-closing) with attributes
+    // Same as test_xml_deserialize_primitive_extension but with </birthDate> instead of />
+    let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+    <Patient xmlns="http://hl7.org/fhir">
+        <birthDate id="bd1" value="1974-12-25"></birthDate>
+    </Patient>"#;
+
+    let resource: ResourceWithExtension = from_xml_str(xml)?;
+
+    assert_eq!(resource.resource_type, "Patient");
+
+    // Check that birthDate was deserialized as an Element with both value and id
+    let birth_date = resource.birth_date.as_ref().expect("birthDate should be present");
+    match birth_date {
+        helios_serde_support::PrimitiveOrElement::Element(elem) => {
+            assert_eq!(elem.value, Some("1974-12-25".to_string()));
+            assert_eq!(elem.id, Some("bd1".to_string()));
+        }
+        _ => panic!("Expected Element variant, got Primitive"),
+    }
 
     Ok(())
 }
@@ -743,20 +773,32 @@ fn test_xml_deserialize_participant_type_array() -> Result<()> {
 }
 
 #[test]
-fn test_xml_roundtrip_primitive_extension() -> Result<()> {
-    let original = ResourceWithExtension {
-        resource_type: "Patient".to_string(),
-        birth_date: Some("1974-12-25".to_string()),
-        birth_date_ext: Some(PrimitiveExtension {
-            id: Some("bd1".to_string()),
-        }),
-    };
+fn test_minimal_singlevec_xml() -> Result<()> {
+    use helios_serde_support::SingleOrVec;
 
-    let xml = to_xml_string(&original)?;
+    #[derive(Debug, Deserialize, PartialEq)]
+    struct TestResource {
+        #[serde(default, rename = "item")]
+        items: SingleOrVec<TestItem>,
+    }
 
-    let deserialized: ResourceWithExtension = from_xml_str(&xml)?;
+    #[derive(Debug, Deserialize, PartialEq, Clone)]
+    struct TestItem {
+        #[serde(rename = "linkId")]
+        link_id: String,
+        #[serde(default, rename = "text")]
+        text: Option<String>,
+    }
 
-    assert_eq!(original, deserialized);
+    // Test with single item
+    let xml_single = r#"<?xml version="1.0"?><TestResource xmlns="http://test"><item><linkId value="q1"/></item></TestResource>"#;
+    let result_single = from_xml_str::<TestResource>(xml_single)?;
+    assert!(matches!(result_single.items, SingleOrVec::Single(_)));
+
+    // Test with multiple items
+    let xml_multi = r#"<?xml version="1.0"?><TestResource xmlns="http://test"><item><linkId value="q1"/></item><item><linkId value="q2"/></item></TestResource>"#;
+    let result_multi = from_xml_str::<TestResource>(xml_multi)?;
+    assert!(matches!(result_multi.items, SingleOrVec::Vec(_)));
 
     Ok(())
 }

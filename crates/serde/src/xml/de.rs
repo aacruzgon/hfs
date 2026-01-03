@@ -7,9 +7,8 @@
 use crate::error::{Result, SerdeError};
 use quick_xml::Reader;
 use quick_xml::events::{BytesText, Event};
-use serde::de::{self, Deserialize, DeserializeSeed, IntoDeserializer, Visitor};
+use serde::de::{self, Deserialize, DeserializeSeed, IntoDeserializer, SeqAccess, Visitor};
 use serde_json::Value as JsonValue;
-use serde_path_to_error::{Deserializer as PathDeserializer, Track};
 use std::collections::VecDeque;
 use std::io::BufRead;
 
@@ -35,12 +34,7 @@ where
     reader.config_mut().trim_text(true);
 
     let mut deserializer = XmlDeserializer::new(reader);
-    let mut track = Track::new();
-    let path_deserializer = PathDeserializer::new(&mut deserializer, &mut track);
-    T::deserialize(path_deserializer).map_err(move |err| {
-        let path = track.path();
-        SerdeError::Custom(format!("{} at {}", err, path))
-    })
+    T::deserialize(&mut deserializer)
 }
 
 /// Deserialize a FHIR resource from XML bytes.
@@ -59,12 +53,7 @@ pub fn from_xml_reader<R: BufRead, T: de::DeserializeOwned>(reader: R) -> Result
     xml_reader.config_mut().trim_text(true);
 
     let mut deserializer = XmlDeserializer::new(xml_reader);
-    let mut track = Track::new();
-    let path_deserializer = PathDeserializer::new(&mut deserializer, &mut track);
-    T::deserialize(path_deserializer).map_err(move |err| {
-        let path = track.path();
-        SerdeError::Custom(format!("{} at {}", err, path))
-    })
+    T::deserialize(&mut deserializer)
 }
 
 /// XML Deserializer that reads quick-xml events.
@@ -82,6 +71,8 @@ struct XmlDeserializer<R: BufRead> {
     pending_is_resource: bool,
     /// Stack of element names representing the current XML path
     element_stack: Vec<String>,
+    /// Pending attributes from an empty element that should be provided as struct fields
+    pending_attributes: Vec<(String, String)>,
 }
 
 impl<R: BufRead> XmlDeserializer<R> {
@@ -94,6 +85,7 @@ impl<R: BufRead> XmlDeserializer<R> {
             pending_element_name: None,
             pending_is_resource: false,
             element_stack: Vec::new(),
+            pending_attributes: Vec::new(),
         }
     }
 
@@ -308,6 +300,21 @@ fn event_has_value_attribute(e: &quick_xml::events::BytesStart) -> bool {
     false
 }
 
+/// Check if an element has attributes other than "value" and xmlns namespaces.
+/// If it does, it should be deserialized as a struct to preserve all attributes.
+fn event_has_non_value_attributes(e: &quick_xml::events::BytesStart) -> bool {
+    for attr in e.attributes() {
+        if let Ok(attr) = attr {
+            let key = attr.key.as_ref();
+            // Ignore "value" and xmlns namespace declarations
+            if key != b"value" && !key.starts_with(b"xmlns") {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 impl<'de, 'a, R: BufRead> de::Deserializer<'de> for &'a mut XmlDeserializer<R> {
     type Error = SerdeError;
 
@@ -322,18 +329,43 @@ impl<'de, 'a, R: BufRead> de::Deserializer<'de> for &'a mut XmlDeserializer<R> {
             let next_event = self.peek_event()?;
             match next_event {
                 Some(Event::Empty(e)) => {
-                    if event_has_value_attribute(e) {
+                    // Check if element has attributes other than value (like id, extension, etc.)
+                    let has_non_value_attrs = event_has_non_value_attributes(e);
+
+                    if event_has_value_attribute(e) && !has_non_value_attrs {
+                        // Only has value attribute - extract just the value
                         let value = self.get_value_attribute()?;
                         return visitor.visit_string(value);
                     } else {
+                        // Has other attributes or no value attribute - deserialize as struct/map
                         let element_name = String::from_utf8_lossy(e.name().as_ref()).to_string();
                         let end_event = Event::End(e.to_end()).into_owned();
+
+                        // Extract all attributes into a temporary vector (before any mutating operations)
+                        let mut attrs = Vec::new();
+                        for attr in e.attributes() {
+                            let attr = attr.map_err(|e| {
+                                SerdeError::Custom(format!("Failed to parse attribute: {}", e))
+                            })?;
+                            let key = String::from_utf8_lossy(attr.key.as_ref()).to_string();
+                            let value = String::from_utf8_lossy(&attr.value).to_string();
+                            // Skip xmlns namespace declarations
+                            if !key.starts_with("xmlns") {
+                                attrs.push((key, value));
+                            }
+                        }
+
+                        // Now we can mutate self
                         if self.is_resource_container(&element_name) {
                             return Err(SerdeError::Custom(format!(
                                 "{} resource cannot be an empty element",
                                 element_name
                             )));
                         }
+
+                        // Store the extracted attributes
+                        self.pending_attributes = attrs;
+
                         // Treat `<foo/>` as an empty element with no children by synthesizing an end event
                         // Consume the empty event we just inspected
                         self.next_event()?;
@@ -345,11 +377,33 @@ impl<'de, 'a, R: BufRead> de::Deserializer<'de> for &'a mut XmlDeserializer<R> {
                     }
                 }
                 Some(Event::Start(e)) => {
-                    if event_has_value_attribute(e) {
+                    // Check if element has attributes other than value (like id, extension, etc.)
+                    let has_non_value_attrs = event_has_non_value_attributes(e);
+
+                    if event_has_value_attribute(e) && !has_non_value_attrs {
+                        // Only has value attribute - extract just the value
                         let value = self.get_value_attribute()?;
                         return visitor.visit_string(value);
                     } else {
                         let element_name = String::from_utf8_lossy(e.name().as_ref()).to_string();
+
+                        // Extract all attributes into a temporary vector (before any mutating operations)
+                        let mut attrs = Vec::new();
+                        for attr in e.attributes() {
+                            let attr = attr.map_err(|e| {
+                                SerdeError::Custom(format!("Failed to parse attribute: {}", e))
+                            })?;
+                            let key = String::from_utf8_lossy(attr.key.as_ref()).to_string();
+                            let value = String::from_utf8_lossy(&attr.value).to_string();
+                            // Skip xmlns namespace declarations
+                            if !key.starts_with("xmlns") {
+                                attrs.push((key, value));
+                            }
+                        }
+
+                        // Store the extracted attributes
+                        self.pending_attributes = attrs;
+
                         self.next_event()?;
                         if self.is_resource_container(&element_name) {
                             return self.deserialize_wrapped_resource(visitor, &element_name);
@@ -655,6 +709,12 @@ impl<'de, 'a, R: BufRead> de::Deserializer<'de> for &'a mut XmlDeserializer<R> {
     where
         V: Visitor<'de>,
     {
+        // If we already have a pending element (e.g., from an empty element like <foo/>),
+        // use that directly without looking for a new Start event
+        if self.pending_element_name.is_some() {
+            return visitor.visit_map(ElementMapAccess::new(self));
+        }
+
         // Skip to the start element (handle XML declaration, etc.)
         loop {
             match self.next_event()? {
@@ -844,39 +904,6 @@ impl<R: BufRead> XmlDeserializer<R> {
     }
 }
 
-/// Collected occurrence with element stack context
-#[derive(Clone)]
-struct CollectedOccurrence {
-    events: Vec<Event<'static>>,
-    element_stack: Vec<String>,
-}
-
-fn occurrence_has_element_metadata(occurrence: &CollectedOccurrence) -> bool {
-    let mut has_id_attr = false;
-
-    if let Some(first_event) = occurrence.events.first() {
-        let mut attrs_iter = None;
-        match first_event {
-            Event::Start(e) => attrs_iter = Some(e.attributes()),
-            Event::Empty(e) => attrs_iter = Some(e.attributes()),
-            _ => {}
-        }
-        if let Some(iter) = attrs_iter {
-            for attr in iter.flatten() {
-                if attr.key.as_ref() == b"id" {
-                    has_id_attr = true;
-                    break;
-                }
-            }
-        }
-    }
-
-    has_id_attr
-        || occurrence
-            .events
-            .iter()
-            .any(|event| matches!(event, Event::Start(e) if e.name().as_ref() == b"extension"))
-}
 
 /// MapAccess implementation for deserializing XML elements as struct fields
 struct ElementMapAccess<'a, R: BufRead> {
@@ -892,6 +919,12 @@ struct ElementMapAccess<'a, R: BufRead> {
     /// Whether the next value should be the resourceType value
     emit_resource_type_value: bool,
     pending_field_name: Option<String>,
+    /// Attributes from the current element being deserialized
+    attributes: Vec<(String, String)>,
+    /// Current attribute index for providing attributes as fields
+    attribute_index: usize,
+    /// Whether the next value should be an attribute value
+    emit_attribute_value: bool,
 }
 
 impl<'a, R: BufRead> ElementMapAccess<'a, R> {
@@ -906,6 +939,8 @@ impl<'a, R: BufRead> ElementMapAccess<'a, R> {
             }
             None => false,
         };
+        // Take ownership of attributes so nested deserializations don't see them
+        let attributes = std::mem::take(&mut de.pending_attributes);
         Self {
             de,
             element_name,
@@ -914,83 +949,12 @@ impl<'a, R: BufRead> ElementMapAccess<'a, R> {
             emitted_resource_type: false,
             emit_resource_type_value: false,
             pending_field_name: None,
+            attributes,
+            attribute_index: 0,
+            emit_attribute_value: false,
         }
     }
 
-    fn collect_field_occurrences(
-        &mut self,
-        field_name: &str,
-    ) -> Result<VecDeque<CollectedOccurrence>> {
-        let mut occurrences = VecDeque::new();
-        loop {
-            self.consume_insignificant_events()?;
-            let matches_field = match self.de.peek_event()? {
-                Some(Event::Start(e)) | Some(Event::Empty(e)) => {
-                    e.name().as_ref() == field_name.as_bytes()
-                }
-                _ => false,
-            };
-            if !matches_field {
-                break;
-            }
-            let element_stack = self.de.element_stack.clone();
-            let events = self.collect_single_occurrence(field_name)?;
-            occurrences.push_back(CollectedOccurrence {
-                events,
-                element_stack,
-            });
-        }
-        Ok(occurrences)
-    }
-
-    fn collect_single_occurrence(&mut self, field_name: &str) -> Result<Vec<Event<'static>>> {
-        let mut events = Vec::new();
-        let first = self.de.next_event()?;
-        match &first {
-            Event::Start(e) => {
-                if e.name().as_ref() != field_name.as_bytes() {
-                    return Err(SerdeError::Custom(format!(
-                        "Unexpected element <{}> while collecting <{}>",
-                        String::from_utf8_lossy(e.name().as_ref()),
-                        field_name
-                    )));
-                }
-                events.push(first.clone());
-                let mut depth = 1;
-                while depth > 0 {
-                    let event = self.de.next_event()?;
-                    match &event {
-                        Event::Start(_) => depth += 1,
-                        Event::End(_) => depth -= 1,
-                        Event::Eof => {
-                            return Err(SerdeError::Custom(
-                                "Unexpected EOF while collecting element".to_string(),
-                            ));
-                        }
-                        _ => {}
-                    }
-                    events.push(event);
-                }
-            }
-            Event::Empty(e) => {
-                if e.name().as_ref() != field_name.as_bytes() {
-                    return Err(SerdeError::Custom(format!(
-                        "Unexpected element <{}> while collecting <{}>",
-                        String::from_utf8_lossy(e.name().as_ref()),
-                        field_name
-                    )));
-                }
-                events.push(first);
-            }
-            other => {
-                return Err(SerdeError::Custom(format!(
-                    "Unexpected event {:?} while collecting <{}>",
-                    other, field_name
-                )));
-            }
-        }
-        Ok(events)
-    }
 
     fn consume_insignificant_events(&mut self) -> Result<()> {
         loop {
@@ -1007,82 +971,6 @@ impl<'a, R: BufRead> ElementMapAccess<'a, R> {
         Ok(())
     }
 
-    fn deserialize_occurrence_to_json(
-        &mut self,
-        field_name: &str,
-        occurrence: CollectedOccurrence,
-    ) -> Result<JsonValue> {
-        self.de.pending_element_name.replace(field_name.to_string());
-        self.de.current_element_name = field_name.to_string();
-        let saved_stack = std::mem::replace(&mut self.de.element_stack, occurrence.element_stack);
-        replay_events(self.de, occurrence.events.clone());
-        let mut value = JsonValue::deserialize(&mut *self.de)
-            .map_err(|err| SerdeError::Custom(err.to_string()))?;
-        self.de.element_stack = saved_stack;
-
-        let mut value_attr: Option<JsonValue> = None;
-        let mut id_attr: Option<String> = None;
-        let mut has_extension_child = false;
-
-        if let Some(first_event) = occurrence.events.first() {
-            let mut attrs_iter = None;
-            match first_event {
-                Event::Start(e) => attrs_iter = Some(e.attributes()),
-                Event::Empty(e) => attrs_iter = Some(e.attributes()),
-                _ => {}
-            }
-            if let Some(iter) = attrs_iter {
-                for attr in iter {
-                    let attr = attr.map_err(|e| {
-                        SerdeError::Custom(format!("Failed to parse attribute: {}", e))
-                    })?;
-                    match attr.key.as_ref() {
-                        b"value" => {
-                            let attr_str = String::from_utf8_lossy(&attr.value).to_string();
-                            value_attr = Some(JsonValue::String(attr_str));
-                        }
-                        b"id" => {
-                            id_attr = Some(String::from_utf8_lossy(&attr.value).to_string());
-                        }
-                        _ => {}
-                    }
-                }
-            }
-            if !has_extension_child {
-                has_extension_child = occurrence.events.iter().any(
-                    |event| matches!(event, Event::Start(e) if e.name().as_ref() == b"extension"),
-                );
-            }
-        }
-
-        if id_attr.is_some() || has_extension_child {
-            let mut obj = match value {
-                JsonValue::Object(map) => map,
-                JsonValue::Null => serde_json::Map::new(),
-                other => {
-                    let mut map = serde_json::Map::new();
-                    map.insert("value".to_string(), other);
-                    map
-                }
-            };
-
-            if let Some(val) = value_attr {
-                obj.insert("value".to_string(), val);
-            }
-            if let Some(id) = id_attr {
-                obj.insert("id".to_string(), JsonValue::String(id));
-            }
-            if let Some(ext_value) = obj.get_mut("extension") {
-                if !ext_value.is_array() && !ext_value.is_null() {
-                    let existing = ext_value.take();
-                    *ext_value = JsonValue::Array(vec![existing]);
-                }
-            }
-
-            value = JsonValue::Object(obj);
-        }
-        Ok(value)
-    }
 }
 
 impl<'a, R: BufRead> Drop for ElementMapAccess<'a, R> {
@@ -1109,7 +997,15 @@ impl<'de, 'a, R: BufRead + 'a> de::MapAccess<'de> for ElementMapAccess<'a, R> {
             return seed.deserialize(key.into_deserializer()).map(Some);
         }
 
-        // Read next element
+        // Second, emit any pending attributes as fields
+        if self.attribute_index < self.attributes.len() {
+            let (key, _) = &self.attributes[self.attribute_index];
+            self.emit_attribute_value = true;
+            self.pending_field_name = Some(key.clone());
+            return seed.deserialize(key.clone().into_deserializer()).map(Some);
+        }
+
+        // Finally, read next child element
         loop {
             let event = self.de.next_event()?;
             match event {
@@ -1151,231 +1047,198 @@ impl<'de, 'a, R: BufRead + 'a> de::MapAccess<'de> for ElementMapAccess<'a, R> {
             return seed.deserialize(de::value::StrDeserializer::<SerdeError>::new(&name));
         }
 
+        // Special case: attribute value
+        if self.emit_attribute_value {
+            self.emit_attribute_value = false;
+            let (_, value) = &self.attributes[self.attribute_index];
+            self.attribute_index += 1;
+            self.pending_field_name = None;
+            return seed.deserialize(de::value::StrDeserializer::<SerdeError>::new(value));
+        }
+
         let field_name = self
             .pending_field_name
             .take()
             .unwrap_or_else(|| self.de.current_element_name.clone());
-        let mut occurrences = self.collect_field_occurrences(&field_name)?;
-        if occurrences.is_empty() {
-            return Err(SerdeError::Custom(format!(
-                "field {} missing XML data",
-                field_name
-            )));
-        }
 
-        if occurrences
-            .iter()
-            .any(|occurrence| occurrence_has_element_metadata(occurrence))
-        {
-            let mut values = Vec::with_capacity(occurrences.len());
-            while let Some(occurrence) = occurrences.pop_front() {
-                let value = self
-                    .deserialize_occurrence_to_json(&field_name, occurrence)
-                    .map_err(|err| SerdeError::Custom(format!("field {}: {}", field_name, err)))?;
-                values.push(value);
+        // Check if field exists
+        self.consume_insignificant_events()?;
+        let has_field = match self.de.peek_event()? {
+            Some(Event::Start(e)) | Some(Event::Empty(e)) => {
+                e.name().as_ref() == field_name.as_bytes()
             }
-            let json_value = if values.len() > 1 {
-                JsonValue::Array(values)
-            } else {
-                values.into_iter().next().unwrap()
-            };
-            return seed
-                .deserialize(json_value.into_deserializer())
-                .map_err(|err| SerdeError::Custom(format!("field {}: {}", field_name, err)));
+            _ => false,
+        };
+
+        if !has_field {
+            return Err(SerdeError::Custom(format!("field {} missing", field_name)));
         }
 
-        let field_deserializer =
-            FieldValueDeserializer::new(self.de, field_name.clone(), occurrences);
-        match seed.deserialize(field_deserializer) {
-            Ok(value) => Ok(value),
-            Err(err) => Err(SerdeError::Custom(format!("field {}: {}", field_name, err))),
-        }
+        // Set context for field deserialization
+        self.de.current_element_name = field_name.clone();
+
+        // Use FieldValueDeserializer for all fields to handle both single and multiple occurrences.
+        // We can't detect SingleOrVec fields by type name because serde wraps everything in
+        // PhantomData<Content> when deserializing untagged enums (which FHIR resources use).
+        // This adds overhead but ensures correct deserialization of repeating elements.
+        let field_deser = FieldValueDeserializer::new(self.de, field_name.clone())?;
+        seed.deserialize(field_deser).map_err(|err| {
+            SerdeError::Custom(format!("field {}: {}", field_name, err))
+        })
     }
 }
 
+/// Deserializer for field values that handles both single and sequence cases.
+///
+/// To support untagged enums like SingleOrVec with streaming XML, we buffer
+/// all occurrences of the current field, count them, then replay the buffered
+/// events during deserialization. This allows us to decide upfront whether to
+/// deserialize as a single value or a sequence.
 struct FieldValueDeserializer<'a, R: BufRead> {
     de: &'a mut XmlDeserializer<R>,
     field_name: String,
-    occurrences: VecDeque<CollectedOccurrence>,
+    buffered_events: Vec<quick_xml::events::Event<'static>>,
+    occurrence_count: usize,
 }
 
 impl<'a, R: BufRead> FieldValueDeserializer<'a, R> {
-    fn new(
-        de: &'a mut XmlDeserializer<R>,
-        field_name: String,
-        occurrences: VecDeque<CollectedOccurrence>,
-    ) -> Self {
-        Self {
+    fn new(de: &'a mut XmlDeserializer<R>, field_name: String) -> Result<Self> {
+        let mut buffered_events = Vec::new();
+
+        // Skip whitespace and comments before first occurrence
+        loop {
+            match de.peek_event()? {
+                Some(Event::Text(text)) => {
+                    if !is_whitespace_text(&text)? {
+                        break;
+                    }
+                    let event = de.next_event()?;
+                    buffered_events.push(event.into_owned());
+                }
+                Some(Event::Comment(_)) | Some(Event::PI(_)) => {
+                    let event = de.next_event()?;
+                    buffered_events.push(event.into_owned());
+                }
+                _ => break,
+            }
+        }
+
+        // Buffer the first occurrence (must exist since XML drives deserialization)
+        let start_event = de.next_event()?;
+        let is_empty = matches!(start_event, Event::Empty(_));
+        buffered_events.push(start_event.into_owned());
+
+        if !is_empty {
+            // Buffer until we find the matching end tag
+            let mut depth = 1;
+            loop {
+                let event = de.next_event()?;
+
+                match &event {
+                    Event::Eof => {
+                        return Err(SerdeError::Custom(format!(
+                            "Unexpected EOF while reading field {}", field_name
+                        )));
+                    }
+                    Event::Start(_) => {
+                        depth += 1;
+                        buffered_events.push(event.into_owned());
+                    }
+                    Event::End(_) => {
+                        depth -= 1;
+                        buffered_events.push(event.into_owned());
+                        if depth == 0 {
+                            break;
+                        }
+                    }
+                    _ => {
+                        buffered_events.push(event.into_owned());
+                    }
+                }
+            }
+        }
+
+        // Now check if there's a second occurrence (peek ahead after skipping whitespace)
+        loop {
+            match de.peek_event()? {
+                Some(Event::Text(text)) => {
+                    if !is_whitespace_text(&text)? {
+                        break;
+                    }
+                    de.next_event()?; // consume whitespace but don't buffer
+                }
+                Some(Event::Comment(_)) | Some(Event::PI(_)) => {
+                    de.next_event()?; // consume but don't buffer
+                }
+                _ => break,
+            }
+        }
+
+        // Check if there's a second occurrence
+        let has_second_occurrence = match de.peek_event()? {
+            Some(Event::Start(e)) | Some(Event::Empty(e)) => {
+                e.name().as_ref() == field_name.as_bytes()
+            }
+            _ => false,
+        };
+
+        let occurrence_count = if has_second_occurrence { 2 } else { 1 };
+
+        Ok(Self {
             de,
             field_name,
-            occurrences,
-        }
-    }
-
-    fn deserialize_scalar<F, T>(mut self, f: F) -> Result<T>
-    where
-        F: FnOnce(&mut XmlDeserializer<R>) -> Result<T>,
-    {
-        let occurrence = self.occurrences.pop_front().ok_or_else(|| {
-            SerdeError::Custom(format!("field {} missing value", self.field_name))
-        })?;
-        self.de
-            .pending_element_name
-            .replace(self.field_name.clone());
-        self.de.current_element_name = self.field_name.clone();
-        let saved_stack = std::mem::replace(&mut self.de.element_stack, occurrence.element_stack);
-        replay_events(self.de, occurrence.events);
-        let result = f(self.de);
-        self.de.element_stack = saved_stack;
-        result
+            buffered_events,
+            occurrence_count,
+        })
     }
 }
 
 impl<'de, 'a, R: BufRead> de::Deserializer<'de> for FieldValueDeserializer<'a, R> {
     type Error = SerdeError;
 
-    fn deserialize_any<V>(mut self, visitor: V) -> Result<V::Value>
+    fn deserialize_any<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        if self.occurrences.len() > 1 {
-            let occurrences = std::mem::take(&mut self.occurrences);
-            let seq = FieldSeqAccess::new(self.de, self.field_name.clone(), occurrences);
-            visitor.visit_seq(seq)
-        } else {
-            let occurrence = self.occurrences.pop_front().ok_or_else(|| {
-                SerdeError::Custom(format!("field {} missing value", self.field_name))
-            })?;
-            self.de
-                .pending_element_name
-                .replace(self.field_name.clone());
+        if self.occurrence_count == 1 {
+            // Single occurrence - deserialize directly (not as sequence)
+            // Push buffered events back for the single element
+            for event in self.buffered_events.into_iter().rev() {
+                self.de.buffered_events.push_front(event);
+            }
             self.de.current_element_name = self.field_name.clone();
-            let saved_stack =
-                std::mem::replace(&mut self.de.element_stack, occurrence.element_stack);
-            replay_events(self.de, occurrence.events);
-            let result = self.de.deserialize_any(visitor);
-            self.de.element_stack = saved_stack;
-            result
+            self.de.deserialize_any(visitor)
+        } else {
+            // Multiple occurrences (2+) - provide sequence interface
+            // Push buffered first occurrence back, then stream the rest
+            for event in self.buffered_events.into_iter().rev() {
+                self.de.buffered_events.push_front(event);
+            }
+            let seq = BufferedFieldSeqAccess {
+                de: self.de,
+                field_name: self.field_name,
+            };
+            visitor.visit_seq(seq)
         }
-    }
-
-    fn deserialize_bool<V>(self, visitor: V) -> Result<V::Value>
-    where
-        V: Visitor<'de>,
-    {
-        self.deserialize_scalar(|de| de.deserialize_bool(visitor))
-    }
-
-    fn deserialize_i8<V>(self, visitor: V) -> Result<V::Value>
-    where
-        V: Visitor<'de>,
-    {
-        self.deserialize_scalar(|de| de.deserialize_i8(visitor))
-    }
-
-    fn deserialize_i16<V>(self, visitor: V) -> Result<V::Value>
-    where
-        V: Visitor<'de>,
-    {
-        self.deserialize_scalar(|de| de.deserialize_i16(visitor))
-    }
-
-    fn deserialize_i32<V>(self, visitor: V) -> Result<V::Value>
-    where
-        V: Visitor<'de>,
-    {
-        self.deserialize_scalar(|de| de.deserialize_i32(visitor))
-    }
-
-    fn deserialize_i64<V>(self, visitor: V) -> Result<V::Value>
-    where
-        V: Visitor<'de>,
-    {
-        self.deserialize_scalar(|de| de.deserialize_i64(visitor))
-    }
-
-    fn deserialize_u8<V>(self, visitor: V) -> Result<V::Value>
-    where
-        V: Visitor<'de>,
-    {
-        self.deserialize_scalar(|de| de.deserialize_u8(visitor))
-    }
-
-    fn deserialize_u16<V>(self, visitor: V) -> Result<V::Value>
-    where
-        V: Visitor<'de>,
-    {
-        self.deserialize_scalar(|de| de.deserialize_u16(visitor))
-    }
-
-    fn deserialize_u32<V>(self, visitor: V) -> Result<V::Value>
-    where
-        V: Visitor<'de>,
-    {
-        self.deserialize_scalar(|de| de.deserialize_u32(visitor))
-    }
-
-    fn deserialize_u64<V>(self, visitor: V) -> Result<V::Value>
-    where
-        V: Visitor<'de>,
-    {
-        self.deserialize_scalar(|de| de.deserialize_u64(visitor))
-    }
-
-    fn deserialize_f32<V>(self, visitor: V) -> Result<V::Value>
-    where
-        V: Visitor<'de>,
-    {
-        self.deserialize_scalar(|de| de.deserialize_f32(visitor))
-    }
-
-    fn deserialize_f64<V>(self, visitor: V) -> Result<V::Value>
-    where
-        V: Visitor<'de>,
-    {
-        self.deserialize_scalar(|de| de.deserialize_f64(visitor))
-    }
-
-    fn deserialize_char<V>(self, visitor: V) -> Result<V::Value>
-    where
-        V: Visitor<'de>,
-    {
-        self.deserialize_scalar(|de| de.deserialize_char(visitor))
-    }
-
-    fn deserialize_str<V>(self, visitor: V) -> Result<V::Value>
-    where
-        V: Visitor<'de>,
-    {
-        self.deserialize_scalar(|de| de.deserialize_str(visitor))
-    }
-
-    fn deserialize_string<V>(self, visitor: V) -> Result<V::Value>
-    where
-        V: Visitor<'de>,
-    {
-        self.deserialize_scalar(|de| de.deserialize_string(visitor))
-    }
-
-    fn deserialize_bytes<V>(self, visitor: V) -> Result<V::Value>
-    where
-        V: Visitor<'de>,
-    {
-        self.deserialize_scalar(|de| de.deserialize_bytes(visitor))
-    }
-
-    fn deserialize_byte_buf<V>(self, visitor: V) -> Result<V::Value>
-    where
-        V: Visitor<'de>,
-    {
-        self.deserialize_scalar(|de| de.deserialize_byte_buf(visitor))
     }
 
     fn deserialize_seq<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        let seq = FieldSeqAccess::new(self.de, self.field_name.clone(), self.occurrences);
+        // When deserialize_seq is explicitly called, always provide sequence interface
+        // This handles the case where untagged enum tries Vec variant first
+
+        // Push buffered events back into deserializer's buffered_events (in reverse order)
+        for event in self.buffered_events.into_iter().rev() {
+            self.de.buffered_events.push_front(event);
+        }
+
+        // One or more elements - provide sequence interface
+        let seq = BufferedFieldSeqAccess {
+            de: self.de,
+            field_name: self.field_name,
+        };
         visitor.visit_seq(seq)
     }
 
@@ -1383,15 +1246,72 @@ impl<'de, 'a, R: BufRead> de::Deserializer<'de> for FieldValueDeserializer<'a, R
     where
         V: Visitor<'de>,
     {
-        if self.occurrences.is_empty() {
-            visitor.visit_none()
-        } else {
+        // For Option<T> fields, we need to check if there's actually a field occurrence.
+        // If there is, wrap it in Some(). If not, return None.
+
+        if self.occurrence_count > 0 {
+            // We have at least one occurrence - call visit_some with self as the deserializer
             visitor.visit_some(self)
+        } else {
+            // No occurrences - this shouldn't happen since we buffer at least one occurrence
+            // in the constructor, but handle it gracefully
+            visitor.visit_none()
         }
     }
 
     serde::forward_to_deserialize_any! {
-        i128 u128 unit unit_struct newtype_struct tuple tuple_struct map struct enum identifier ignored_any
+        bool i8 i16 i32 i64 i128 u8 u16 u32 u64 u128 f32 f64 char str string
+        bytes byte_buf unit unit_struct newtype_struct tuple
+        tuple_struct map struct enum identifier ignored_any
+    }
+}
+
+/// Sequence accessor for field occurrences.
+///
+/// Streams all occurrences of a field by checking if the next element matches the field name.
+struct BufferedFieldSeqAccess<'a, R: BufRead> {
+    de: &'a mut XmlDeserializer<R>,
+    field_name: String,
+}
+
+impl<'de, 'a, R: BufRead> SeqAccess<'de> for BufferedFieldSeqAccess<'a, R> {
+    type Error = SerdeError;
+
+    fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>>
+    where
+        T: DeserializeSeed<'de>,
+    {
+        // Skip whitespace and comments
+        loop {
+            match self.de.peek_event()? {
+                Some(Event::Text(text)) => {
+                    if !is_whitespace_text(&text)? {
+                        break;
+                    }
+                    self.de.next_event()?;
+                }
+                Some(Event::Comment(_)) | Some(Event::PI(_)) => {
+                    self.de.next_event()?;
+                }
+                _ => break,
+            }
+        }
+
+        // Check if there's another element with the same field name
+        let has_next = match self.de.peek_event()? {
+            Some(Event::Start(e)) | Some(Event::Empty(e)) => {
+                e.name().as_ref() == self.field_name.as_bytes()
+            }
+            _ => false,
+        };
+
+        if !has_next {
+            return Ok(None);
+        }
+
+        // Deserialize this occurrence
+        self.de.current_element_name = self.field_name.clone();
+        seed.deserialize(&mut *self.de).map(Some)
     }
 }
 
@@ -1449,52 +1369,4 @@ impl<'de, 'a, R: BufRead + 'a> de::SeqAccess<'de> for ElementSeqAccess<'a, R> {
     }
 }
 
-fn replay_events<R: BufRead>(de: &mut XmlDeserializer<R>, mut events: Vec<Event<'static>>) {
-    while let Some(event) = events.pop() {
-        de.push_front_event(event);
-    }
-}
 
-struct FieldSeqAccess<'a, R: BufRead> {
-    de: &'a mut XmlDeserializer<R>,
-    field_name: String,
-    occurrences: VecDeque<CollectedOccurrence>,
-}
-
-impl<'a, R: BufRead> FieldSeqAccess<'a, R> {
-    fn new(
-        de: &'a mut XmlDeserializer<R>,
-        field_name: String,
-        occurrences: VecDeque<CollectedOccurrence>,
-    ) -> Self {
-        Self {
-            de,
-            field_name,
-            occurrences,
-        }
-    }
-}
-
-impl<'de, 'a, R: BufRead> de::SeqAccess<'de> for FieldSeqAccess<'a, R> {
-    type Error = SerdeError;
-
-    fn next_element_seed<T>(&mut self, seed: T) -> std::result::Result<Option<T::Value>, SerdeError>
-    where
-        T: DeserializeSeed<'de>,
-    {
-        if let Some(occurrence) = self.occurrences.pop_front() {
-            self.de
-                .pending_element_name
-                .replace(self.field_name.clone());
-            self.de.current_element_name = self.field_name.clone();
-            let saved_stack =
-                std::mem::replace(&mut self.de.element_stack, occurrence.element_stack.clone());
-            replay_events(self.de, occurrence.events);
-            let result = seed.deserialize(&mut *self.de).map(Some);
-            self.de.element_stack = saved_stack;
-            result
-        } else {
-            Ok(None)
-        }
-    }
-}
