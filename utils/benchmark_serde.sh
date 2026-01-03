@@ -11,22 +11,6 @@ MAIN_RESULTS="$BENCHMARK_RESULTS_DIR/main_${TIMESTAMP}.txt"
 REFACTOR_RESULTS="$BENCHMARK_RESULTS_DIR/refactor_${TIMESTAMP}.txt"
 COMPARISON_RESULTS="$BENCHMARK_RESULTS_DIR/comparison_${TIMESTAMP}.txt"
 
-# Build the list of crates that expose the integration test_examples suite
-declare -a TEST_CRATES=()
-if [ -f "crates/serde/tests/test_examples.rs" ]; then
-    TEST_CRATES+=("helios-serde|_json_examples|helios-fhir/skip-r6-download|test_examples")
-fi
-if [ -f "crates/fhir/tests/test_examples.rs" ]; then
-    TEST_CRATES+=("helios-fhir|_examples|skip-r6-download|test_examples")
-fi
-
-if [ ${#TEST_CRATES[@]} -eq 0 ]; then
-    echo "ERROR: Unable to find test_examples.rs in any crate (expected crates/serde or crates/fhir)."
-    exit 1
-fi
-
-echo "Benchmarking crates: ${TEST_CRATES[*]}"
-
 # Create benchmark results directory
 mkdir -p "$BENCHMARK_RESULTS_DIR"
 
@@ -48,6 +32,24 @@ run_benchmark() {
 
     # Checkout the branch
     git checkout "$branch" 2>&1 | tee -a "$output_file"
+    echo "" | tee -a "$output_file"
+
+    # Build the list of crates for this branch
+    # The test_examples.rs location differs between branches (xml branch: helios-serde, main branch: helios-fhir)
+    declare -a TEST_CRATES=()
+    if [ -f "crates/serde/tests/test_examples.rs" ]; then
+        TEST_CRATES+=("helios-serde|_json_examples|helios-fhir/skip-r6-download|test_examples")
+        echo "Found test_examples in helios-serde" | tee -a "$output_file"
+    fi
+    if [ -f "crates/fhir/tests/test_examples.rs" ]; then
+        TEST_CRATES+=("helios-fhir|_examples|skip-r6-download|test_examples")
+        echo "Found test_examples in helios-fhir" | tee -a "$output_file"
+    fi
+
+    if [ ${#TEST_CRATES[@]} -eq 0 ]; then
+        echo "ERROR: Unable to find test_examples.rs in any crate on branch $branch" | tee -a "$output_file"
+        return 1
+    fi
     echo "" | tee -a "$output_file"
 
     for crate_config in "${TEST_CRATES[@]}"; do
@@ -186,9 +188,14 @@ echo "" | tee -a "$COMPARISON_RESULTS"
 echo "Performance Differences (Refactor vs Main):" | tee -a "$COMPARISON_RESULTS"
 echo "-------------------------------------------" | tee -a "$COMPARISON_RESULTS"
 
-for crate_config in "${TEST_CRATES[@]}"; do
-    IFS='|' read -r test_crate _ _ _ <<< "$crate_config"
+# Extract unique crate names from the results (handles both helios-serde and helios-fhir)
+TESTED_CRATES=$(grep -h "^main," "$COMPARISON_RESULTS" "$COMPARISON_RESULTS" 2>/dev/null | cut -d',' -f2 | sort -u)
+if [ -z "$TESTED_CRATES" ]; then
+    # If no main results, try to get from refactor results
+    TESTED_CRATES=$(grep -h "^refactor," "$COMPARISON_RESULTS" 2>/dev/null | cut -d',' -f2 | sort -u)
+fi
 
+for test_crate in $TESTED_CRATES; do
     for version in R4 R4B R5 R6; do
         main_time=$(grep "^main,$test_crate,$version," "$COMPARISON_RESULTS" | tail -1 | cut -d',' -f4)
         refactor_time=$(grep "^refactor,$test_crate,$version," "$COMPARISON_RESULTS" | tail -1 | cut -d',' -f4)
