@@ -1,15 +1,170 @@
 #!/bin/bash
 
-# Benchmark script to compare JSON serde performance between the current and main branches
-# This script tests all FHIR versions (R4, R4B, R5, R6) against their respective JSON examples
+# Benchmark script to compare JSON serde performance between branches
+# This script uses git worktree to avoid conflicts with local changes
+# Usage:
+#   ./benchmark_serde.sh <branch1> [branch2]              # Run benchmarks on specified branches
+#   ./benchmark_serde.sh <branch> --use <existing_file>   # Run branch and compare with existing results
 
 set -e
 
 BENCHMARK_RESULTS_DIR="./benchmark_results"
+WORKTREE_DIR=".benchmark_worktrees"
+
+# Parse command line arguments
+BRANCHES=()
+USE_EXISTING=""
+COMPARE_MODE=false
+COMPARE_FILE1=""
+COMPARE_FILE2=""
+
+# Default: run current branch + main if no args
+if [ $# -eq 0 ]; then
+    CURRENT_BRANCH=$(git branch --show-current)
+    BRANCHES=("$CURRENT_BRANCH" "main")
+    echo "No arguments provided. Running benchmarks for current branch ($CURRENT_BRANCH) and main"
+fi
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --use)
+            USE_EXISTING="$2"
+            shift 2
+            ;;
+        --compare)
+            COMPARE_MODE=true
+            COMPARE_FILE1="$2"
+            COMPARE_FILE2="$3"
+            shift 3
+            ;;
+        --help|-h)
+            echo "Usage: $0 [branch1] [branch2] [OPTIONS]"
+            echo ""
+            echo "Options:"
+            echo "  --use <result_file>           Use existing result file for comparison"
+            echo "  --compare <file1> <file2>     Compare two existing result files"
+            echo "  --help, -h                    Show this help message"
+            echo ""
+            echo "Examples:"
+            echo "  $0                            # Run current branch + main (default)"
+            echo "  $0 xml main                   # Run benchmarks on xml and main branches"
+            echo "  $0 xml                        # Run benchmark on xml branch only"
+            echo "  $0 main --use xml_20260103.txt  # Run main and compare with existing xml results"
+            echo "  $0 --compare xml_20260103.txt main_20260103.txt  # Just compare two existing files"
+            echo ""
+            echo "Result files are named: <branch>_<timestamp>.txt"
+            exit 0
+            ;;
+        -*)
+            echo "Unknown option: $1"
+            echo "Use '$0 --help' to see usage"
+            exit 1
+            ;;
+        *)
+            BRANCHES+=("$1")
+            shift
+            ;;
+    esac
+done
+
+# Handle compare-only mode
+if [ "$COMPARE_MODE" = true ]; then
+    if [ ! -f "$COMPARE_FILE1" ] || [ ! -f "$COMPARE_FILE2" ]; then
+        echo "ERROR: One or both comparison files not found"
+        echo "  File 1: $COMPARE_FILE1"
+        echo "  File 2: $COMPARE_FILE2"
+        exit 1
+    fi
+
+    # Extract timestamp from first file
+    TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+    if [[ "$COMPARE_FILE1" =~ _([0-9_]+)\.txt ]]; then
+        TIMESTAMP="${BASH_REMATCH[1]}"
+    fi
+
+    # Extract branch names from filenames
+    branch1=$(basename "$COMPARE_FILE1" | sed 's/_[0-9_]*\.txt$//')
+    branch2=$(basename "$COMPARE_FILE2" | sed 's/_[0-9_]*\.txt$//')
+
+    mkdir -p "$BENCHMARK_RESULTS_DIR"
+    COMPARISON_RESULTS="$BENCHMARK_RESULTS_DIR/comparison_${TIMESTAMP}.txt"
+
+    echo "======================================"
+    echo "Comparing Benchmark Results"
+    echo "======================================"
+    echo "File 1 ($branch1): $COMPARE_FILE1"
+    echo "File 2 ($branch2): $COMPARE_FILE2"
+    echo ""
+
+    # Generate comparison report (reuse the comparison logic)
+    echo "=====================================" | tee "$COMPARISON_RESULTS"
+    echo "Performance Comparison Report" | tee -a "$COMPARISON_RESULTS"
+    echo "=====================================" | tee -a "$COMPARISON_RESULTS"
+    echo "Timestamp: $TIMESTAMP" | tee -a "$COMPARISON_RESULTS"
+    echo "" | tee -a "$COMPARISON_RESULTS"
+
+    echo "Branch,Crate,Version,Time (seconds)" | tee -a "$COMPARISON_RESULTS"
+    echo "------,-----,-------,----------------" | tee -a "$COMPARISON_RESULTS"
+
+    # Extract timings
+    grep '^RESULT,' "$COMPARE_FILE1" 2>/dev/null | while IFS=, read -r _ _ crate version timing; do
+        echo "$branch1,$crate,$version,$timing"
+    done | tee -a "$COMPARISON_RESULTS"
+
+    grep '^RESULT,' "$COMPARE_FILE2" 2>/dev/null | while IFS=, read -r _ _ crate version timing; do
+        echo "$branch2,$crate,$version,$timing"
+    done | tee -a "$COMPARISON_RESULTS"
+
+    echo "" | tee -a "$COMPARISON_RESULTS"
+    echo "Detailed Results:" | tee -a "$COMPARISON_RESULTS"
+    echo "  $branch1: $COMPARE_FILE1" | tee -a "$COMPARISON_RESULTS"
+    echo "  $branch2: $COMPARE_FILE2" | tee -a "$COMPARISON_RESULTS"
+    echo "" | tee -a "$COMPARISON_RESULTS"
+
+    echo "Performance Differences ($branch2 vs $branch1):" | tee -a "$COMPARISON_RESULTS"
+    echo "-------------------------------------------" | tee -a "$COMPARISON_RESULTS"
+
+    # Extract unique crate names
+    TESTED_CRATES=$(grep -h "^[^,]*," "$COMPARISON_RESULTS" 2>/dev/null | cut -d',' -f2 | sort -u)
+
+    for test_crate in $TESTED_CRATES; do
+        for version in R4 R4B R5 R6; do
+            time1=$(grep "^$branch1,$test_crate,$version," "$COMPARISON_RESULTS" | tail -1 | cut -d',' -f4)
+            time2=$(grep "^$branch2,$test_crate,$version," "$COMPARISON_RESULTS" | tail -1 | cut -d',' -f4)
+
+            if [ -n "$time1" ] && [ -n "$time2" ]; then
+                diff=$(echo "scale=2; (($time2 - $time1) / $time1) * 100" | bc)
+
+                if (( $(echo "$diff < 0" | bc -l) )); then
+                    echo "$test_crate $version: ${diff#-}% faster (IMPROVEMENT)" | tee -a "$COMPARISON_RESULTS"
+                elif (( $(echo "$diff > 0" | bc -l) )); then
+                    echo "$test_crate $version: ${diff}% slower (REGRESSION)" | tee -a "$COMPARISON_RESULTS"
+                else
+                    echo "$test_crate $version: No significant difference" | tee -a "$COMPARISON_RESULTS"
+                fi
+            fi
+        done
+    done
+
+    echo "" | tee -a "$COMPARISON_RESULTS"
+    echo "=====================================" | tee -a "$COMPARISON_RESULTS"
+    echo "Comparison Complete!" | tee -a "$COMPARISON_RESULTS"
+    echo "=====================================" | tee -a "$COMPARISON_RESULTS"
+    echo "" | tee -a "$COMPARISON_RESULTS"
+    echo "View comparison results at: $COMPARISON_RESULTS"
+
+    exit 0
+fi
+
+# Generate timestamp
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-MAIN_RESULTS="$BENCHMARK_RESULTS_DIR/main_${TIMESTAMP}.txt"
-REFACTOR_RESULTS="$BENCHMARK_RESULTS_DIR/refactor_${TIMESTAMP}.txt"
-COMPARISON_RESULTS="$BENCHMARK_RESULTS_DIR/comparison_${TIMESTAMP}.txt"
+
+# If using existing results, extract timestamp if possible
+if [ -n "$USE_EXISTING" ]; then
+    if [[ "$USE_EXISTING" =~ _([0-9_]+)\.txt ]]; then
+        TIMESTAMP="${BASH_REMATCH[1]}"
+    fi
+fi
 
 # Create benchmark results directory
 mkdir -p "$BENCHMARK_RESULTS_DIR"
@@ -18,21 +173,50 @@ echo "======================================"
 echo "FHIR JSON Serde Performance Benchmark"
 echo "======================================"
 echo "Timestamp: $TIMESTAMP"
+echo "Branches to benchmark: ${BRANCHES[*]}"
+if [ -n "$USE_EXISTING" ]; then
+    echo "Using existing results: $USE_EXISTING"
+fi
 echo ""
+
+# Function to cleanup worktrees
+cleanup_worktrees() {
+    echo "Cleaning up worktrees..."
+    if [ -d "$WORKTREE_DIR" ]; then
+        for worktree in "$WORKTREE_DIR"/*; do
+            if [ -d "$worktree" ]; then
+                branch_name=$(basename "$worktree")
+                echo "Removing worktree: $branch_name"
+                git worktree remove "$worktree" --force 2>/dev/null || true
+            fi
+        done
+        rmdir "$WORKTREE_DIR" 2>/dev/null || true
+    fi
+}
+
+# Set trap to cleanup on exit
+trap cleanup_worktrees EXIT
 
 # Function to run benchmarks for a specific branch
 run_benchmark() {
     local branch=$1
     local output_file=$2
+    local worktree_path="$WORKTREE_DIR/$branch"
 
     echo "===============================================" | tee "$output_file"
     echo "Running benchmarks on branch: $branch" | tee -a "$output_file"
     echo "===============================================" | tee -a "$output_file"
     echo "" | tee -a "$output_file"
 
-    # Checkout the branch
-    git checkout "$branch" 2>&1 | tee -a "$output_file"
+    # Create worktree for this branch
+    echo "Creating worktree for branch $branch at $worktree_path..." | tee -a "$output_file"
+    rm -rf "$worktree_path"
+    mkdir -p "$WORKTREE_DIR"
+    git worktree add "$worktree_path" "$branch" 2>&1 | tee -a "$output_file"
     echo "" | tee -a "$output_file"
+
+    # Change to worktree directory
+    cd "$worktree_path"
 
     # Build the list of crates for this branch
     # The test_examples.rs location differs between branches (xml branch: helios-serde, main branch: helios-fhir)
@@ -48,6 +232,7 @@ run_benchmark() {
 
     if [ ${#TEST_CRATES[@]} -eq 0 ]; then
         echo "ERROR: Unable to find test_examples.rs in any crate on branch $branch" | tee -a "$output_file"
+        cd - > /dev/null
         return 1
     fi
     echo "" | tee -a "$output_file"
@@ -130,95 +315,121 @@ run_benchmark() {
     echo "" | tee -a "$output_file"
     echo "Benchmark completed for branch: $branch" | tee -a "$output_file"
     echo "" | tee -a "$output_file"
+
+    # Return to original directory
+    cd - > /dev/null
 }
 
 # Function to extract timing information from results
 extract_timings() {
     local file=$1
-    local default_branch_label=$2
+    local branch_label=$2
 
     echo "Extracting timings from $file"
 
     grep '^RESULT,' "$file" 2>/dev/null | while IFS=, read -r _ recorded_branch crate version timing; do
-        local branch_label="$recorded_branch"
-        if [ -n "$default_branch_label" ]; then
-            branch_label="$default_branch_label"
-        fi
         echo "$branch_label,$crate,$version,$timing"
     done
 }
 
-# Save current branch to return to it later
-CURRENT_BRANCH=$(git branch --show-current)
+# Get current directory (to use for absolute paths)
+ORIGINAL_DIR=$(pwd)
+WORKTREE_DIR="$ORIGINAL_DIR/$WORKTREE_DIR"
 
-# Run benchmarks on current branch first (before switching)
-echo "Step 1/3: Benchmarking current branch ($CURRENT_BRANCH)..."
-run_benchmark "$CURRENT_BRANCH" "$REFACTOR_RESULTS"
+# Collect result files (using parallel arrays for bash 3.2 compatibility)
+RESULT_BRANCHES=()
+RESULT_FILES=()
 
-# Run benchmarks on main branch
-echo "Step 2/3: Benchmarking main branch..."
-run_benchmark "main" "$MAIN_RESULTS"
-
-# Return to original branch
-echo "Returning to original branch: $CURRENT_BRANCH"
-git checkout "$CURRENT_BRANCH"
-
-# Generate comparison report
-echo "Step 3/3: Generating comparison report..."
-echo "=====================================" | tee "$COMPARISON_RESULTS"
-echo "Performance Comparison Report" | tee -a "$COMPARISON_RESULTS"
-echo "=====================================" | tee -a "$COMPARISON_RESULTS"
-echo "Timestamp: $TIMESTAMP" | tee -a "$COMPARISON_RESULTS"
-echo "" | tee -a "$COMPARISON_RESULTS"
-
-echo "Branch,Crate,Version,Time (seconds)" | tee -a "$COMPARISON_RESULTS"
-echo "------,-----,-------,----------------" | tee -a "$COMPARISON_RESULTS"
-
-# Extract and display timings
-extract_timings "$MAIN_RESULTS" "main" | tee -a "$COMPARISON_RESULTS"
-extract_timings "$REFACTOR_RESULTS" "refactor" | tee -a "$COMPARISON_RESULTS"
-
-echo "" | tee -a "$COMPARISON_RESULTS"
-echo "Detailed Results:" | tee -a "$COMPARISON_RESULTS"
-echo "  Main branch:     $MAIN_RESULTS" | tee -a "$COMPARISON_RESULTS"
-echo "  Refactor branch: $REFACTOR_RESULTS" | tee -a "$COMPARISON_RESULTS"
-echo "" | tee -a "$COMPARISON_RESULTS"
-
-# Calculate percentage differences
-echo "Performance Differences (Refactor vs Main):" | tee -a "$COMPARISON_RESULTS"
-echo "-------------------------------------------" | tee -a "$COMPARISON_RESULTS"
-
-# Extract unique crate names from the results (handles both helios-serde and helios-fhir)
-TESTED_CRATES=$(grep -h "^main," "$COMPARISON_RESULTS" "$COMPARISON_RESULTS" 2>/dev/null | cut -d',' -f2 | sort -u)
-if [ -z "$TESTED_CRATES" ]; then
-    # If no main results, try to get from refactor results
-    TESTED_CRATES=$(grep -h "^refactor," "$COMPARISON_RESULTS" 2>/dev/null | cut -d',' -f2 | sort -u)
+# Add existing result file if specified
+if [ -n "$USE_EXISTING" ]; then
+    # Extract branch name from filename (assumes format: branch_timestamp.txt)
+    existing_branch=$(basename "$USE_EXISTING" | sed 's/_[0-9_]*\.txt$//')
+    RESULT_BRANCHES+=("$existing_branch")
+    RESULT_FILES+=("$ORIGINAL_DIR/$USE_EXISTING")
+    echo "Using existing results for branch '$existing_branch': $USE_EXISTING"
 fi
 
-for test_crate in $TESTED_CRATES; do
-    for version in R4 R4B R5 R6; do
-        main_time=$(grep "^main,$test_crate,$version," "$COMPARISON_RESULTS" | tail -1 | cut -d',' -f4)
-        refactor_time=$(grep "^refactor,$test_crate,$version," "$COMPARISON_RESULTS" | tail -1 | cut -d',' -f4)
+# Run benchmarks for specified branches
+for branch in "${BRANCHES[@]}"; do
+    result_file="$ORIGINAL_DIR/$BENCHMARK_RESULTS_DIR/${branch}_${TIMESTAMP}.txt"
+    RESULT_BRANCHES+=("$branch")
+    RESULT_FILES+=("$result_file")
 
-        if [ -n "$main_time" ] && [ -n "$refactor_time" ]; then
-            diff=$(echo "scale=2; (($refactor_time - $main_time) / $main_time) * 100" | bc)
-
-            if (( $(echo "$diff < 0" | bc -l) )); then
-                echo "$test_crate $version: ${diff#-}% faster (IMPROVEMENT)" | tee -a "$COMPARISON_RESULTS"
-            elif (( $(echo "$diff > 0" | bc -l) )); then
-                echo "$test_crate $version: ${diff}% slower (REGRESSION)" | tee -a "$COMPARISON_RESULTS"
-            else
-                echo "$test_crate $version: No significant difference" | tee -a "$COMPARISON_RESULTS"
-            fi
-        else
-            echo "$test_crate $version: Unable to compare (missing data)" | tee -a "$COMPARISON_RESULTS"
-        fi
-    done
+    echo "Benchmarking branch: $branch"
+    run_benchmark "$branch" "$result_file"
 done
 
-echo "" | tee -a "$COMPARISON_RESULTS"
-echo "=====================================" | tee -a "$COMPARISON_RESULTS"
-echo "Benchmark Complete!" | tee -a "$COMPARISON_RESULTS"
-echo "=====================================" | tee -a "$COMPARISON_RESULTS"
-echo "" | tee -a "$COMPARISON_RESULTS"
-echo "View comparison results at: $COMPARISON_RESULTS"
+# Generate comparison report if we have multiple results
+if [ ${#RESULT_FILES[@]} -ge 2 ]; then
+    COMPARISON_RESULTS="$ORIGINAL_DIR/$BENCHMARK_RESULTS_DIR/comparison_${TIMESTAMP}.txt"
+
+    echo "Generating comparison report..."
+    echo "=====================================" | tee "$COMPARISON_RESULTS"
+    echo "Performance Comparison Report" | tee -a "$COMPARISON_RESULTS"
+    echo "=====================================" | tee -a "$COMPARISON_RESULTS"
+    echo "Timestamp: $TIMESTAMP" | tee -a "$COMPARISON_RESULTS"
+    echo "" | tee -a "$COMPARISON_RESULTS"
+
+    echo "Branch,Crate,Version,Time (seconds)" | tee -a "$COMPARISON_RESULTS"
+    echo "------,-----,-------,----------------" | tee -a "$COMPARISON_RESULTS"
+
+    # Extract and display timings for all branches
+    for i in "${!RESULT_BRANCHES[@]}"; do
+        branch="${RESULT_BRANCHES[$i]}"
+        result_file="${RESULT_FILES[$i]}"
+        extract_timings "$result_file" "$branch" | tee -a "$COMPARISON_RESULTS"
+    done
+
+    echo "" | tee -a "$COMPARISON_RESULTS"
+    echo "Detailed Results:" | tee -a "$COMPARISON_RESULTS"
+    for i in "${!RESULT_BRANCHES[@]}"; do
+        echo "  ${RESULT_BRANCHES[$i]}: ${RESULT_FILES[$i]}" | tee -a "$COMPARISON_RESULTS"
+    done
+    echo "" | tee -a "$COMPARISON_RESULTS"
+
+    # Calculate percentage differences (assumes first two branches to compare)
+    echo "Performance Differences:" | tee -a "$COMPARISON_RESULTS"
+    echo "-------------------------------------------" | tee -a "$COMPARISON_RESULTS"
+
+    if [ ${#RESULT_BRANCHES[@]} -ge 2 ]; then
+        branch1="${RESULT_BRANCHES[0]}"
+        branch2="${RESULT_BRANCHES[1]}"
+
+        echo "Comparing $branch2 vs $branch1:" | tee -a "$COMPARISON_RESULTS"
+        echo "" | tee -a "$COMPARISON_RESULTS"
+
+        # Extract unique crate names from the results
+        TESTED_CRATES=$(grep -h "^[^,]*," "$COMPARISON_RESULTS" 2>/dev/null | cut -d',' -f2 | sort -u)
+
+        for test_crate in $TESTED_CRATES; do
+            for version in R4 R4B R5 R6; do
+                time1=$(grep "^$branch1,$test_crate,$version," "$COMPARISON_RESULTS" | tail -1 | cut -d',' -f4)
+                time2=$(grep "^$branch2,$test_crate,$version," "$COMPARISON_RESULTS" | tail -1 | cut -d',' -f4)
+
+                if [ -n "$time1" ] && [ -n "$time2" ]; then
+                    diff=$(echo "scale=2; (($time2 - $time1) / $time1) * 100" | bc)
+
+                    if (( $(echo "$diff < 0" | bc -l) )); then
+                        echo "$test_crate $version: ${diff#-}% faster (IMPROVEMENT)" | tee -a "$COMPARISON_RESULTS"
+                    elif (( $(echo "$diff > 0" | bc -l) )); then
+                        echo "$test_crate $version: ${diff}% slower (REGRESSION)" | tee -a "$COMPARISON_RESULTS"
+                    else
+                        echo "$test_crate $version: No significant difference" | tee -a "$COMPARISON_RESULTS"
+                    fi
+                fi
+            done
+        done
+    fi
+
+    echo "" | tee -a "$COMPARISON_RESULTS"
+    echo "=====================================" | tee -a "$COMPARISON_RESULTS"
+    echo "Benchmark Complete!" | tee -a "$COMPARISON_RESULTS"
+    echo "=====================================" | tee -a "$COMPARISON_RESULTS"
+    echo "" | tee -a "$COMPARISON_RESULTS"
+    echo "View comparison results at: $COMPARISON_RESULTS"
+else
+    echo "Single branch benchmarked. Results saved to:"
+    for i in "${!RESULT_BRANCHES[@]}"; do
+        echo "  ${RESULT_BRANCHES[$i]}: ${RESULT_FILES[$i]}"
+    done
+fi
