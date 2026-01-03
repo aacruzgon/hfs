@@ -124,26 +124,27 @@ if [ "$COMPARE_MODE" = true ]; then
     echo "Performance Differences ($branch2 vs $branch1):" | tee -a "$COMPARISON_RESULTS"
     echo "-------------------------------------------" | tee -a "$COMPARISON_RESULTS"
 
-    # Extract unique crate names
-    TESTED_CRATES=$(grep -h "^[^,]*," "$COMPARISON_RESULTS" 2>/dev/null | cut -d',' -f2 | sort -u)
+    # Compare by FHIR version only (crate names may differ between branches)
+    for version in R4 R4B R5 R6; do
+        # Get timings for each branch (any crate name)
+        time1=$(grep "^$branch1,.*,$version," "$COMPARISON_RESULTS" | tail -1 | cut -d',' -f4)
+        time2=$(grep "^$branch2,.*,$version," "$COMPARISON_RESULTS" | tail -1 | cut -d',' -f4)
 
-    for test_crate in $TESTED_CRATES; do
-        for version in R4 R4B R5 R6; do
-            time1=$(grep "^$branch1,$test_crate,$version," "$COMPARISON_RESULTS" | tail -1 | cut -d',' -f4)
-            time2=$(grep "^$branch2,$test_crate,$version," "$COMPARISON_RESULTS" | tail -1 | cut -d',' -f4)
+        if [ -n "$time1" ] && [ -n "$time2" ]; then
+            # Get crate names for display
+            crate1=$(grep "^$branch1,.*,$version," "$COMPARISON_RESULTS" | tail -1 | cut -d',' -f2)
+            crate2=$(grep "^$branch2,.*,$version," "$COMPARISON_RESULTS" | tail -1 | cut -d',' -f2)
 
-            if [ -n "$time1" ] && [ -n "$time2" ]; then
-                diff=$(echo "scale=2; (($time2 - $time1) / $time1) * 100" | bc)
+            diff=$(echo "scale=2; (($time2 - $time1) / $time1) * 100" | bc)
 
-                if (( $(echo "$diff < 0" | bc -l) )); then
-                    echo "$test_crate $version: ${diff#-}% faster (IMPROVEMENT)" | tee -a "$COMPARISON_RESULTS"
-                elif (( $(echo "$diff > 0" | bc -l) )); then
-                    echo "$test_crate $version: ${diff}% slower (REGRESSION)" | tee -a "$COMPARISON_RESULTS"
-                else
-                    echo "$test_crate $version: No significant difference" | tee -a "$COMPARISON_RESULTS"
-                fi
+            if (( $(echo "$diff < 0" | bc -l) )); then
+                echo "$version: ${diff#-}% faster ($branch2:$crate2 vs $branch1:$crate1) - IMPROVEMENT" | tee -a "$COMPARISON_RESULTS"
+            elif (( $(echo "$diff > 0" | bc -l) )); then
+                echo "$version: ${diff}% slower ($branch2:$crate2 vs $branch1:$crate1) - REGRESSION" | tee -a "$COMPARISON_RESULTS"
+            else
+                echo "$version: No significant difference ($branch2:$crate2 vs $branch1:$crate1)" | tee -a "$COMPARISON_RESULTS"
             fi
-        done
+        fi
     done
 
     echo "" | tee -a "$COMPARISON_RESULTS"
@@ -410,26 +411,27 @@ if [ ${#RESULT_FILES[@]} -ge 2 ]; then
         echo "Comparing $branch2 vs $branch1:" | tee -a "$COMPARISON_RESULTS"
         echo "" | tee -a "$COMPARISON_RESULTS"
 
-        # Extract unique crate names from the results
-        TESTED_CRATES=$(grep -h "^[^,]*," "$COMPARISON_RESULTS" 2>/dev/null | cut -d',' -f2 | sort -u)
+        # Compare by FHIR version only (crate names may differ between branches)
+        for version in R4 R4B R5 R6; do
+            # Get timings for each branch (any crate name)
+            time1=$(grep "^$branch1,.*,$version," "$COMPARISON_RESULTS" | tail -1 | cut -d',' -f4)
+            time2=$(grep "^$branch2,.*,$version," "$COMPARISON_RESULTS" | tail -1 | cut -d',' -f4)
 
-        for test_crate in $TESTED_CRATES; do
-            for version in R4 R4B R5 R6; do
-                time1=$(grep "^$branch1,$test_crate,$version," "$COMPARISON_RESULTS" | tail -1 | cut -d',' -f4)
-                time2=$(grep "^$branch2,$test_crate,$version," "$COMPARISON_RESULTS" | tail -1 | cut -d',' -f4)
+            if [ -n "$time1" ] && [ -n "$time2" ]; then
+                # Get crate names for display
+                crate1=$(grep "^$branch1,.*,$version," "$COMPARISON_RESULTS" | tail -1 | cut -d',' -f2)
+                crate2=$(grep "^$branch2,.*,$version," "$COMPARISON_RESULTS" | tail -1 | cut -d',' -f2)
 
-                if [ -n "$time1" ] && [ -n "$time2" ]; then
-                    diff=$(echo "scale=2; (($time2 - $time1) / $time1) * 100" | bc)
+                diff=$(echo "scale=2; (($time2 - $time1) / $time1) * 100" | bc)
 
-                    if (( $(echo "$diff < 0" | bc -l) )); then
-                        echo "$test_crate $version: ${diff#-}% faster (IMPROVEMENT)" | tee -a "$COMPARISON_RESULTS"
-                    elif (( $(echo "$diff > 0" | bc -l) )); then
-                        echo "$test_crate $version: ${diff}% slower (REGRESSION)" | tee -a "$COMPARISON_RESULTS"
-                    else
-                        echo "$test_crate $version: No significant difference" | tee -a "$COMPARISON_RESULTS"
-                    fi
+                if (( $(echo "$diff < 0" | bc -l) )); then
+                    echo "$version: ${diff#-}% faster ($branch2:$crate2 vs $branch1:$crate1) - IMPROVEMENT" | tee -a "$COMPARISON_RESULTS"
+                elif (( $(echo "$diff > 0" | bc -l) )); then
+                    echo "$version: ${diff}% slower ($branch2:$crate2 vs $branch1:$crate1) - REGRESSION" | tee -a "$COMPARISON_RESULTS"
+                else
+                    echo "$version: No significant difference ($branch2:$crate2 vs $branch1:$crate1)" | tee -a "$COMPARISON_RESULTS"
                 fi
-            done
+            fi
         done
     fi
 
