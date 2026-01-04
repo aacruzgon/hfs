@@ -793,12 +793,12 @@ fn test_minimal_singlevec_xml() -> Result<()> {
     // Test with single item
     let xml_single = r#"<?xml version="1.0"?><TestResource xmlns="http://test"><item><linkId value="q1"/></item></TestResource>"#;
     let result_single = from_xml_str::<TestResource>(xml_single)?;
-    assert!(matches!(result_single.items, SingleOrVec::Single(_)));
+    assert_eq!(result_single.items.as_ref().len(), 1);
 
     // Test with multiple items
     let xml_multi = r#"<?xml version="1.0"?><TestResource xmlns="http://test"><item><linkId value="q1"/></item><item><linkId value="q2"/></item></TestResource>"#;
     let result_multi = from_xml_str::<TestResource>(xml_multi)?;
-    assert!(matches!(result_multi.items, SingleOrVec::Vec(_)));
+    assert_eq!(result_multi.items.as_ref().len(), 2);
 
     Ok(())
 }

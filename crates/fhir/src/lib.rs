@@ -1850,7 +1850,7 @@ where
                     }
                     // Handle single or vec for extension field (XML compatibility)
                     let single_or_vec: SingleOrVec<E> = map.next_value()?;
-                    extension = Some(single_or_vec.into_vec());
+                    extension = Some(single_or_vec.into());
                 }
                 "value" => {
                     if value.is_some() {
@@ -2496,7 +2496,7 @@ where
                             }
                             // Handle single or vec for extension field (XML compatibility)
                             let single_or_vec: SingleOrVec<E> = Deserialize::deserialize(v).map_err(de::Error::custom)?;
-                            extension = Some(single_or_vec.into_vec());
+                            extension = Some(single_or_vec.into());
                         }
                         "value" => {
                             if value.is_some() {

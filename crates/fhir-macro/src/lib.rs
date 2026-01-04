@@ -2188,11 +2188,11 @@ fn generate_deserialize_impl(data: &Data, name: &Ident) -> proc_macro2::TokenStr
                                     quote! {
                                         #field_name_ident: {
                                             let (primitives, has_primitives) = match temp_struct.#field_name_ident {
-                                                Some(holder) => (holder.into_vec(), true),
+                                                Some(holder) => (holder.into(), true),
                                                 None => (Vec::new(), false),
                                             };
                                             let (extensions, has_extensions) = match temp_struct.#field_name_ident_ext {
-                                                Some(holder) => (holder.into_vec(), true),
+                                                Some(holder) => (holder.into(), true),
                                                 None => (Vec::new(), false),
                                             };
                                             if has_primitives || has_extensions {
@@ -2218,9 +2218,9 @@ fn generate_deserialize_impl(data: &Data, name: &Ident) -> proc_macro2::TokenStr
                                 } else {
                                     quote! {
                                         #field_name_ident: {
-                                            let primitives = temp_struct.#field_name_ident.into_vec();
+                                            let primitives = temp_struct.#field_name_ident.into();
                                             let extensions = temp_struct.#field_name_ident_ext
-                                                .map(|holder| holder.into_vec())
+                                                .map(|holder| holder.into())
                                                 .unwrap_or_default();
                                             let len = primitives.len().max(extensions.len());
                                             let mut result_vec = Vec::with_capacity(len);
@@ -2380,11 +2380,11 @@ fn generate_deserialize_impl(data: &Data, name: &Ident) -> proc_macro2::TokenStr
                                 if is_option {
                                     quote! {
                                         #field_name_ident: temp_struct.#field_name_ident
-                                            .map(|holder| holder.into_vec()),
+                                            .map(|holder| holder.into()),
                                     }
                                 } else {
                                     quote! {
-                                        #field_name_ident: temp_struct.#field_name_ident.into_vec(),
+                                        #field_name_ident: temp_struct.#field_name_ident.into(),
                                     }
                                 }
                             } else {

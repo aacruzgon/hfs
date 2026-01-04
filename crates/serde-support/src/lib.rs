@@ -1,33 +1,182 @@
-use serde::Deserialize;
+// Serde traits used in custom Deserialize implementations
 
 /// Helper that accepts either a single value or an array when deserializing.
 ///
 /// FHIR allows most repeatable elements to appear either once or multiple times
-/// depending on the instance’s actual cardinality. While JSON carries enough
+/// depending on the instance's actual cardinality. While JSON carries enough
 /// structure (`[]` vs scalar) so serde can infer that automatically, the XML
 /// stream does not embed the schema-driven cardinality constraints. During
 /// XML deserialization we therefore wrap every field with a `min > 0` upper
 /// bound in `SingleOrVec` so we can accept both the single-element case and
 /// the repeated-element case without schema knowledge at parse time.
-#[derive(Clone, Debug, PartialEq, Deserialize)]
-#[serde(untagged)]
-pub enum SingleOrVec<T> {
-    Vec(Vec<T>),
-    Single(T),
+#[derive(Clone, Debug, PartialEq)]
+pub struct SingleOrVec<T>(Vec<T>);
+
+impl<T> AsRef<[T]> for SingleOrVec<T> {
+    #[inline]
+    fn as_ref(&self) -> &[T] {
+        &self.0
+    }
 }
 
-impl<T> SingleOrVec<T> {
-    pub fn into_vec(self) -> Vec<T> {
-        match self {
-            SingleOrVec::Single(value) => vec![value],
-            SingleOrVec::Vec(values) => values,
-        }
+impl<T> From<SingleOrVec<T>> for Vec<T> {
+    #[inline]
+    fn from(wrapper: SingleOrVec<T>) -> Self {
+        wrapper.0
     }
 }
 
 impl<T> Default for SingleOrVec<T> {
+    #[inline]
     fn default() -> Self {
-        SingleOrVec::Vec(Vec::new())
+        SingleOrVec(Vec::new())
+    }
+}
+
+impl<'de, T> serde::Deserialize<'de> for SingleOrVec<T>
+where
+    T: serde::Deserialize<'de>,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[inline]
+        fn deserialize_single_value<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+        where
+            D: serde::Deserializer<'de>,
+            T: serde::Deserialize<'de>,
+        {
+            T::deserialize(OptionFriendlyDeserializer(deserializer))
+        }
+
+        /// Wraps an inner deserializer and forces scalar values to behave like `Some(_)`.
+        struct OptionFriendlyDeserializer<D>(D);
+
+        impl<'de, D> serde::Deserializer<'de> for OptionFriendlyDeserializer<D>
+        where
+            D: serde::Deserializer<'de>,
+        {
+            type Error = D::Error;
+
+            #[inline]
+            fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+            where
+                V: serde::de::Visitor<'de>,
+            {
+                self.0.deserialize_any(visitor)
+            }
+
+            #[inline]
+            fn deserialize_enum<V>(
+                self,
+                name: &'static str,
+                variants: &'static [&'static str],
+                visitor: V,
+            ) -> Result<V::Value, Self::Error>
+            where
+                V: serde::de::Visitor<'de>,
+            {
+                self.0.deserialize_enum(name, variants, visitor)
+            }
+
+            #[inline]
+            fn deserialize_option<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+            where
+                V: serde::de::Visitor<'de>,
+            {
+                visitor.visit_some(self.0)
+            }
+
+            serde::forward_to_deserialize_any! {
+                bool i8 i16 i32 i64 i128 u8 u16 u32 u64 u128 f32 f64 char str string
+                bytes byte_buf unit unit_struct newtype_struct seq tuple tuple_struct
+                map struct identifier ignored_any
+            }
+        }
+        struct SingleOrVecVisitor<T>(std::marker::PhantomData<T>);
+
+        impl<'de, T> serde::de::Visitor<'de> for SingleOrVecVisitor<T>
+        where
+            T: serde::Deserialize<'de>,
+        {
+            type Value = SingleOrVec<T>;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("a single value or a sequence")
+            }
+
+            // High performance path for JSON arrays or repeated XML tags
+            #[inline]
+            fn visit_seq<A>(self, seq: A) -> Result<Self::Value, A::Error>
+            where
+                A: serde::de::SeqAccess<'de>,
+            {
+                let values = serde::Deserialize::deserialize(
+                    serde::de::value::SeqAccessDeserializer::new(seq),
+                )?;
+                Ok(SingleOrVec(values))
+            }
+
+            // Path for single XML elements (map = object with fields)
+            #[inline]
+            fn visit_map<M>(self, map: M) -> Result<Self::Value, M::Error>
+            where
+                M: serde::de::MapAccess<'de>,
+            {
+                let value =
+                    deserialize_single_value(serde::de::value::MapAccessDeserializer::new(map))?;
+                Ok(SingleOrVec(vec![value]))
+            }
+
+            // Path for JSON scalars or XML text-only elements
+            #[inline]
+            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                let value = deserialize_single_value(serde::de::value::StrDeserializer::new(v))?;
+                Ok(SingleOrVec(vec![value]))
+            }
+
+            #[inline]
+            fn visit_bool<E>(self, v: bool) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                let value = deserialize_single_value(serde::de::value::BoolDeserializer::new(v))?;
+                Ok(SingleOrVec(vec![value]))
+            }
+
+            #[inline]
+            fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                let value = deserialize_single_value(serde::de::value::I64Deserializer::new(v))?;
+                Ok(SingleOrVec(vec![value]))
+            }
+
+            #[inline]
+            fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                let value = deserialize_single_value(serde::de::value::U64Deserializer::new(v))?;
+                Ok(SingleOrVec(vec![value]))
+            }
+
+            #[inline]
+            fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                let value = deserialize_single_value(serde::de::value::F64Deserializer::new(v))?;
+                Ok(SingleOrVec(vec![value]))
+            }
+        }
+
+        deserializer.deserialize_any(SingleOrVecVisitor(std::marker::PhantomData))
     }
 }
 
@@ -50,7 +199,7 @@ impl<T> Default for SingleOrVec<T> {
 /// # Type Parameters
 /// - `P`: Primitive type (the final deserialized type, e.g. `String`, `i32`, `bool`)
 /// - `E`: Element type (struct containing value and metadata fields)
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, serde::Deserialize)]
 #[serde(untagged)]
 pub enum PrimitiveOrElement<P, E> {
     // Try Element first (more specific - requires object structure)
