@@ -41,59 +41,6 @@ where
     where
         D: serde::Deserializer<'de>,
     {
-        #[inline]
-        fn deserialize_single_value<'de, D, T>(deserializer: D) -> Result<T, D::Error>
-        where
-            D: serde::Deserializer<'de>,
-            T: serde::Deserialize<'de>,
-        {
-            T::deserialize(OptionFriendlyDeserializer(deserializer))
-        }
-
-        /// Wraps an inner deserializer and forces scalar values to behave like `Some(_)`.
-        struct OptionFriendlyDeserializer<D>(D);
-
-        impl<'de, D> serde::Deserializer<'de> for OptionFriendlyDeserializer<D>
-        where
-            D: serde::Deserializer<'de>,
-        {
-            type Error = D::Error;
-
-            #[inline]
-            fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-            where
-                V: serde::de::Visitor<'de>,
-            {
-                self.0.deserialize_any(visitor)
-            }
-
-            #[inline]
-            fn deserialize_enum<V>(
-                self,
-                name: &'static str,
-                variants: &'static [&'static str],
-                visitor: V,
-            ) -> Result<V::Value, Self::Error>
-            where
-                V: serde::de::Visitor<'de>,
-            {
-                self.0.deserialize_enum(name, variants, visitor)
-            }
-
-            #[inline]
-            fn deserialize_option<V>(self, visitor: V) -> Result<V::Value, Self::Error>
-            where
-                V: serde::de::Visitor<'de>,
-            {
-                visitor.visit_some(self.0)
-            }
-
-            serde::forward_to_deserialize_any! {
-                bool i8 i16 i32 i64 i128 u8 u16 u32 u64 u128 f32 f64 char str string
-                bytes byte_buf unit unit_struct newtype_struct seq tuple tuple_struct
-                map struct identifier ignored_any
-            }
-        }
         struct SingleOrVecVisitor<T>(std::marker::PhantomData<T>);
 
         impl<'de, T> serde::de::Visitor<'de> for SingleOrVecVisitor<T>
@@ -191,21 +138,236 @@ where
 ///   - `<birthDate id="x" value="...">` → `Element(Element { value, id, ... })`
 ///   - `<birthDate id="x" value="..."><extension>...</extension></birthDate>` → `Element` with full metadata
 ///
-/// The untagged enum lets serde choose the variant based on the incoming data structure:
-/// - JSON scalars match `Primitive` variant (deserialized directly into final primitive type)
-/// - XML element structures (objects with value/id/extension) match `Element` variant
-/// This eliminates the need for XML-to-JSON conversion.
+/// The custom `Deserialize` impl mirrors the old `#[serde(untagged)]` behavior without buffering:
+/// - JSON scalars map to the `Primitive` variant (directly deserialized into the primitive type).
+/// - XML element structures (objects with `value`, `id`, `extension`, …) map to the `Element` variant.
+/// It avoids serde’s internal `Content` buffering while preserving semantics crucial for primitives
+/// with metadata.
 ///
 /// # Type Parameters
 /// - `P`: Primitive type (the final deserialized type, e.g. `String`, `i32`, `bool`)
 /// - `E`: Element type (struct containing value and metadata fields)
-#[derive(Clone, Debug, PartialEq, serde::Deserialize)]
-#[serde(untagged)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum PrimitiveOrElement<P, E> {
     // Try Element first (more specific - requires object structure)
     Element(E),
     // Fall back to Primitive (catch-all for JSON scalars)
     Primitive(P),
+}
+
+impl<'de, P, E> serde::Deserialize<'de> for PrimitiveOrElement<P, E>
+where
+    P: serde::Deserialize<'de>,
+    E: serde::Deserialize<'de>,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct PrimitiveOrElementVisitor<P, E>(std::marker::PhantomData<(P, E)>);
+
+        impl<'de, P, E> serde::de::Visitor<'de> for PrimitiveOrElementVisitor<P, E>
+        where
+            P: serde::Deserialize<'de>,
+            E: serde::Deserialize<'de>,
+        {
+            type Value = PrimitiveOrElement<P, E>;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("a primitive value or an element object")
+            }
+
+            #[inline]
+            fn visit_map<M>(self, map: M) -> Result<Self::Value, M::Error>
+            where
+                M: serde::de::MapAccess<'de>,
+            {
+                let element = E::deserialize(serde::de::value::MapAccessDeserializer::new(map))?;
+                Ok(PrimitiveOrElement::Element(element))
+            }
+
+            #[inline]
+            fn visit_seq<A>(self, seq: A) -> Result<Self::Value, A::Error>
+            where
+                A: serde::de::SeqAccess<'de>,
+            {
+                let primitive =
+                    deserialize_single_value(serde::de::value::SeqAccessDeserializer::new(seq))?;
+                Ok(PrimitiveOrElement::Primitive(primitive))
+            }
+
+            #[inline]
+            fn visit_str<E2>(self, v: &str) -> Result<Self::Value, E2>
+            where
+                E2: serde::de::Error,
+            {
+                let primitive =
+                    deserialize_single_value(serde::de::value::StrDeserializer::new(v))?;
+                Ok(PrimitiveOrElement::Primitive(primitive))
+            }
+
+            #[inline]
+            fn visit_string<E2>(self, v: String) -> Result<Self::Value, E2>
+            where
+                E2: serde::de::Error,
+            {
+                let primitive =
+                    deserialize_single_value(serde::de::value::StringDeserializer::new(v))?;
+                Ok(PrimitiveOrElement::Primitive(primitive))
+            }
+
+            #[inline]
+            fn visit_bool<E2>(self, v: bool) -> Result<Self::Value, E2>
+            where
+                E2: serde::de::Error,
+            {
+                let primitive =
+                    deserialize_single_value(serde::de::value::BoolDeserializer::new(v))?;
+                Ok(PrimitiveOrElement::Primitive(primitive))
+            }
+
+            #[inline]
+            fn visit_i64<E2>(self, v: i64) -> Result<Self::Value, E2>
+            where
+                E2: serde::de::Error,
+            {
+                let primitive =
+                    deserialize_single_value(serde::de::value::I64Deserializer::new(v))?;
+                Ok(PrimitiveOrElement::Primitive(primitive))
+            }
+
+            #[inline]
+            fn visit_u64<E2>(self, v: u64) -> Result<Self::Value, E2>
+            where
+                E2: serde::de::Error,
+            {
+                let primitive =
+                    deserialize_single_value(serde::de::value::U64Deserializer::new(v))?;
+                Ok(PrimitiveOrElement::Primitive(primitive))
+            }
+
+            #[inline]
+            fn visit_f64<E2>(self, v: f64) -> Result<Self::Value, E2>
+            where
+                E2: serde::de::Error,
+            {
+                let primitive =
+                    deserialize_single_value(serde::de::value::F64Deserializer::new(v))?;
+                Ok(PrimitiveOrElement::Primitive(primitive))
+            }
+
+            #[inline]
+            fn visit_none<E2>(self) -> Result<Self::Value, E2>
+            where
+                E2: serde::de::Error,
+            {
+                let primitive = P::deserialize(serde::de::value::UnitDeserializer::new())?;
+                Ok(PrimitiveOrElement::Primitive(primitive))
+            }
+
+            #[inline]
+            fn visit_unit<E2>(self) -> Result<Self::Value, E2>
+            where
+                E2: serde::de::Error,
+            {
+                let primitive = P::deserialize(serde::de::value::UnitDeserializer::new())?;
+                Ok(PrimitiveOrElement::Primitive(primitive))
+            }
+
+            #[inline]
+            fn visit_some<D2>(self, deserializer: D2) -> Result<Self::Value, D2::Error>
+            where
+                D2: serde::Deserializer<'de>,
+            {
+                let primitive = deserialize_single_value(deserializer)?;
+                Ok(PrimitiveOrElement::Primitive(primitive))
+            }
+
+            #[inline]
+            fn visit_newtype_struct<D2>(self, deserializer: D2) -> Result<Self::Value, D2::Error>
+            where
+                D2: serde::Deserializer<'de>,
+            {
+                let primitive = deserialize_single_value(deserializer)?;
+                Ok(PrimitiveOrElement::Primitive(primitive))
+            }
+
+            #[inline]
+            fn visit_enum<D2>(self, data: D2) -> Result<Self::Value, D2::Error>
+            where
+                D2: serde::de::EnumAccess<'de>,
+            {
+                let primitive =
+                    deserialize_single_value(serde::de::value::EnumAccessDeserializer::new(data))?;
+                Ok(PrimitiveOrElement::Primitive(primitive))
+            }
+
+            #[inline]
+            fn visit_char<E2>(self, v: char) -> Result<Self::Value, E2>
+            where
+                E2: serde::de::Error,
+            {
+                let primitive =
+                    deserialize_single_value(serde::de::value::CharDeserializer::new(v))?;
+                Ok(PrimitiveOrElement::Primitive(primitive))
+            }
+        }
+
+        deserializer.deserialize_any(PrimitiveOrElementVisitor(std::marker::PhantomData))
+    }
+}
+
+#[inline]
+fn deserialize_single_value<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: serde::Deserialize<'de>,
+{
+    /// Wraps a deserializer so that `Option<T>` values produced from scalars are treated as `Some(T)`.
+    struct OptionFriendlyDeserializer<D>(D);
+
+    impl<'de, D> serde::Deserializer<'de> for OptionFriendlyDeserializer<D>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        type Error = D::Error;
+
+        #[inline]
+        fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+        where
+            V: serde::de::Visitor<'de>,
+        {
+            self.0.deserialize_any(visitor)
+        }
+
+        #[inline]
+        fn deserialize_enum<V>(
+            self,
+            name: &'static str,
+            variants: &'static [&'static str],
+            visitor: V,
+        ) -> Result<V::Value, Self::Error>
+        where
+            V: serde::de::Visitor<'de>,
+        {
+            self.0.deserialize_enum(name, variants, visitor)
+        }
+
+        #[inline]
+        fn deserialize_option<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+        where
+            V: serde::de::Visitor<'de>,
+        {
+            visitor.visit_some(self.0)
+        }
+
+        serde::forward_to_deserialize_any! {
+            bool i8 i16 i32 i64 i128 u8 u16 u32 u64 u128 f32 f64 char str string
+            bytes byte_buf unit unit_struct newtype_struct seq tuple tuple_struct
+            map struct identifier ignored_any
+        }
+    }
+    T::deserialize(OptionFriendlyDeserializer(deserializer))
 }
 
 /// Helper struct for serializing id and extension metadata for FHIR primitives.

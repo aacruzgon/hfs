@@ -5,12 +5,57 @@
 //! FHIR JSON patterns on-the-fly.
 
 use crate::error::{Result, SerdeError};
-use quick_xml::Reader;
 use quick_xml::events::{BytesText, Event};
+use quick_xml::Reader;
 use serde::de::{self, Deserialize, DeserializeSeed, IntoDeserializer, SeqAccess, Visitor};
 use serde_json::Value as JsonValue;
 use std::collections::VecDeque;
 use std::io::BufRead;
+
+/// Wraps a scalar deserializer so that `Option<T>` fields see `visit_some(...)`.
+struct OptionFriendlyDeserializer<D>(D);
+
+impl<'de, D> de::Deserializer<'de> for OptionFriendlyDeserializer<D>
+where
+    D: de::Deserializer<'de, Error = SerdeError>,
+{
+    type Error = SerdeError;
+
+    #[inline]
+    fn deserialize_any<V>(self, visitor: V) -> Result<V::Value>
+    where
+        V: Visitor<'de>,
+    {
+        self.0.deserialize_any(visitor)
+    }
+
+    #[inline]
+    fn deserialize_enum<V>(
+        self,
+        name: &'static str,
+        variants: &'static [&'static str],
+        visitor: V,
+    ) -> Result<V::Value>
+    where
+        V: Visitor<'de>,
+    {
+        self.0.deserialize_enum(name, variants, visitor)
+    }
+
+    #[inline]
+    fn deserialize_option<V>(self, visitor: V) -> Result<V::Value>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_some(self.0)
+    }
+
+    serde::forward_to_deserialize_any! {
+        bool i8 i16 i32 i64 i128 u8 u16 u32 u64 u128 f32 f64 char str string
+        bytes byte_buf unit unit_struct newtype_struct seq tuple tuple_struct
+        map struct identifier ignored_any
+    }
+}
 
 /// Deserialize a FHIR resource from an XML string.
 ///
@@ -1044,7 +1089,8 @@ impl<'de, 'a, R: BufRead + 'a> de::MapAccess<'de> for ElementMapAccess<'a, R> {
             self.emit_resource_type_value = false;
             let name = self.element_name.as_ref().unwrap().clone();
             self.pending_field_name = None;
-            return seed.deserialize(de::value::StrDeserializer::<SerdeError>::new(&name));
+            let deser = de::value::StrDeserializer::<SerdeError>::new(&name);
+            return seed.deserialize(OptionFriendlyDeserializer(deser));
         }
 
         // Special case: attribute value
@@ -1053,7 +1099,8 @@ impl<'de, 'a, R: BufRead + 'a> de::MapAccess<'de> for ElementMapAccess<'a, R> {
             let (_, value) = &self.attributes[self.attribute_index];
             self.attribute_index += 1;
             self.pending_field_name = None;
-            return seed.deserialize(de::value::StrDeserializer::<SerdeError>::new(value));
+            let deser = de::value::StrDeserializer::<SerdeError>::new(value);
+            return seed.deserialize(OptionFriendlyDeserializer(deser));
         }
 
         let field_name = self
@@ -1368,5 +1415,3 @@ impl<'de, 'a, R: BufRead + 'a> de::SeqAccess<'de> for ElementSeqAccess<'a, R> {
         }
     }
 }
-
-
