@@ -280,8 +280,12 @@ run_benchmark() {
         echo "Found test_examples in helios-serde" | tee -a "$output_file"
     fi
     if [ -f "crates/fhir/tests/test_examples.rs" ]; then
-        TEST_CRATES+=("helios-fhir|_examples|skip-r6-download|test_examples")
-        echo "Found test_examples in helios-fhir" | tee -a "$output_file"
+        local test_suffix="_examples"
+        if grep -qE 'test_[[:alnum:]]+_json_examples' "crates/fhir/tests/test_examples.rs"; then
+            test_suffix="_json_examples"
+        fi
+        TEST_CRATES+=("helios-fhir|${test_suffix}|skip-r6-download|test_examples")
+        echo "Found test_examples in helios-fhir (using suffix: ${test_suffix})" | tee -a "$output_file"
     fi
 
     if [ ${#TEST_CRATES[@]} -eq 0 ]; then
