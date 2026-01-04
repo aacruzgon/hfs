@@ -100,8 +100,13 @@ done
 # Default: run current branch + main if no branches were provided (even if options were)
 if [ "$COMPARE_MODE" = false ] && [ ${#BRANCHES[@]} -eq 0 ]; then
     CURRENT_BRANCH=$(git branch --show-current)
-    BRANCHES=("$CURRENT_BRANCH" "main")
-    echo "No branches provided. Running benchmarks for current branch ($CURRENT_BRANCH) and main"
+    if [ "$CURRENT_BRANCH" = "main" ]; then
+        BRANCHES=("main")
+        echo "No branches provided. Current branch is main; running benchmarks for main only"
+    else
+        BRANCHES=("main" "$CURRENT_BRANCH")
+        echo "No branches provided. Running benchmarks for current branch ($CURRENT_BRANCH) against main (baseline)"
+    fi
 fi
 
 # Handle compare-only mode
