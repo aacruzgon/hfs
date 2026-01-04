@@ -1934,6 +1934,15 @@ pub struct Element<V, E> {
     pub value: Option<V>,
 }
 
+impl<V, E> Element<V, E> {
+    /// Returns true when no value, id, or extensions are present.
+    pub fn is_empty(&self) -> bool {
+        self.value.is_none()
+            && self.id.is_none()
+            && self.extension.as_ref().map_or(true, |ext| ext.is_empty())
+    }
+}
+
 // Custom Deserialize for Element<V, E>
 // Remove PartialEq/Eq bounds for V and E as they are not needed for deserialization itself
 impl<'de, V, E> Deserialize<'de> for Element<V, E>
