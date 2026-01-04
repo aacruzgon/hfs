@@ -10,6 +10,8 @@ set -e
 
 BENCHMARK_RESULTS_DIR="./benchmark_results"
 WORKTREE_DIR=".benchmark_worktrees"
+ALL_FHIR_VERSIONS=("R4" "R4B" "R5" "R6")
+FHIR_VERSIONS=("${ALL_FHIR_VERSIONS[@]}")
 
 # Parse command line arguments
 BRANCHES=()
@@ -17,13 +19,6 @@ USE_EXISTING=""
 COMPARE_MODE=false
 COMPARE_FILE1=""
 COMPARE_FILE2=""
-
-# Default: run current branch + main if no args
-if [ $# -eq 0 ]; then
-    CURRENT_BRANCH=$(git branch --show-current)
-    BRANCHES=("$CURRENT_BRANCH" "main")
-    echo "No arguments provided. Running benchmarks for current branch ($CURRENT_BRANCH) and main"
-fi
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -37,12 +32,46 @@ while [[ $# -gt 0 ]]; do
             COMPARE_FILE2="$3"
             shift 3
             ;;
+        --fhir-version|-F)
+            if [ -z "${2:-}" ]; then
+                echo "ERROR: --fhir-version requires a value (comma-separated list of versions)"
+                exit 1
+            fi
+            IFS=',' read -ra requested_versions <<< "$2"
+            if [ ${#requested_versions[@]} -eq 0 ]; then
+                echo "ERROR: --fhir-version requires at least one version"
+                exit 1
+            fi
+            FHIR_VERSIONS=()
+            for version in "${requested_versions[@]}"; do
+                version_clean=$(echo "$version" | tr -d '[:space:]')
+                if [ -z "$version_clean" ]; then
+                    continue
+                fi
+                version_upper=$(echo "$version_clean" | tr '[:lower:]' '[:upper:]')
+                case "$version_upper" in
+                    R4|R4B|R5|R6)
+                        FHIR_VERSIONS+=("$version_upper")
+                        ;;
+                    *)
+                        echo "ERROR: Unsupported FHIR version '$version'. Supported versions: ${ALL_FHIR_VERSIONS[*]}"
+                        exit 1
+                        ;;
+                esac
+            done
+            if [ ${#FHIR_VERSIONS[@]} -eq 0 ]; then
+                echo "ERROR: --fhir-version did not include any valid versions"
+                exit 1
+            fi
+            shift 2
+            ;;
         --help|-h)
             echo "Usage: $0 [branch1] [branch2] [OPTIONS]"
             echo ""
             echo "Options:"
             echo "  --use <result_file>           Use existing result file for comparison"
             echo "  --compare <file1> <file2>     Compare two existing result files"
+            echo "  --fhir-version <versions>     Comma-separated list of FHIR releases to benchmark (default: ${ALL_FHIR_VERSIONS[*]})"
             echo "  --help, -h                    Show this help message"
             echo ""
             echo "Examples:"
@@ -50,6 +79,7 @@ while [[ $# -gt 0 ]]; do
             echo "  $0 xml main                   # Run benchmarks on xml and main branches"
             echo "  $0 xml                        # Run benchmark on xml branch only"
             echo "  $0 main --use xml_20260103.txt  # Run main and compare with existing xml results"
+            echo "  $0 xml --fhir-version R4,R5     # Limit benchmark to specific FHIR releases"
             echo "  $0 --compare xml_20260103.txt main_20260103.txt  # Just compare two existing files"
             echo ""
             echo "Result files are named: <branch>_<timestamp>.txt"
@@ -66,6 +96,13 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+# Default: run current branch + main if no branches were provided (even if options were)
+if [ "$COMPARE_MODE" = false ] && [ ${#BRANCHES[@]} -eq 0 ]; then
+    CURRENT_BRANCH=$(git branch --show-current)
+    BRANCHES=("$CURRENT_BRANCH" "main")
+    echo "No branches provided. Running benchmarks for current branch ($CURRENT_BRANCH) and main"
+fi
 
 # Handle compare-only mode
 if [ "$COMPARE_MODE" = true ]; then
@@ -125,7 +162,7 @@ if [ "$COMPARE_MODE" = true ]; then
     echo "-------------------------------------------" | tee -a "$COMPARISON_RESULTS"
 
     # Compare by FHIR version only (crate names may differ between branches)
-    for version in R4 R4B R5 R6; do
+    for version in "${FHIR_VERSIONS[@]}"; do
         # Get timings for each branch (any crate name)
         time1=$(grep "^$branch1,.*,$version," "$COMPARISON_RESULTS" | tail -1 | cut -d',' -f4)
         time2=$(grep "^$branch2,.*,$version," "$COMPARISON_RESULTS" | tail -1 | cut -d',' -f4)
@@ -175,6 +212,7 @@ echo "FHIR JSON Serde Performance Benchmark"
 echo "======================================"
 echo "Timestamp: $TIMESTAMP"
 echo "Branches to benchmark: ${BRANCHES[*]}"
+echo "FHIR versions: ${FHIR_VERSIONS[*]}"
 if [ -n "$USE_EXISTING" ]; then
     echo "Using existing results: $USE_EXISTING"
 fi
@@ -266,7 +304,7 @@ run_benchmark() {
         fi
 
         local num_runs=100
-        for version in R4 R4B R5 R6; do
+        for version in "${FHIR_VERSIONS[@]}"; do
             echo ">>> $test_crate - Testing FHIR version: $version ($num_runs runs)" | tee -a "$output_file"
 
             echo "Building $version tests..." | tee -a "$output_file"
@@ -412,7 +450,7 @@ if [ ${#RESULT_FILES[@]} -ge 2 ]; then
         echo "" | tee -a "$COMPARISON_RESULTS"
 
         # Compare by FHIR version only (crate names may differ between branches)
-        for version in R4 R4B R5 R6; do
+        for version in "${FHIR_VERSIONS[@]}"; do
             # Get timings for each branch (any crate name)
             time1=$(grep "^$branch1,.*,$version," "$COMPARISON_RESULTS" | tail -1 | cut -d',' -f4)
             time2=$(grep "^$branch2,.*,$version," "$COMPARISON_RESULTS" | tail -1 | cut -d',' -f4)
