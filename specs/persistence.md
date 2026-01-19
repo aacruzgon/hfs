@@ -57,6 +57,8 @@ A FHIR persistence layer that commits to a single storage technology is making a
 
 - **Block Storage** provides the high-performance, low-latency foundation for database engines themselves, while also serving large binary attachments, imaging data, scanned documents, and waveforms that are referenced by FHIR resources but impractical to store within the resource payload.
 
+- **Object Storage** (S3, Azure Blob, GCS) offers virtually unlimited capacity with pay-per-use economics, making it ideal for storing raw FHIR resources, bulk exports, and serving as the authoritative record in architectures that separate storage from indexing. Object stores can serve as the primary persistence layer with separate indexing technology supporting search, enabling almost database-less designs for certain workloads.
+
 The architectural discipline is not choosing one technology but designing the abstraction layer that routes FHIR operations to the appropriate backend while maintaining consistency, security, and a coherent developer experience.
 
 ## Positioning the Helios FHIR Server in the FHIR Server Landscape
@@ -192,6 +194,64 @@ pub trait TenantScoped {
 }
 ```
 
+**TenantId: Flexible Identifier Support**
+
+The `TenantId` type is intentionally opaque to the storage layer, supporting both simple IDs and hierarchical namespaces:
+
+```rust
+/// A tenant identifier. Opaque to the storage layer—interpretation
+/// of structure (flat vs. hierarchical) is left to the application.
+///
+/// # Examples
+///
+/// Simple flat identifiers:
+/// ```
+/// let tenant = TenantId::new("acme-health");
+/// ```
+///
+/// Hierarchical namespaces:
+/// ```
+/// let tenant = TenantId::new("organization_id/hospital_id");
+/// let tenant = TenantId::new("region:us-east/org:12345/facility:main");
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TenantId(String);
+
+impl TenantId {
+    pub fn new(id: impl Into<String>) -> Self {
+        Self(id.into())
+    }
+
+    /// The system tenant, used for shared resources (terminology, conformance).
+    pub const fn system() -> Self {
+        Self(String::new())  // Or a sentinel like "__system__"
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    /// Returns true if this is the system tenant.
+    pub fn is_system(&self) -> bool {
+        self.0.is_empty()  // Or check for sentinel
+    }
+}
+
+impl From<&str> for TenantId {
+    fn from(s: &str) -> Self {
+        Self::new(s)
+    }
+}
+
+impl From<String> for TenantId {
+    fn from(s: String) -> Self {
+        Self(s)
+    }
+}
+```
+
+This approach keeps `TenantId` opaque at the storage layer while supporting simple string IDs, hierarchical namespaces like `org/hospital`, and leaving interpretation to the application layer. Index design may still care about hierarchy for prefix queries, but that's an implementation detail for specific backends.
+
 **Shared Resources and the System Tenant**
 
 CodeSystems, ValueSets, StructureDefinitions, and other conformance resources are typically shared across tenants. We designate a "system" tenant that holds these shared resources:
@@ -256,11 +316,12 @@ pub trait VersionedStorage: ResourceStorage {
 
 ### History: Building on Versioning
 
-History access naturally extends versioning. If a backend can read specific versions, it can also enumerate them:
+History access naturally extends versioning. If a backend can read specific versions, it can also enumerate them. We decompose history into progressively broader scopes:
+
 ```rust
-/// Provides access to resource history.
+/// Instance-level history only.
 #[async_trait]
-pub trait HistoryProvider: VersionedStorage {
+pub trait InstanceHistoryProvider: VersionedStorage {
     /// Returns the history of a specific resource within a tenant's scope.
     async fn history_instance(
         &self,
@@ -269,7 +330,11 @@ pub trait HistoryProvider: VersionedStorage {
         id: &str,
         params: &HistoryParams,
     ) -> Result<HistoryBundle, StorageError>;
+}
 
+/// Adds type-level history.
+#[async_trait]
+pub trait TypeHistoryProvider: InstanceHistoryProvider {
     /// Returns the history of all resources of a type within a tenant's scope.
     async fn history_type(
         &self,
@@ -277,7 +342,11 @@ pub trait HistoryProvider: VersionedStorage {
         resource_type: &str,
         params: &HistoryParams,
     ) -> Result<HistoryBundle, StorageError>;
+}
 
+/// Adds system-level history.
+#[async_trait]
+pub trait SystemHistoryProvider: TypeHistoryProvider {
     /// Returns the history of all resources within a tenant's scope.
     async fn history_system(
         &self,
@@ -294,7 +363,7 @@ pub struct HistoryParams {
 }
 ```
 
-The trait hierarchy `HistoryProvider: VersionedStorage: ResourceStorage` means that any storage backend supporting history automatically supports versioned reads and basic CRUD - all within tenant boundaries. The type system enforces this relationship.
+The trait hierarchy forms a progression: `SystemHistoryProvider: TypeHistoryProvider: InstanceHistoryProvider: VersionedStorage: ResourceStorage`. A backend that supports system-level history automatically supports all narrower scopes. A simpler backend might only implement `InstanceHistoryProvider`, indicating it can return history for individual resources but not enumerate all versions across a type or the entire system.
 
 ### The Search Abstraction: Decomposing FHIR's Query Model
 
@@ -325,10 +394,12 @@ pub trait SearchFragment<B: SearchBackend> {
 pub trait SearchBackend: Send + Sync {
     type QueryBuilder;
     type QueryResult;
-    
-    /// Creates a new query builder for this backend.
-    fn query_builder(&self, resource_type: &str) -> Self::QueryBuilder;
-    
+
+    /// Creates a query builder for one or more resource types.
+    /// If `resource_types` is None, searches all resource types.
+    /// If `resource_types` is Some with multiple types, parameters must be common across all.
+    fn query_builder(&self, resource_types: Option<&[&str]>) -> Self::QueryBuilder;
+
     /// Executes a built query.
     async fn execute(&self, query: Self::QueryBuilder) -> Result<Self::QueryResult, SearchError>;
 }
@@ -469,9 +540,8 @@ pub struct SearchQuery {
     pub parameters: Vec<SearchParameter>,
     /// Sort specifications
     pub sort: Vec<SortSpec>,
-    /// Pagination
-    pub count: Option<u32>,
-    pub offset: Option<u32>,
+    /// Pagination (cursor-based preferred, offset for compatibility)
+    pub pagination: Option<Pagination>,
     /// Result modifiers
     pub summary: Option<SummaryMode>,
     pub elements: Option<Vec<String>>,
@@ -480,7 +550,92 @@ pub struct SearchQuery {
     pub revinclude: Vec<IncludeSpec>,
 }
 
-/// Base search capability for a storage backend.
+/// Pagination strategy for search results.
+#[derive(Debug, Clone)]
+pub enum Pagination {
+    /// Offset-based (supported for compatibility, discouraged for large result sets).
+    Offset { count: u32, offset: u32 },
+
+    /// Cursor-based (preferred). The cursor is opaque to clients.
+    Cursor { count: u32, cursor: Option<PageCursor> },
+}
+
+/// An opaque pagination cursor. Internal structure is backend-specific.
+///
+/// For Cassandra, this wraps the paging state.
+/// For PostgreSQL, this might encode a keyset (e.g., last seen `_lastUpdated` + `_id`).
+/// For Elasticsearch, this wraps a search_after value or scroll ID.
+#[derive(Debug, Clone)]
+pub struct PageCursor(Vec<u8>);
+
+impl PageCursor {
+    pub fn new(data: impl Into<Vec<u8>>) -> Self {
+        Self(data.into())
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+
+    /// Encodes the cursor for inclusion in a URL (base64).
+    pub fn encode(&self) -> String {
+        use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+        URL_SAFE_NO_PAD.encode(&self.0)
+    }
+
+    /// Decodes a cursor from a URL parameter.
+    pub fn decode(s: &str) -> Result<Self, PaginationError> {
+        use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+        let bytes = URL_SAFE_NO_PAD.decode(s)
+            .map_err(|_| PaginationError::InvalidCursor)?;
+        Ok(Self(bytes))
+    }
+}
+
+/// Search results with pagination support.
+pub struct SearchBundle {
+    pub matches: Vec<StoredResource>,
+    pub included: Vec<StoredResource>,
+    pub total: Option<u64>,
+    /// Cursor for the next page, if more results exist.
+    pub next_cursor: Option<PageCursor>,
+}
+
+Cursor-based pagination avoids the O(N) complexity and data drift issues of offset-based pagination. Instead of "skip N rows," the server returns an opaque continuation token encoding the current position. The client passes this token to fetch the next page, and the database seeks directly to that position—O(1) regardless of depth.
+
+| Backend | Cursor Contents |
+|---------|-----------------|
+| **Cassandra** | Native paging state from the driver |
+| **PostgreSQL** | Keyset values: `(_lastUpdated, _id)` of last row |
+| **MongoDB** | `_id` of last document, or resume token |
+| **Elasticsearch** | `search_after` values, or scroll ID for deep pagination |
+| **S3/Parquet** | Continuation token from `ListObjectsV2` |
+
+**Keyset Pagination for SQL Backends**
+
+For PostgreSQL and other relational databases, keyset pagination (also called "seek method") provides efficient cursor-based paging:
+
+```sql
+-- First page
+SELECT * FROM observation
+WHERE tenant_id = $1
+ORDER BY last_updated DESC, id ASC
+LIMIT 100;
+
+-- Subsequent pages (cursor contains last_updated and id of final row)
+SELECT * FROM observation
+WHERE tenant_id = $1
+  AND (last_updated, id) < ($last_updated, $last_id)
+ORDER BY last_updated DESC, id ASC
+LIMIT 100;
+```
+
+This requires a stable sort order with a unique tiebreaker (typically `_id`). The cursor encodes the sort key values of the last row returned.
+
+The `_cursor` parameter appears in FHIR Bundle `next` links and is a server-specific extension. Clients should treat pagination URLs as opaque and simply follow the `next` link, as described in the [FHIR spec](https://fhir.hl7.org/fhir/http.html#paging).
+
+```rust
+/// Core search: execute a query, return matches.
 #[async_trait]
 pub trait SearchProvider: ResourceStorage {
     /// Executes a search query against a resource type within a tenant's scope.
@@ -490,8 +645,43 @@ pub trait SearchProvider: ResourceStorage {
         resource_type: &str,
         query: &SearchQuery,
     ) -> Result<SearchBundle, StorageError>;
-    
-    
+}
+
+/// Adds multi-type search capability.
+#[async_trait]
+pub trait MultiTypeSearchProvider: SearchProvider {
+    /// Searches multiple resource types (or all if None).
+    /// Parameters must be common across all searched types.
+    async fn search_multi(
+        &self,
+        tenant: &TenantContext,
+        resource_types: Option<&[&str]>,
+        query: &SearchQuery,
+    ) -> Result<SearchBundle, StorageError>;
+}
+
+/// Adds _include support.
+#[async_trait]
+pub trait IncludeProvider: SearchProvider {
+    /// Resolves _include directives for a set of matched resources.
+    async fn resolve_includes(
+        &self,
+        tenant: &TenantContext,
+        matches: &[StoredResource],
+        includes: &[IncludeSpec],
+    ) -> Result<Vec<StoredResource>, StorageError>;
+}
+
+/// Adds _revinclude support.
+#[async_trait]
+pub trait RevincludeProvider: SearchProvider {
+    /// Resolves _revinclude directives for a set of matched resources.
+    async fn resolve_revincludes(
+        &self,
+        tenant: &TenantContext,
+        matches: &[StoredResource],
+        revincludes: &[IncludeSpec],
+    ) -> Result<Vec<StoredResource>, StorageError>;
 }
 ```
 
@@ -677,26 +867,52 @@ This decomposition has practical consequences. When configuring a polyglot persi
 FHIR defines batch and transaction bundles. A batch processes entries independently; a transaction either succeeds completely or fails entirely with no partial effects. This all-or-nothing semantics requires database-level transaction support - something not all storage technologies provide natively.
 
 ```rust
+/// Locking strategy for a transaction.
+#[derive(Debug, Clone, Copy, Default)]
+pub enum LockingStrategy {
+    /// Pessimistic: acquire locks on read, hold until commit.
+    /// Guarantees success at commit time but may cause contention.
+    #[default]
+    Pessimistic,
+
+    /// Optimistic: track read versions, verify at commit.
+    /// Better concurrency but may fail at commit time.
+    Optimistic,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct TransactionOptions {
+    pub locking: LockingStrategy,
+    pub isolation: IsolationLevel,
+    /// Timeout for acquiring locks (pessimistic) or total transaction duration.
+    pub timeout: Option<std::time::Duration>,
+}
+
 /// Provides ACID transaction support.
-/// 
+///
 /// Transactions group multiple operations into an atomic unit. All
 /// operations within a transaction are tenant-scoped; a single transaction
 /// cannot span multiple tenants.
 #[async_trait]
 pub trait TransactionProvider: ResourceStorage {
-    /// Begins a new transaction within tenant scope.
-    /// 
-    /// All operations on the returned Transaction object are scoped
-    /// to the specified tenant and will be committed or rolled back
-    /// as a unit.
+    /// Begins a transaction with the default (pessimistic) locking strategy.
     async fn begin_transaction(
         &self,
         tenant: &TenantContext,
+    ) -> Result<Box<dyn Transaction>, StorageError> {
+        self.begin_transaction_with_options(tenant, TransactionOptions::default()).await
+    }
+
+    /// Begins a transaction with explicit options.
+    async fn begin_transaction_with_options(
+        &self,
+        tenant: &TenantContext,
+        options: TransactionOptions,
     ) -> Result<Box<dyn Transaction>, StorageError>;
 }
 
-/// An active transaction.
-/// 
+/// Core transaction capability: atomic CRUD operations.
+///
 /// Operations within a transaction see their own uncommitted changes
 /// but are isolated from concurrent transactions.
 #[async_trait]
@@ -727,6 +943,61 @@ pub trait Transaction: Send + Sync {
     async fn rollback(self: Box<Self>) -> Result<(), StorageError>;
 }
 
+/// Indicates this transaction uses optimistic locking.
+///
+/// Reads automatically track versions; commit fails if any
+/// tracked resource was modified by another transaction.
+pub trait OptimisticTransaction: Transaction {
+    fn locking_strategy(&self) -> LockingStrategy {
+        LockingStrategy::Optimistic
+    }
+}
+
+/// Adds conditional operations to transactions.
+#[async_trait]
+pub trait ConditionalTransaction: Transaction {
+    /// Conditional create: creates only if search returns no matches.
+    async fn create_if_none_exist(
+        &mut self,
+        resource: &Value,
+        search_params: &[SearchParameter],
+    ) -> Result<ConditionalOutcome, StorageError>;
+
+    /// Conditional update: updates the resource matching search criteria.
+    async fn update_conditional(
+        &mut self,
+        resource: &Value,
+        search_params: &[SearchParameter],
+    ) -> Result<ConditionalOutcome, StorageError>;
+
+    /// Conditional delete: deletes resources matching search criteria.
+    async fn delete_conditional(
+        &mut self,
+        resource_type: &str,
+        search_params: &[SearchParameter],
+    ) -> Result<ConditionalDeleteOutcome, StorageError>;
+}
+
+#[derive(Debug)]
+pub enum ConditionalOutcome {
+    /// Resource was created.
+    Created(StoredResource),
+    /// Resource already existed (for conditional create).
+    Existed { id: String, version: String },
+    /// Multiple matches found (error condition).
+    MultipleMatches { count: usize },
+}
+
+#[derive(Debug)]
+pub enum ConditionalDeleteOutcome {
+    /// No resources matched (not an error).
+    NoneMatched,
+    /// Single resource deleted.
+    Deleted { id: String },
+    /// Multiple resources deleted (if server policy allows).
+    DeletedMultiple { count: usize },
+}
+
 #[derive(Debug, Clone, Copy, Default)]
 pub enum IsolationLevel {
     #[default]
@@ -735,6 +1006,140 @@ pub enum IsolationLevel {
     Serializable,
 }
 ```
+
+**Optimistic vs. Pessimistic Locking**
+
+The base `Transaction` trait supports both locking strategies:
+
+| Scenario | Recommended Strategy |
+|----------|---------------------|
+| Short-lived transactions, high contention | Pessimistic |
+| Long-lived transactions, rare conflicts | Optimistic |
+| FHIR transaction bundles (typically small) | Pessimistic |
+| User-facing "edit and save" workflows | Optimistic |
+| Batch processing with known non-overlapping data | Either |
+| Distributed/multi-region deployments | Optimistic (locks don't span regions well) |
+
+With optimistic locking, the transaction tracks which resources were read and their versions. At commit time, it verifies they haven't changed. If any resource was modified by another transaction, the commit fails with `StorageError::OptimisticLockFailure` and the client retries.
+
+**Error Handling for Optimistic Lock Failures**
+
+When an optimistic transaction fails at commit time, the client needs enough information to retry intelligently:
+
+```rust
+#[derive(Debug)]
+pub enum StorageError {
+    // ... other variants ...
+
+    /// Optimistic lock failure—a tracked resource was modified.
+    OptimisticLockFailure {
+        /// Resources that changed since they were read.
+        conflicts: Vec<ConflictInfo>,
+    },
+
+    /// Version conflict on a single resource update.
+    VersionConflict {
+        resource_type: String,
+        id: String,
+        expected_version: String,
+        actual_version: String,
+    },
+}
+
+#[derive(Debug)]
+pub struct ConflictInfo {
+    pub resource_type: String,
+    pub id: String,
+    pub read_version: String,
+    pub current_version: String,
+}
+```
+
+**Interaction with FHIR Conditional Operations**
+
+FHIR defines conditional create, update, and delete operations that use search criteria rather than explicit IDs. These interact with transaction locking:
+
+| Operation | Pessimistic | Optimistic |
+|-----------|-------------|------------|
+| **Simple CRUD** | Lock acquired on access | Version tracked on read, verified on commit |
+| **Conditional Create** | Lock search space | Assert "no matches" at commit |
+| **Conditional Update** | Lock matched resource | Assert same match + version at commit |
+| **Conditional Delete** | Lock matched resources | Assert same match set at commit |
+| **If-Match on entry** | Lock + verify version | Verify version at commit |
+| **Commit failure** | Rare (deadlock, timeout) | Expected under contention |
+| **Retry strategy** | Usually unnecessary | Built into application logic |
+
+**Version-Aware Updates in Transaction Bundles**
+
+FHIR transaction bundles support `If-Match` on individual entries for optimistic concurrency:
+
+```json
+{
+  "resourceType": "Bundle",
+  "type": "transaction",
+  "entry": [
+    {
+      "resource": { "resourceType": "Patient", "id": "123", ... },
+      "request": {
+        "method": "PUT",
+        "url": "Patient/123",
+        "ifMatch": "W/\"2\""
+      }
+    }
+  ]
+}
+```
+
+The transaction processor must respect these per-entry version constraints regardless of the overall transaction locking strategy:
+
+```rust
+/// Request metadata for a transaction bundle entry.
+#[derive(Debug, Clone)]
+pub struct TransactionEntryRequest {
+    pub method: TransactionMethod,
+    pub url: String,
+    /// If-Match header value for optimistic concurrency on this entry.
+    pub if_match: Option<String>,
+    /// If-None-Match header value (for conditional create).
+    pub if_none_match: Option<String>,
+    /// If-None-Exist search parameters (for conditional create).
+    pub if_none_exist: Option<Vec<SearchParameter>>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum TransactionMethod {
+    Get,
+    Post,
+    Put,
+    Patch,
+    Delete,
+}
+```
+
+**Implementation Considerations**
+
+1. **Search result stability**: For conditional operations with optimistic locking, the implementation must track not just "which resources matched" but enough information to verify the search would return the same results at commit time. This is complex for queries with sorting or pagination.
+
+2. **Phantom reads**: Even with optimistic locking, a conditional delete might miss a resource that was created after the search but before commit. The isolation level determines whether this is acceptable.
+
+3. **Backend capabilities**: Not all backends can efficiently implement optimistic conditional operations. The capability system should expose this:
+
+```rust
+pub trait StorageCapabilities {
+    // ... existing methods ...
+
+    /// Returns supported locking strategies.
+    fn supported_locking_strategies(&self) -> Vec<LockingStrategy>;
+
+    /// Returns whether conditional operations are supported within transactions.
+    fn supports_conditional_in_transaction(&self) -> bool;
+
+    /// Returns whether optimistic locking on conditional operations is supported.
+    fn supports_optimistic_conditional(&self) -> bool;
+}
+```
+
+4. **FHIR transaction bundle semantics**: The FHIR spec requires that a transaction bundle either fully succeeds or fully fails with no partial effects. Both locking strategies satisfy this—pessimistic by holding locks, optimistic by aborting on conflict. The choice affects throughput and failure modes, not correctness.
 
 A storage backend that doesn't support transactions can still handle batch operations.  It simply processes each entry independently, accepting that failures may leave partial results. The trait separation makes this distinction clear: code that requires atomicity takes `&dyn TransactionProvider`, while code that can tolerate partial failures takes `&dyn ResourceStorage`.
 
@@ -791,50 +1196,203 @@ The separation of `AuditStorage` from `ResourceStorage` enables critical archite
 The FHIR REST API defines interactions (read, vread, update, create, delete, search, etc.) that map HTTP verbs and URL patterns to operations. This mapping is a separate concern from storage. The same storage backend might be accessed via REST, GraphQL, messaging, or bulk export.
 
 ```rust
-/// Interaction types defined by the FHIR REST specification.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Interaction {
-    Read,
-    Vread,
-    Update,
-    Patch,
-    Delete,
-    History,
-    Create,
-    Search,
-    Capabilities,
-    Batch,
-    Transaction,
-}
-
-/// Scope at which an interaction operates.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum InteractionScope {
-    Instance,   // Operations on a specific resource instance
-    Type,       // Operations on a resource type
-    System,     // System-wide operations
-}
-
-/// Result of a REST interaction, capturing both outcome and metadata.
-pub struct InteractionResult {
+/// Result of a read operation.
+pub struct ReadOutcome {
     pub resource: Option<StoredResource>,
-    pub status: HttpStatus,
     pub etag: Option<String>,
     pub last_modified: Option<chrono::DateTime<chrono::Utc>>,
-    pub location: Option<String>,
-    pub outcome: Option<OperationOutcome>,
 }
 
-/// Orchestrates REST interactions by coordinating storage traits.
+/// Result of a write operation.
+pub struct WriteOutcome {
+    pub resource: StoredResource,
+    pub created: bool,  // true for create, false for update
+    pub etag: String,
+    pub last_modified: chrono::DateTime<chrono::Utc>,
+    pub location: Option<String>,
+}
+
+/// Result of a delete operation.
+pub struct DeleteOutcome {
+    pub deleted: bool,
+    pub version_id: Option<String>,
+}
+
+/// Result of a search operation.
+pub struct SearchOutcome {
+    pub bundle: SearchBundle,
+    pub self_link: String,
+    pub next_link: Option<String>,
+}
+
+/// Result of a history operation.
+pub struct HistoryOutcome {
+    pub bundle: HistoryBundle,
+    pub self_link: String,
+    pub next_link: Option<String>,
+}
+
+/// Handles FHIR REST interactions by coordinating storage traits.
+///
+/// This trait maps HTTP semantics to storage operations. Implementations
+/// handle concerns like ETag generation, Location headers, and
+/// OperationOutcome construction.
 #[async_trait]
 pub trait RestHandler: Send + Sync {
-    /// Processes a FHIR REST interaction.
-    async fn handle(
+    // === Instance-level interactions ===
+
+    /// Reads the current version of a resource.
+    /// Maps to: GET [base]/[type]/[id]
+    async fn read(
         &self,
-        interaction: Interaction,
-        scope: InteractionScope,
-        context: &InteractionContext,
-    ) -> Result<InteractionResult, RestError>;
+        tenant: &TenantContext,
+        resource_type: &str,
+        id: &str,
+    ) -> Result<ReadOutcome, RestError>;
+
+    /// Reads a specific version of a resource.
+    /// Maps to: GET [base]/[type]/[id]/_history/[vid]
+    async fn vread(
+        &self,
+        tenant: &TenantContext,
+        resource_type: &str,
+        id: &str,
+        version_id: &str,
+    ) -> Result<ReadOutcome, RestError>;
+
+    /// Updates a resource, optionally with version matching.
+    /// Maps to: PUT [base]/[type]/[id]
+    async fn update(
+        &self,
+        tenant: &TenantContext,
+        resource_type: &str,
+        id: &str,
+        resource: &Value,
+        if_match: Option<&str>,
+    ) -> Result<WriteOutcome, RestError>;
+
+    /// Patches a resource using JSON Patch, JSON Merge Patch, or FHIRPath Patch.
+    /// Maps to: PATCH [base]/[type]/[id]
+    async fn patch(
+        &self,
+        tenant: &TenantContext,
+        resource_type: &str,
+        id: &str,
+        patch: &Patch,
+        if_match: Option<&str>,
+    ) -> Result<WriteOutcome, RestError>;
+
+    /// Deletes a resource.
+    /// Maps to: DELETE [base]/[type]/[id]
+    async fn delete(
+        &self,
+        tenant: &TenantContext,
+        resource_type: &str,
+        id: &str,
+    ) -> Result<DeleteOutcome, RestError>;
+
+    /// Returns the history of a specific resource.
+    /// Maps to: GET [base]/[type]/[id]/_history
+    async fn history_instance(
+        &self,
+        tenant: &TenantContext,
+        resource_type: &str,
+        id: &str,
+        params: &HistoryParams,
+    ) -> Result<HistoryOutcome, RestError>;
+
+    // === Type-level interactions ===
+
+    /// Creates a new resource with server-assigned ID.
+    /// Maps to: POST [base]/[type]
+    async fn create(
+        &self,
+        tenant: &TenantContext,
+        resource_type: &str,
+        resource: &Value,
+        if_none_exist: Option<&[SearchParameter]>,
+    ) -> Result<WriteOutcome, RestError>;
+
+    /// Searches for resources of a given type.
+    /// Maps to: GET [base]/[type]?params or POST [base]/[type]/_search
+    async fn search(
+        &self,
+        tenant: &TenantContext,
+        resource_type: &str,
+        query: &SearchQuery,
+    ) -> Result<SearchOutcome, RestError>;
+
+    /// Returns the history of all resources of a type.
+    /// Maps to: GET [base]/[type]/_history
+    async fn history_type(
+        &self,
+        tenant: &TenantContext,
+        resource_type: &str,
+        params: &HistoryParams,
+    ) -> Result<HistoryOutcome, RestError>;
+
+    // === Conditional interactions ===
+
+    /// Conditional update: updates based on search criteria.
+    /// Maps to: PUT [base]/[type]?search-params
+    async fn update_conditional(
+        &self,
+        tenant: &TenantContext,
+        resource_type: &str,
+        resource: &Value,
+        search_params: &[SearchParameter],
+        if_match: Option<&str>,
+    ) -> Result<WriteOutcome, RestError>;
+
+    /// Conditional delete: deletes based on search criteria.
+    /// Maps to: DELETE [base]/[type]?search-params
+    async fn delete_conditional(
+        &self,
+        tenant: &TenantContext,
+        resource_type: &str,
+        search_params: &[SearchParameter],
+    ) -> Result<DeleteOutcome, RestError>;
+
+    // === System-level interactions ===
+
+    /// Searches across all resource types.
+    /// Maps to: GET [base]?params
+    async fn search_system(
+        &self,
+        tenant: &TenantContext,
+        resource_types: Option<&[&str]>,
+        query: &SearchQuery,
+    ) -> Result<SearchOutcome, RestError>;
+
+    /// Returns the history of all resources.
+    /// Maps to: GET [base]/_history
+    async fn history_system(
+        &self,
+        tenant: &TenantContext,
+        params: &HistoryParams,
+    ) -> Result<HistoryOutcome, RestError>;
+
+    /// Returns the server's capability statement.
+    /// Maps to: GET [base]/metadata
+    async fn capabilities(&self) -> Result<Value, RestError>;
+
+    // === Bundle interactions ===
+
+    /// Processes a batch bundle (independent operations).
+    /// Maps to: POST [base] with Bundle.type = "batch"
+    async fn batch(
+        &self,
+        tenant: &TenantContext,
+        bundle: &Value,
+    ) -> Result<Value, RestError>;
+
+    /// Processes a transaction bundle (atomic operations).
+    /// Maps to: POST [base] with Bundle.type = "transaction"
+    async fn transaction(
+        &self,
+        tenant: &TenantContext,
+        bundle: &Value,
+    ) -> Result<Value, RestError>;
 }
 ```
 
@@ -937,9 +1495,9 @@ impl std::fmt::Display for UnsupportedFeature {
 
 Different storage technologies have different strengths. A key deliverable of the Helios FHIR Server's persistence design is a clear feature support matrix that documents what each storage backend provides. This (example, work-in-progress) matrix drives both the CapabilityStatement generation and helps operators choose the right backend for their workload.
 
-| Feature | PostgreSQL | MongoDB | Cassandra | Neo4j | Elasticsearch | S3/Parquet |
-|---------|-----------|---------|-----------|-------|---------------|------------|
-| **Basic CRUD** | ✓ | ✓ | ✓ | ✓ | ✓ | Read-only |
+| Feature | PostgreSQL | MongoDB | Cassandra | Neo4j | Elasticsearch | Object Storage |
+|---------|-----------|---------|-----------|-------|---------------|----------------|
+| **Basic CRUD** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | **Versioning** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | **History** | ✓ | ✓ | Limited | ✓ | ✓ | ✓ |
 | **Transactions** | ✓ | ✓ | Limited | ✓ | ✗ | ✗ |
@@ -963,6 +1521,15 @@ Different storage technologies have different strengths. A key deliverable of th
 | **Bulk Export** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 This matrix isn't static. It's generated from the `StorageCapabilities` implementations. When a new storage backend is added or an existing one gains features, the matrix updates automatically.
+
+**Hybrid Storage Patterns**
+
+The polyglot architecture explicitly supports hybrid storage patterns. For example:
+
+- **Internal database storage (JSONB in PostgreSQL)**: Resources stored directly in the database with embedded indexing.
+- **Object Store with separate indexing**: Raw FHIR resources stored in S3/GCS/Azure Blob as the authoritative record, with a relational or search database providing indexing for search queries.
+
+This hybrid approach can provide the cost benefits of object storage for long-term data retention while maintaining fast search capabilities through dedicated indexing infrastructure. The design permits either approach—or mixing them based on resource type, access patterns, or retention requirements.
 
 ### Composing Storage Backends (Inspired by Diesel's MultiConnection)
 
@@ -1094,6 +1661,78 @@ pub enum QueryCost {
     Unsupported,
 }
 ```
+
+### Binary and Unstructured Data Storage
+
+Clinical AI increasingly depends on unstructured data: DICOM images, pathology slides, genomic sequences, waveforms, and scanned documents. While the current SQL-on-FHIR pipeline focuses on transforming structured FHIR resources into tabular outputs for analytics and bulk export, the polyglot architecture must also address storage and retrieval of large binary content.
+
+**FHIR's Approach to Binary Content**
+
+FHIR handles binary content through `DocumentReference` and `ImagingStudy` resources, which hold metadata and references to the binary content rather than embedding it. The actual DICOM data or document content lives in object storage (S3, Azure Blob, GCS, or on-premises equivalents), with the FHIR resources containing URLs or attachment references pointing to that store.
+
+**Future: BinaryStorage Trait**
+
+A dedicated trait for binary content management would fit naturally alongside the other storage traits:
+
+```rust
+/// Specialized storage for large binary content.
+///
+/// Handles uploads, chunked transfers, content-addressable storage,
+/// and tiering policies for large objects like imaging data and documents.
+#[async_trait]
+pub trait BinaryStorage: Send + Sync {
+    /// Stores binary content, returning a reference URL.
+    async fn store(
+        &self,
+        tenant: &TenantContext,
+        content: &[u8],
+        content_type: &str,
+        metadata: &BinaryMetadata,
+    ) -> Result<BinaryReference, StorageError>;
+
+    /// Retrieves binary content by reference.
+    async fn retrieve(
+        &self,
+        tenant: &TenantContext,
+        reference: &BinaryReference,
+    ) -> Result<Vec<u8>, StorageError>;
+
+    /// Initiates a chunked upload for large content.
+    async fn begin_chunked_upload(
+        &self,
+        tenant: &TenantContext,
+        content_type: &str,
+        total_size: Option<u64>,
+    ) -> Result<ChunkedUpload, StorageError>;
+
+    /// Deletes binary content (respecting retention policies).
+    async fn delete(
+        &self,
+        tenant: &TenantContext,
+        reference: &BinaryReference,
+    ) -> Result<(), StorageError>;
+}
+
+pub struct BinaryMetadata {
+    pub patient_reference: Option<String>,
+    pub security_labels: Vec<String>,
+    pub retention_class: Option<RetentionClass>,
+}
+
+pub enum RetentionClass {
+    Hot,      // Frequently accessed, high-performance storage
+    Warm,     // Occasionally accessed
+    Cold,     // Rarely accessed, archival storage
+    Archive,  // Long-term retention, retrieval may be slow
+}
+```
+
+This trait would support:
+
+- **Metadata extraction and indexing**: For images, extract relevant metadata (modality, body part, study date) and potentially embeddings for vector search on imaging features.
+- **Tiered storage**: Large binaries have different lifecycle needs. Hot data stays on fast storage while older content moves to cheaper archival tiers.
+- **Content-addressable storage**: Deduplication of identical content across patients or studies.
+- **Security and tenancy**: Extending `TenantContext` and audit logging to cover binary storage with appropriate encryption and access controls.
 
 ### The Path Forward
 
