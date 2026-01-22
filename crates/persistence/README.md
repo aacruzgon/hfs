@@ -4,87 +4,137 @@ Polyglot persistence layer for the Helios FHIR Server.
 
 ## Overview
 
-This crate provides a flexible, multi-backend persistence layer for storing and retrieving FHIR resources. It supports multiple database backends via feature flags and provides configurable multitenancy with full FHIR search capabilities.
+Traditional FHIR server implementations force all resources into a single database technology, creating inevitable trade-offs. A patient lookup by identifier, a population cohort query, relationship traversals through care teams, and semantic similarity searches for clinical trial matching all have fundamentally different performance characteristics, yet they're typically crammed into one system optimized for none of them.
+
+**Polyglot persistence** is an architectural approach where different types of data and operations are routed to the storage technologies best suited for how that data will be accessed. Rather than accepting compromise, this pattern leverages specialized storage systems optimized for specific workloads:
+
+| Workload | Optimal Technology | Why |
+|----------|-------------------|-----|
+| ACID transactions | PostgreSQL | Strong consistency guarantees |
+| Document storage | MongoDB | Natural alignment with FHIR's resource model |
+| Relationship traversal | Neo4j | Efficient graph queries for references |
+| Full-text search | Elasticsearch | Optimized inverted indexes |
+| Semantic search | Vector databases | Embedding similarity for clinical matching |
+| Bulk analytics & ML | Object Storage | Cost-effective columnar storage |
+
+This crate implements the polyglot persistence layer described in [Discussion #28: Polyglot Persistence Architecture](https://github.com/HeliosSoftware/hfs/discussions/28).
+
+## Polyglot Query Example
+
+Consider a complex clinical query that combines multiple access patterns:
+
+```
+GET /Observation?patient.name:contains=smith&_text=cardiac&code:below=http://loinc.org|8867-4&_include=Observation:patient
+```
+
+This query requires:
+1. **Chained search** (`patient.name:contains=smith`) - Find observations where the referenced patient's name contains "smith"
+2. **Full-text search** (`_text=cardiac`) - Search narrative text for "cardiac"
+3. **Terminology subsumption** (`code:below=LOINC|8867-4`) - Find codes that are descendants of heart rate
+4. **Reference resolution** (`_include=Observation:patient`) - Include the referenced Patient resources
+
+In a polyglot architecture, the `CompositeStorage` routes each component to its optimal backend:
+
+```rust
+// Conceptual flow - CompositeStorage coordinates backends
+async fn search(&self, query: SearchQuery) -> SearchResult {
+    // 1. Route chained search to graph database (efficient traversal)
+    let patient_refs = self.neo4j.find_patients_by_name("smith").await?;
+
+    // 2. Route full-text to Elasticsearch (optimized inverted index)
+    let text_matches = self.elasticsearch.text_search("cardiac").await?;
+
+    // 3. Route terminology query to terminology service + primary store
+    let code_matches = self.postgres.codes_below("8867-4").await?;
+
+    // 4. Intersect results and fetch from primary storage
+    let observation_ids = intersect(patient_refs, text_matches, code_matches);
+    let observations = self.postgres.batch_read(observation_ids).await?;
+
+    // 5. Resolve _include from primary storage
+    let patients = self.postgres.resolve_references(&observations, "patient").await?;
+
+    SearchResult { resources: observations, included: patients }
+}
+```
+
+No single database excels at all four operations. PostgreSQL would struggle with the graph traversal, Neo4j isn't optimized for full-text search, and Elasticsearch can't efficiently handle terminology hierarchies. Polyglot persistence lets each system do what it does best.
+
+## Architecture
+
+```
+helios-persistence/
+├── src/
+│   ├── lib.rs           # Main entry point and re-exports
+│   ├── error.rs         # Comprehensive error types
+│   ├── tenant/          # Multitenancy support
+│   │   ├── id.rs        # Hierarchical TenantId
+│   │   ├── context.rs   # TenantContext (required for all operations)
+│   │   ├── permissions.rs # Fine-grained TenantPermissions
+│   │   └── tenancy.rs   # TenancyModel configuration
+│   ├── types/           # Core domain types
+│   │   ├── stored_resource.rs  # Resource with persistence metadata
+│   │   ├── search_params.rs    # Full FHIR search parameter model
+│   │   └── pagination.rs       # Cursor and offset pagination
+│   ├── core/            # Storage trait hierarchy
+│   │   ├── backend.rs      # Backend abstraction with capabilities
+│   │   ├── storage.rs      # ResourceStorage (CRUD)
+│   │   ├── versioned.rs    # VersionedStorage (vread, If-Match)
+│   │   ├── history.rs      # History providers (instance/type/system)
+│   │   ├── search.rs       # Search providers (basic, chained, include)
+│   │   ├── transaction.rs  # ACID transactions with bundle support
+│   │   └── capabilities.rs # Runtime capability discovery
+│   ├── strategy/        # Tenancy isolation strategies
+│   │   ├── shared_schema.rs       # tenant_id column + optional RLS
+│   │   ├── schema_per_tenant.rs   # PostgreSQL search_path isolation
+│   │   └── database_per_tenant.rs # Complete database isolation
+│   ├── backends/        # Backend implementations
+│   │   └── sqlite/      # Reference implementation (complete)
+│   └── composite/       # Multi-backend routing (planned)
+```
+
+### Trait Hierarchy
+
+The storage layer uses a progressive trait hierarchy inspired by Diesel:
+
+```
+Backend (connection management, capabilities)
+    │
+    ├── ResourceStorage (create, read, update, delete)
+    │       │
+    │       └── VersionedStorage (vread, update_with_match)
+    │               │
+    │               └── HistoryProvider (instance, type, system history)
+    │
+    ├── SearchProvider (search, search_count)
+    │       │
+    │       ├── IncludeProvider (_include resolution)
+    │       ├── RevincludeProvider (_revinclude resolution)
+    │       └── ChainedSearchProvider (chained parameters, _has)
+    │
+    └── TransactionProvider (begin, commit, rollback)
+```
 
 ## Features
 
 - **Multiple Backends**: SQLite, PostgreSQL, Cassandra, MongoDB, Neo4j, Elasticsearch, S3
-- **Multitenancy**: Three isolation strategies available from day one
+- **Multitenancy**: Three isolation strategies with type-level enforcement
 - **Full FHIR Search**: All parameter types, modifiers, chaining, _include/_revinclude
-- **Versioning**: Full resource history with optimistic locking
+- **Versioning**: Complete resource history with optimistic locking
 - **Transactions**: ACID transactions with FHIR bundle support
-
-## Installation
-
-Add to your `Cargo.toml`:
-
-```toml
-[dependencies]
-helios-persistence = { version = "0.1", features = ["postgres", "R4"] }
-```
-
-## Feature Flags
-
-### Database Backends
-
-| Feature | Description | Driver |
-|---------|-------------|--------|
-| `sqlite` (default) | SQLite (in-memory and file) | rusqlite |
-| `postgres` | PostgreSQL with JSONB | tokio-postgres |
-| `cassandra` | Apache Cassandra | cdrs-tokio |
-| `mongodb` | MongoDB document store | mongodb |
-| `neo4j` | Neo4j graph database | neo4rs |
-| `elasticsearch` | Elasticsearch search | elasticsearch |
-| `s3` | AWS S3 object storage | object_store |
-
-### FHIR Versions
-
-| Feature | Description |
-|---------|-------------|
-| `R4` | FHIR R4 (4.0.1) |
-| `R4B` | FHIR R4B (4.3.0) |
-| `R5` | FHIR R5 (5.0.0) |
-| `R6` | FHIR R6 (preview) |
-
-## Quick Start
-
-```rust
-use helios_persistence::tenant::{TenantContext, TenantId, TenantPermissions};
-use helios_persistence::types::StoredResource;
-use serde_json::json;
-
-// Create a tenant context (required for all operations)
-let tenant = TenantContext::new(
-    TenantId::new("my-organization"),
-    TenantPermissions::full_access(),
-);
-
-// Create a stored resource
-let resource = StoredResource::new(
-    "Patient",
-    "patient-123",
-    tenant.tenant_id().clone(),
-    json!({
-        "resourceType": "Patient",
-        "id": "patient-123",
-        "name": [{"family": "Smith", "given": ["John"]}]
-    }),
-);
-
-// The resource includes persistence metadata
-assert_eq!(resource.version_id(), "1");
-assert_eq!(resource.url(), "Patient/patient-123");
-```
+- **Capability Discovery**: Runtime introspection of backend capabilities
 
 ## Multitenancy
 
-All storage operations require a `TenantContext`, ensuring tenant isolation at the type level. There is no way to bypass this requirement.
+All storage operations require a `TenantContext`, ensuring tenant isolation at the type level. There is no way to bypass this requirement—the compiler enforces it.
 
 ### Tenancy Strategies
 
-1. **Shared Schema**: All tenants share tables with `tenant_id` column
-2. **Schema-per-Tenant**: Separate PostgreSQL schema per tenant
-3. **Database-per-Tenant**: Complete isolation with separate databases
+| Strategy | Isolation | Use Case |
+|----------|-----------|----------|
+| **Shared Schema** | `tenant_id` column + optional RLS | Multi-tenant SaaS with shared infrastructure |
+| **Schema-per-Tenant** | PostgreSQL schemas | Logical isolation with shared database |
+| **Database-per-Tenant** | Separate databases | Complete isolation for compliance |
 
 ### Hierarchical Tenants
 
@@ -108,7 +158,7 @@ use helios_persistence::tenant::{TenantPermissions, Operation};
 // Read-only access
 let read_only = TenantPermissions::read_only();
 
-// Custom permissions
+// Custom permissions with compartment restrictions
 let custom = TenantPermissions::builder()
     .allow_operations(vec![Operation::Read, Operation::Search])
     .allow_resource_types(vec!["Patient", "Observation"])
@@ -149,93 +199,93 @@ let query_with_include = SearchQuery::new("Observation")
     });
 ```
 
-### Search Parameter Types
+## Backend Capability Matrix
 
-- `String` - Text search with prefix matching
-- `Token` - Code/identifier search
-- `Reference` - Resource reference search
-- `Date` - Date/DateTime search with prefixes
-- `Number` - Numeric search with prefixes
-- `Quantity` - Quantity search with units
-- `URI` - URI search
-- `Composite` - Combined parameters
+The matrix below shows which FHIR operations each backend supports. This reflects the actual implementation status, not aspirational goals.
 
-### Search Modifiers
+**Legend:** ✓ Implemented | ◐ Partial | ○ Planned | ✗ Not planned | † Requires external service
 
-- `:exact` - Exact string match
-- `:contains` - Substring match
-- `:text` - Full-text search
-- `:not` - Negation
-- `:missing` - Missing value check
-- `:above/:below` - Hierarchy navigation
-- `:in/:not-in` - Value set membership
-- `:identifier` - Identifier on reference
-- `:[type]` - Type filter on reference
+| Feature | SQLite | PostgreSQL | MongoDB | Cassandra | Neo4j | Elasticsearch | S3 |
+|---------|--------|------------|---------|-----------|-------|---------------|-----|
+| **Core Operations** |
+| [CRUD](https://hl7.org/fhir/R4/http.html#operations) | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
+| [Versioning (vread)](https://hl7.org/fhir/R4/http.html#vread) | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
+| [Optimistic Locking](https://hl7.org/fhir/R4/http.html#concurrency) | ✓ | ○ | ○ | ○ | ○ | ✗ | ✗ |
+| [Instance History](https://hl7.org/fhir/R4/http.html#history) | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
+| [Type History](https://hl7.org/fhir/R4/http.html#history) | ○ | ○ | ○ | ✗ | ○ | ○ | ✗ |
+| [System History](https://hl7.org/fhir/R4/http.html#history) | ○ | ○ | ○ | ✗ | ○ | ○ | ✗ |
+| [Transactions](https://hl7.org/fhir/R4/http.html#transaction) | ✓ | ○ | ○ | ✗ | ○ | ✗ | ✗ |
+| **Multitenancy** |
+| Shared Schema | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
+| Schema-per-Tenant | ✗ | ○ | ○ | ✗ | ✗ | ○ | ✗ |
+| Database-per-Tenant | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
+| Row-Level Security | ✗ | ○ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| **[Search Parameters](https://hl7.org/fhir/R4/search.html#ptypes)** |
+| [String](https://hl7.org/fhir/R4/search.html#string) | ◐ | ○ | ○ | ✗ | ○ | ○ | ✗ |
+| [Token](https://hl7.org/fhir/R4/search.html#token) | ◐ | ○ | ○ | ○ | ○ | ○ | ✗ |
+| [Reference](https://hl7.org/fhir/R4/search.html#reference) | ◐ | ○ | ○ | ✗ | ○ | ○ | ✗ |
+| [Date](https://hl7.org/fhir/R4/search.html#date) | ◐ | ○ | ○ | ○ | ○ | ○ | ○ |
+| [Number](https://hl7.org/fhir/R4/search.html#number) | ○ | ○ | ○ | ✗ | ○ | ○ | ○ |
+| [Quantity](https://hl7.org/fhir/R4/search.html#quantity) | ○ | ○ | ○ | ✗ | ✗ | ○ | ○ |
+| [URI](https://hl7.org/fhir/R4/search.html#uri) | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
+| [Composite](https://hl7.org/fhir/R4/search.html#composite) | ○ | ○ | ○ | ✗ | ○ | ○ | ✗ |
+| **[Search Modifiers](https://hl7.org/fhir/R4/search.html#modifiers)** |
+| [:exact](https://hl7.org/fhir/R4/search.html#modifiers) | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
+| [:contains](https://hl7.org/fhir/R4/search.html#modifiers) | ○ | ○ | ○ | ✗ | ○ | ○ | ✗ |
+| [:text](https://hl7.org/fhir/R4/search.html#modifiers) (full-text) | ✗ | ○ | ○ | ✗ | ✗ | ○ | ✗ |
+| [:not](https://hl7.org/fhir/R4/search.html#modifiers) | ○ | ○ | ○ | ✗ | ○ | ○ | ○ |
+| [:missing](https://hl7.org/fhir/R4/search.html#modifiers) | ○ | ○ | ○ | ✗ | ○ | ○ | ○ |
+| [:above / :below](https://hl7.org/fhir/R4/search.html#modifiers) | ✗ | †○ | †○ | ✗ | ○ | †○ | ✗ |
+| [:in / :not-in](https://hl7.org/fhir/R4/search.html#modifiers) | ✗ | †○ | †○ | ✗ | ○ | †○ | ✗ |
+| **Advanced Search** |
+| [Chained Parameters](https://hl7.org/fhir/R4/search.html#chaining) | ○ | ○ | ○ | ✗ | ○ | ✗ | ✗ |
+| [Reverse Chaining (_has)](https://hl7.org/fhir/R4/search.html#has) | ○ | ○ | ○ | ✗ | ○ | ✗ | ✗ |
+| [_include](https://hl7.org/fhir/R4/search.html#include) | ○ | ○ | ○ | ✗ | ○ | ○ | ✗ |
+| [_revinclude](https://hl7.org/fhir/R4/search.html#revinclude) | ○ | ○ | ○ | ✗ | ○ | ○ | ✗ |
+| **[Pagination](https://hl7.org/fhir/R4/http.html#paging)** |
+| Offset | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
+| Cursor (keyset) | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
+| **[Sorting](https://hl7.org/fhir/R4/search.html#sort)** |
+| Single field | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
+| Multiple fields | ○ | ○ | ○ | ✗ | ○ | ○ | ✗ |
+| **[Bulk Operations](https://hl7.org/fhir/uv/bulkdata/)** |
+| [Bulk Export](https://hl7.org/fhir/uv/bulkdata/export.html) | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
+| Bulk Import | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
 
-## Pagination
+### Backend Selection Guide
 
-Cursor-based pagination (recommended):
+| Use Case | Recommended Backend | Rationale |
+|----------|---------------------|-----------|
+| Development & Testing | SQLite | Zero configuration, in-memory mode |
+| Production OLTP | PostgreSQL | ACID transactions, JSONB, mature ecosystem |
+| Document-centric | MongoDB | Natural FHIR alignment, flexible schema |
+| Graph queries | Neo4j | Efficient relationship traversal |
+| Full-text search | Elasticsearch | Optimized inverted indexes, analyzers |
+| Bulk analytics | S3 + Parquet | Cost-effective, columnar, ML-ready |
+| High write throughput | Cassandra | Distributed writes, eventual consistency |
 
-```rust
-use helios_persistence::types::{Pagination, PageCursor, CursorValue};
+### Feature Flags
 
-// Create pagination request
-let pagination = Pagination::cursor().with_count(50);
-
-// Create cursor for next page
-let cursor = PageCursor::new(
-    vec![CursorValue::from("2024-01-15T10:30:00Z")],
-    "resource-id",
-);
-let encoded = cursor.encode();
-
-// Parse cursor from request
-let decoded = PageCursor::decode(&encoded).unwrap();
-```
-
-## Architecture
-
-```
-helios-persistence/
-├── src/
-│   ├── lib.rs           # Main entry point
-│   ├── error.rs         # Error types
-│   ├── tenant/          # Multitenancy support
-│   │   ├── id.rs        # TenantId
-│   │   ├── context.rs   # TenantContext
-│   │   ├── permissions.rs # TenantPermissions
-│   │   └── tenancy.rs   # TenancyModel
-│   ├── types/           # Core types
-│   │   ├── stored_resource.rs
-│   │   ├── search_params.rs
-│   │   └── pagination.rs
-│   ├── core/            # Storage traits
-│   │   ├── backend.rs   # Backend abstraction
-│   │   ├── storage.rs   # ResourceStorage trait
-│   │   ├── versioned.rs # VersionedStorage trait
-│   │   ├── history.rs   # History providers
-│   │   ├── search.rs    # Search providers
-│   │   ├── transaction.rs # Transaction support
-│   │   └── capabilities.rs # Capability discovery
-│   ├── strategy/        # Tenancy strategies
-│   │   ├── mod.rs           # TenancyStrategy enum
-│   │   ├── shared_schema.rs # Shared schema strategy
-│   │   ├── schema_per_tenant.rs # Schema-per-tenant strategy
-│   │   └── database_per_tenant.rs # Database-per-tenant strategy
-│   ├── backends/        # Backend implementations (future)
-│   └── composite/       # Composite storage (future)
-```
+| Feature | Description | Driver |
+|---------|-------------|--------|
+| `sqlite` (default) | SQLite (in-memory and file) | rusqlite |
+| `postgres` | PostgreSQL with JSONB | tokio-postgres |
+| `cassandra` | Apache Cassandra | cdrs-tokio |
+| `mongodb` | MongoDB document store | mongodb |
+| `neo4j` | Neo4j graph database | neo4rs |
+| `elasticsearch` | Elasticsearch search | elasticsearch |
+| `s3` | AWS S3 object storage | object_store |
 
 ## Implementation Status
 
-### Phase 1: Core Types (Complete)
-- [x] Error types
+### Phase 1: Core Types ✓
+- [x] Error types with comprehensive variants
 - [x] Tenant types (TenantId, TenantContext, TenantPermissions)
-- [x] Stored resource types
-- [x] Search parameter types
-- [x] Pagination types
+- [x] Stored resource types with versioning metadata
+- [x] Search parameter types (all FHIR parameter types)
+- [x] Pagination types (cursor and offset)
 
-### Phase 2: Core Traits (Complete)
+### Phase 2: Core Traits ✓
 - [x] Backend trait with capability discovery
 - [x] ResourceStorage trait (CRUD operations)
 - [x] VersionedStorage trait (vread, If-Match)
@@ -244,19 +294,31 @@ helios-persistence/
 - [x] Transaction traits (ACID, bundles)
 - [x] Capabilities trait (CapabilityStatement generation)
 
-### Phase 3: Tenancy Strategies (Complete)
+### Phase 3: Tenancy Strategies ✓
 - [x] Shared schema strategy with RLS support
 - [x] Schema-per-tenant strategy with PostgreSQL search_path
 - [x] Database-per-tenant strategy with pool management
 
-### Phase 4+: Backend Implementations (Planned)
-- [ ] SQLite backend
-- [ ] PostgreSQL backend
-- [ ] Cassandra backend
-- [ ] MongoDB backend
-- [ ] Neo4j backend
-- [ ] Elasticsearch backend
-- [ ] S3 backend
+### Phase 4: SQLite Backend ✓
+- [x] Connection pooling (r2d2)
+- [x] Schema migrations
+- [x] ResourceStorage implementation
+- [x] VersionedStorage implementation
+- [x] SearchProvider implementation (basic search)
+- [x] TransactionProvider implementation
+
+### Phase 5+: Additional Backends (Planned)
+- [ ] PostgreSQL backend (JSONB, GIN indexes, RLS)
+- [ ] Cassandra backend (wide-column, partition keys)
+- [ ] MongoDB backend (document storage, aggregation)
+- [ ] Neo4j backend (graph queries, Cypher)
+- [ ] Elasticsearch backend (full-text, analyzers)
+- [ ] S3 backend (bulk export, object storage)
+
+### Phase 6: Composite Storage (Planned)
+- [ ] Query analysis and routing
+- [ ] Multi-backend coordination
+- [ ] Cost-based optimization
 
 ## License
 
