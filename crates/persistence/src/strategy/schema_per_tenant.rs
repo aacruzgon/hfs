@@ -350,7 +350,8 @@ impl<'a> SchemaManager<'a> {
     pub fn create_shared_schema_ddl(&self) -> String {
         format!(
             "CREATE SCHEMA IF NOT EXISTS {}",
-            self.strategy.escape_identifier(&self.strategy.config.shared_schema)
+            self.strategy
+                .escape_identifier(&self.strategy.config.shared_schema)
         )
     }
 
@@ -384,7 +385,8 @@ BEGIN
     END LOOP;
 END $$;
 "#,
-            self.strategy.escape_sql_string(&self.strategy.config.schema_prefix),
+            self.strategy
+                .escape_sql_string(&self.strategy.config.schema_prefix),
             migration_sql.replace('\'', "''")
         )
     }
@@ -420,7 +422,10 @@ mod tests {
     fn test_tenant_to_schema() {
         let strategy = SchemaPerTenantStrategy::new(SchemaPerTenantConfig::default()).unwrap();
 
-        assert_eq!(strategy.tenant_to_schema(&TenantId::new("acme")), "tenant_acme");
+        assert_eq!(
+            strategy.tenant_to_schema(&TenantId::new("acme")),
+            "tenant_acme"
+        );
         assert_eq!(
             strategy.tenant_to_schema(&TenantId::new("Acme-Corp")),
             "tenant_acme_corp"
@@ -448,7 +453,10 @@ mod tests {
     fn test_set_search_path_sql() {
         let strategy = SchemaPerTenantStrategy::new(SchemaPerTenantConfig::default()).unwrap();
         let sql = strategy.set_search_path_sql(&TenantId::new("acme"));
-        assert_eq!(sql, "SET search_path TO \"tenant_acme\", \"shared\", public");
+        assert_eq!(
+            sql,
+            "SET search_path TO \"tenant_acme\", \"shared\", public"
+        );
     }
 
     #[test]

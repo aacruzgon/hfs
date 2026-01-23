@@ -236,10 +236,7 @@ pub trait SystemHistoryProvider: TypeHistoryProvider {
     ) -> StorageResult<HistoryPage>;
 
     /// Gets the total number of history entries in the system.
-    async fn history_system_count(
-        &self,
-        tenant: &TenantContext,
-    ) -> StorageResult<u64>;
+    async fn history_system_count(&self, tenant: &TenantContext) -> StorageResult<u64>;
 }
 
 /// Extension trait for history providers that support differential queries.

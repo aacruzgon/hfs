@@ -331,12 +331,21 @@ impl TenantAwareTableBuilder {
         let mut ddl = String::new();
 
         // CREATE TABLE
-        ddl.push_str(&format!("CREATE TABLE IF NOT EXISTS {} (\n", self.table_name));
-        ddl.push_str(&format!("    {} VARCHAR(64) NOT NULL,\n", self.tenant_column));
+        ddl.push_str(&format!(
+            "CREATE TABLE IF NOT EXISTS {} (\n",
+            self.table_name
+        ));
+        ddl.push_str(&format!(
+            "    {} VARCHAR(64) NOT NULL,\n",
+            self.tenant_column
+        ));
 
         for col in &self.columns {
             let null_str = if col.nullable { "" } else { " NOT NULL" };
-            ddl.push_str(&format!("    {} {}{},\n", col.name, col.data_type, null_str));
+            ddl.push_str(&format!(
+                "    {} {}{},\n",
+                col.name, col.data_type, null_str
+            ));
         }
 
         // Remove trailing comma and close

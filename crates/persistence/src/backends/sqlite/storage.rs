@@ -5,7 +5,10 @@ use chrono::Utc;
 use rusqlite::params;
 use serde_json::Value;
 
-use crate::core::history::{HistoryEntry, HistoryMethod, HistoryPage, HistoryParams, InstanceHistoryProvider, SystemHistoryProvider, TypeHistoryProvider};
+use crate::core::history::{
+    HistoryEntry, HistoryMethod, HistoryPage, HistoryParams, InstanceHistoryProvider,
+    SystemHistoryProvider, TypeHistoryProvider,
+};
 use crate::core::{ResourceStorage, VersionedStorage};
 use crate::error::{BackendError, ConcurrencyError, ResourceError, StorageError, StorageResult};
 use crate::tenant::TenantContext;
@@ -66,7 +69,10 @@ impl ResourceStorage for SqliteBackend {
         // Ensure the resource has correct type and id
         let mut resource = resource;
         if let Some(obj) = resource.as_object_mut() {
-            obj.insert("resourceType".to_string(), Value::String(resource_type.to_string()));
+            obj.insert(
+                "resourceType".to_string(),
+                Value::String(resource_type.to_string()),
+            );
             obj.insert("id".to_string(), Value::String(id.clone()));
         }
 
@@ -172,8 +178,9 @@ impl ResourceStorage for SqliteBackend {
                     }));
                 }
 
-                let json_data: serde_json::Value = serde_json::from_slice(&data)
-                    .map_err(|e| serialization_error(format!("Failed to deserialize resource: {}", e)))?;
+                let json_data: serde_json::Value = serde_json::from_slice(&data).map_err(|e| {
+                    serialization_error(format!("Failed to deserialize resource: {}", e))
+                })?;
 
                 let last_updated = chrono::DateTime::parse_from_rfc3339(&last_updated)
                     .map_err(|e| internal_error(format!("Failed to parse last_updated: {}", e)))?
@@ -223,18 +230,23 @@ impl ResourceStorage for SqliteBackend {
                 }));
             }
             Err(e) => {
-                return Err(internal_error(format!("Failed to get current version: {}", e)));
+                return Err(internal_error(format!(
+                    "Failed to get current version: {}",
+                    e
+                )));
             }
         };
 
         // Check version match
         if actual_version != current.version_id() {
-            return Err(StorageError::Concurrency(ConcurrencyError::VersionConflict {
-                resource_type: resource_type.to_string(),
-                id: id.to_string(),
-                expected_version: current.version_id().to_string(),
-                actual_version,
-            }));
+            return Err(StorageError::Concurrency(
+                ConcurrencyError::VersionConflict {
+                    resource_type: resource_type.to_string(),
+                    id: id.to_string(),
+                    expected_version: current.version_id().to_string(),
+                    actual_version,
+                },
+            ));
         }
 
         // Calculate new version
@@ -244,7 +256,10 @@ impl ResourceStorage for SqliteBackend {
         // Ensure the resource has correct type and id
         let mut resource = resource;
         if let Some(obj) = resource.as_object_mut() {
-            obj.insert("resourceType".to_string(), Value::String(resource_type.to_string()));
+            obj.insert(
+                "resourceType".to_string(),
+                Value::String(resource_type.to_string()),
+            );
             obj.insert("id".to_string(), Value::String(id.to_string()));
         }
 
@@ -259,7 +274,14 @@ impl ResourceStorage for SqliteBackend {
         conn.execute(
             "UPDATE resources SET version_id = ?1, data = ?2, last_updated = ?3
              WHERE tenant_id = ?4 AND resource_type = ?5 AND id = ?6",
-            params![new_version_str, data, last_updated, tenant_id, resource_type, id],
+            params![
+                new_version_str,
+                data,
+                last_updated,
+                tenant_id,
+                resource_type,
+                id
+            ],
         )
         .map_err(|e| internal_error(format!("Failed to update resource: {}", e)))?;
 
@@ -400,8 +422,9 @@ impl VersionedStorage for SqliteBackend {
 
         match result {
             Ok((data, last_updated, is_deleted)) => {
-                let json_data: serde_json::Value = serde_json::from_slice(&data)
-                    .map_err(|e| serialization_error(format!("Failed to deserialize resource: {}", e)))?;
+                let json_data: serde_json::Value = serde_json::from_slice(&data).map_err(|e| {
+                    serialization_error(format!("Failed to deserialize resource: {}", e))
+                })?;
 
                 let last_updated = chrono::DateTime::parse_from_rfc3339(&last_updated)
                     .map_err(|e| internal_error(format!("Failed to parse last_updated: {}", e)))?
@@ -439,20 +462,23 @@ impl VersionedStorage for SqliteBackend {
         resource: Value,
     ) -> StorageResult<StoredResource> {
         // Read current resource
-        let current = self.read(tenant, resource_type, id).await?
-            .ok_or_else(|| StorageError::Resource(ResourceError::NotFound {
+        let current = self.read(tenant, resource_type, id).await?.ok_or_else(|| {
+            StorageError::Resource(ResourceError::NotFound {
                 resource_type: resource_type.to_string(),
                 id: id.to_string(),
-            }))?;
+            })
+        })?;
 
         // Check version match
         if current.version_id() != expected_version {
-            return Err(StorageError::Concurrency(ConcurrencyError::VersionConflict {
-                resource_type: resource_type.to_string(),
-                id: id.to_string(),
-                expected_version: expected_version.to_string(),
-                actual_version: current.version_id().to_string(),
-            }));
+            return Err(StorageError::Concurrency(
+                ConcurrencyError::VersionConflict {
+                    resource_type: resource_type.to_string(),
+                    id: id.to_string(),
+                    expected_version: expected_version.to_string(),
+                    actual_version: current.version_id().to_string(),
+                },
+            ));
         }
 
         // Perform update
@@ -486,17 +512,22 @@ impl VersionedStorage for SqliteBackend {
                 }));
             }
             Err(e) => {
-                return Err(internal_error(format!("Failed to get current version: {}", e)));
+                return Err(internal_error(format!(
+                    "Failed to get current version: {}",
+                    e
+                )));
             }
         };
 
         if current_version != expected_version {
-            return Err(StorageError::Concurrency(ConcurrencyError::VersionConflict {
-                resource_type: resource_type.to_string(),
-                id: id.to_string(),
-                expected_version: expected_version.to_string(),
-                actual_version: current_version,
-            }));
+            return Err(StorageError::Concurrency(
+                ConcurrencyError::VersionConflict {
+                    resource_type: resource_type.to_string(),
+                    id: id.to_string(),
+                    expected_version: expected_version.to_string(),
+                    actual_version: current_version,
+                },
+            ));
         }
 
         // Perform delete
@@ -546,7 +577,7 @@ impl InstanceHistoryProvider for SqliteBackend {
         let mut sql = String::from(
             "SELECT version_id, data, last_updated, is_deleted
              FROM resource_history
-             WHERE tenant_id = ?1 AND resource_type = ?2 AND id = ?3"
+             WHERE tenant_id = ?1 AND resource_type = ?2 AND id = ?3",
         );
 
         // Apply deleted filter
@@ -606,8 +637,9 @@ impl InstanceHistoryProvider for SqliteBackend {
                 break;
             }
 
-            let json_data: serde_json::Value = serde_json::from_slice(&data)
-                .map_err(|e| serialization_error(format!("Failed to deserialize resource: {}", e)))?;
+            let json_data: serde_json::Value = serde_json::from_slice(&data).map_err(|e| {
+                serialization_error(format!("Failed to deserialize resource: {}", e))
+            })?;
 
             let last_updated = chrono::DateTime::parse_from_rfc3339(&last_updated_str)
                 .map_err(|e| internal_error(format!("Failed to parse last_updated: {}", e)))?
@@ -706,7 +738,7 @@ impl TypeHistoryProvider for SqliteBackend {
         let mut sql = String::from(
             "SELECT id, version_id, data, last_updated, is_deleted
              FROM resource_history
-             WHERE tenant_id = ?1 AND resource_type = ?2"
+             WHERE tenant_id = ?1 AND resource_type = ?2",
         );
 
         // Apply deleted filter
@@ -729,8 +761,10 @@ impl TypeHistoryProvider for SqliteBackend {
         if let Some(cursor) = params.pagination.cursor_value() {
             let sort_values = cursor.sort_values();
             if sort_values.len() >= 2 {
-                if let (Some(CursorValue::String(timestamp)), Some(CursorValue::String(resource_id))) =
-                    (sort_values.first(), sort_values.get(1))
+                if let (
+                    Some(CursorValue::String(timestamp)),
+                    Some(CursorValue::String(resource_id)),
+                ) = (sort_values.first(), sort_values.get(1))
                 {
                     // For reverse chronological order, get entries older than cursor
                     sql.push_str(&format!(
@@ -772,8 +806,9 @@ impl TypeHistoryProvider for SqliteBackend {
                 break;
             }
 
-            let json_data: serde_json::Value = serde_json::from_slice(&data)
-                .map_err(|e| serialization_error(format!("Failed to deserialize resource: {}", e)))?;
+            let json_data: serde_json::Value = serde_json::from_slice(&data).map_err(|e| {
+                serialization_error(format!("Failed to deserialize resource: {}", e))
+            })?;
 
             let last_updated = chrono::DateTime::parse_from_rfc3339(&last_updated_str)
                 .map_err(|e| internal_error(format!("Failed to parse last_updated: {}", e)))?
@@ -818,7 +853,10 @@ impl TypeHistoryProvider for SqliteBackend {
         let total_fetched = entries.len();
         let has_more = {
             // Re-run query to check if there are more
-            let check_sql = sql.replace(&format!(" LIMIT {}", params.pagination.count + 1), &format!(" LIMIT {}", params.pagination.count + 2));
+            let check_sql = sql.replace(
+                &format!(" LIMIT {}", params.pagination.count + 1),
+                &format!(" LIMIT {}", params.pagination.count + 2),
+            );
             let mut check_stmt = conn
                 .prepare(&check_sql)
                 .map_err(|e| internal_error(format!("Failed to prepare check query: {}", e)))?;
@@ -833,10 +871,7 @@ impl TypeHistoryProvider for SqliteBackend {
         let page_info = if has_more && last_entry.is_some() {
             let (timestamp, id) = last_entry.unwrap();
             let cursor = PageCursor::new(
-                vec![
-                    CursorValue::String(timestamp),
-                    CursorValue::String(id),
-                ],
+                vec![CursorValue::String(timestamp), CursorValue::String(id)],
                 resource_type.to_string(),
             );
             PageInfo::with_next(cursor)
@@ -882,7 +917,7 @@ impl SystemHistoryProvider for SqliteBackend {
         let mut sql = String::from(
             "SELECT resource_type, id, version_id, data, last_updated, is_deleted
              FROM resource_history
-             WHERE tenant_id = ?1"
+             WHERE tenant_id = ?1",
         );
 
         // Apply deleted filter
@@ -924,9 +959,9 @@ impl SystemHistoryProvider for SqliteBackend {
         sql.push_str(" ORDER BY last_updated DESC, resource_type DESC, id DESC, CAST(version_id AS INTEGER) DESC");
         sql.push_str(&format!(" LIMIT {}", params.pagination.count + 1)); // +1 to detect if there are more
 
-        let mut stmt = conn
-            .prepare(&sql)
-            .map_err(|e| internal_error(format!("Failed to prepare system history query: {}", e)))?;
+        let mut stmt = conn.prepare(&sql).map_err(|e| {
+            internal_error(format!("Failed to prepare system history query: {}", e))
+        })?;
 
         let rows = stmt
             .query_map(params![tenant_id], |row| {
@@ -936,7 +971,14 @@ impl SystemHistoryProvider for SqliteBackend {
                 let data: Vec<u8> = row.get(3)?;
                 let last_updated: String = row.get(4)?;
                 let is_deleted: i32 = row.get(5)?;
-                Ok((resource_type, id, version_id, data, last_updated, is_deleted))
+                Ok((
+                    resource_type,
+                    id,
+                    version_id,
+                    data,
+                    last_updated,
+                    is_deleted,
+                ))
             })
             .map_err(|e| internal_error(format!("Failed to query system history: {}", e)))?;
 
@@ -944,16 +986,17 @@ impl SystemHistoryProvider for SqliteBackend {
         let mut last_entry: Option<(String, String, String)> = None; // (last_updated, resource_type, id)
 
         for row in rows {
-            let (resource_type, id, version_id, data, last_updated_str, is_deleted) =
-                row.map_err(|e| internal_error(format!("Failed to read system history row: {}", e)))?;
+            let (resource_type, id, version_id, data, last_updated_str, is_deleted) = row
+                .map_err(|e| internal_error(format!("Failed to read system history row: {}", e)))?;
 
             // Stop if we've collected enough items (we fetched count+1 to detect more)
             if entries.len() >= params.pagination.count as usize {
                 break;
             }
 
-            let json_data: serde_json::Value = serde_json::from_slice(&data)
-                .map_err(|e| serialization_error(format!("Failed to deserialize resource: {}", e)))?;
+            let json_data: serde_json::Value = serde_json::from_slice(&data).map_err(|e| {
+                serialization_error(format!("Failed to deserialize resource: {}", e))
+            })?;
 
             let last_updated = chrono::DateTime::parse_from_rfc3339(&last_updated_str)
                 .map_err(|e| internal_error(format!("Failed to parse last_updated: {}", e)))?
@@ -1029,10 +1072,7 @@ impl SystemHistoryProvider for SqliteBackend {
         Ok(Page::new(entries, page_info))
     }
 
-    async fn history_system_count(
-        &self,
-        tenant: &TenantContext,
-    ) -> StorageResult<u64> {
+    async fn history_system_count(&self, tenant: &TenantContext) -> StorageResult<u64> {
         let conn = self.get_connection()?;
         let tenant_id = tenant.tenant_id().as_str();
 
@@ -1062,7 +1102,10 @@ mod tests {
     }
 
     fn create_test_tenant() -> TenantContext {
-        TenantContext::new(TenantId::new("test-tenant"), TenantPermissions::full_access())
+        TenantContext::new(
+            TenantId::new("test-tenant"),
+            TenantPermissions::full_access(),
+        )
     }
 
     #[tokio::test]
@@ -1081,7 +1124,10 @@ mod tests {
         assert_eq!(created.version_id(), "1");
 
         // Read
-        let read = backend.read(&tenant, "Patient", created.id()).await.unwrap();
+        let read = backend
+            .read(&tenant, "Patient", created.id())
+            .await
+            .unwrap();
         assert!(read.is_some());
         let read = read.unwrap();
         assert_eq!(read.version_id(), "1");
@@ -1108,7 +1154,10 @@ mod tests {
         let tenant = create_test_tenant();
 
         let resource = json!({"id": "patient-1"});
-        backend.create(&tenant, "Patient", resource.clone()).await.unwrap();
+        backend
+            .create(&tenant, "Patient", resource.clone())
+            .await
+            .unwrap();
 
         let result = backend.create(&tenant, "Patient", resource).await;
         assert!(matches!(
@@ -1122,7 +1171,10 @@ mod tests {
         let backend = create_test_backend();
         let tenant = create_test_tenant();
 
-        let result = backend.read(&tenant, "Patient", "nonexistent").await.unwrap();
+        let result = backend
+            .read(&tenant, "Patient", "nonexistent")
+            .await
+            .unwrap();
         assert!(result.is_none());
     }
 
@@ -1137,11 +1189,18 @@ mod tests {
 
         // Update
         let updated_content = json!({"name": [{"family": "Updated"}]});
-        let updated = backend.update(&tenant, &created, updated_content).await.unwrap();
+        let updated = backend
+            .update(&tenant, &created, updated_content)
+            .await
+            .unwrap();
         assert_eq!(updated.version_id(), "2");
 
         // Verify
-        let read = backend.read(&tenant, "Patient", created.id()).await.unwrap().unwrap();
+        let read = backend
+            .read(&tenant, "Patient", created.id())
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(read.content()["name"][0]["family"], "Updated");
     }
 
@@ -1161,7 +1220,9 @@ mod tests {
         let result = backend.update(&tenant, &created, json!({})).await;
         assert!(matches!(
             result,
-            Err(StorageError::Concurrency(ConcurrencyError::VersionConflict { .. }))
+            Err(StorageError::Concurrency(
+                ConcurrencyError::VersionConflict { .. }
+            ))
         ));
     }
 
@@ -1175,7 +1236,10 @@ mod tests {
         let created = backend.create(&tenant, "Patient", resource).await.unwrap();
 
         // Delete
-        backend.delete(&tenant, "Patient", created.id()).await.unwrap();
+        backend
+            .delete(&tenant, "Patient", created.id())
+            .await
+            .unwrap();
 
         // Read should return Gone
         let result = backend.read(&tenant, "Patient", created.id()).await;
@@ -1206,7 +1270,10 @@ mod tests {
         let tenant = create_test_tenant();
 
         // Create first
-        backend.create(&tenant, "Patient", json!({"id": "existing-id"})).await.unwrap();
+        backend
+            .create(&tenant, "Patient", json!({"id": "existing-id"}))
+            .await
+            .unwrap();
 
         // Update via create_or_update
         let (resource, created) = backend
@@ -1229,10 +1296,16 @@ mod tests {
         // Create some resources
         backend.create(&tenant, "Patient", json!({})).await.unwrap();
         backend.create(&tenant, "Patient", json!({})).await.unwrap();
-        backend.create(&tenant, "Observation", json!({})).await.unwrap();
+        backend
+            .create(&tenant, "Observation", json!({}))
+            .await
+            .unwrap();
 
         assert_eq!(backend.count(&tenant, Some("Patient")).await.unwrap(), 2);
-        assert_eq!(backend.count(&tenant, Some("Observation")).await.unwrap(), 1);
+        assert_eq!(
+            backend.count(&tenant, Some("Observation")).await.unwrap(),
+            1
+        );
         assert_eq!(backend.count(&tenant, None).await.unwrap(), 3);
     }
 
@@ -1240,18 +1313,32 @@ mod tests {
     async fn test_tenant_isolation() {
         let backend = create_test_backend();
 
-        let tenant1 = TenantContext::new(TenantId::new("tenant-1"), TenantPermissions::full_access());
-        let tenant2 = TenantContext::new(TenantId::new("tenant-2"), TenantPermissions::full_access());
+        let tenant1 =
+            TenantContext::new(TenantId::new("tenant-1"), TenantPermissions::full_access());
+        let tenant2 =
+            TenantContext::new(TenantId::new("tenant-2"), TenantPermissions::full_access());
 
         // Create in tenant 1
         let resource = json!({"id": "patient-1"});
         backend.create(&tenant1, "Patient", resource).await.unwrap();
 
         // Tenant 1 can read
-        assert!(backend.read(&tenant1, "Patient", "patient-1").await.unwrap().is_some());
+        assert!(
+            backend
+                .read(&tenant1, "Patient", "patient-1")
+                .await
+                .unwrap()
+                .is_some()
+        );
 
         // Tenant 2 cannot read
-        assert!(backend.read(&tenant2, "Patient", "patient-1").await.unwrap().is_none());
+        assert!(
+            backend
+                .read(&tenant2, "Patient", "patient-1")
+                .await
+                .unwrap()
+                .is_none()
+        );
     }
 
     // ========================================================================
@@ -1268,12 +1355,21 @@ mod tests {
         let created = backend.create(&tenant, "Patient", resource).await.unwrap();
 
         // Update it twice
-        let v2 = backend.update(&tenant, &created, json!({"name": [{"family": "Jones"}]})).await.unwrap();
-        let _v3 = backend.update(&tenant, &v2, json!({"name": [{"family": "Brown"}]})).await.unwrap();
+        let v2 = backend
+            .update(&tenant, &created, json!({"name": [{"family": "Jones"}]}))
+            .await
+            .unwrap();
+        let _v3 = backend
+            .update(&tenant, &v2, json!({"name": [{"family": "Brown"}]}))
+            .await
+            .unwrap();
 
         // Get history
         let params = HistoryParams::new();
-        let history = backend.history_instance(&tenant, "Patient", created.id(), &params).await.unwrap();
+        let history = backend
+            .history_instance(&tenant, "Patient", created.id(), &params)
+            .await
+            .unwrap();
 
         // Should have 3 versions, newest first
         assert_eq!(history.items.len(), 3);
@@ -1298,7 +1394,10 @@ mod tests {
         let v2 = backend.update(&tenant, &created, json!({})).await.unwrap();
         let _v3 = backend.update(&tenant, &v2, json!({})).await.unwrap();
 
-        let count = backend.history_instance_count(&tenant, "Patient", created.id()).await.unwrap();
+        let count = backend
+            .history_instance_count(&tenant, "Patient", created.id())
+            .await
+            .unwrap();
         assert_eq!(count, 3);
     }
 
@@ -1310,12 +1409,18 @@ mod tests {
         // Create, update, then delete
         let resource = json!({"id": "p1"});
         let created = backend.create(&tenant, "Patient", resource).await.unwrap();
-        let _v2 = backend.update(&tenant, &created, json!({"id": "p1"})).await.unwrap();
+        let _v2 = backend
+            .update(&tenant, &created, json!({"id": "p1"}))
+            .await
+            .unwrap();
         backend.delete(&tenant, "Patient", "p1").await.unwrap();
 
         // Get history including deleted
         let params = HistoryParams::new().include_deleted(true);
-        let history = backend.history_instance(&tenant, "Patient", "p1", &params).await.unwrap();
+        let history = backend
+            .history_instance(&tenant, "Patient", "p1", &params)
+            .await
+            .unwrap();
 
         assert_eq!(history.items.len(), 3);
         assert_eq!(history.items[0].method, HistoryMethod::Delete);
@@ -1330,12 +1435,18 @@ mod tests {
         // Create, update, then delete
         let resource = json!({"id": "p2"});
         let created = backend.create(&tenant, "Patient", resource).await.unwrap();
-        let _v2 = backend.update(&tenant, &created, json!({"id": "p2"})).await.unwrap();
+        let _v2 = backend
+            .update(&tenant, &created, json!({"id": "p2"}))
+            .await
+            .unwrap();
         backend.delete(&tenant, "Patient", "p2").await.unwrap();
 
         // Get history excluding deleted
         let params = HistoryParams::new().include_deleted(false);
-        let history = backend.history_instance(&tenant, "Patient", "p2", &params).await.unwrap();
+        let history = backend
+            .history_instance(&tenant, "Patient", "p2", &params)
+            .await
+            .unwrap();
 
         // Should not include the delete version
         assert_eq!(history.items.len(), 2);
@@ -1358,7 +1469,10 @@ mod tests {
 
         // Get first page (2 items)
         let params = HistoryParams::new().count(2);
-        let page1 = backend.history_instance(&tenant, "Patient", current.id(), &params).await.unwrap();
+        let page1 = backend
+            .history_instance(&tenant, "Patient", current.id(), &params)
+            .await
+            .unwrap();
 
         assert_eq!(page1.items.len(), 2);
         assert_eq!(page1.items[0].resource.version_id(), "5");
@@ -1372,7 +1486,10 @@ mod tests {
         let tenant = create_test_tenant();
 
         let params = HistoryParams::new();
-        let history = backend.history_instance(&tenant, "Patient", "nonexistent", &params).await.unwrap();
+        let history = backend
+            .history_instance(&tenant, "Patient", "nonexistent", &params)
+            .await
+            .unwrap();
 
         assert!(history.items.is_empty());
     }
@@ -1380,20 +1497,31 @@ mod tests {
     #[tokio::test]
     async fn test_history_instance_tenant_isolation() {
         let backend = create_test_backend();
-        let tenant1 = TenantContext::new(TenantId::new("tenant-1"), TenantPermissions::full_access());
-        let tenant2 = TenantContext::new(TenantId::new("tenant-2"), TenantPermissions::full_access());
+        let tenant1 =
+            TenantContext::new(TenantId::new("tenant-1"), TenantPermissions::full_access());
+        let tenant2 =
+            TenantContext::new(TenantId::new("tenant-2"), TenantPermissions::full_access());
 
         // Create in tenant 1
         let resource = json!({"id": "shared-id"});
         let created = backend.create(&tenant1, "Patient", resource).await.unwrap();
-        let _v2 = backend.update(&tenant1, &created, json!({"id": "shared-id"})).await.unwrap();
+        let _v2 = backend
+            .update(&tenant1, &created, json!({"id": "shared-id"}))
+            .await
+            .unwrap();
 
         // Tenant 1 sees history
-        let history1 = backend.history_instance(&tenant1, "Patient", "shared-id", &HistoryParams::new()).await.unwrap();
+        let history1 = backend
+            .history_instance(&tenant1, "Patient", "shared-id", &HistoryParams::new())
+            .await
+            .unwrap();
         assert_eq!(history1.items.len(), 2);
 
         // Tenant 2 sees nothing
-        let history2 = backend.history_instance(&tenant2, "Patient", "shared-id", &HistoryParams::new()).await.unwrap();
+        let history2 = backend
+            .history_instance(&tenant2, "Patient", "shared-id", &HistoryParams::new())
+            .await
+            .unwrap();
         assert!(history2.items.is_empty());
     }
 
@@ -1407,15 +1535,27 @@ mod tests {
         let tenant = create_test_tenant();
 
         // Create multiple patients
-        let p1 = backend.create(&tenant, "Patient", json!({"id": "p1"})).await.unwrap();
-        let p2 = backend.create(&tenant, "Patient", json!({"id": "p2"})).await.unwrap();
+        let p1 = backend
+            .create(&tenant, "Patient", json!({"id": "p1"}))
+            .await
+            .unwrap();
+        let p2 = backend
+            .create(&tenant, "Patient", json!({"id": "p2"}))
+            .await
+            .unwrap();
 
         // Update p1
-        let _p1_v2 = backend.update(&tenant, &p1, json!({"id": "p1"})).await.unwrap();
+        let _p1_v2 = backend
+            .update(&tenant, &p1, json!({"id": "p1"}))
+            .await
+            .unwrap();
 
         // Get type history
         let params = HistoryParams::new();
-        let history = backend.history_type(&tenant, "Patient", &params).await.unwrap();
+        let history = backend
+            .history_type(&tenant, "Patient", &params)
+            .await
+            .unwrap();
 
         // Should have 3 entries total (p1 v1, p1 v2, p2 v1)
         assert_eq!(history.items.len(), 3);
@@ -1437,14 +1577,23 @@ mod tests {
         let _p2 = backend.create(&tenant, "Patient", json!({})).await.unwrap();
 
         // Create an observation (different type)
-        backend.create(&tenant, "Observation", json!({})).await.unwrap();
+        backend
+            .create(&tenant, "Observation", json!({}))
+            .await
+            .unwrap();
 
         // Count patient history
-        let count = backend.history_type_count(&tenant, "Patient").await.unwrap();
+        let count = backend
+            .history_type_count(&tenant, "Patient")
+            .await
+            .unwrap();
         assert_eq!(count, 3); // p1 v1, p1 v2, p2 v1
 
         // Count observation history
-        let obs_count = backend.history_type_count(&tenant, "Observation").await.unwrap();
+        let obs_count = backend
+            .history_type_count(&tenant, "Observation")
+            .await
+            .unwrap();
         assert_eq!(obs_count, 1);
     }
 
@@ -1455,16 +1604,28 @@ mod tests {
 
         // Create different resource types
         backend.create(&tenant, "Patient", json!({})).await.unwrap();
-        backend.create(&tenant, "Observation", json!({})).await.unwrap();
-        backend.create(&tenant, "Encounter", json!({})).await.unwrap();
+        backend
+            .create(&tenant, "Observation", json!({}))
+            .await
+            .unwrap();
+        backend
+            .create(&tenant, "Encounter", json!({}))
+            .await
+            .unwrap();
 
         // Get only Patient history
-        let history = backend.history_type(&tenant, "Patient", &HistoryParams::new()).await.unwrap();
+        let history = backend
+            .history_type(&tenant, "Patient", &HistoryParams::new())
+            .await
+            .unwrap();
         assert_eq!(history.items.len(), 1);
         assert_eq!(history.items[0].resource.resource_type(), "Patient");
 
         // Get only Observation history
-        let obs_history = backend.history_type(&tenant, "Observation", &HistoryParams::new()).await.unwrap();
+        let obs_history = backend
+            .history_type(&tenant, "Observation", &HistoryParams::new())
+            .await
+            .unwrap();
         assert_eq!(obs_history.items.len(), 1);
         assert_eq!(obs_history.items[0].resource.resource_type(), "Observation");
     }
@@ -1475,40 +1636,73 @@ mod tests {
         let tenant = create_test_tenant();
 
         // Create and delete a patient
-        let p1 = backend.create(&tenant, "Patient", json!({"id": "del-p1"})).await.unwrap();
+        let p1 = backend
+            .create(&tenant, "Patient", json!({"id": "del-p1"}))
+            .await
+            .unwrap();
         backend.delete(&tenant, "Patient", "del-p1").await.unwrap();
 
         // Create another patient
-        backend.create(&tenant, "Patient", json!({"id": "p2"})).await.unwrap();
+        backend
+            .create(&tenant, "Patient", json!({"id": "p2"}))
+            .await
+            .unwrap();
 
         // Without including deleted
-        let history = backend.history_type(&tenant, "Patient", &HistoryParams::new()).await.unwrap();
+        let history = backend
+            .history_type(&tenant, "Patient", &HistoryParams::new())
+            .await
+            .unwrap();
         assert_eq!(history.items.len(), 2); // p1 v1, p2 v1 (excludes delete)
 
         // Including deleted
-        let history_with_deleted = backend.history_type(&tenant, "Patient", &HistoryParams::new().include_deleted(true)).await.unwrap();
+        let history_with_deleted = backend
+            .history_type(
+                &tenant,
+                "Patient",
+                &HistoryParams::new().include_deleted(true),
+            )
+            .await
+            .unwrap();
         assert_eq!(history_with_deleted.items.len(), 3); // p1 v1, p1 delete, p2 v1
     }
 
     #[tokio::test]
     async fn test_history_type_tenant_isolation() {
         let backend = create_test_backend();
-        let tenant1 = TenantContext::new(TenantId::new("tenant-1"), TenantPermissions::full_access());
-        let tenant2 = TenantContext::new(TenantId::new("tenant-2"), TenantPermissions::full_access());
+        let tenant1 =
+            TenantContext::new(TenantId::new("tenant-1"), TenantPermissions::full_access());
+        let tenant2 =
+            TenantContext::new(TenantId::new("tenant-2"), TenantPermissions::full_access());
 
         // Create patients in tenant 1
-        backend.create(&tenant1, "Patient", json!({})).await.unwrap();
-        backend.create(&tenant1, "Patient", json!({})).await.unwrap();
+        backend
+            .create(&tenant1, "Patient", json!({}))
+            .await
+            .unwrap();
+        backend
+            .create(&tenant1, "Patient", json!({}))
+            .await
+            .unwrap();
 
         // Create patient in tenant 2
-        backend.create(&tenant2, "Patient", json!({})).await.unwrap();
+        backend
+            .create(&tenant2, "Patient", json!({}))
+            .await
+            .unwrap();
 
         // Tenant 1 sees only its history
-        let history1 = backend.history_type(&tenant1, "Patient", &HistoryParams::new()).await.unwrap();
+        let history1 = backend
+            .history_type(&tenant1, "Patient", &HistoryParams::new())
+            .await
+            .unwrap();
         assert_eq!(history1.items.len(), 2);
 
         // Tenant 2 sees only its history
-        let history2 = backend.history_type(&tenant2, "Patient", &HistoryParams::new()).await.unwrap();
+        let history2 = backend
+            .history_type(&tenant2, "Patient", &HistoryParams::new())
+            .await
+            .unwrap();
         assert_eq!(history2.items.len(), 1);
     }
 
@@ -1519,12 +1713,18 @@ mod tests {
 
         // Create several patients
         for i in 0..5 {
-            backend.create(&tenant, "Patient", json!({"id": format!("p{}", i)})).await.unwrap();
+            backend
+                .create(&tenant, "Patient", json!({"id": format!("p{}", i)}))
+                .await
+                .unwrap();
         }
 
         // Get first page (2 items)
         let params = HistoryParams::new().count(2);
-        let page1 = backend.history_type(&tenant, "Patient", &params).await.unwrap();
+        let page1 = backend
+            .history_type(&tenant, "Patient", &params)
+            .await
+            .unwrap();
 
         assert_eq!(page1.items.len(), 2);
         assert!(page1.page_info.has_next);
@@ -1536,7 +1736,10 @@ mod tests {
         let tenant = create_test_tenant();
 
         // No resources created
-        let history = backend.history_type(&tenant, "Patient", &HistoryParams::new()).await.unwrap();
+        let history = backend
+            .history_type(&tenant, "Patient", &HistoryParams::new())
+            .await
+            .unwrap();
         assert!(history.items.is_empty());
         assert!(!history.page_info.has_next);
     }
@@ -1551,21 +1754,38 @@ mod tests {
         let tenant = create_test_tenant();
 
         // Create different resource types
-        let p1 = backend.create(&tenant, "Patient", json!({"id": "p1"})).await.unwrap();
-        backend.create(&tenant, "Observation", json!({"id": "o1"})).await.unwrap();
-        backend.create(&tenant, "Encounter", json!({"id": "e1"})).await.unwrap();
+        let p1 = backend
+            .create(&tenant, "Patient", json!({"id": "p1"}))
+            .await
+            .unwrap();
+        backend
+            .create(&tenant, "Observation", json!({"id": "o1"}))
+            .await
+            .unwrap();
+        backend
+            .create(&tenant, "Encounter", json!({"id": "e1"}))
+            .await
+            .unwrap();
 
         // Update patient
-        let _p1_v2 = backend.update(&tenant, &p1, json!({"id": "p1"})).await.unwrap();
+        let _p1_v2 = backend
+            .update(&tenant, &p1, json!({"id": "p1"}))
+            .await
+            .unwrap();
 
         // Get system history
-        let history = backend.history_system(&tenant, &HistoryParams::new()).await.unwrap();
+        let history = backend
+            .history_system(&tenant, &HistoryParams::new())
+            .await
+            .unwrap();
 
         // Should have 4 entries total
         assert_eq!(history.items.len(), 4);
 
         // Should include all resource types
-        let types: std::collections::HashSet<_> = history.items.iter()
+        let types: std::collections::HashSet<_> = history
+            .items
+            .iter()
             .map(|e| e.resource.resource_type())
             .collect();
         assert!(types.contains("Patient"));
@@ -1581,8 +1801,14 @@ mod tests {
         // Create different resource types
         let p1 = backend.create(&tenant, "Patient", json!({})).await.unwrap();
         let _p1_v2 = backend.update(&tenant, &p1, json!({})).await.unwrap();
-        backend.create(&tenant, "Observation", json!({})).await.unwrap();
-        backend.create(&tenant, "Encounter", json!({})).await.unwrap();
+        backend
+            .create(&tenant, "Observation", json!({}))
+            .await
+            .unwrap();
+        backend
+            .create(&tenant, "Encounter", json!({}))
+            .await
+            .unwrap();
 
         // Count all history
         let count = backend.history_system_count(&tenant).await.unwrap();
@@ -1595,40 +1821,69 @@ mod tests {
         let tenant = create_test_tenant();
 
         // Create and delete a patient
-        backend.create(&tenant, "Patient", json!({"id": "del-p1"})).await.unwrap();
+        backend
+            .create(&tenant, "Patient", json!({"id": "del-p1"}))
+            .await
+            .unwrap();
         backend.delete(&tenant, "Patient", "del-p1").await.unwrap();
 
         // Create another resource
-        backend.create(&tenant, "Observation", json!({})).await.unwrap();
+        backend
+            .create(&tenant, "Observation", json!({}))
+            .await
+            .unwrap();
 
         // Without including deleted
-        let history = backend.history_system(&tenant, &HistoryParams::new()).await.unwrap();
+        let history = backend
+            .history_system(&tenant, &HistoryParams::new())
+            .await
+            .unwrap();
         assert_eq!(history.items.len(), 2); // p1 v1, obs (excludes delete)
 
         // Including deleted
-        let history_with_deleted = backend.history_system(&tenant, &HistoryParams::new().include_deleted(true)).await.unwrap();
+        let history_with_deleted = backend
+            .history_system(&tenant, &HistoryParams::new().include_deleted(true))
+            .await
+            .unwrap();
         assert_eq!(history_with_deleted.items.len(), 3); // p1 v1, p1 delete, obs
     }
 
     #[tokio::test]
     async fn test_history_system_tenant_isolation() {
         let backend = create_test_backend();
-        let tenant1 = TenantContext::new(TenantId::new("tenant-1"), TenantPermissions::full_access());
-        let tenant2 = TenantContext::new(TenantId::new("tenant-2"), TenantPermissions::full_access());
+        let tenant1 =
+            TenantContext::new(TenantId::new("tenant-1"), TenantPermissions::full_access());
+        let tenant2 =
+            TenantContext::new(TenantId::new("tenant-2"), TenantPermissions::full_access());
 
         // Create resources in tenant 1
-        backend.create(&tenant1, "Patient", json!({})).await.unwrap();
-        backend.create(&tenant1, "Observation", json!({})).await.unwrap();
+        backend
+            .create(&tenant1, "Patient", json!({}))
+            .await
+            .unwrap();
+        backend
+            .create(&tenant1, "Observation", json!({}))
+            .await
+            .unwrap();
 
         // Create resource in tenant 2
-        backend.create(&tenant2, "Encounter", json!({})).await.unwrap();
+        backend
+            .create(&tenant2, "Encounter", json!({}))
+            .await
+            .unwrap();
 
         // Tenant 1 sees only its history
-        let history1 = backend.history_system(&tenant1, &HistoryParams::new()).await.unwrap();
+        let history1 = backend
+            .history_system(&tenant1, &HistoryParams::new())
+            .await
+            .unwrap();
         assert_eq!(history1.items.len(), 2);
 
         // Tenant 2 sees only its history
-        let history2 = backend.history_system(&tenant2, &HistoryParams::new()).await.unwrap();
+        let history2 = backend
+            .history_system(&tenant2, &HistoryParams::new())
+            .await
+            .unwrap();
         assert_eq!(history2.items.len(), 1);
 
         // Counts should also be isolated
@@ -1643,10 +1898,16 @@ mod tests {
 
         // Create several resources of different types
         for i in 0..3 {
-            backend.create(&tenant, "Patient", json!({"id": format!("p{}", i)})).await.unwrap();
+            backend
+                .create(&tenant, "Patient", json!({"id": format!("p{}", i)}))
+                .await
+                .unwrap();
         }
         for i in 0..2 {
-            backend.create(&tenant, "Observation", json!({"id": format!("o{}", i)})).await.unwrap();
+            backend
+                .create(&tenant, "Observation", json!({"id": format!("o{}", i)}))
+                .await
+                .unwrap();
         }
         // Total: 5 entries
 
@@ -1664,7 +1925,10 @@ mod tests {
         let tenant = create_test_tenant();
 
         // No resources created
-        let history = backend.history_system(&tenant, &HistoryParams::new()).await.unwrap();
+        let history = backend
+            .history_system(&tenant, &HistoryParams::new())
+            .await
+            .unwrap();
         assert!(history.items.is_empty());
         assert!(!history.page_info.has_next);
 
@@ -1677,11 +1941,23 @@ mod tests {
         let tenant = create_test_tenant();
 
         // Create resources - they should be ordered by last_updated DESC
-        backend.create(&tenant, "Patient", json!({"id": "first"})).await.unwrap();
-        backend.create(&tenant, "Observation", json!({"id": "second"})).await.unwrap();
-        backend.create(&tenant, "Encounter", json!({"id": "third"})).await.unwrap();
+        backend
+            .create(&tenant, "Patient", json!({"id": "first"}))
+            .await
+            .unwrap();
+        backend
+            .create(&tenant, "Observation", json!({"id": "second"}))
+            .await
+            .unwrap();
+        backend
+            .create(&tenant, "Encounter", json!({"id": "third"}))
+            .await
+            .unwrap();
 
-        let history = backend.history_system(&tenant, &HistoryParams::new()).await.unwrap();
+        let history = backend
+            .history_system(&tenant, &HistoryParams::new())
+            .await
+            .unwrap();
 
         // Should be in reverse chronological order (newest first)
         assert_eq!(history.items.len(), 3);

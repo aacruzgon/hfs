@@ -191,7 +191,9 @@ impl TenantContext {
         }
 
         // Child tenant resources accessible if permitted
-        if self.permissions.can_access_child_tenants() && resource_tenant.is_descendant_of(&self.tenant_id) {
+        if self.permissions.can_access_child_tenants()
+            && resource_tenant.is_descendant_of(&self.tenant_id)
+        {
             return Ok(());
         }
 
@@ -295,11 +297,15 @@ impl TenantContextBuilder {
 
     /// Builds the tenant context, returning an error if required fields are missing.
     pub fn build(self) -> Result<TenantContext, ValidationError> {
-        let tenant_id = self.tenant_id.ok_or_else(|| ValidationError::MissingRequiredField {
-            field: "tenant_id".to_string(),
-        })?;
+        let tenant_id = self
+            .tenant_id
+            .ok_or_else(|| ValidationError::MissingRequiredField {
+                field: "tenant_id".to_string(),
+            })?;
 
-        let permissions = self.permissions.unwrap_or_else(TenantPermissions::full_access);
+        let permissions = self
+            .permissions
+            .unwrap_or_else(TenantPermissions::full_access);
 
         let mut ctx = TenantContext::new(tenant_id, permissions);
         ctx.correlation_id = self.correlation_id;
@@ -321,10 +327,7 @@ mod tests {
 
     #[test]
     fn test_tenant_context_creation() {
-        let ctx = TenantContext::new(
-            TenantId::new("my-tenant"),
-            TenantPermissions::full_access(),
-        );
+        let ctx = TenantContext::new(TenantId::new("my-tenant"), TenantPermissions::full_access());
         assert_eq!(ctx.tenant_id().as_str(), "my-tenant");
         assert!(!ctx.is_system());
     }
@@ -392,7 +395,10 @@ mod tests {
     #[test]
     fn test_validate_reference_same_tenant() {
         let ctx = TenantContext::new(TenantId::new("t1"), TenantPermissions::full_access());
-        assert!(ctx.validate_reference("Patient/123", &TenantId::new("t1")).is_ok());
+        assert!(
+            ctx.validate_reference("Patient/123", &TenantId::new("t1"))
+                .is_ok()
+        );
     }
 
     #[test]

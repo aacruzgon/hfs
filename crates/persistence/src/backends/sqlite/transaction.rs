@@ -11,7 +11,9 @@ use rusqlite::params;
 use serde_json::Value;
 
 use crate::core::{Transaction, TransactionOptions, TransactionProvider};
-use crate::error::{BackendError, ConcurrencyError, ResourceError, StorageError, StorageResult, TransactionError};
+use crate::error::{
+    BackendError, ConcurrencyError, ResourceError, StorageError, StorageResult, TransactionError,
+};
 use crate::tenant::TenantContext;
 use crate::types::StoredResource;
 
@@ -55,10 +57,11 @@ impl SqliteTransaction {
         tenant: TenantContext,
     ) -> StorageResult<Self> {
         // Start the transaction
-        conn.execute("BEGIN IMMEDIATE", [])
-            .map_err(|e| StorageError::Transaction(TransactionError::RolledBack {
+        conn.execute("BEGIN IMMEDIATE", []).map_err(|e| {
+            StorageError::Transaction(TransactionError::RolledBack {
                 reason: format!("Failed to begin transaction: {}", e),
-            }))?;
+            })
+        })?;
 
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
@@ -81,7 +84,9 @@ impl Transaction for SqliteTransaction {
         resource: Value,
     ) -> StorageResult<StoredResource> {
         if !self.active {
-            return Err(StorageError::Transaction(TransactionError::InvalidTransaction));
+            return Err(StorageError::Transaction(
+                TransactionError::InvalidTransaction,
+            ));
         }
 
         let conn = self.conn.lock();
@@ -114,7 +119,10 @@ impl Transaction for SqliteTransaction {
         let mut data = resource.clone();
         if let Some(obj) = data.as_object_mut() {
             obj.insert("id".to_string(), Value::String(id.clone()));
-            obj.insert("resourceType".to_string(), Value::String(resource_type.to_string()));
+            obj.insert(
+                "resourceType".to_string(),
+                Value::String(resource_type.to_string()),
+            );
         }
 
         // Serialize the resource data
@@ -159,7 +167,9 @@ impl Transaction for SqliteTransaction {
         id: &str,
     ) -> StorageResult<Option<StoredResource>> {
         if !self.active {
-            return Err(StorageError::Transaction(TransactionError::InvalidTransaction));
+            return Err(StorageError::Transaction(
+                TransactionError::InvalidTransaction,
+            ));
         }
 
         let conn = self.conn.lock();
@@ -185,8 +195,9 @@ impl Transaction for SqliteTransaction {
                     return Ok(None);
                 }
 
-                let json_data: serde_json::Value = serde_json::from_slice(&data)
-                    .map_err(|e| serialization_error(format!("Failed to deserialize resource: {}", e)))?;
+                let json_data: serde_json::Value = serde_json::from_slice(&data).map_err(|e| {
+                    serialization_error(format!("Failed to deserialize resource: {}", e))
+                })?;
 
                 let last_updated = chrono::DateTime::parse_from_rfc3339(&last_updated)
                     .map_err(|e| internal_error(format!("Failed to parse last_updated: {}", e)))?
@@ -214,7 +225,9 @@ impl Transaction for SqliteTransaction {
         resource: Value,
     ) -> StorageResult<StoredResource> {
         if !self.active {
-            return Err(StorageError::Transaction(TransactionError::InvalidTransaction));
+            return Err(StorageError::Transaction(
+                TransactionError::InvalidTransaction,
+            ));
         }
 
         let conn = self.conn.lock();
@@ -239,17 +252,22 @@ impl Transaction for SqliteTransaction {
                 }));
             }
             Err(e) => {
-                return Err(internal_error(format!("Failed to get current version: {}", e)));
+                return Err(internal_error(format!(
+                    "Failed to get current version: {}",
+                    e
+                )));
             }
         };
 
         if db_version != current.version_id() {
-            return Err(StorageError::Concurrency(ConcurrencyError::VersionConflict {
-                resource_type: resource_type.to_string(),
-                id: id.to_string(),
-                expected_version: current.version_id().to_string(),
-                actual_version: db_version,
-            }));
+            return Err(StorageError::Concurrency(
+                ConcurrencyError::VersionConflict {
+                    resource_type: resource_type.to_string(),
+                    id: id.to_string(),
+                    expected_version: current.version_id().to_string(),
+                    actual_version: db_version,
+                },
+            ));
         }
 
         // Calculate new version
@@ -260,7 +278,10 @@ impl Transaction for SqliteTransaction {
         let mut data = resource.clone();
         if let Some(obj) = data.as_object_mut() {
             obj.insert("id".to_string(), Value::String(id.to_string()));
-            obj.insert("resourceType".to_string(), Value::String(resource_type.to_string()));
+            obj.insert(
+                "resourceType".to_string(),
+                Value::String(resource_type.to_string()),
+            );
         }
 
         // Serialize the resource data
@@ -274,7 +295,14 @@ impl Transaction for SqliteTransaction {
         conn.execute(
             "UPDATE resources SET version_id = ?1, data = ?2, last_updated = ?3
              WHERE tenant_id = ?4 AND resource_type = ?5 AND id = ?6",
-            params![new_version_str, data_bytes, last_updated, tenant_id, resource_type, id],
+            params![
+                new_version_str,
+                data_bytes,
+                last_updated,
+                tenant_id,
+                resource_type,
+                id
+            ],
         )
         .map_err(|e| internal_error(format!("Failed to update resource: {}", e)))?;
 
@@ -300,7 +328,9 @@ impl Transaction for SqliteTransaction {
 
     async fn delete(&mut self, resource_type: &str, id: &str) -> StorageResult<()> {
         if !self.active {
-            return Err(StorageError::Transaction(TransactionError::InvalidTransaction));
+            return Err(StorageError::Transaction(
+                TransactionError::InvalidTransaction,
+            ));
         }
 
         let conn = self.conn.lock();
@@ -353,14 +383,17 @@ impl Transaction for SqliteTransaction {
 
     async fn commit(mut self: Box<Self>) -> StorageResult<()> {
         if !self.active {
-            return Err(StorageError::Transaction(TransactionError::InvalidTransaction));
+            return Err(StorageError::Transaction(
+                TransactionError::InvalidTransaction,
+            ));
         }
 
         let conn = self.conn.lock();
-        conn.execute("COMMIT", [])
-            .map_err(|e| StorageError::Transaction(TransactionError::RolledBack {
+        conn.execute("COMMIT", []).map_err(|e| {
+            StorageError::Transaction(TransactionError::RolledBack {
                 reason: format!("Commit failed: {}", e),
-            }))?;
+            })
+        })?;
 
         self.active = false;
         Ok(())
@@ -368,14 +401,17 @@ impl Transaction for SqliteTransaction {
 
     async fn rollback(mut self: Box<Self>) -> StorageResult<()> {
         if !self.active {
-            return Err(StorageError::Transaction(TransactionError::InvalidTransaction));
+            return Err(StorageError::Transaction(
+                TransactionError::InvalidTransaction,
+            ));
         }
 
         let conn = self.conn.lock();
-        conn.execute("ROLLBACK", [])
-            .map_err(|e| StorageError::Transaction(TransactionError::RolledBack {
+        conn.execute("ROLLBACK", []).map_err(|e| {
+            StorageError::Transaction(TransactionError::RolledBack {
                 reason: format!("Rollback failed: {}", e),
-            }))?;
+            })
+        })?;
 
         self.active = false;
         Ok(())
@@ -428,7 +464,10 @@ mod tests {
     }
 
     fn create_test_tenant() -> TenantContext {
-        TenantContext::new(TenantId::new("test-tenant"), TenantPermissions::full_access())
+        TenantContext::new(
+            TenantId::new("test-tenant"),
+            TenantPermissions::full_access(),
+        )
     }
 
     #[tokio::test]
@@ -537,7 +576,11 @@ mod tests {
         Box::new(tx).commit().await.unwrap();
 
         // Verify update persisted
-        let read = backend.read(&tenant, "Patient", created.id()).await.unwrap().unwrap();
+        let read = backend
+            .read(&tenant, "Patient", created.id())
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(read.version_id(), "2");
     }
 

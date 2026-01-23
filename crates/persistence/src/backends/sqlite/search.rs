@@ -64,8 +64,8 @@ impl SearchProvider for SqliteBackend {
 
         let mut resources = Vec::new();
         for row in rows {
-            let (id, version_id, data, last_updated) = row
-                .map_err(|e| internal_error(format!("Failed to read row: {}", e)))?;
+            let (id, version_id, data, last_updated) =
+                row.map_err(|e| internal_error(format!("Failed to read row: {}", e)))?;
 
             let json_data: serde_json::Value = serde_json::from_slice(&data)
                 .map_err(|e| internal_error(format!("Failed to deserialize resource: {}", e)))?;
@@ -146,7 +146,10 @@ mod tests {
     }
 
     fn create_test_tenant() -> TenantContext {
-        TenantContext::new(TenantId::new("test-tenant"), TenantPermissions::full_access())
+        TenantContext::new(
+            TenantId::new("test-tenant"),
+            TenantPermissions::full_access(),
+        )
     }
 
     #[tokio::test]
@@ -182,7 +185,10 @@ mod tests {
 
         backend.create(&tenant, "Patient", json!({})).await.unwrap();
         backend.create(&tenant, "Patient", json!({})).await.unwrap();
-        backend.create(&tenant, "Observation", json!({})).await.unwrap();
+        backend
+            .create(&tenant, "Observation", json!({}))
+            .await
+            .unwrap();
 
         let query = SearchQuery::new("Patient");
         let count = backend.search_count(&tenant, &query).await.unwrap();
@@ -194,12 +200,23 @@ mod tests {
     async fn test_search_tenant_isolation() {
         let backend = create_test_backend();
 
-        let tenant1 = TenantContext::new(TenantId::new("tenant-1"), TenantPermissions::full_access());
-        let tenant2 = TenantContext::new(TenantId::new("tenant-2"), TenantPermissions::full_access());
+        let tenant1 =
+            TenantContext::new(TenantId::new("tenant-1"), TenantPermissions::full_access());
+        let tenant2 =
+            TenantContext::new(TenantId::new("tenant-2"), TenantPermissions::full_access());
 
-        backend.create(&tenant1, "Patient", json!({})).await.unwrap();
-        backend.create(&tenant2, "Patient", json!({})).await.unwrap();
-        backend.create(&tenant2, "Patient", json!({})).await.unwrap();
+        backend
+            .create(&tenant1, "Patient", json!({}))
+            .await
+            .unwrap();
+        backend
+            .create(&tenant2, "Patient", json!({}))
+            .await
+            .unwrap();
+        backend
+            .create(&tenant2, "Patient", json!({}))
+            .await
+            .unwrap();
 
         let query = SearchQuery::new("Patient");
 

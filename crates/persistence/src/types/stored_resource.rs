@@ -221,7 +221,10 @@ impl StoredResource {
 
     /// Returns the versioned URL path (e.g., "Patient/123/_history/1").
     pub fn versioned_url(&self) -> String {
-        format!("{}/{}/_history/{}", self.resource_type, self.id, self.version_id)
+        format!(
+            "{}/{}/_history/{}",
+            self.resource_type, self.id, self.version_id
+        )
     }
 
     /// Creates a new version of this resource with updated content.
@@ -425,12 +428,7 @@ mod tests {
 
     #[test]
     fn test_url_generation() {
-        let resource = StoredResource::new(
-            "Patient",
-            "123",
-            TenantId::new("t1"),
-            json!({}),
-        );
+        let resource = StoredResource::new("Patient", "123", TenantId::new("t1"), json!({}));
 
         assert_eq!(resource.url(), "Patient/123");
         assert_eq!(resource.versioned_url(), "Patient/123/_history/1");
@@ -438,17 +436,10 @@ mod tests {
 
     #[test]
     fn test_new_version() {
-        let resource = StoredResource::new(
-            "Patient",
-            "123",
-            TenantId::new("t1"),
-            json!({"name": "v1"}),
-        );
+        let resource =
+            StoredResource::new("Patient", "123", TenantId::new("t1"), json!({"name": "v1"}));
 
-        let updated = resource.new_version(
-            json!({"name": "v2"}),
-            ResourceMethod::Put,
-        );
+        let updated = resource.new_version(json!({"name": "v2"}), ResourceMethod::Put);
 
         assert_eq!(updated.version_id(), "2");
         assert_eq!(updated.content()["name"], "v2");
@@ -457,12 +448,7 @@ mod tests {
 
     #[test]
     fn test_mark_deleted() {
-        let resource = StoredResource::new(
-            "Patient",
-            "123",
-            TenantId::new("t1"),
-            json!({}),
-        );
+        let resource = StoredResource::new("Patient", "123", TenantId::new("t1"), json!({}));
 
         let deleted = resource.mark_deleted();
 
@@ -474,12 +460,7 @@ mod tests {
 
     #[test]
     fn test_etag_matching() {
-        let resource = StoredResource::new(
-            "Patient",
-            "123",
-            TenantId::new("t1"),
-            json!({}),
-        );
+        let resource = StoredResource::new("Patient", "123", TenantId::new("t1"), json!({}));
 
         assert!(resource.matches_etag("W/\"1\""));
         assert!(resource.matches_etag("\"1\""));

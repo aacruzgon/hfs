@@ -94,7 +94,10 @@ impl SqliteBackend {
     }
 
     /// Creates a backend with custom configuration.
-    pub fn with_config<P: AsRef<Path>>(path: P, config: SqliteBackendConfig) -> StorageResult<Self> {
+    pub fn with_config<P: AsRef<Path>>(
+        path: P,
+        config: SqliteBackendConfig,
+    ) -> StorageResult<Self> {
         let path_str = path.as_ref().to_string_lossy();
         let is_memory = path_str == ":memory:";
 
@@ -103,12 +106,16 @@ impl SqliteBackend {
         let pool = Pool::builder()
             .max_size(config.max_connections)
             .min_idle(Some(config.min_connections))
-            .connection_timeout(std::time::Duration::from_millis(config.connection_timeout_ms))
+            .connection_timeout(std::time::Duration::from_millis(
+                config.connection_timeout_ms,
+            ))
             .build(manager)
-            .map_err(|e| crate::error::StorageError::Backend(BackendError::ConnectionFailed {
-                backend_name: "sqlite".to_string(),
-                message: e.to_string(),
-            }))?;
+            .map_err(|e| {
+                crate::error::StorageError::Backend(BackendError::ConnectionFailed {
+                    backend_name: "sqlite".to_string(),
+                    message: e.to_string(),
+                })
+            })?;
 
         let backend = Self {
             pool,
@@ -132,12 +139,12 @@ impl SqliteBackend {
     pub(crate) fn get_connection(
         &self,
     ) -> StorageResult<PooledConnection<SqliteConnectionManager>> {
-        self.pool
-            .get()
-            .map_err(|e| crate::error::StorageError::Backend(BackendError::ConnectionFailed {
+        self.pool.get().map_err(|e| {
+            crate::error::StorageError::Backend(BackendError::ConnectionFailed {
                 backend_name: "sqlite".to_string(),
                 message: e.to_string(),
-            }))
+            })
+        })
     }
 
     /// Configure connection settings.
@@ -147,28 +154,32 @@ impl SqliteBackend {
         conn.busy_timeout(std::time::Duration::from_millis(
             self.config.busy_timeout_ms as u64,
         ))
-        .map_err(|e| crate::error::StorageError::Backend(BackendError::Internal {
-            backend_name: "sqlite".to_string(),
-            message: format!("Failed to set busy timeout: {}", e),
-            source: None,
-        }))?;
+        .map_err(|e| {
+            crate::error::StorageError::Backend(BackendError::Internal {
+                backend_name: "sqlite".to_string(),
+                message: format!("Failed to set busy timeout: {}", e),
+                source: None,
+            })
+        })?;
 
         if self.config.enable_foreign_keys {
-            conn.execute("PRAGMA foreign_keys = ON", [])
-                .map_err(|e| crate::error::StorageError::Backend(BackendError::Internal {
+            conn.execute("PRAGMA foreign_keys = ON", []).map_err(|e| {
+                crate::error::StorageError::Backend(BackendError::Internal {
                     backend_name: "sqlite".to_string(),
                     message: format!("Failed to enable foreign keys: {}", e),
                     source: None,
-                }))?;
+                })
+            })?;
         }
 
         if self.config.enable_wal && !self.is_memory {
-            conn.execute("PRAGMA journal_mode = WAL", [])
-                .map_err(|e| crate::error::StorageError::Backend(BackendError::Internal {
+            conn.execute("PRAGMA journal_mode = WAL", []).map_err(|e| {
+                crate::error::StorageError::Backend(BackendError::Internal {
                     backend_name: "sqlite".to_string(),
                     message: format!("Failed to enable WAL mode: {}", e),
                     source: None,
-                }))?;
+                })
+            })?;
         }
 
         Ok(())
@@ -248,10 +259,13 @@ impl Backend for SqliteBackend {
     }
 
     async fn acquire(&self) -> Result<Self::Connection, BackendError> {
-        let conn = self.pool.get().map_err(|e| BackendError::ConnectionFailed {
-            backend_name: "sqlite".to_string(),
-            message: e.to_string(),
-        })?;
+        let conn = self
+            .pool
+            .get()
+            .map_err(|e| BackendError::ConnectionFailed {
+                backend_name: "sqlite".to_string(),
+                message: e.to_string(),
+            })?;
         Ok(SqliteConnection(conn))
     }
 
@@ -260,10 +274,12 @@ impl Backend for SqliteBackend {
     }
 
     async fn health_check(&self) -> Result<(), BackendError> {
-        let conn = self.get_connection().map_err(|_| BackendError::Unavailable {
-            backend_name: "sqlite".to_string(),
-            message: "Failed to get connection".to_string(),
-        })?;
+        let conn = self
+            .get_connection()
+            .map_err(|_| BackendError::Unavailable {
+                backend_name: "sqlite".to_string(),
+                message: "Failed to get connection".to_string(),
+            })?;
         conn.query_row("SELECT 1", [], |_| Ok(()))
             .map_err(|e| BackendError::Internal {
                 backend_name: "sqlite".to_string(),

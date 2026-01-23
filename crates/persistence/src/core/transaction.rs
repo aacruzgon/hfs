@@ -158,11 +158,7 @@ pub trait Transaction: Send + Sync {
     ) -> StorageResult<StoredResource>;
 
     /// Deletes a resource within this transaction.
-    async fn delete(
-        &mut self,
-        resource_type: &str,
-        id: &str,
-    ) -> StorageResult<()>;
+    async fn delete(&mut self, resource_type: &str, id: &str) -> StorageResult<()>;
 
     /// Commits the transaction, persisting all changes.
     ///

@@ -286,12 +286,7 @@ impl DatabasePerTenantStrategy {
     }
 
     /// Generates a connection string for a tenant.
-    pub fn connection_string(
-        &self,
-        tenant_id: &TenantId,
-        user: &str,
-        password: &str,
-    ) -> String {
+    pub fn connection_string(&self, tenant_id: &TenantId, user: &str, password: &str) -> String {
         self.connection_string_with_host(tenant_id, user, password, None)
     }
 
@@ -330,7 +325,10 @@ impl DatabasePerTenantStrategy {
     /// Generates SQL for dropping a tenant database.
     pub fn drop_database_sql(&self, tenant_id: &TenantId) -> String {
         let db_name = self.database_name(tenant_id);
-        format!("DROP DATABASE IF EXISTS {}", self.quote_identifier(&db_name))
+        format!(
+            "DROP DATABASE IF EXISTS {}",
+            self.quote_identifier(&db_name)
+        )
     }
 
     /// Generates SQL for checking if a tenant database exists.
@@ -496,7 +494,9 @@ impl TenantDatabaseManager {
 
     /// Returns the admin connection string (connects to system database).
     pub fn admin_connection_string(&self) -> String {
-        self.strategy.config.connection_template
+        self.strategy
+            .config
+            .connection_template
             .replace("{tenant}", "system")
             .replace("{tenant_hash}", "system")
             .replace("{host}", &self.strategy.config.default_host)

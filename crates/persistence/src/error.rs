@@ -50,17 +50,11 @@ pub enum StorageError {
 pub enum ResourceError {
     /// The requested resource was not found.
     #[error("resource not found: {resource_type}/{id}")]
-    NotFound {
-        resource_type: String,
-        id: String,
-    },
+    NotFound { resource_type: String, id: String },
 
     /// A resource with the given ID already exists.
     #[error("resource already exists: {resource_type}/{id}")]
-    AlreadyExists {
-        resource_type: String,
-        id: String,
-    },
+    AlreadyExists { resource_type: String, id: String },
 
     /// The resource has been deleted (HTTP 410 Gone).
     #[error("resource deleted: {resource_type}/{id}")]
@@ -102,10 +96,7 @@ pub enum ConcurrencyError {
 
     /// Deadlock detected during pessimistic locking.
     #[error("deadlock detected while accessing {resource_type}/{id}")]
-    Deadlock {
-        resource_type: String,
-        id: String,
-    },
+    Deadlock { resource_type: String, id: String },
 
     /// Lock acquisition timed out.
     #[error("lock timeout after {timeout_ms}ms for {resource_type}/{id}")]
@@ -129,18 +120,16 @@ pub enum TenantError {
 
     /// The specified tenant does not exist or is invalid.
     #[error("invalid tenant: {tenant_id}")]
-    InvalidTenant {
-        tenant_id: TenantId,
-    },
+    InvalidTenant { tenant_id: TenantId },
 
     /// Tenant is suspended and cannot perform operations.
     #[error("tenant suspended: {tenant_id}")]
-    TenantSuspended {
-        tenant_id: TenantId,
-    },
+    TenantSuspended { tenant_id: TenantId },
 
     /// Cross-tenant reference not allowed.
-    #[error("cross-tenant reference not allowed: resource in tenant {source_tenant} references resource in tenant {target_tenant}")]
+    #[error(
+        "cross-tenant reference not allowed: resource in tenant {source_tenant} references resource in tenant {target_tenant}"
+    )]
     CrossTenantReference {
         source_tenant: TenantId,
         target_tenant: TenantId,
@@ -167,29 +156,19 @@ pub enum ValidationError {
 
     /// The search parameter is invalid.
     #[error("invalid search parameter: {parameter}")]
-    InvalidSearchParameter {
-        parameter: String,
-        message: String,
-    },
+    InvalidSearchParameter { parameter: String, message: String },
 
     /// The resource type is not supported.
     #[error("unsupported resource type: {resource_type}")]
-    UnsupportedResourceType {
-        resource_type: String,
-    },
+    UnsupportedResourceType { resource_type: String },
 
     /// Missing required field.
     #[error("missing required field: {field}")]
-    MissingRequiredField {
-        field: String,
-    },
+    MissingRequiredField { field: String },
 
     /// Invalid reference format.
     #[error("invalid reference: {reference}")]
-    InvalidReference {
-        reference: String,
-        message: String,
-    },
+    InvalidReference { reference: String, message: String },
 }
 
 /// Detailed validation error information.
@@ -229,9 +208,7 @@ impl fmt::Display for ValidationSeverity {
 pub enum SearchError {
     /// The search parameter type is not supported.
     #[error("unsupported search parameter type: {param_type}")]
-    UnsupportedParameterType {
-        param_type: String,
-    },
+    UnsupportedParameterType { param_type: String },
 
     /// The search modifier is not supported for this parameter type.
     #[error("unsupported modifier '{modifier}' for parameter type '{param_type}'")]
@@ -242,9 +219,7 @@ pub enum SearchError {
 
     /// Chained search is not supported by this backend.
     #[error("chained search not supported: {chain}")]
-    ChainedSearchNotSupported {
-        chain: String,
-    },
+    ChainedSearchNotSupported { chain: String },
 
     /// Reverse chaining (_has) is not supported by this backend.
     #[error("reverse chaining (_has) not supported")]
@@ -252,34 +227,23 @@ pub enum SearchError {
 
     /// Include/revinclude not supported.
     #[error("{operation} not supported by this backend")]
-    IncludeNotSupported {
-        operation: String,
-    },
+    IncludeNotSupported { operation: String },
 
     /// Too many results to return.
     #[error("search result limit exceeded: found {count}, maximum is {max}")]
-    TooManyResults {
-        count: usize,
-        max: usize,
-    },
+    TooManyResults { count: usize, max: usize },
 
     /// Invalid cursor for pagination.
     #[error("invalid pagination cursor: {cursor}")]
-    InvalidCursor {
-        cursor: String,
-    },
+    InvalidCursor { cursor: String },
 
     /// Search query parsing failed.
     #[error("failed to parse search query: {message}")]
-    QueryParseError {
-        message: String,
-    },
+    QueryParseError { message: String },
 
     /// Composite search parameter error.
     #[error("invalid composite search parameter: {message}")]
-    InvalidComposite {
-        message: String,
-    },
+    InvalidComposite { message: String },
 
     /// Text search not available.
     #[error("full-text search not available")]
@@ -291,15 +255,11 @@ pub enum SearchError {
 pub enum TransactionError {
     /// Transaction timed out.
     #[error("transaction timed out after {timeout_ms}ms")]
-    Timeout {
-        timeout_ms: u64,
-    },
+    Timeout { timeout_ms: u64 },
 
     /// Transaction was rolled back.
     #[error("transaction rolled back: {reason}")]
-    RolledBack {
-        reason: String,
-    },
+    RolledBack { reason: String },
 
     /// Transaction is no longer valid (already committed or rolled back).
     #[error("transaction no longer valid")]
@@ -311,23 +271,15 @@ pub enum TransactionError {
 
     /// Bundle processing error.
     #[error("bundle processing error at entry {index}: {message}")]
-    BundleError {
-        index: usize,
-        message: String,
-    },
+    BundleError { index: usize, message: String },
 
     /// Conditional operation matched multiple resources.
     #[error("conditional {operation} matched {count} resources, expected at most 1")]
-    MultipleMatches {
-        operation: String,
-        count: usize,
-    },
+    MultipleMatches { operation: String, count: usize },
 
     /// Isolation level not supported.
     #[error("isolation level {level} not supported by this backend")]
-    UnsupportedIsolationLevel {
-        level: String,
-    },
+    UnsupportedIsolationLevel { level: String },
 }
 
 /// Errors originating from the database backend.
@@ -349,9 +301,7 @@ pub enum BackendError {
 
     /// Connection pool exhausted.
     #[error("connection pool exhausted for {backend_name}")]
-    PoolExhausted {
-        backend_name: String,
-    },
+    PoolExhausted { backend_name: String },
 
     /// The requested capability is not supported by this backend.
     #[error("capability '{capability}' not supported by {backend_name}")]
@@ -362,9 +312,7 @@ pub enum BackendError {
 
     /// Schema migration error.
     #[error("schema migration failed: {message}")]
-    MigrationError {
-        message: String,
-    },
+    MigrationError { message: String },
 
     /// Internal backend error.
     #[error("internal error in {backend_name}: {message}")]
@@ -377,15 +325,11 @@ pub enum BackendError {
 
     /// Query execution error.
     #[error("query execution failed: {message}")]
-    QueryError {
-        message: String,
-    },
+    QueryError { message: String },
 
     /// Serialization/deserialization error.
     #[error("serialization error: {message}")]
-    SerializationError {
-        message: String,
-    },
+    SerializationError { message: String },
 }
 
 /// Result type alias for storage operations.
@@ -480,10 +424,7 @@ mod tests {
             expected_version: "1".to_string(),
             actual_version: "2".to_string(),
         };
-        assert_eq!(
-            err.to_string(),
-            "version conflict: expected 1, found 2"
-        );
+        assert_eq!(err.to_string(), "version conflict: expected 1, found 2");
     }
 
     #[test]

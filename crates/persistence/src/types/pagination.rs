@@ -3,7 +3,7 @@
 //! This module defines types for handling pagination in FHIR search results,
 //! supporting both cursor-based and offset-based pagination.
 
-use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
+use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -528,10 +528,7 @@ mod tests {
 
     #[test]
     fn test_cursor_previous() {
-        let cursor = PageCursor::previous(
-            vec![CursorValue::Number(100)],
-            "obs-456",
-        );
+        let cursor = PageCursor::previous(vec![CursorValue::Number(100)], "obs-456");
         assert_eq!(cursor.direction(), CursorDirection::Previous);
     }
 
@@ -545,10 +542,7 @@ mod tests {
 
     #[test]
     fn test_page_map() {
-        let page = Page::new(
-            vec![1, 2, 3],
-            PageInfo::end(),
-        );
+        let page = Page::new(vec![1, 2, 3], PageInfo::end());
 
         let mapped = page.map(|x| x * 2);
         assert_eq!(mapped.items, vec![2, 4, 6]);

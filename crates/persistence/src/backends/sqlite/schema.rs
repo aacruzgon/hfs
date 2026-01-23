@@ -33,11 +33,13 @@ fn get_schema_version(conn: &Connection) -> StorageResult<i32> {
         )",
         [],
     )
-    .map_err(|e| crate::error::StorageError::Backend(crate::error::BackendError::Internal {
-        backend_name: "sqlite".to_string(),
-        message: format!("Failed to create schema_version table: {}", e),
-        source: None,
-    }))?;
+    .map_err(|e| {
+        crate::error::StorageError::Backend(crate::error::BackendError::Internal {
+            backend_name: "sqlite".to_string(),
+            message: format!("Failed to create schema_version table: {}", e),
+            source: None,
+        })
+    })?;
 
     let version: Option<i32> = conn
         .query_row("SELECT version FROM schema_version LIMIT 1", [], |row| {
@@ -51,18 +53,25 @@ fn get_schema_version(conn: &Connection) -> StorageResult<i32> {
 /// Set the schema version.
 fn set_schema_version(conn: &Connection, version: i32) -> StorageResult<()> {
     conn.execute("DELETE FROM schema_version", [])
-        .map_err(|e| crate::error::StorageError::Backend(crate::error::BackendError::Internal {
-            backend_name: "sqlite".to_string(),
-            message: format!("Failed to clear schema_version: {}", e),
-            source: None,
-        }))?;
+        .map_err(|e| {
+            crate::error::StorageError::Backend(crate::error::BackendError::Internal {
+                backend_name: "sqlite".to_string(),
+                message: format!("Failed to clear schema_version: {}", e),
+                source: None,
+            })
+        })?;
 
-    conn.execute("INSERT INTO schema_version (version) VALUES (?1)", [version])
-        .map_err(|e| crate::error::StorageError::Backend(crate::error::BackendError::Internal {
+    conn.execute(
+        "INSERT INTO schema_version (version) VALUES (?1)",
+        [version],
+    )
+    .map_err(|e| {
+        crate::error::StorageError::Backend(crate::error::BackendError::Internal {
             backend_name: "sqlite".to_string(),
             message: format!("Failed to set schema_version: {}", e),
             source: None,
-        }))?;
+        })
+    })?;
 
     Ok(())
 }
@@ -84,11 +93,13 @@ fn create_schema_v1(conn: &Connection) -> StorageResult<()> {
         )",
         [],
     )
-    .map_err(|e| crate::error::StorageError::Backend(crate::error::BackendError::Internal {
-        backend_name: "sqlite".to_string(),
-        message: format!("Failed to create resources table: {}", e),
-        source: None,
-    }))?;
+    .map_err(|e| {
+        crate::error::StorageError::Backend(crate::error::BackendError::Internal {
+            backend_name: "sqlite".to_string(),
+            message: format!("Failed to create resources table: {}", e),
+            source: None,
+        })
+    })?;
 
     // Resource history table
     conn.execute(
@@ -104,11 +115,13 @@ fn create_schema_v1(conn: &Connection) -> StorageResult<()> {
         )",
         [],
     )
-    .map_err(|e| crate::error::StorageError::Backend(crate::error::BackendError::Internal {
-        backend_name: "sqlite".to_string(),
-        message: format!("Failed to create resource_history table: {}", e),
-        source: None,
-    }))?;
+    .map_err(|e| {
+        crate::error::StorageError::Backend(crate::error::BackendError::Internal {
+            backend_name: "sqlite".to_string(),
+            message: format!("Failed to create resource_history table: {}", e),
+            source: None,
+        })
+    })?;
 
     // Search index table for extracted values
     conn.execute(
@@ -132,11 +145,13 @@ fn create_schema_v1(conn: &Connection) -> StorageResult<()> {
         )",
         [],
     )
-    .map_err(|e| crate::error::StorageError::Backend(crate::error::BackendError::Internal {
-        backend_name: "sqlite".to_string(),
-        message: format!("Failed to create search_index table: {}", e),
-        source: None,
-    }))?;
+    .map_err(|e| {
+        crate::error::StorageError::Backend(crate::error::BackendError::Internal {
+            backend_name: "sqlite".to_string(),
+            message: format!("Failed to create search_index table: {}", e),
+            source: None,
+        })
+    })?;
 
     // Create indexes for efficient queries
     create_indexes(conn)?;
@@ -163,12 +178,13 @@ fn create_indexes(conn: &Connection) -> StorageResult<()> {
     ];
 
     for index_sql in &indexes {
-        conn.execute(index_sql, [])
-            .map_err(|e| crate::error::StorageError::Backend(crate::error::BackendError::Internal {
+        conn.execute(index_sql, []).map_err(|e| {
+            crate::error::StorageError::Backend(crate::error::BackendError::Internal {
                 backend_name: "sqlite".to_string(),
                 message: format!("Failed to create index: {}", e),
                 source: None,
-            }))?;
+            })
+        })?;
     }
 
     Ok(())
@@ -203,29 +219,37 @@ fn migrate_schema(conn: &Connection, from_version: i32) -> StorageResult<()> {
 #[cfg(test)]
 pub fn drop_all_tables(conn: &Connection) -> StorageResult<()> {
     conn.execute("DROP TABLE IF EXISTS search_index", [])
-        .map_err(|e| crate::error::StorageError::Backend(crate::error::BackendError::Internal {
-            backend_name: "sqlite".to_string(),
-            message: format!("Failed to drop search_index: {}", e),
-            source: None,
-        }))?;
+        .map_err(|e| {
+            crate::error::StorageError::Backend(crate::error::BackendError::Internal {
+                backend_name: "sqlite".to_string(),
+                message: format!("Failed to drop search_index: {}", e),
+                source: None,
+            })
+        })?;
     conn.execute("DROP TABLE IF EXISTS resource_history", [])
-        .map_err(|e| crate::error::StorageError::Backend(crate::error::BackendError::Internal {
-            backend_name: "sqlite".to_string(),
-            message: format!("Failed to drop resource_history: {}", e),
-            source: None,
-        }))?;
+        .map_err(|e| {
+            crate::error::StorageError::Backend(crate::error::BackendError::Internal {
+                backend_name: "sqlite".to_string(),
+                message: format!("Failed to drop resource_history: {}", e),
+                source: None,
+            })
+        })?;
     conn.execute("DROP TABLE IF EXISTS resources", [])
-        .map_err(|e| crate::error::StorageError::Backend(crate::error::BackendError::Internal {
-            backend_name: "sqlite".to_string(),
-            message: format!("Failed to drop resources: {}", e),
-            source: None,
-        }))?;
+        .map_err(|e| {
+            crate::error::StorageError::Backend(crate::error::BackendError::Internal {
+                backend_name: "sqlite".to_string(),
+                message: format!("Failed to drop resources: {}", e),
+                source: None,
+            })
+        })?;
     conn.execute("DROP TABLE IF EXISTS schema_version", [])
-        .map_err(|e| crate::error::StorageError::Backend(crate::error::BackendError::Internal {
-            backend_name: "sqlite".to_string(),
-            message: format!("Failed to drop schema_version: {}", e),
-            source: None,
-        }))?;
+        .map_err(|e| {
+            crate::error::StorageError::Backend(crate::error::BackendError::Internal {
+                backend_name: "sqlite".to_string(),
+                message: format!("Failed to drop schema_version: {}", e),
+                source: None,
+            })
+        })?;
     Ok(())
 }
 

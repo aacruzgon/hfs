@@ -105,10 +105,7 @@ impl ResourceTenancy for DefaultResourceTenancy {
     fn tenancy_model(&self, resource_type: &str) -> TenancyModel {
         match resource_type {
             // Terminology resources - typically shared
-            "CodeSystem"
-            | "ValueSet"
-            | "ConceptMap"
-            | "NamingSystem" => TenancyModel::Shared,
+            "CodeSystem" | "ValueSet" | "ConceptMap" | "NamingSystem" => TenancyModel::Shared,
 
             // Conformance resources - typically shared
             "StructureDefinition"
@@ -123,17 +120,14 @@ impl ResourceTenancy for DefaultResourceTenancy {
             | "ExampleScenario" => TenancyModel::Shared,
 
             // Knowledge resources - often shared
-            "Library"
-            | "Measure"
-            | "PlanDefinition"
-            | "ActivityDefinition"
-            | "Questionnaire" => TenancyModel::Shared,
+            "Library" | "Measure" | "PlanDefinition" | "ActivityDefinition" | "Questionnaire" => {
+                TenancyModel::Shared
+            }
 
             // May be shared or tenant-scoped depending on use case
-            "Organization"
-            | "Location"
-            | "HealthcareService"
-            | "Endpoint" => TenancyModel::Configurable,
+            "Organization" | "Location" | "HealthcareService" | "Endpoint" => {
+                TenancyModel::Configurable
+            }
 
             // All other resources are tenant-scoped
             _ => TenancyModel::TenantScoped,
@@ -184,8 +178,14 @@ mod tests {
     fn test_default_tenancy_clinical() {
         let tenancy = DefaultResourceTenancy;
         assert_eq!(tenancy.tenancy_model("Patient"), TenancyModel::TenantScoped);
-        assert_eq!(tenancy.tenancy_model("Observation"), TenancyModel::TenantScoped);
-        assert_eq!(tenancy.tenancy_model("Encounter"), TenancyModel::TenantScoped);
+        assert_eq!(
+            tenancy.tenancy_model("Observation"),
+            TenancyModel::TenantScoped
+        );
+        assert_eq!(
+            tenancy.tenancy_model("Encounter"),
+            TenancyModel::TenantScoped
+        );
     }
 
     #[test]
@@ -199,15 +199,27 @@ mod tests {
     #[test]
     fn test_default_tenancy_conformance() {
         let tenancy = DefaultResourceTenancy;
-        assert_eq!(tenancy.tenancy_model("StructureDefinition"), TenancyModel::Shared);
-        assert_eq!(tenancy.tenancy_model("CapabilityStatement"), TenancyModel::Shared);
+        assert_eq!(
+            tenancy.tenancy_model("StructureDefinition"),
+            TenancyModel::Shared
+        );
+        assert_eq!(
+            tenancy.tenancy_model("CapabilityStatement"),
+            TenancyModel::Shared
+        );
     }
 
     #[test]
     fn test_default_tenancy_configurable() {
         let tenancy = DefaultResourceTenancy;
-        assert_eq!(tenancy.tenancy_model("Organization"), TenancyModel::Configurable);
-        assert_eq!(tenancy.tenancy_model("Location"), TenancyModel::Configurable);
+        assert_eq!(
+            tenancy.tenancy_model("Organization"),
+            TenancyModel::Configurable
+        );
+        assert_eq!(
+            tenancy.tenancy_model("Location"),
+            TenancyModel::Configurable
+        );
     }
 
     #[test]
@@ -230,7 +242,10 @@ mod tests {
             .with_override("Organization", TenancyModel::TenantScoped);
 
         // Override takes effect
-        assert_eq!(tenancy.tenancy_model("Organization"), TenancyModel::TenantScoped);
+        assert_eq!(
+            tenancy.tenancy_model("Organization"),
+            TenancyModel::TenantScoped
+        );
 
         // Fallback still works
         assert_eq!(tenancy.tenancy_model("Patient"), TenancyModel::TenantScoped);

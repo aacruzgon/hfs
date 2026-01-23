@@ -170,7 +170,9 @@ impl TenantId {
     /// assert_eq!(ancestors[1].as_str(), "acme");
     /// ```
     pub fn ancestors(&self) -> impl Iterator<Item = TenantId> + '_ {
-        TenantAncestorIterator { current: self.clone() }
+        TenantAncestorIterator {
+            current: self.clone(),
+        }
     }
 
     /// Returns the root tenant ID (the first segment of the hierarchy).
@@ -332,7 +334,10 @@ mod tests {
     fn test_root() {
         assert_eq!(TenantId::new("acme").root().as_str(), "acme");
         assert_eq!(TenantId::new("acme/research").root().as_str(), "acme");
-        assert_eq!(TenantId::new("acme/research/oncology").root().as_str(), "acme");
+        assert_eq!(
+            TenantId::new("acme/research/oncology").root().as_str(),
+            "acme"
+        );
     }
 
     #[test]

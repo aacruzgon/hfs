@@ -58,8 +58,7 @@ impl SearchResult {
     pub fn to_bundle(&self, base_url: &str, self_link: &str) -> SearchBundle {
         use crate::types::{BundleEntry, SearchBundle};
 
-        let mut bundle = SearchBundle::new()
-            .with_self_link(self_link);
+        let mut bundle = SearchBundle::new().with_self_link(self_link);
 
         if let Some(total) = self.total {
             bundle = bundle.with_total(total);
@@ -73,13 +72,19 @@ impl SearchResult {
         // Add matching resources
         for resource in &self.resources.items {
             let full_url = format!("{}/{}", base_url, resource.url());
-            bundle = bundle.with_entry(BundleEntry::match_entry(full_url, resource.content().clone()));
+            bundle = bundle.with_entry(BundleEntry::match_entry(
+                full_url,
+                resource.content().clone(),
+            ));
         }
 
         // Add included resources
         for resource in &self.included {
             let full_url = format!("{}/{}", base_url, resource.url());
-            bundle = bundle.with_entry(BundleEntry::include_entry(full_url, resource.content().clone()));
+            bundle = bundle.with_entry(BundleEntry::include_entry(
+                full_url,
+                resource.content().clone(),
+            ));
         }
 
         bundle
@@ -148,11 +153,8 @@ pub trait SearchProvider: ResourceStorage {
     /// Counts resources matching the query without returning them.
     ///
     /// This is more efficient than search when you only need the count.
-    async fn search_count(
-        &self,
-        tenant: &TenantContext,
-        query: &SearchQuery,
-    ) -> StorageResult<u64>;
+    async fn search_count(&self, tenant: &TenantContext, query: &SearchQuery)
+    -> StorageResult<u64>;
 }
 
 /// Search provider that supports searching across multiple resource types.
@@ -296,10 +298,7 @@ pub trait TerminologySearchProvider: SearchProvider {
     /// # Returns
     ///
     /// A list of (system, code) pairs in the value set.
-    async fn expand_value_set(
-        &self,
-        value_set_url: &str,
-    ) -> StorageResult<Vec<(String, String)>>;
+    async fn expand_value_set(&self, value_set_url: &str) -> StorageResult<Vec<(String, String)>>;
 
     /// Gets codes above the given code in the hierarchy.
     ///
@@ -311,11 +310,7 @@ pub trait TerminologySearchProvider: SearchProvider {
     /// # Returns
     ///
     /// Codes that are ancestors of the given code (including the code itself).
-    async fn codes_above(
-        &self,
-        system: &str,
-        code: &str,
-    ) -> StorageResult<Vec<String>>;
+    async fn codes_above(&self, system: &str, code: &str) -> StorageResult<Vec<String>>;
 
     /// Gets codes below the given code in the hierarchy.
     ///
@@ -327,11 +322,7 @@ pub trait TerminologySearchProvider: SearchProvider {
     /// # Returns
     ///
     /// Codes that are descendants of the given code (including the code itself).
-    async fn codes_below(
-        &self,
-        system: &str,
-        code: &str,
-    ) -> StorageResult<Vec<String>>;
+    async fn codes_below(&self, system: &str, code: &str) -> StorageResult<Vec<String>>;
 }
 
 /// Search provider that supports full-text search.

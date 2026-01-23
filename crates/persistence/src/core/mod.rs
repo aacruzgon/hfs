@@ -120,6 +120,4 @@ pub use transaction::{
     BundleEntry, BundleEntryResult, BundleMethod, BundleProvider, BundleResult, BundleType,
     IsolationLevel, LockingStrategy, Transaction, TransactionOptions, TransactionProvider,
 };
-pub use versioned::{
-    check_version_match, normalize_etag, VersionConflictInfo, VersionedStorage,
-};
+pub use versioned::{VersionConflictInfo, VersionedStorage, check_version_match, normalize_etag};

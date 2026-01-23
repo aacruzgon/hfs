@@ -158,7 +158,10 @@ impl ResourceCapabilities {
     }
 
     /// Adds supported interactions.
-    pub fn with_interactions(mut self, interactions: impl IntoIterator<Item = Interaction>) -> Self {
+    pub fn with_interactions(
+        mut self,
+        interactions: impl IntoIterator<Item = Interaction>,
+    ) -> Self {
         self.interactions.extend(interactions);
         self
     }
@@ -262,20 +265,23 @@ impl StorageCapabilities {
     /// Enables system history.
     pub fn with_system_history(mut self) -> Self {
         self.supports_system_history = true;
-        self.system_interactions.insert(SystemInteraction::HistorySystem);
+        self.system_interactions
+            .insert(SystemInteraction::HistorySystem);
         self
     }
 
     /// Enables system search.
     pub fn with_system_search(mut self) -> Self {
         self.supports_system_search = true;
-        self.system_interactions.insert(SystemInteraction::SearchSystem);
+        self.system_interactions
+            .insert(SystemInteraction::SearchSystem);
         self
     }
 
     /// Enables transaction support.
     pub fn with_transactions(mut self) -> Self {
-        self.system_interactions.insert(SystemInteraction::Transaction);
+        self.system_interactions
+            .insert(SystemInteraction::Transaction);
         self.system_interactions.insert(SystemInteraction::Batch);
         self
     }
@@ -313,12 +319,15 @@ impl StorageCapabilities {
 
             if !caps.search_params.is_empty() {
                 resource["searchParam"] = serde_json::json!(
-                    caps.search_params.iter().map(|sp| {
-                        serde_json::json!({
-                            "name": sp.name,
-                            "type": sp.param_type.to_string(),
+                    caps.search_params
+                        .iter()
+                        .map(|sp| {
+                            serde_json::json!({
+                                "name": sp.name,
+                                "type": sp.param_type.to_string(),
+                            })
                         })
-                    }).collect::<Vec<_>>()
+                        .collect::<Vec<_>>()
                 );
             }
 
@@ -342,9 +351,10 @@ impl StorageCapabilities {
 
         if !self.system_interactions.is_empty() {
             rest["interaction"] = serde_json::json!(
-                self.system_interactions.iter().map(|i| {
-                    serde_json::json!({"code": i.to_string()})
-                }).collect::<Vec<_>>()
+                self.system_interactions
+                    .iter()
+                    .map(|i| { serde_json::json!({"code": i.to_string()}) })
+                    .collect::<Vec<_>>()
             );
         }
 
@@ -392,7 +402,10 @@ mod tests {
     #[test]
     fn test_system_interaction_display() {
         assert_eq!(SystemInteraction::Transaction.to_string(), "transaction");
-        assert_eq!(SystemInteraction::HistorySystem.to_string(), "history-system");
+        assert_eq!(
+            SystemInteraction::HistorySystem.to_string(),
+            "history-system"
+        );
     }
 
     #[test]
@@ -434,7 +447,10 @@ mod tests {
             .with_pagination(20, Some(100));
 
         assert!(caps.resources.contains_key("Patient"));
-        assert!(caps.system_interactions.contains(&SystemInteraction::Transaction));
+        assert!(
+            caps.system_interactions
+                .contains(&SystemInteraction::Transaction)
+        );
         assert_eq!(caps.default_page_size, 20);
         assert_eq!(caps.max_page_size, Some(100));
     }

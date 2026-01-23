@@ -79,6 +79,8 @@ mod permissions;
 mod tenancy;
 
 pub use context::{TenantContext, TenantContextBuilder};
-pub use id::{TenantId, SYSTEM_TENANT};
-pub use permissions::{CompartmentRestriction, Operation, TenantPermissions, TenantPermissionsBuilder};
+pub use id::{SYSTEM_TENANT, TenantId};
+pub use permissions::{
+    CompartmentRestriction, Operation, TenantPermissions, TenantPermissionsBuilder,
+};
 pub use tenancy::{CustomResourceTenancy, DefaultResourceTenancy, ResourceTenancy, TenancyModel};

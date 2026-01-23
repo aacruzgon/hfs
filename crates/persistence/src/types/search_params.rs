@@ -162,9 +162,12 @@ impl SearchModifier {
                 param_type == SearchParamType::String
             }
             SearchModifier::Text => param_type == SearchParamType::Token,
-            SearchModifier::Not => true, // Valid for all types
+            SearchModifier::Not => true,     // Valid for all types
             SearchModifier::Missing => true, // Valid for all types
-            SearchModifier::Above | SearchModifier::Below | SearchModifier::In | SearchModifier::NotIn => {
+            SearchModifier::Above
+            | SearchModifier::Below
+            | SearchModifier::In
+            | SearchModifier::NotIn => {
                 param_type == SearchParamType::Token || param_type == SearchParamType::Uri
             }
             SearchModifier::Identifier | SearchModifier::Type(_) => {
@@ -565,15 +568,27 @@ mod tests {
 
     #[test]
     fn test_search_param_type_parse() {
-        assert_eq!("string".parse::<SearchParamType>().unwrap(), SearchParamType::String);
-        assert_eq!("TOKEN".parse::<SearchParamType>().unwrap(), SearchParamType::Token);
+        assert_eq!(
+            "string".parse::<SearchParamType>().unwrap(),
+            SearchParamType::String
+        );
+        assert_eq!(
+            "TOKEN".parse::<SearchParamType>().unwrap(),
+            SearchParamType::Token
+        );
     }
 
     #[test]
     fn test_search_modifier_parse() {
         assert_eq!(SearchModifier::parse("exact"), Some(SearchModifier::Exact));
-        assert_eq!(SearchModifier::parse("contains"), Some(SearchModifier::Contains));
-        assert_eq!(SearchModifier::parse("Patient"), Some(SearchModifier::Type("Patient".to_string())));
+        assert_eq!(
+            SearchModifier::parse("contains"),
+            Some(SearchModifier::Contains)
+        );
+        assert_eq!(
+            SearchModifier::parse("Patient"),
+            Some(SearchModifier::Type("Patient".to_string()))
+        );
         assert_eq!(SearchModifier::parse("unknown"), None);
     }
 
@@ -588,8 +603,14 @@ mod tests {
 
     #[test]
     fn test_search_prefix_extract() {
-        assert_eq!(SearchPrefix::extract("gt2020-01-01"), (SearchPrefix::Gt, "2020-01-01"));
-        assert_eq!(SearchPrefix::extract("2020-01-01"), (SearchPrefix::Eq, "2020-01-01"));
+        assert_eq!(
+            SearchPrefix::extract("gt2020-01-01"),
+            (SearchPrefix::Gt, "2020-01-01")
+        );
+        assert_eq!(
+            SearchPrefix::extract("2020-01-01"),
+            (SearchPrefix::Eq, "2020-01-01")
+        );
         assert_eq!(SearchPrefix::extract("le100"), (SearchPrefix::Le, "100"));
     }
 
@@ -640,14 +661,13 @@ mod tests {
         let simple = SearchQuery::new("Patient");
         assert!(!simple.requires_advanced_features());
 
-        let with_include = SearchQuery::new("Patient")
-            .with_include(IncludeDirective {
-                include_type: IncludeType::Include,
-                source_type: "Patient".to_string(),
-                search_param: "organization".to_string(),
-                target_type: None,
-                iterate: false,
-            });
+        let with_include = SearchQuery::new("Patient").with_include(IncludeDirective {
+            include_type: IncludeType::Include,
+            source_type: "Patient".to_string(),
+            search_param: "organization".to_string(),
+            target_type: None,
+            iterate: false,
+        });
         assert!(with_include.requires_advanced_features());
     }
 }

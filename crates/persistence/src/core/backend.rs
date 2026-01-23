@@ -166,7 +166,7 @@ impl Default for BackendConfig {
             max_connections: 10,
             min_connections: 1,
             connect_timeout_ms: 5000,
-            idle_timeout_ms: Some(600_000), // 10 minutes
+            idle_timeout_ms: Some(600_000),  // 10 minutes
             max_lifetime_ms: Some(1800_000), // 30 minutes
         }
     }
@@ -292,8 +292,14 @@ mod tests {
     #[test]
     fn test_backend_capability_display() {
         assert_eq!(BackendCapability::Crud.to_string(), "crud");
-        assert_eq!(BackendCapability::ChainedSearch.to_string(), "chained-search");
-        assert_eq!(BackendCapability::FullTextSearch.to_string(), "full-text-search");
+        assert_eq!(
+            BackendCapability::ChainedSearch.to_string(),
+            "chained-search"
+        );
+        assert_eq!(
+            BackendCapability::FullTextSearch.to_string(),
+            "full-text-search"
+        );
     }
 
     #[test]
