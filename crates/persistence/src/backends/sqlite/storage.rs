@@ -6,10 +6,18 @@ use rusqlite::params;
 use serde_json::Value;
 
 use crate::core::history::{
-    HistoryEntry, HistoryMethod, HistoryPage, HistoryParams, InstanceHistoryProvider,
-    SystemHistoryProvider, TypeHistoryProvider,
+    DifferentialHistoryProvider, HistoryEntry, HistoryMethod, HistoryPage, HistoryParams,
+    InstanceHistoryProvider, SystemHistoryProvider, TypeHistoryProvider,
 };
-use crate::core::{ResourceStorage, VersionedStorage};
+use crate::core::transaction::{
+    BundleEntry, BundleEntryResult, BundleMethod, BundleProvider, BundleResult, BundleType,
+};
+use crate::core::{
+    ConditionalCreateResult, ConditionalDeleteResult, ConditionalStorage, ConditionalUpdateResult,
+    PurgableStorage, ResourceStorage, VersionedStorage,
+};
+use crate::error::TransactionError;
+use crate::types::Pagination;
 use crate::error::{BackendError, ConcurrencyError, ResourceError, StorageError, StorageResult};
 use crate::tenant::TenantContext;
 use crate::types::{CursorValue, Page, PageCursor, PageInfo, StoredResource};
@@ -1088,6 +1096,770 @@ impl SystemHistoryProvider for SqliteBackend {
     }
 }
 
+#[async_trait]
+impl PurgableStorage for SqliteBackend {
+    async fn purge(
+        &self,
+        tenant: &TenantContext,
+        resource_type: &str,
+        id: &str,
+    ) -> StorageResult<()> {
+        let conn = self.get_connection()?;
+        let tenant_id = tenant.tenant_id().as_str();
+
+        // Check if resource exists (in any state)
+        let exists: bool = conn
+            .query_row(
+                "SELECT 1 FROM resources WHERE tenant_id = ?1 AND resource_type = ?2 AND id = ?3",
+                params![tenant_id, resource_type, id],
+                |_| Ok(true),
+            )
+            .unwrap_or(false);
+
+        if !exists {
+            // Also check history in case it was already purged from main table
+            let history_exists: bool = conn
+                .query_row(
+                    "SELECT 1 FROM resource_history WHERE tenant_id = ?1 AND resource_type = ?2 AND id = ?3",
+                    params![tenant_id, resource_type, id],
+                    |_| Ok(true),
+                )
+                .unwrap_or(false);
+
+            if !history_exists {
+                return Err(StorageError::Resource(ResourceError::NotFound {
+                    resource_type: resource_type.to_string(),
+                    id: id.to_string(),
+                }));
+            }
+        }
+
+        // Delete from resources table
+        conn.execute(
+            "DELETE FROM resources WHERE tenant_id = ?1 AND resource_type = ?2 AND id = ?3",
+            params![tenant_id, resource_type, id],
+        )
+        .map_err(|e| internal_error(format!("Failed to purge resource: {}", e)))?;
+
+        // Delete from history table
+        conn.execute(
+            "DELETE FROM resource_history WHERE tenant_id = ?1 AND resource_type = ?2 AND id = ?3",
+            params![tenant_id, resource_type, id],
+        )
+        .map_err(|e| internal_error(format!("Failed to purge resource history: {}", e)))?;
+
+        // Delete from search index
+        conn.execute(
+            "DELETE FROM search_index WHERE tenant_id = ?1 AND resource_type = ?2 AND resource_id = ?3",
+            params![tenant_id, resource_type, id],
+        )
+        .map_err(|e| internal_error(format!("Failed to purge search index: {}", e)))?;
+
+        Ok(())
+    }
+
+    async fn purge_all(&self, tenant: &TenantContext, resource_type: &str) -> StorageResult<u64> {
+        let conn = self.get_connection()?;
+        let tenant_id = tenant.tenant_id().as_str();
+
+        // Count how many we're about to delete
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(DISTINCT id) FROM resources WHERE tenant_id = ?1 AND resource_type = ?2",
+                params![tenant_id, resource_type],
+                |row| row.get(0),
+            )
+            .unwrap_or(0);
+
+        // Delete from resources table
+        conn.execute(
+            "DELETE FROM resources WHERE tenant_id = ?1 AND resource_type = ?2",
+            params![tenant_id, resource_type],
+        )
+        .map_err(|e| internal_error(format!("Failed to purge resources: {}", e)))?;
+
+        // Delete from history table
+        conn.execute(
+            "DELETE FROM resource_history WHERE tenant_id = ?1 AND resource_type = ?2",
+            params![tenant_id, resource_type],
+        )
+        .map_err(|e| internal_error(format!("Failed to purge resource history: {}", e)))?;
+
+        // Delete from search index
+        conn.execute(
+            "DELETE FROM search_index WHERE tenant_id = ?1 AND resource_type = ?2",
+            params![tenant_id, resource_type],
+        )
+        .map_err(|e| internal_error(format!("Failed to purge search index: {}", e)))?;
+
+        Ok(count as u64)
+    }
+}
+
+#[async_trait]
+impl DifferentialHistoryProvider for SqliteBackend {
+    async fn modified_since(
+        &self,
+        tenant: &TenantContext,
+        resource_type: Option<&str>,
+        since: chrono::DateTime<Utc>,
+        pagination: &Pagination,
+    ) -> StorageResult<Page<StoredResource>> {
+        let conn = self.get_connection()?;
+        let tenant_id = tenant.tenant_id().as_str();
+        let since_str = since.to_rfc3339();
+
+        // Build query for current versions of resources modified since timestamp
+        let mut sql = String::from(
+            "SELECT resource_type, id, version_id, data, last_updated
+             FROM resources
+             WHERE tenant_id = ?1 AND last_updated > ?2 AND is_deleted = 0"
+        );
+
+        // Filter by resource type if specified
+        if let Some(rt) = resource_type {
+            sql.push_str(&format!(" AND resource_type = '{}'", rt));
+        }
+
+        // Apply cursor filter if present
+        if let Some(cursor) = pagination.cursor_value() {
+            let sort_values = cursor.sort_values();
+            if sort_values.len() >= 2 {
+                if let (
+                    Some(CursorValue::String(timestamp)),
+                    Some(CursorValue::String(res_id)),
+                ) = (sort_values.first(), sort_values.get(1))
+                {
+                    sql.push_str(&format!(
+                        " AND (last_updated > '{}' OR (last_updated = '{}' AND id > '{}'))",
+                        timestamp, timestamp, res_id
+                    ));
+                }
+            }
+        }
+
+        // Order by last_updated ascending (oldest first for sync)
+        sql.push_str(" ORDER BY last_updated ASC, id ASC");
+        sql.push_str(&format!(" LIMIT {}", pagination.count + 1));
+
+        let mut stmt = conn
+            .prepare(&sql)
+            .map_err(|e| internal_error(format!("Failed to prepare modified_since query: {}", e)))?;
+
+        let rows = stmt
+            .query_map(params![tenant_id, since_str], |row| {
+                let resource_type: String = row.get(0)?;
+                let id: String = row.get(1)?;
+                let version_id: String = row.get(2)?;
+                let data: Vec<u8> = row.get(3)?;
+                let last_updated: String = row.get(4)?;
+                Ok((resource_type, id, version_id, data, last_updated))
+            })
+            .map_err(|e| internal_error(format!("Failed to query modified resources: {}", e)))?;
+
+        let mut resources = Vec::new();
+        let mut last_entry: Option<(String, String)> = None; // (last_updated, id)
+
+        for row in rows {
+            let (resource_type, id, version_id, data, last_updated_str) =
+                row.map_err(|e| internal_error(format!("Failed to read row: {}", e)))?;
+
+            // Stop if we've collected enough items
+            if resources.len() >= pagination.count as usize {
+                break;
+            }
+
+            let json_data: serde_json::Value = serde_json::from_slice(&data)
+                .map_err(|e| serialization_error(format!("Failed to deserialize resource: {}", e)))?;
+
+            let last_updated = chrono::DateTime::parse_from_rfc3339(&last_updated_str)
+                .map_err(|e| internal_error(format!("Failed to parse last_updated: {}", e)))?
+                .with_timezone(&Utc);
+
+            let resource = StoredResource::from_storage(
+                &resource_type,
+                &id,
+                &version_id,
+                tenant.tenant_id().clone(),
+                json_data,
+                last_updated,
+                last_updated,
+                None,
+            );
+
+            last_entry = Some((last_updated_str, id));
+            resources.push(resource);
+        }
+
+        // Check if there are more results
+        let has_more = {
+            let check_sql = sql.replace(
+                &format!(" LIMIT {}", pagination.count + 1),
+                &format!(" LIMIT {}", pagination.count + 2),
+            );
+            let mut check_stmt = conn
+                .prepare(&check_sql)
+                .map_err(|e| internal_error(format!("Failed to prepare check query: {}", e)))?;
+            let check_count = check_stmt
+                .query_map(params![tenant_id, since_str], |_| Ok(()))
+                .map_err(|e| internal_error(format!("Failed to check for more results: {}", e)))?
+                .count();
+            check_count > pagination.count as usize
+        };
+
+        // Build page info
+        let page_info = if has_more && last_entry.is_some() {
+            let (timestamp, id) = last_entry.unwrap();
+            let cursor = PageCursor::new(
+                vec![
+                    CursorValue::String(timestamp),
+                    CursorValue::String(id),
+                ],
+                "modified_since".to_string(),
+            );
+            PageInfo::with_next(cursor)
+        } else {
+            PageInfo::end()
+        };
+
+        Ok(Page::new(resources, page_info))
+    }
+}
+
+// Helper function to parse simple search parameters
+// Supports basic formats like: identifier=X, _id=Y, name=Z
+fn parse_simple_search_params(params: &str) -> Vec<(String, String)> {
+    params
+        .split('&')
+        .filter_map(|pair| {
+            let parts: Vec<&str> = pair.splitn(2, '=').collect();
+            if parts.len() == 2 {
+                Some((parts[0].to_string(), parts[1].to_string()))
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+#[async_trait]
+impl ConditionalStorage for SqliteBackend {
+    async fn conditional_create(
+        &self,
+        tenant: &TenantContext,
+        resource_type: &str,
+        resource: Value,
+        search_params: &str,
+    ) -> StorageResult<ConditionalCreateResult> {
+        // Find matching resources based on search parameters
+        let matches = self
+            .find_matching_resources(tenant, resource_type, search_params)
+            .await?;
+
+        match matches.len() {
+            0 => {
+                // No match - create the resource
+                let created = self.create(tenant, resource_type, resource).await?;
+                Ok(ConditionalCreateResult::Created(created))
+            }
+            1 => {
+                // Exactly one match - return the existing resource
+                Ok(ConditionalCreateResult::Exists(matches.into_iter().next().unwrap()))
+            }
+            n => {
+                // Multiple matches - error condition
+                Ok(ConditionalCreateResult::MultipleMatches(n))
+            }
+        }
+    }
+
+    async fn conditional_update(
+        &self,
+        tenant: &TenantContext,
+        resource_type: &str,
+        resource: Value,
+        search_params: &str,
+        upsert: bool,
+    ) -> StorageResult<ConditionalUpdateResult> {
+        // Find matching resources based on search parameters
+        let matches = self
+            .find_matching_resources(tenant, resource_type, search_params)
+            .await?;
+
+        match matches.len() {
+            0 => {
+                if upsert {
+                    // No match, but upsert is true - create new resource
+                    let created = self.create(tenant, resource_type, resource).await?;
+                    Ok(ConditionalUpdateResult::Created(created))
+                } else {
+                    // No match and no upsert
+                    Ok(ConditionalUpdateResult::NoMatch)
+                }
+            }
+            1 => {
+                // Exactly one match - update it
+                let existing = matches.into_iter().next().unwrap();
+                let updated = self.update(tenant, &existing, resource).await?;
+                Ok(ConditionalUpdateResult::Updated(updated))
+            }
+            n => {
+                // Multiple matches - error condition
+                Ok(ConditionalUpdateResult::MultipleMatches(n))
+            }
+        }
+    }
+
+    async fn conditional_delete(
+        &self,
+        tenant: &TenantContext,
+        resource_type: &str,
+        search_params: &str,
+    ) -> StorageResult<ConditionalDeleteResult> {
+        // Find matching resources based on search parameters
+        let matches = self
+            .find_matching_resources(tenant, resource_type, search_params)
+            .await?;
+
+        match matches.len() {
+            0 => {
+                // No match
+                Ok(ConditionalDeleteResult::NoMatch)
+            }
+            1 => {
+                // Exactly one match - delete it
+                let existing = matches.into_iter().next().unwrap();
+                self.delete(tenant, resource_type, existing.id()).await?;
+                Ok(ConditionalDeleteResult::Deleted)
+            }
+            n => {
+                // Multiple matches - error condition
+                Ok(ConditionalDeleteResult::MultipleMatches(n))
+            }
+        }
+    }
+}
+
+impl SqliteBackend {
+    /// Find resources matching the given search parameters.
+    /// This is a simplified implementation that supports basic parameters.
+    async fn find_matching_resources(
+        &self,
+        tenant: &TenantContext,
+        resource_type: &str,
+        search_params: &str,
+    ) -> StorageResult<Vec<StoredResource>> {
+        let conn = self.get_connection()?;
+        let tenant_id = tenant.tenant_id().as_str();
+
+        // Parse search parameters
+        let params = parse_simple_search_params(search_params);
+
+        // Build the WHERE clause
+        let mut conditions = vec![
+            "tenant_id = ?1".to_string(),
+            "resource_type = ?2".to_string(),
+            "is_deleted = 0".to_string(),
+        ];
+
+        // Handle common search parameters
+        for (name, value) in &params {
+            match name.as_str() {
+                "_id" => {
+                    // Direct ID match
+                    conditions.push(format!("id = '{}'", value.replace('\'', "''")));
+                }
+                "identifier" => {
+                    // Search in JSON for identifier value
+                    // Handle format: system|value or just value
+                    if value.contains('|') {
+                        let parts: Vec<&str> = value.splitn(2, '|').collect();
+                        let system = parts[0].replace('\'', "''");
+                        let id_value = parts[1].replace('\'', "''");
+                        conditions.push(format!(
+                            "json_extract(data, '$.identifier') LIKE '%\"system\":\"{}\"%' AND json_extract(data, '$.identifier') LIKE '%\"value\":\"{}\"%'",
+                            system, id_value
+                        ));
+                    } else {
+                        let escaped_value = value.replace('\'', "''");
+                        conditions.push(format!(
+                            "json_extract(data, '$.identifier') LIKE '%\"value\":\"{}\"%'",
+                            escaped_value
+                        ));
+                    }
+                }
+                _ => {
+                    // For other parameters, try a simple JSON path lookup
+                    let escaped_value = value.replace('\'', "''");
+                    conditions.push(format!(
+                        "(json_extract(data, '$.{}') = '{}' OR json_extract(data, '$.{}') LIKE '%{}%')",
+                        name, escaped_value, name, escaped_value
+                    ));
+                }
+            }
+        }
+
+        let sql = format!(
+            "SELECT id, version_id, data, last_updated FROM resources WHERE {}",
+            conditions.join(" AND ")
+        );
+
+        let mut stmt = conn
+            .prepare(&sql)
+            .map_err(|e| internal_error(format!("Failed to prepare conditional query: {}", e)))?;
+
+        let rows = stmt
+            .query_map(params![tenant_id, resource_type], |row| {
+                let id: String = row.get(0)?;
+                let version_id: String = row.get(1)?;
+                let data: Vec<u8> = row.get(2)?;
+                let last_updated: String = row.get(3)?;
+                Ok((id, version_id, data, last_updated))
+            })
+            .map_err(|e| internal_error(format!("Failed to execute conditional query: {}", e)))?;
+
+        let mut resources = Vec::new();
+        for row in rows {
+            let (id, version_id, data, last_updated_str) =
+                row.map_err(|e| internal_error(format!("Failed to read row: {}", e)))?;
+
+            let json_data: serde_json::Value = serde_json::from_slice(&data)
+                .map_err(|e| serialization_error(format!("Failed to deserialize resource: {}", e)))?;
+
+            let last_updated = chrono::DateTime::parse_from_rfc3339(&last_updated_str)
+                .map_err(|e| internal_error(format!("Failed to parse last_updated: {}", e)))?
+                .with_timezone(&Utc);
+
+            let resource = StoredResource::from_storage(
+                resource_type,
+                &id,
+                &version_id,
+                tenant.tenant_id().clone(),
+                json_data,
+                last_updated,
+                last_updated,
+                None,
+            );
+
+            resources.push(resource);
+        }
+
+        Ok(resources)
+    }
+}
+
+#[async_trait]
+impl BundleProvider for SqliteBackend {
+    async fn process_transaction(
+        &self,
+        tenant: &TenantContext,
+        entries: Vec<BundleEntry>,
+    ) -> Result<BundleResult, TransactionError> {
+        use crate::core::transaction::{Transaction, TransactionOptions, TransactionProvider};
+
+        // Start a transaction
+        let mut tx = self
+            .begin_transaction(tenant, TransactionOptions::new())
+            .await
+            .map_err(|e| TransactionError::RolledBack {
+                reason: format!("Failed to begin transaction: {}", e),
+            })?;
+
+        let mut results = Vec::with_capacity(entries.len());
+        let mut error_info: Option<(usize, String)> = None;
+
+        // Process each entry within the transaction
+        for (idx, entry) in entries.iter().enumerate() {
+            let result = self.process_bundle_entry_tx(&mut tx, entry).await;
+
+            match result {
+                Ok(entry_result) => {
+                    // Check for error status codes
+                    if entry_result.status >= 400 {
+                        error_info = Some((
+                            idx,
+                            format!("Entry failed with status {}", entry_result.status),
+                        ));
+                        break;
+                    }
+                    results.push(entry_result);
+                }
+                Err(e) => {
+                    error_info = Some((idx, format!("Entry processing failed: {}", e)));
+                    break;
+                }
+            }
+        }
+
+        // Handle error or commit
+        if let Some((index, message)) = error_info {
+            let _ = Box::new(tx).rollback().await;
+            return Err(TransactionError::BundleError { index, message });
+        }
+
+        // Commit the transaction
+        Box::new(tx)
+            .commit()
+            .await
+            .map_err(|e| TransactionError::RolledBack {
+                reason: format!("Commit failed: {}", e),
+            })?;
+
+        Ok(BundleResult {
+            bundle_type: BundleType::Transaction,
+            entries: results,
+        })
+    }
+
+    async fn process_batch(
+        &self,
+        tenant: &TenantContext,
+        entries: Vec<BundleEntry>,
+    ) -> StorageResult<BundleResult> {
+        let mut results = Vec::with_capacity(entries.len());
+
+        // Process each entry independently
+        for entry in &entries {
+            let result = self.process_batch_entry(tenant, entry).await;
+            results.push(result);
+        }
+
+        Ok(BundleResult {
+            bundle_type: BundleType::Batch,
+            entries: results,
+        })
+    }
+}
+
+impl SqliteBackend {
+    /// Process a single bundle entry within a transaction.
+    async fn process_bundle_entry_tx(
+        &self,
+        tx: &mut crate::backends::sqlite::transaction::SqliteTransaction,
+        entry: &BundleEntry,
+    ) -> StorageResult<BundleEntryResult> {
+        use crate::core::transaction::Transaction;
+
+        match entry.method {
+            BundleMethod::Get => {
+                // Parse resource type and ID from URL
+                let (resource_type, id) = self.parse_url(&entry.url)?;
+                match tx.read(&resource_type, &id).await? {
+                    Some(resource) => Ok(BundleEntryResult::ok(resource)),
+                    None => Ok(BundleEntryResult::error(
+                        404,
+                        serde_json::json!({
+                            "resourceType": "OperationOutcome",
+                            "issue": [{"severity": "error", "code": "not-found"}]
+                        }),
+                    )),
+                }
+            }
+            BundleMethod::Post => {
+                // Create new resource
+                let resource = entry.resource.clone().ok_or_else(|| {
+                    StorageError::Validation(crate::error::ValidationError::MissingRequiredField {
+                        field: "resource".to_string(),
+                    })
+                })?;
+
+                let resource_type = resource
+                    .get("resourceType")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .ok_or_else(|| {
+                        StorageError::Validation(
+                            crate::error::ValidationError::MissingRequiredField {
+                                field: "resourceType".to_string(),
+                            },
+                        )
+                    })?;
+
+                let created = tx.create(&resource_type, resource).await?;
+                Ok(BundleEntryResult::created(created))
+            }
+            BundleMethod::Put => {
+                // Update or create resource
+                let resource = entry.resource.clone().ok_or_else(|| {
+                    StorageError::Validation(crate::error::ValidationError::MissingRequiredField {
+                        field: "resource".to_string(),
+                    })
+                })?;
+
+                let (resource_type, id) = self.parse_url(&entry.url)?;
+
+                // Check if resource exists
+                match tx.read(&resource_type, &id).await? {
+                    Some(existing) => {
+                        // Check If-Match if provided
+                        if let Some(ref if_match) = entry.if_match {
+                            let current_etag = existing.etag();
+                            if current_etag != if_match.as_str() {
+                                return Ok(BundleEntryResult::error(
+                                    412,
+                                    serde_json::json!({
+                                        "resourceType": "OperationOutcome",
+                                        "issue": [{"severity": "error", "code": "conflict", "diagnostics": "ETag mismatch"}]
+                                    }),
+                                ));
+                            }
+                        }
+                        let updated = tx.update(&existing, resource).await?;
+                        Ok(BundleEntryResult::ok(updated))
+                    }
+                    None => {
+                        // Create new resource with specified ID
+                        let mut resource_with_id = resource;
+                        resource_with_id["id"] = serde_json::json!(id);
+                        let created = tx.create(&resource_type, resource_with_id).await?;
+                        Ok(BundleEntryResult::created(created))
+                    }
+                }
+            }
+            BundleMethod::Delete => {
+                let (resource_type, id) = self.parse_url(&entry.url)?;
+                tx.delete(&resource_type, &id).await?;
+                Ok(BundleEntryResult::deleted())
+            }
+            BundleMethod::Patch => {
+                // PATCH is not fully implemented yet
+                Ok(BundleEntryResult::error(
+                    501,
+                    serde_json::json!({
+                        "resourceType": "OperationOutcome",
+                        "issue": [{"severity": "error", "code": "not-supported", "diagnostics": "PATCH not implemented"}]
+                    }),
+                ))
+            }
+        }
+    }
+
+    /// Process a single batch entry (independent, no transaction).
+    async fn process_batch_entry(
+        &self,
+        tenant: &TenantContext,
+        entry: &BundleEntry,
+    ) -> BundleEntryResult {
+        match self.process_batch_entry_inner(tenant, entry).await {
+            Ok(result) => result,
+            Err(e) => BundleEntryResult::error(
+                500,
+                serde_json::json!({
+                    "resourceType": "OperationOutcome",
+                    "issue": [{"severity": "error", "code": "exception", "diagnostics": e.to_string()}]
+                }),
+            ),
+        }
+    }
+
+    async fn process_batch_entry_inner(
+        &self,
+        tenant: &TenantContext,
+        entry: &BundleEntry,
+    ) -> StorageResult<BundleEntryResult> {
+        match entry.method {
+            BundleMethod::Get => {
+                let (resource_type, id) = self.parse_url(&entry.url)?;
+                match self.read(tenant, &resource_type, &id).await? {
+                    Some(resource) => Ok(BundleEntryResult::ok(resource)),
+                    None => Ok(BundleEntryResult::error(
+                        404,
+                        serde_json::json!({
+                            "resourceType": "OperationOutcome",
+                            "issue": [{"severity": "error", "code": "not-found"}]
+                        }),
+                    )),
+                }
+            }
+            BundleMethod::Post => {
+                let resource = entry.resource.clone().ok_or_else(|| {
+                    StorageError::Validation(crate::error::ValidationError::MissingRequiredField {
+                        field: "resource".to_string(),
+                    })
+                })?;
+
+                let resource_type = resource
+                    .get("resourceType")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .ok_or_else(|| {
+                        StorageError::Validation(
+                            crate::error::ValidationError::MissingRequiredField {
+                                field: "resourceType".to_string(),
+                            },
+                        )
+                    })?;
+
+                let created = self.create(tenant, &resource_type, resource).await?;
+                Ok(BundleEntryResult::created(created))
+            }
+            BundleMethod::Put => {
+                let resource = entry.resource.clone().ok_or_else(|| {
+                    StorageError::Validation(crate::error::ValidationError::MissingRequiredField {
+                        field: "resource".to_string(),
+                    })
+                })?;
+
+                let (resource_type, id) = self.parse_url(&entry.url)?;
+                let (stored, _created) = self
+                    .create_or_update(tenant, &resource_type, &id, resource)
+                    .await?;
+                Ok(BundleEntryResult::ok(stored))
+            }
+            BundleMethod::Delete => {
+                let (resource_type, id) = self.parse_url(&entry.url)?;
+                match self.delete(tenant, &resource_type, &id).await {
+                    Ok(()) => Ok(BundleEntryResult::deleted()),
+                    Err(StorageError::Resource(ResourceError::NotFound { .. })) => {
+                        Ok(BundleEntryResult::deleted()) // Idempotent delete
+                    }
+                    Err(e) => Err(e),
+                }
+            }
+            BundleMethod::Patch => Ok(BundleEntryResult::error(
+                501,
+                serde_json::json!({
+                    "resourceType": "OperationOutcome",
+                    "issue": [{"severity": "error", "code": "not-supported", "diagnostics": "PATCH not implemented"}]
+                }),
+            )),
+        }
+    }
+
+    /// Parse a FHIR URL into resource type and ID.
+    fn parse_url(&self, url: &str) -> StorageResult<(String, String)> {
+        // Handle formats like:
+        // - Patient/123
+        // - /Patient/123
+        // - http://example.com/fhir/Patient/123
+        let path = url
+            .strip_prefix("http://")
+            .or_else(|| url.strip_prefix("https://"))
+            .map(|s| {
+                // Find the path part after the host
+                s.find('/').map(|i| &s[i..]).unwrap_or(s)
+            })
+            .unwrap_or(url);
+
+        let path = path.trim_start_matches('/');
+        let parts: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
+
+        // Take the last two parts (resource type and ID)
+        // This handles URLs like /fhir/Patient/123 where we want Patient/123
+        if parts.len() >= 2 {
+            let len = parts.len();
+            Ok((parts[len - 2].to_string(), parts[len - 1].to_string()))
+        } else {
+            Err(StorageError::Validation(
+                crate::error::ValidationError::InvalidReference {
+                    reference: url.to_string(),
+                    message: "URL must be in format ResourceType/id".to_string(),
+                },
+            ))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1965,5 +2737,931 @@ mod tests {
         assert_eq!(history.items[0].resource.id(), "third");
         assert_eq!(history.items[1].resource.id(), "second");
         assert_eq!(history.items[2].resource.id(), "first");
+    }
+
+    // ========================================================================
+    // PurgableStorage Tests
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_purge_single_resource() {
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        // Create a resource with multiple versions
+        let p1 = backend
+            .create(&tenant, "Patient", json!({"id": "p1"}))
+            .await
+            .unwrap();
+        let _p1_v2 = backend
+            .update(&tenant, &p1, json!({"id": "p1"}))
+            .await
+            .unwrap();
+
+        // Purge the resource
+        backend.purge(&tenant, "Patient", "p1").await.unwrap();
+
+        // Resource should be gone
+        let read_result = backend.read(&tenant, "Patient", "p1").await.unwrap();
+        assert!(read_result.is_none());
+
+        // History should also be gone
+        let history = backend
+            .history_instance(&tenant, "Patient", "p1", &HistoryParams::new())
+            .await
+            .unwrap();
+        assert!(history.items.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_purge_deleted_resource() {
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        // Create and delete a resource
+        backend
+            .create(&tenant, "Patient", json!({"id": "del-p1"}))
+            .await
+            .unwrap();
+        backend.delete(&tenant, "Patient", "del-p1").await.unwrap();
+
+        // Purge the deleted resource
+        backend.purge(&tenant, "Patient", "del-p1").await.unwrap();
+
+        // History should be completely gone
+        let history = backend
+            .history_instance(
+                &tenant,
+                "Patient",
+                "del-p1",
+                &HistoryParams::new().include_deleted(true),
+            )
+            .await
+            .unwrap();
+        assert!(history.items.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_purge_nonexistent_resource() {
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        // Purging a nonexistent resource should fail
+        let result = backend.purge(&tenant, "Patient", "nonexistent").await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_purge_tenant_isolation() {
+        let backend = create_test_backend();
+        let tenant1 =
+            TenantContext::new(TenantId::new("tenant-1"), TenantPermissions::full_access());
+        let tenant2 =
+            TenantContext::new(TenantId::new("tenant-2"), TenantPermissions::full_access());
+
+        // Create resource in tenant 1
+        backend
+            .create(&tenant1, "Patient", json!({"id": "shared-id"}))
+            .await
+            .unwrap();
+
+        // Create resource with same ID in tenant 2
+        backend
+            .create(&tenant2, "Patient", json!({"id": "shared-id"}))
+            .await
+            .unwrap();
+
+        // Purge from tenant 1
+        backend
+            .purge(&tenant1, "Patient", "shared-id")
+            .await
+            .unwrap();
+
+        // Tenant 2's resource should still exist
+        let t2_read = backend.read(&tenant2, "Patient", "shared-id").await.unwrap();
+        assert!(t2_read.is_some());
+
+        // Tenant 1's resource should be gone
+        let t1_read = backend.read(&tenant1, "Patient", "shared-id").await.unwrap();
+        assert!(t1_read.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_purge_all_single_type() {
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        // Create multiple patients
+        for i in 0..5 {
+            backend
+                .create(&tenant, "Patient", json!({"id": format!("p{}", i)}))
+                .await
+                .unwrap();
+        }
+
+        // Create some observations too
+        backend
+            .create(&tenant, "Observation", json!({}))
+            .await
+            .unwrap();
+
+        // Purge all patients
+        let count = backend.purge_all(&tenant, "Patient").await.unwrap();
+        assert_eq!(count, 5);
+
+        // Patients should be gone
+        let patient_history = backend
+            .history_type(&tenant, "Patient", &HistoryParams::new())
+            .await
+            .unwrap();
+        assert!(patient_history.items.is_empty());
+
+        // Observations should still exist
+        let obs_history = backend
+            .history_type(&tenant, "Observation", &HistoryParams::new())
+            .await
+            .unwrap();
+        assert_eq!(obs_history.items.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_purge_all_empty_type() {
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        // Purging empty type should return 0
+        let count = backend.purge_all(&tenant, "Patient").await.unwrap();
+        assert_eq!(count, 0);
+    }
+
+    #[tokio::test]
+    async fn test_purge_all_tenant_isolation() {
+        let backend = create_test_backend();
+        let tenant1 =
+            TenantContext::new(TenantId::new("tenant-1"), TenantPermissions::full_access());
+        let tenant2 =
+            TenantContext::new(TenantId::new("tenant-2"), TenantPermissions::full_access());
+
+        // Create patients in both tenants
+        for i in 0..3 {
+            backend
+                .create(&tenant1, "Patient", json!({"id": format!("t1-p{}", i)}))
+                .await
+                .unwrap();
+        }
+        for i in 0..2 {
+            backend
+                .create(&tenant2, "Patient", json!({"id": format!("t2-p{}", i)}))
+                .await
+                .unwrap();
+        }
+
+        // Purge all patients from tenant 1
+        let count = backend.purge_all(&tenant1, "Patient").await.unwrap();
+        assert_eq!(count, 3);
+
+        // Tenant 2's patients should still exist
+        let t2_history = backend
+            .history_type(&tenant2, "Patient", &HistoryParams::new())
+            .await
+            .unwrap();
+        assert_eq!(t2_history.items.len(), 2);
+    }
+
+    // ========================================================================
+    // DifferentialHistoryProvider Tests
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_modified_since_basic() {
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        // Capture time before creating resources
+        let before_create = Utc::now();
+
+        // Create some resources
+        backend
+            .create(&tenant, "Patient", json!({"id": "p1"}))
+            .await
+            .unwrap();
+        backend
+            .create(&tenant, "Patient", json!({"id": "p2"}))
+            .await
+            .unwrap();
+        backend
+            .create(&tenant, "Observation", json!({"id": "o1"}))
+            .await
+            .unwrap();
+
+        // Query for all resources modified since before_create
+        let pagination = Pagination::default();
+        let result = backend
+            .modified_since(&tenant, None, before_create, &pagination)
+            .await
+            .unwrap();
+
+        // Should find all 3 resources
+        assert_eq!(result.items.len(), 3);
+    }
+
+    #[tokio::test]
+    async fn test_modified_since_with_type_filter() {
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        let before_create = Utc::now();
+
+        // Create different resource types
+        backend
+            .create(&tenant, "Patient", json!({"id": "p1"}))
+            .await
+            .unwrap();
+        backend
+            .create(&tenant, "Patient", json!({"id": "p2"}))
+            .await
+            .unwrap();
+        backend
+            .create(&tenant, "Observation", json!({"id": "o1"}))
+            .await
+            .unwrap();
+
+        // Query for only Patient resources
+        let pagination = Pagination::default();
+        let result = backend
+            .modified_since(&tenant, Some("Patient"), before_create, &pagination)
+            .await
+            .unwrap();
+
+        // Should find only 2 patients
+        assert_eq!(result.items.len(), 2);
+        for resource in &result.items {
+            assert_eq!(resource.resource_type(), "Patient");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_modified_since_excludes_older() {
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        // Create a resource
+        backend
+            .create(&tenant, "Patient", json!({"id": "old"}))
+            .await
+            .unwrap();
+
+        // Wait a tiny bit and capture time
+        let after_first = Utc::now();
+
+        // Create another resource
+        backend
+            .create(&tenant, "Patient", json!({"id": "new"}))
+            .await
+            .unwrap();
+
+        // Query for resources modified after the first creation
+        let pagination = Pagination::default();
+        let result = backend
+            .modified_since(&tenant, None, after_first, &pagination)
+            .await
+            .unwrap();
+
+        // Should find only the newer resource
+        assert_eq!(result.items.len(), 1);
+        assert_eq!(result.items[0].id(), "new");
+    }
+
+    #[tokio::test]
+    async fn test_modified_since_tenant_isolation() {
+        let backend = create_test_backend();
+        let tenant1 =
+            TenantContext::new(TenantId::new("tenant-1"), TenantPermissions::full_access());
+        let tenant2 =
+            TenantContext::new(TenantId::new("tenant-2"), TenantPermissions::full_access());
+
+        let before_create = Utc::now();
+
+        // Create resources in both tenants
+        backend
+            .create(&tenant1, "Patient", json!({"id": "t1-p1"}))
+            .await
+            .unwrap();
+        backend
+            .create(&tenant2, "Patient", json!({"id": "t2-p1"}))
+            .await
+            .unwrap();
+
+        // Query tenant 1
+        let pagination = Pagination::default();
+        let result1 = backend
+            .modified_since(&tenant1, None, before_create, &pagination)
+            .await
+            .unwrap();
+        assert_eq!(result1.items.len(), 1);
+        assert_eq!(result1.items[0].id(), "t1-p1");
+
+        // Query tenant 2
+        let result2 = backend
+            .modified_since(&tenant2, None, before_create, &pagination)
+            .await
+            .unwrap();
+        assert_eq!(result2.items.len(), 1);
+        assert_eq!(result2.items[0].id(), "t2-p1");
+    }
+
+    #[tokio::test]
+    async fn test_modified_since_excludes_deleted() {
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        let before_create = Utc::now();
+
+        // Create and then delete a resource
+        backend
+            .create(&tenant, "Patient", json!({"id": "del-p1"}))
+            .await
+            .unwrap();
+        backend.delete(&tenant, "Patient", "del-p1").await.unwrap();
+
+        // Create another resource
+        backend
+            .create(&tenant, "Patient", json!({"id": "live-p1"}))
+            .await
+            .unwrap();
+
+        // Query - deleted resources should be excluded
+        let pagination = Pagination::default();
+        let result = backend
+            .modified_since(&tenant, None, before_create, &pagination)
+            .await
+            .unwrap();
+
+        // Should only find the live resource
+        assert_eq!(result.items.len(), 1);
+        assert_eq!(result.items[0].id(), "live-p1");
+    }
+
+    #[tokio::test]
+    async fn test_modified_since_pagination() {
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        let before_create = Utc::now();
+
+        // Create multiple resources
+        for i in 0..5 {
+            backend
+                .create(&tenant, "Patient", json!({"id": format!("p{}", i)}))
+                .await
+                .unwrap();
+        }
+
+        // Get first page (2 items)
+        let pagination = Pagination::cursor().with_count(2);
+        let page1 = backend
+            .modified_since(&tenant, None, before_create, &pagination)
+            .await
+            .unwrap();
+
+        assert_eq!(page1.items.len(), 2);
+        assert!(page1.page_info.has_next);
+    }
+
+    #[tokio::test]
+    async fn test_modified_since_empty() {
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        // Query with no resources
+        let pagination = Pagination::default();
+        let result = backend
+            .modified_since(&tenant, None, Utc::now(), &pagination)
+            .await
+            .unwrap();
+
+        assert!(result.items.is_empty());
+        assert!(!result.page_info.has_next);
+    }
+
+    #[tokio::test]
+    async fn test_modified_since_returns_current_version() {
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        let before_create = Utc::now();
+
+        // Create a resource and update it multiple times
+        let p1 = backend
+            .create(&tenant, "Patient", json!({"id": "p1", "name": "v1"}))
+            .await
+            .unwrap();
+        let p1_v2 = backend
+            .update(&tenant, &p1, json!({"id": "p1", "name": "v2"}))
+            .await
+            .unwrap();
+        let _p1_v3 = backend
+            .update(&tenant, &p1_v2, json!({"id": "p1", "name": "v3"}))
+            .await
+            .unwrap();
+
+        // Query - should return only the current (latest) version
+        let pagination = Pagination::default();
+        let result = backend
+            .modified_since(&tenant, None, before_create, &pagination)
+            .await
+            .unwrap();
+
+        assert_eq!(result.items.len(), 1);
+        assert_eq!(result.items[0].version_id(), "3");
+    }
+
+    // ========================================================================
+    // ConditionalStorage Tests
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_conditional_create_no_match() {
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        // Create with no matching resources
+        let result = backend
+            .conditional_create(
+                &tenant,
+                "Patient",
+                json!({"identifier": [{"value": "12345"}]}),
+                "identifier=99999", // No match
+            )
+            .await
+            .unwrap();
+
+        match result {
+            ConditionalCreateResult::Created(resource) => {
+                assert_eq!(resource.resource_type(), "Patient");
+            }
+            _ => panic!("Expected Created result"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_conditional_create_single_match() {
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        // Create an existing resource
+        let existing = backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({"id": "p1", "identifier": [{"value": "12345"}]}),
+            )
+            .await
+            .unwrap();
+
+        // Conditional create with matching identifier
+        let result = backend
+            .conditional_create(
+                &tenant,
+                "Patient",
+                json!({"identifier": [{"value": "12345"}]}),
+                "identifier=12345",
+            )
+            .await
+            .unwrap();
+
+        match result {
+            ConditionalCreateResult::Exists(resource) => {
+                assert_eq!(resource.id(), existing.id());
+            }
+            _ => panic!("Expected Exists result"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_conditional_create_by_id() {
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        // Create an existing resource
+        backend
+            .create(&tenant, "Patient", json!({"id": "p1"}))
+            .await
+            .unwrap();
+
+        // Conditional create with _id parameter
+        let result = backend
+            .conditional_create(&tenant, "Patient", json!({}), "_id=p1")
+            .await
+            .unwrap();
+
+        match result {
+            ConditionalCreateResult::Exists(resource) => {
+                assert_eq!(resource.id(), "p1");
+            }
+            _ => panic!("Expected Exists result"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_conditional_update_single_match() {
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        // Create an existing resource
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({"id": "p1", "identifier": [{"value": "12345"}], "active": false}),
+            )
+            .await
+            .unwrap();
+
+        // Conditional update
+        let result = backend
+            .conditional_update(
+                &tenant,
+                "Patient",
+                json!({"id": "p1", "identifier": [{"value": "12345"}], "active": true}),
+                "identifier=12345",
+                false,
+            )
+            .await
+            .unwrap();
+
+        match result {
+            ConditionalUpdateResult::Updated(resource) => {
+                assert_eq!(resource.version_id(), "2");
+            }
+            _ => panic!("Expected Updated result"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_conditional_update_no_match_no_upsert() {
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        // Conditional update with no match and upsert=false
+        let result = backend
+            .conditional_update(
+                &tenant,
+                "Patient",
+                json!({"identifier": [{"value": "99999"}]}),
+                "identifier=99999",
+                false,
+            )
+            .await
+            .unwrap();
+
+        match result {
+            ConditionalUpdateResult::NoMatch => {}
+            _ => panic!("Expected NoMatch result"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_conditional_update_no_match_with_upsert() {
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        // Conditional update with no match and upsert=true
+        let result = backend
+            .conditional_update(
+                &tenant,
+                "Patient",
+                json!({"identifier": [{"value": "new-id"}]}),
+                "identifier=new-id",
+                true,
+            )
+            .await
+            .unwrap();
+
+        match result {
+            ConditionalUpdateResult::Created(resource) => {
+                assert_eq!(resource.resource_type(), "Patient");
+            }
+            _ => panic!("Expected Created result"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_conditional_delete_single_match() {
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        // Create a resource
+        backend
+            .create(&tenant, "Patient", json!({"id": "p1"}))
+            .await
+            .unwrap();
+
+        // Conditional delete
+        let result = backend
+            .conditional_delete(&tenant, "Patient", "_id=p1")
+            .await
+            .unwrap();
+
+        match result {
+            ConditionalDeleteResult::Deleted => {
+                // Verify resource is deleted (read returns Gone error or None)
+                let read_result = backend.read(&tenant, "Patient", "p1").await;
+                match read_result {
+                    Ok(None) => {} // Resource not found
+                    Err(StorageError::Resource(ResourceError::Gone { .. })) => {} // Soft deleted
+                    other => panic!("Expected None or Gone, got {:?}", other),
+                }
+            }
+            _ => panic!("Expected Deleted result"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_conditional_delete_no_match() {
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        // Conditional delete with no match
+        let result = backend
+            .conditional_delete(&tenant, "Patient", "_id=nonexistent")
+            .await
+            .unwrap();
+
+        match result {
+            ConditionalDeleteResult::NoMatch => {}
+            _ => panic!("Expected NoMatch result"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_conditional_operations_tenant_isolation() {
+        let backend = create_test_backend();
+        let tenant1 =
+            TenantContext::new(TenantId::new("tenant-1"), TenantPermissions::full_access());
+        let tenant2 =
+            TenantContext::new(TenantId::new("tenant-2"), TenantPermissions::full_access());
+
+        // Create resource in tenant 1
+        backend
+            .create(&tenant1, "Patient", json!({"id": "shared-id"}))
+            .await
+            .unwrap();
+
+        // Conditional create in tenant 2 should not find tenant 1's resource
+        let result = backend
+            .conditional_create(&tenant2, "Patient", json!({}), "_id=shared-id")
+            .await
+            .unwrap();
+
+        match result {
+            ConditionalCreateResult::Created(_) => {}
+            _ => panic!("Expected Created result (tenant isolation)"),
+        }
+    }
+
+    // ========================================================================
+    // BundleProvider Tests
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_batch_create_multiple() {
+        use crate::core::transaction::BundleProvider;
+
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        let entries = vec![
+            BundleEntry {
+                method: BundleMethod::Post,
+                url: "Patient".to_string(),
+                resource: Some(json!({"resourceType": "Patient", "id": "batch-p1"})),
+                if_match: None,
+                if_none_match: None,
+                if_none_exist: None,
+            },
+            BundleEntry {
+                method: BundleMethod::Post,
+                url: "Patient".to_string(),
+                resource: Some(json!({"resourceType": "Patient", "id": "batch-p2"})),
+                if_match: None,
+                if_none_match: None,
+                if_none_exist: None,
+            },
+        ];
+
+        let result = backend.process_batch(&tenant, entries).await.unwrap();
+
+        assert_eq!(result.entries.len(), 2);
+        assert_eq!(result.entries[0].status, 201);
+        assert_eq!(result.entries[1].status, 201);
+    }
+
+    #[tokio::test]
+    async fn test_batch_mixed_operations() {
+        use crate::core::transaction::BundleProvider;
+
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        // Create a resource first
+        backend
+            .create(&tenant, "Patient", json!({"id": "existing"}))
+            .await
+            .unwrap();
+
+        let entries = vec![
+            // Read existing
+            BundleEntry {
+                method: BundleMethod::Get,
+                url: "Patient/existing".to_string(),
+                resource: None,
+                if_match: None,
+                if_none_match: None,
+                if_none_exist: None,
+            },
+            // Create new
+            BundleEntry {
+                method: BundleMethod::Post,
+                url: "Patient".to_string(),
+                resource: Some(json!({"resourceType": "Patient", "id": "new"})),
+                if_match: None,
+                if_none_match: None,
+                if_none_exist: None,
+            },
+            // Read nonexistent
+            BundleEntry {
+                method: BundleMethod::Get,
+                url: "Patient/nonexistent".to_string(),
+                resource: None,
+                if_match: None,
+                if_none_match: None,
+                if_none_exist: None,
+            },
+        ];
+
+        let result = backend.process_batch(&tenant, entries).await.unwrap();
+
+        assert_eq!(result.entries.len(), 3);
+        assert_eq!(result.entries[0].status, 200); // Read existing
+        assert_eq!(result.entries[1].status, 201); // Create new
+        assert_eq!(result.entries[2].status, 404); // Read nonexistent
+    }
+
+    #[tokio::test]
+    async fn test_batch_delete() {
+        use crate::core::transaction::BundleProvider;
+
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        // Create a resource
+        backend
+            .create(&tenant, "Patient", json!({"id": "to-delete"}))
+            .await
+            .unwrap();
+
+        let entries = vec![BundleEntry {
+            method: BundleMethod::Delete,
+            url: "Patient/to-delete".to_string(),
+            resource: None,
+            if_match: None,
+            if_none_match: None,
+            if_none_exist: None,
+        }];
+
+        let result = backend.process_batch(&tenant, entries).await.unwrap();
+
+        assert_eq!(result.entries.len(), 1);
+        assert_eq!(result.entries[0].status, 204);
+
+        // Verify deletion (read returns Gone error or None)
+        let read_result = backend.read(&tenant, "Patient", "to-delete").await;
+        match read_result {
+            Ok(None) => {} // Resource not found
+            Err(StorageError::Resource(ResourceError::Gone { .. })) => {} // Soft deleted
+            other => panic!("Expected None or Gone, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_transaction_all_or_nothing() {
+        use crate::core::transaction::BundleProvider;
+
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        // Create a resource first
+        backend
+            .create(&tenant, "Patient", json!({"id": "existing"}))
+            .await
+            .unwrap();
+
+        let entries = vec![
+            // This should succeed
+            BundleEntry {
+                method: BundleMethod::Post,
+                url: "Patient".to_string(),
+                resource: Some(json!({"resourceType": "Patient", "id": "tx-p1"})),
+                if_match: None,
+                if_none_match: None,
+                if_none_exist: None,
+            },
+            // This should fail (duplicate ID)
+            BundleEntry {
+                method: BundleMethod::Post,
+                url: "Patient".to_string(),
+                resource: Some(json!({"resourceType": "Patient", "id": "existing"})),
+                if_match: None,
+                if_none_match: None,
+                if_none_exist: None,
+            },
+        ];
+
+        let result = backend.process_transaction(&tenant, entries).await;
+
+        // Should fail
+        assert!(result.is_err());
+
+        // First resource should NOT have been created (rollback)
+        let read = backend.read(&tenant, "Patient", "tx-p1").await.unwrap();
+        assert!(read.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_transaction_success() {
+        use crate::core::transaction::BundleProvider;
+
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        let entries = vec![
+            BundleEntry {
+                method: BundleMethod::Post,
+                url: "Patient".to_string(),
+                resource: Some(json!({"resourceType": "Patient", "id": "tx-success-1"})),
+                if_match: None,
+                if_none_match: None,
+                if_none_exist: None,
+            },
+            BundleEntry {
+                method: BundleMethod::Post,
+                url: "Observation".to_string(),
+                resource: Some(json!({"resourceType": "Observation", "id": "tx-success-2"})),
+                if_match: None,
+                if_none_match: None,
+                if_none_exist: None,
+            },
+        ];
+
+        let result = backend
+            .process_transaction(&tenant, entries)
+            .await
+            .unwrap();
+
+        assert_eq!(result.entries.len(), 2);
+        assert_eq!(result.entries[0].status, 201);
+        assert_eq!(result.entries[1].status, 201);
+
+        // Both resources should exist
+        assert!(backend
+            .read(&tenant, "Patient", "tx-success-1")
+            .await
+            .unwrap()
+            .is_some());
+        assert!(backend
+            .read(&tenant, "Observation", "tx-success-2")
+            .await
+            .unwrap()
+            .is_some());
+    }
+
+    #[tokio::test]
+    async fn test_parse_url_formats() {
+        let backend = create_test_backend();
+
+        // Simple format
+        let (rt, id) = backend.parse_url("Patient/123").unwrap();
+        assert_eq!(rt, "Patient");
+        assert_eq!(id, "123");
+
+        // With leading slash
+        let (rt, id) = backend.parse_url("/Patient/456").unwrap();
+        assert_eq!(rt, "Patient");
+        assert_eq!(id, "456");
+
+        // Full URL
+        let (rt, id) = backend
+            .parse_url("http://example.com/fhir/Patient/789")
+            .unwrap();
+        assert_eq!(rt, "Patient");
+        assert_eq!(id, "789");
+
+        // HTTPS URL
+        let (rt, id) = backend
+            .parse_url("https://example.com/fhir/Observation/obs-1")
+            .unwrap();
+        assert_eq!(rt, "Observation");
+        assert_eq!(id, "obs-1");
     }
 }

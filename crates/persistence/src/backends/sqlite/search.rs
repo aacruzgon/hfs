@@ -1,16 +1,26 @@
 //! Search implementation for SQLite backend.
 //!
-//! This module provides basic search functionality for the SQLite backend.
-//! Full search support is a work in progress.
+//! This module provides search functionality for the SQLite backend including:
+//! - Basic single-type search
+//! - Multi-type search
+//! - _include and _revinclude support
+//! - Chained search parameter support
+
+use std::collections::HashSet;
 
 use async_trait::async_trait;
 use chrono::Utc;
 use rusqlite::params;
 
-use crate::core::{SearchProvider, SearchResult};
+use crate::core::{
+    ChainedSearchProvider, IncludeProvider, MultiTypeSearchProvider, RevincludeProvider,
+    SearchProvider, SearchResult,
+};
 use crate::error::{BackendError, StorageError, StorageResult};
 use crate::tenant::TenantContext;
-use crate::types::{Page, PageInfo, SearchQuery, StoredResource};
+use crate::types::{
+    IncludeDirective, Page, PageInfo, ReverseChainedParameter, SearchQuery, StoredResource,
+};
 
 use super::SqliteBackend;
 
@@ -132,6 +142,643 @@ impl SearchProvider for SqliteBackend {
     }
 }
 
+#[async_trait]
+impl MultiTypeSearchProvider for SqliteBackend {
+    async fn search_multi(
+        &self,
+        tenant: &TenantContext,
+        resource_types: &[&str],
+        query: &SearchQuery,
+    ) -> StorageResult<SearchResult> {
+        let conn = self.get_connection()?;
+        let tenant_id = tenant.tenant_id().as_str();
+
+        // Get count and offset with defaults
+        let count = query.count.unwrap_or(100) as usize;
+        let offset = query.offset.unwrap_or(0) as usize;
+
+        // Build the type filter
+        let type_filter = if resource_types.is_empty() {
+            // No filter - search all types
+            String::new()
+        } else {
+            // Filter to specific types
+            let types: Vec<String> = resource_types
+                .iter()
+                .map(|t| format!("'{}'", t.replace('\'', "''")))
+                .collect();
+            format!(" AND resource_type IN ({})", types.join(", "))
+        };
+
+        let sql = format!(
+            "SELECT resource_type, id, version_id, data, last_updated FROM resources
+             WHERE tenant_id = ?1 AND is_deleted = 0{}
+             ORDER BY last_updated DESC
+             LIMIT {} OFFSET {}",
+            type_filter,
+            count + 1,
+            offset
+        );
+
+        let mut stmt = conn
+            .prepare(&sql)
+            .map_err(|e| internal_error(format!("Failed to prepare multi-type search: {}", e)))?;
+
+        let rows = stmt
+            .query_map(params![tenant_id], |row| {
+                let resource_type: String = row.get(0)?;
+                let id: String = row.get(1)?;
+                let version_id: String = row.get(2)?;
+                let data: Vec<u8> = row.get(3)?;
+                let last_updated: String = row.get(4)?;
+                Ok((resource_type, id, version_id, data, last_updated))
+            })
+            .map_err(|e| internal_error(format!("Failed to execute multi-type search: {}", e)))?;
+
+        let mut resources = Vec::new();
+        for row in rows {
+            let (resource_type, id, version_id, data, last_updated_str) =
+                row.map_err(|e| internal_error(format!("Failed to read row: {}", e)))?;
+
+            let json_data: serde_json::Value = serde_json::from_slice(&data)
+                .map_err(|e| internal_error(format!("Failed to deserialize resource: {}", e)))?;
+
+            let last_updated = chrono::DateTime::parse_from_rfc3339(&last_updated_str)
+                .map_err(|e| internal_error(format!("Failed to parse last_updated: {}", e)))?
+                .with_timezone(&Utc);
+
+            let resource = StoredResource::from_storage(
+                resource_type,
+                id,
+                version_id,
+                tenant.tenant_id().clone(),
+                json_data,
+                last_updated,
+                last_updated,
+                None,
+            );
+
+            resources.push(resource);
+        }
+
+        // Check if there are more results
+        let has_next = resources.len() > count;
+        if has_next {
+            resources.pop();
+        }
+
+        let page_info = PageInfo {
+            next_cursor: None,
+            previous_cursor: None,
+            total: None,
+            has_next,
+            has_previous: offset > 0,
+        };
+
+        Ok(SearchResult {
+            resources: Page::new(resources, page_info),
+            included: Vec::new(),
+            total: None,
+        })
+    }
+}
+
+#[async_trait]
+impl IncludeProvider for SqliteBackend {
+    async fn resolve_includes(
+        &self,
+        tenant: &TenantContext,
+        resources: &[StoredResource],
+        includes: &[IncludeDirective],
+    ) -> StorageResult<Vec<StoredResource>> {
+        if resources.is_empty() || includes.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let conn = self.get_connection()?;
+        let tenant_id = tenant.tenant_id().as_str();
+
+        let mut included = Vec::new();
+        let mut seen_refs: HashSet<String> = HashSet::new();
+
+        for include in includes {
+            // For each resource, extract references for the include parameter
+            for resource in resources {
+                // Skip if source type doesn't match
+                if resource.resource_type() != include.source_type {
+                    continue;
+                }
+
+                // Extract references from the resource based on the search parameter
+                let refs = self.extract_references(resource.content(), &include.search_param);
+
+                for reference in refs {
+                    // Parse the reference (e.g., "Patient/123")
+                    if let Some((ref_type, ref_id)) = self.parse_reference(&reference) {
+                        // Apply target type filter if specified
+                        if let Some(ref target) = include.target_type {
+                            if ref_type != *target {
+                                continue;
+                            }
+                        }
+
+                        // Skip if we've already included this resource
+                        let ref_key = format!("{}/{}", ref_type, ref_id);
+                        if seen_refs.contains(&ref_key) {
+                            continue;
+                        }
+                        seen_refs.insert(ref_key);
+
+                        // Fetch the referenced resource
+                        if let Some(included_resource) =
+                            self.fetch_resource(&conn, tenant_id, &ref_type, &ref_id)?
+                        {
+                            included.push(included_resource);
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(included)
+    }
+}
+
+#[async_trait]
+impl RevincludeProvider for SqliteBackend {
+    async fn resolve_revincludes(
+        &self,
+        tenant: &TenantContext,
+        resources: &[StoredResource],
+        revincludes: &[IncludeDirective],
+    ) -> StorageResult<Vec<StoredResource>> {
+        if resources.is_empty() || revincludes.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let conn = self.get_connection()?;
+        let tenant_id = tenant.tenant_id().as_str();
+
+        let mut included = Vec::new();
+        let mut seen_ids: HashSet<String> = HashSet::new();
+
+        for revinclude in revincludes {
+            // Build the list of references to search for
+            let mut reference_values: Vec<String> = Vec::new();
+            for resource in resources {
+                // For _revinclude, we look for resources that reference our results
+                // The reference format is typically "ResourceType/id"
+                reference_values.push(format!("{}/{}", resource.resource_type(), resource.id()));
+                // Also check just the ID in case the reference doesn't include the type
+                reference_values.push(resource.id().to_string());
+            }
+
+            if reference_values.is_empty() {
+                continue;
+            }
+
+            // Search for resources of source_type that reference our resources
+            let reference_pattern = reference_values
+                .iter()
+                .map(|r| format!("%{}%", r.replace('%', "\\%").replace('_', "\\_")))
+                .collect::<Vec<_>>();
+
+            // Build SQL to find resources containing any of the references
+            // We search in the JSON data for the search_param field containing a reference
+            let sql = format!(
+                "SELECT id, version_id, data, last_updated FROM resources
+                 WHERE tenant_id = ?1 AND resource_type = ?2 AND is_deleted = 0
+                 AND ({})",
+                reference_pattern
+                    .iter()
+                    .map(|_| "data LIKE ?".to_string())
+                    .collect::<Vec<_>>()
+                    .join(" OR ")
+            );
+
+            let mut stmt = conn
+                .prepare(&sql)
+                .map_err(|e| internal_error(format!("Failed to prepare revinclude query: {}", e)))?;
+
+            // Build params: tenant_id, source_type, then all the patterns
+            let mut param_values: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
+            param_values.push(Box::new(tenant_id.to_string()));
+            param_values.push(Box::new(revinclude.source_type.clone()));
+            for pattern in &reference_pattern {
+                param_values.push(Box::new(pattern.clone()));
+            }
+
+            let param_refs: Vec<&dyn rusqlite::ToSql> =
+                param_values.iter().map(|p| p.as_ref()).collect();
+
+            let rows = stmt
+                .query_map(param_refs.as_slice(), |row| {
+                    let id: String = row.get(0)?;
+                    let version_id: String = row.get(1)?;
+                    let data: Vec<u8> = row.get(2)?;
+                    let last_updated: String = row.get(3)?;
+                    Ok((id, version_id, data, last_updated))
+                })
+                .map_err(|e| internal_error(format!("Failed to execute revinclude query: {}", e)))?;
+
+            for row in rows {
+                let (id, version_id, data, last_updated_str) =
+                    row.map_err(|e| internal_error(format!("Failed to read row: {}", e)))?;
+
+                // Skip if we've already included this resource
+                let resource_key = format!("{}/{}", revinclude.source_type, id);
+                if seen_ids.contains(&resource_key) {
+                    continue;
+                }
+
+                let json_data: serde_json::Value = serde_json::from_slice(&data)
+                    .map_err(|e| internal_error(format!("Failed to deserialize: {}", e)))?;
+
+                // Verify this resource actually references one of our results via the search_param
+                if !self.verify_reference(&json_data, &revinclude.search_param, &reference_values) {
+                    continue;
+                }
+
+                seen_ids.insert(resource_key);
+
+                let last_updated = chrono::DateTime::parse_from_rfc3339(&last_updated_str)
+                    .map_err(|e| internal_error(format!("Failed to parse last_updated: {}", e)))?
+                    .with_timezone(&Utc);
+
+                let resource = StoredResource::from_storage(
+                    &revinclude.source_type,
+                    id,
+                    version_id,
+                    tenant.tenant_id().clone(),
+                    json_data,
+                    last_updated,
+                    last_updated,
+                    None,
+                );
+
+                included.push(resource);
+            }
+        }
+
+        Ok(included)
+    }
+}
+
+#[async_trait]
+impl ChainedSearchProvider for SqliteBackend {
+    async fn resolve_chain(
+        &self,
+        tenant: &TenantContext,
+        base_type: &str,
+        chain: &str,
+        value: &str,
+    ) -> StorageResult<Vec<String>> {
+        let conn = self.get_connection()?;
+        let tenant_id = tenant.tenant_id().as_str();
+
+        // Parse the chain (e.g., "patient.organization.name" -> ["patient", "organization", "name"])
+        let parts: Vec<&str> = chain.split('.').collect();
+        if parts.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // For a simple chain like "patient.name=Smith", we need to:
+        // 1. Find all Patients with name matching "Smith"
+        // 2. Return IDs of base resources that reference those patients
+
+        if parts.len() == 2 {
+            // Simple chain: reference_param.search_param=value
+            let reference_param = parts[0];
+            let search_param = parts[1];
+
+            // First, find the referenced resource type (we infer it from the reference param)
+            // This is simplified - a real implementation would use search parameter definitions
+            let target_type = self.infer_target_type(base_type, reference_param);
+
+            // Find matching target resources
+            let matching_targets = self.find_resources_by_value(
+                &conn,
+                tenant_id,
+                &target_type,
+                search_param,
+                value,
+            )?;
+
+            if matching_targets.is_empty() {
+                return Ok(Vec::new());
+            }
+
+            // Find base resources that reference any of the matching targets
+            let mut matching_base_ids = Vec::new();
+            let base_resources = self.get_all_resources(&conn, tenant_id, base_type)?;
+
+            for resource in base_resources {
+                let refs = self.extract_references(resource.content(), reference_param);
+                for ref_str in refs {
+                    if let Some((ref_type, ref_id)) = self.parse_reference(&ref_str) {
+                        if ref_type == target_type && matching_targets.contains(&ref_id) {
+                            matching_base_ids.push(resource.id().to_string());
+                            break;
+                        }
+                    }
+                }
+            }
+
+            return Ok(matching_base_ids);
+        }
+
+        // For longer chains, we'd need to recursively resolve
+        // This is a simplified implementation
+        Ok(Vec::new())
+    }
+
+    async fn resolve_reverse_chain(
+        &self,
+        tenant: &TenantContext,
+        base_type: &str,
+        reverse_chain: &ReverseChainedParameter,
+    ) -> StorageResult<Vec<String>> {
+        let conn = self.get_connection()?;
+        let tenant_id = tenant.tenant_id().as_str();
+
+        // _has:Observation:patient:code=1234-5
+        // means: find Patients that are referenced by Observations with code=1234-5
+
+        // 1. Find Observations matching the search criteria
+        let matching_sources = self.find_resources_by_value(
+            &conn,
+            tenant_id,
+            &reverse_chain.source_type,
+            &reverse_chain.search_param,
+            &reverse_chain.value.value,
+        )?;
+
+        if matching_sources.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // 2. For each matching source, extract the reference and collect target IDs
+        let mut target_ids: HashSet<String> = HashSet::new();
+
+        for source_id in matching_sources {
+            if let Some(resource) =
+                self.fetch_resource(&conn, tenant_id, &reverse_chain.source_type, &source_id)?
+            {
+                let refs = self.extract_references(resource.content(), &reverse_chain.reference_param);
+                for ref_str in refs {
+                    if let Some((ref_type, ref_id)) = self.parse_reference(&ref_str) {
+                        if ref_type == base_type {
+                            target_ids.insert(ref_id);
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(target_ids.into_iter().collect())
+    }
+}
+
+// Helper methods for search implementations
+impl SqliteBackend {
+    /// Extract references from a resource for a given search parameter.
+    fn extract_references(&self, content: &serde_json::Value, search_param: &str) -> Vec<String> {
+        let mut refs = Vec::new();
+
+        // Try direct field access (e.g., "subject" -> content.subject)
+        if let Some(value) = content.get(search_param) {
+            self.collect_references_from_value(value, &mut refs);
+        }
+
+        // Try common reference field patterns
+        // Many FHIR references are in fields like "patient", "subject", "performer", etc.
+        // and contain a "reference" sub-field
+        refs
+    }
+
+    /// Recursively collect reference strings from a JSON value.
+    fn collect_references_from_value(&self, value: &serde_json::Value, refs: &mut Vec<String>) {
+        match value {
+            serde_json::Value::Object(obj) => {
+                // Check for "reference" field
+                if let Some(serde_json::Value::String(ref_str)) = obj.get("reference") {
+                    refs.push(ref_str.clone());
+                }
+                // Recurse into object fields
+                for v in obj.values() {
+                    self.collect_references_from_value(v, refs);
+                }
+            }
+            serde_json::Value::Array(arr) => {
+                for item in arr {
+                    self.collect_references_from_value(item, refs);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Parse a reference string into (type, id).
+    fn parse_reference(&self, reference: &str) -> Option<(String, String)> {
+        // Handle formats:
+        // - "Patient/123"
+        // - "http://example.com/fhir/Patient/123"
+        let path = reference
+            .strip_prefix("http://")
+            .or_else(|| reference.strip_prefix("https://"))
+            .map(|s| s.rsplit('/').take(2).collect::<Vec<_>>())
+            .unwrap_or_else(|| reference.split('/').collect());
+
+        if path.len() >= 2 {
+            // For URL format, path is reversed
+            if reference.starts_with("http") {
+                Some((path[1].to_string(), path[0].to_string()))
+            } else {
+                Some((path[0].to_string(), path[1].to_string()))
+            }
+        } else {
+            None
+        }
+    }
+
+    /// Fetch a single resource by type and ID.
+    fn fetch_resource(
+        &self,
+        conn: &rusqlite::Connection,
+        tenant_id: &str,
+        resource_type: &str,
+        id: &str,
+    ) -> StorageResult<Option<StoredResource>> {
+        let result = conn.query_row(
+            "SELECT version_id, data, last_updated FROM resources
+             WHERE tenant_id = ?1 AND resource_type = ?2 AND id = ?3 AND is_deleted = 0",
+            params![tenant_id, resource_type, id],
+            |row| {
+                let version_id: String = row.get(0)?;
+                let data: Vec<u8> = row.get(1)?;
+                let last_updated: String = row.get(2)?;
+                Ok((version_id, data, last_updated))
+            },
+        );
+
+        match result {
+            Ok((version_id, data, last_updated_str)) => {
+                let json_data: serde_json::Value = serde_json::from_slice(&data)
+                    .map_err(|e| internal_error(format!("Failed to deserialize: {}", e)))?;
+
+                let last_updated = chrono::DateTime::parse_from_rfc3339(&last_updated_str)
+                    .map_err(|e| internal_error(format!("Failed to parse last_updated: {}", e)))?
+                    .with_timezone(&Utc);
+
+                Ok(Some(StoredResource::from_storage(
+                    resource_type,
+                    id,
+                    version_id,
+                    crate::tenant::TenantId::new(tenant_id),
+                    json_data,
+                    last_updated,
+                    last_updated,
+                    None,
+                )))
+            }
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(internal_error(format!("Failed to fetch resource: {}", e))),
+        }
+    }
+
+    /// Verify that a resource contains a reference to one of the given values.
+    fn verify_reference(
+        &self,
+        content: &serde_json::Value,
+        search_param: &str,
+        reference_values: &[String],
+    ) -> bool {
+        let refs = self.extract_references(content, search_param);
+        for ref_str in refs {
+            // Check full reference
+            if reference_values.iter().any(|v| ref_str.contains(v)) {
+                return true;
+            }
+            // Check just the ID part
+            if let Some((_, ref_id)) = self.parse_reference(&ref_str) {
+                if reference_values.contains(&ref_id) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// Infer the target resource type for a reference parameter.
+    fn infer_target_type(&self, _base_type: &str, reference_param: &str) -> String {
+        // This is a simplified mapping - a real implementation would use
+        // search parameter definitions from the FHIR specification
+        match reference_param {
+            "patient" | "subject" => "Patient".to_string(),
+            "practitioner" | "performer" => "Practitioner".to_string(),
+            "organization" => "Organization".to_string(),
+            "encounter" => "Encounter".to_string(),
+            "location" => "Location".to_string(),
+            "device" => "Device".to_string(),
+            _ => {
+                // Default: capitalize first letter
+                let mut chars = reference_param.chars();
+                match chars.next() {
+                    Some(c) => c.to_uppercase().chain(chars).collect(),
+                    None => reference_param.to_string(),
+                }
+            }
+        }
+    }
+
+    /// Find resources matching a simple field value search.
+    fn find_resources_by_value(
+        &self,
+        conn: &rusqlite::Connection,
+        tenant_id: &str,
+        resource_type: &str,
+        field: &str,
+        value: &str,
+    ) -> StorageResult<Vec<String>> {
+        // Search for resources where the field contains or matches the value
+        let escaped_value = value.replace('\'', "''");
+        let sql = format!(
+            "SELECT id FROM resources
+             WHERE tenant_id = ?1 AND resource_type = ?2 AND is_deleted = 0
+             AND (json_extract(data, '$.{}') LIKE '%{}%'
+                  OR json_extract(data, '$.{}.value') LIKE '%{}%'
+                  OR json_extract(data, '$.{}.coding') LIKE '%{}%')",
+            field, escaped_value, field, escaped_value, field, escaped_value
+        );
+
+        let mut stmt = conn
+            .prepare(&sql)
+            .map_err(|e| internal_error(format!("Failed to prepare find query: {}", e)))?;
+
+        let rows = stmt
+            .query_map(params![tenant_id, resource_type], |row| row.get::<_, String>(0))
+            .map_err(|e| internal_error(format!("Failed to execute find query: {}", e)))?;
+
+        let mut ids = Vec::new();
+        for row in rows {
+            ids.push(row.map_err(|e| internal_error(format!("Failed to read row: {}", e)))?);
+        }
+
+        Ok(ids)
+    }
+
+    /// Get all resources of a type for a tenant.
+    fn get_all_resources(
+        &self,
+        conn: &rusqlite::Connection,
+        tenant_id: &str,
+        resource_type: &str,
+    ) -> StorageResult<Vec<StoredResource>> {
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, version_id, data, last_updated FROM resources
+                 WHERE tenant_id = ?1 AND resource_type = ?2 AND is_deleted = 0",
+            )
+            .map_err(|e| internal_error(format!("Failed to prepare query: {}", e)))?;
+
+        let rows = stmt
+            .query_map(params![tenant_id, resource_type], |row| {
+                let id: String = row.get(0)?;
+                let version_id: String = row.get(1)?;
+                let data: Vec<u8> = row.get(2)?;
+                let last_updated: String = row.get(3)?;
+                Ok((id, version_id, data, last_updated))
+            })
+            .map_err(|e| internal_error(format!("Failed to query resources: {}", e)))?;
+
+        let mut resources = Vec::new();
+        for row in rows {
+            let (id, version_id, data, last_updated_str) =
+                row.map_err(|e| internal_error(format!("Failed to read row: {}", e)))?;
+
+            let json_data: serde_json::Value = serde_json::from_slice(&data)
+                .map_err(|e| internal_error(format!("Failed to deserialize: {}", e)))?;
+
+            let last_updated = chrono::DateTime::parse_from_rfc3339(&last_updated_str)
+                .map_err(|e| internal_error(format!("Failed to parse last_updated: {}", e)))?
+                .with_timezone(&Utc);
+
+            resources.push(StoredResource::from_storage(
+                resource_type,
+                id,
+                version_id,
+                crate::tenant::TenantId::new(tenant_id),
+                json_data,
+                last_updated,
+                last_updated,
+                None,
+            ));
+        }
+
+        Ok(resources)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -225,5 +872,561 @@ mod tests {
 
         let result2 = backend.search(&tenant2, &query).await.unwrap();
         assert_eq!(result2.resources.items.len(), 2);
+    }
+
+    // ========================================================================
+    // MultiTypeSearchProvider Tests
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_search_multi_all_types() {
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        // Create different resource types
+        backend.create(&tenant, "Patient", json!({})).await.unwrap();
+        backend.create(&tenant, "Patient", json!({})).await.unwrap();
+        backend
+            .create(&tenant, "Observation", json!({}))
+            .await
+            .unwrap();
+        backend
+            .create(&tenant, "Encounter", json!({}))
+            .await
+            .unwrap();
+
+        // Search all types (empty list)
+        let query = SearchQuery::new("Patient"); // Type in query doesn't matter for multi
+        let result = backend.search_multi(&tenant, &[], &query).await.unwrap();
+
+        // Should find all 4 resources
+        assert_eq!(result.resources.items.len(), 4);
+    }
+
+    #[tokio::test]
+    async fn test_search_multi_specific_types() {
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        // Create different resource types
+        backend.create(&tenant, "Patient", json!({})).await.unwrap();
+        backend.create(&tenant, "Patient", json!({})).await.unwrap();
+        backend
+            .create(&tenant, "Observation", json!({}))
+            .await
+            .unwrap();
+        backend
+            .create(&tenant, "Encounter", json!({}))
+            .await
+            .unwrap();
+
+        // Search only Patient and Observation
+        let query = SearchQuery::new("Patient");
+        let result = backend
+            .search_multi(&tenant, &["Patient", "Observation"], &query)
+            .await
+            .unwrap();
+
+        // Should find 3 resources
+        assert_eq!(result.resources.items.len(), 3);
+
+        // Verify types
+        let types: Vec<&str> = result
+            .resources
+            .items
+            .iter()
+            .map(|r| r.resource_type())
+            .collect();
+        assert!(types.contains(&"Patient"));
+        assert!(types.contains(&"Observation"));
+        assert!(!types.contains(&"Encounter"));
+    }
+
+    #[tokio::test]
+    async fn test_search_multi_tenant_isolation() {
+        let backend = create_test_backend();
+        let tenant1 =
+            TenantContext::new(TenantId::new("tenant-1"), TenantPermissions::full_access());
+        let tenant2 =
+            TenantContext::new(TenantId::new("tenant-2"), TenantPermissions::full_access());
+
+        backend
+            .create(&tenant1, "Patient", json!({}))
+            .await
+            .unwrap();
+        backend
+            .create(&tenant2, "Patient", json!({}))
+            .await
+            .unwrap();
+        backend
+            .create(&tenant2, "Observation", json!({}))
+            .await
+            .unwrap();
+
+        let query = SearchQuery::new("Patient");
+
+        let result1 = backend.search_multi(&tenant1, &[], &query).await.unwrap();
+        assert_eq!(result1.resources.items.len(), 1);
+
+        let result2 = backend.search_multi(&tenant2, &[], &query).await.unwrap();
+        assert_eq!(result2.resources.items.len(), 2);
+    }
+
+    // ========================================================================
+    // IncludeProvider Tests
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_resolve_includes_basic() {
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        // Create a patient
+        let patient = backend
+            .create(&tenant, "Patient", json!({"id": "p1", "name": [{"family": "Smith"}]}))
+            .await
+            .unwrap();
+
+        // Create an observation that references the patient
+        let observation = backend
+            .create(
+                &tenant,
+                "Observation",
+                json!({
+                    "id": "o1",
+                    "subject": {"reference": "Patient/p1"},
+                    "code": {"text": "Blood pressure"}
+                }),
+            )
+            .await
+            .unwrap();
+
+        // Resolve includes for the observation
+        let include = IncludeDirective {
+            include_type: crate::types::IncludeType::Include,
+            source_type: "Observation".to_string(),
+            search_param: "subject".to_string(),
+            target_type: None,
+            iterate: false,
+        };
+
+        let included = backend
+            .resolve_includes(&tenant, &[observation], &[include])
+            .await
+            .unwrap();
+
+        // Should include the patient
+        assert_eq!(included.len(), 1);
+        assert_eq!(included[0].resource_type(), "Patient");
+        assert_eq!(included[0].id(), "p1");
+    }
+
+    #[tokio::test]
+    async fn test_resolve_includes_with_target_type_filter() {
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        // Create resources
+        backend
+            .create(&tenant, "Patient", json!({"id": "p1"}))
+            .await
+            .unwrap();
+        backend
+            .create(&tenant, "Practitioner", json!({"id": "pr1"}))
+            .await
+            .unwrap();
+
+        let observation = backend
+            .create(
+                &tenant,
+                "Observation",
+                json!({
+                    "id": "o1",
+                    "subject": {"reference": "Patient/p1"},
+                    "performer": [{"reference": "Practitioner/pr1"}]
+                }),
+            )
+            .await
+            .unwrap();
+
+        // Include only Patient references
+        let include = IncludeDirective {
+            include_type: crate::types::IncludeType::Include,
+            source_type: "Observation".to_string(),
+            search_param: "subject".to_string(),
+            target_type: Some("Patient".to_string()),
+            iterate: false,
+        };
+
+        let included = backend
+            .resolve_includes(&tenant, &[observation], &[include])
+            .await
+            .unwrap();
+
+        assert_eq!(included.len(), 1);
+        assert_eq!(included[0].resource_type(), "Patient");
+    }
+
+    #[tokio::test]
+    async fn test_resolve_includes_empty_resources() {
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        let include = IncludeDirective {
+            include_type: crate::types::IncludeType::Include,
+            source_type: "Observation".to_string(),
+            search_param: "subject".to_string(),
+            target_type: None,
+            iterate: false,
+        };
+
+        let included = backend
+            .resolve_includes(&tenant, &[], &[include])
+            .await
+            .unwrap();
+
+        assert!(included.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_resolve_includes_tenant_isolation() {
+        let backend = create_test_backend();
+        let tenant1 =
+            TenantContext::new(TenantId::new("tenant-1"), TenantPermissions::full_access());
+        let tenant2 =
+            TenantContext::new(TenantId::new("tenant-2"), TenantPermissions::full_access());
+
+        // Create patient in tenant 1
+        backend
+            .create(&tenant1, "Patient", json!({"id": "p1"}))
+            .await
+            .unwrap();
+
+        // Create observation in tenant 2 that "references" patient in tenant 1
+        let observation = backend
+            .create(
+                &tenant2,
+                "Observation",
+                json!({
+                    "id": "o1",
+                    "subject": {"reference": "Patient/p1"}
+                }),
+            )
+            .await
+            .unwrap();
+
+        let include = IncludeDirective {
+            include_type: crate::types::IncludeType::Include,
+            source_type: "Observation".to_string(),
+            search_param: "subject".to_string(),
+            target_type: None,
+            iterate: false,
+        };
+
+        // Should NOT include the patient from tenant 1
+        let included = backend
+            .resolve_includes(&tenant2, &[observation], &[include])
+            .await
+            .unwrap();
+
+        assert!(included.is_empty());
+    }
+
+    // ========================================================================
+    // RevincludeProvider Tests
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_resolve_revincludes_basic() {
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        // Create a patient
+        let patient = backend
+            .create(&tenant, "Patient", json!({"id": "p1"}))
+            .await
+            .unwrap();
+
+        // Create observations that reference the patient
+        backend
+            .create(
+                &tenant,
+                "Observation",
+                json!({
+                    "id": "o1",
+                    "subject": {"reference": "Patient/p1"}
+                }),
+            )
+            .await
+            .unwrap();
+        backend
+            .create(
+                &tenant,
+                "Observation",
+                json!({
+                    "id": "o2",
+                    "subject": {"reference": "Patient/p1"}
+                }),
+            )
+            .await
+            .unwrap();
+
+        // Also create an observation for a different patient
+        backend
+            .create(
+                &tenant,
+                "Observation",
+                json!({
+                    "id": "o3",
+                    "subject": {"reference": "Patient/p2"}
+                }),
+            )
+            .await
+            .unwrap();
+
+        let revinclude = IncludeDirective {
+            include_type: crate::types::IncludeType::Revinclude,
+            source_type: "Observation".to_string(),
+            search_param: "subject".to_string(),
+            target_type: None,
+            iterate: false,
+        };
+
+        let included = backend
+            .resolve_revincludes(&tenant, &[patient], &[revinclude])
+            .await
+            .unwrap();
+
+        // Should include 2 observations
+        assert_eq!(included.len(), 2);
+        assert!(included.iter().all(|r| r.resource_type() == "Observation"));
+        let ids: Vec<&str> = included.iter().map(|r| r.id()).collect();
+        assert!(ids.contains(&"o1"));
+        assert!(ids.contains(&"o2"));
+    }
+
+    #[tokio::test]
+    async fn test_resolve_revincludes_empty() {
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        let patient = backend
+            .create(&tenant, "Patient", json!({"id": "p1"}))
+            .await
+            .unwrap();
+
+        let revinclude = IncludeDirective {
+            include_type: crate::types::IncludeType::Revinclude,
+            source_type: "Observation".to_string(),
+            search_param: "subject".to_string(),
+            target_type: None,
+            iterate: false,
+        };
+
+        // No observations exist
+        let included = backend
+            .resolve_revincludes(&tenant, &[patient], &[revinclude])
+            .await
+            .unwrap();
+
+        assert!(included.is_empty());
+    }
+
+    // ========================================================================
+    // ChainedSearchProvider Tests
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_resolve_chain_simple() {
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        // Create patients
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({"id": "p1", "name": [{"family": "Smith"}]}),
+            )
+            .await
+            .unwrap();
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({"id": "p2", "name": [{"family": "Jones"}]}),
+            )
+            .await
+            .unwrap();
+
+        // Create observations
+        backend
+            .create(
+                &tenant,
+                "Observation",
+                json!({
+                    "id": "o1",
+                    "subject": {"reference": "Patient/p1"}
+                }),
+            )
+            .await
+            .unwrap();
+        backend
+            .create(
+                &tenant,
+                "Observation",
+                json!({
+                    "id": "o2",
+                    "subject": {"reference": "Patient/p2"}
+                }),
+            )
+            .await
+            .unwrap();
+
+        // Find observations where patient.name contains "Smith"
+        let matching_ids = backend
+            .resolve_chain(&tenant, "Observation", "subject.name", "Smith")
+            .await
+            .unwrap();
+
+        assert_eq!(matching_ids.len(), 1);
+        assert!(matching_ids.contains(&"o1".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_resolve_chain_no_match() {
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        // Create patient
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({"id": "p1", "name": [{"family": "Smith"}]}),
+            )
+            .await
+            .unwrap();
+
+        // Create observation
+        backend
+            .create(
+                &tenant,
+                "Observation",
+                json!({
+                    "id": "o1",
+                    "subject": {"reference": "Patient/p1"}
+                }),
+            )
+            .await
+            .unwrap();
+
+        // Search for non-existent name
+        let matching_ids = backend
+            .resolve_chain(&tenant, "Observation", "subject.name", "Nonexistent")
+            .await
+            .unwrap();
+
+        assert!(matching_ids.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_resolve_reverse_chain() {
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        // Create patients
+        backend
+            .create(&tenant, "Patient", json!({"id": "p1"}))
+            .await
+            .unwrap();
+        backend
+            .create(&tenant, "Patient", json!({"id": "p2"}))
+            .await
+            .unwrap();
+
+        // Create observations with codes
+        backend
+            .create(
+                &tenant,
+                "Observation",
+                json!({
+                    "id": "o1",
+                    "subject": {"reference": "Patient/p1"},
+                    "code": {"coding": [{"code": "8867-4"}]}
+                }),
+            )
+            .await
+            .unwrap();
+        backend
+            .create(
+                &tenant,
+                "Observation",
+                json!({
+                    "id": "o2",
+                    "subject": {"reference": "Patient/p2"},
+                    "code": {"coding": [{"code": "other"}]}
+                }),
+            )
+            .await
+            .unwrap();
+
+        // _has:Observation:subject:code=8867-4
+        let reverse_chain = ReverseChainedParameter {
+            source_type: "Observation".to_string(),
+            reference_param: "subject".to_string(),
+            search_param: "code".to_string(),
+            value: crate::types::SearchValue::eq("8867-4"),
+        };
+
+        let matching_ids = backend
+            .resolve_reverse_chain(&tenant, "Patient", &reverse_chain)
+            .await
+            .unwrap();
+
+        // Should find p1 (referenced by observation with code 8867-4)
+        assert_eq!(matching_ids.len(), 1);
+        assert!(matching_ids.contains(&"p1".to_string()));
+    }
+
+    // ========================================================================
+    // Helper Method Tests
+    // ========================================================================
+
+    #[test]
+    fn test_parse_reference_simple() {
+        let backend = SqliteBackend::in_memory().unwrap();
+
+        let result = backend.parse_reference("Patient/123");
+        assert_eq!(result, Some(("Patient".to_string(), "123".to_string())));
+    }
+
+    #[test]
+    fn test_parse_reference_url() {
+        let backend = SqliteBackend::in_memory().unwrap();
+
+        let result = backend.parse_reference("http://example.com/fhir/Patient/456");
+        assert_eq!(result, Some(("Patient".to_string(), "456".to_string())));
+    }
+
+    #[test]
+    fn test_infer_target_type() {
+        let backend = SqliteBackend::in_memory().unwrap();
+
+        assert_eq!(backend.infer_target_type("Observation", "patient"), "Patient");
+        assert_eq!(backend.infer_target_type("Observation", "subject"), "Patient");
+        assert_eq!(
+            backend.infer_target_type("Encounter", "practitioner"),
+            "Practitioner"
+        );
+        assert_eq!(
+            backend.infer_target_type("Patient", "organization"),
+            "Organization"
+        );
+        // Unknown param - capitalize first letter
+        assert_eq!(
+            backend.infer_target_type("Observation", "custom"),
+            "Custom"
+        );
     }
 }
