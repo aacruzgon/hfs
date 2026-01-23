@@ -2459,6 +2459,7 @@ dependencies = [
  "neo4rs",
  "object_store",
  "parking_lot",
+ "paste",
  "postgres-types",
  "r2d2",
  "r2d2_sqlite",
