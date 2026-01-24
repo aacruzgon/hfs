@@ -239,8 +239,8 @@ The matrix below shows which FHIR operations each backend supports. This reflect
 | [:above / :below](https://hl7.org/fhir/R4/search.html#modifiers) | ✗ | †○ | †○ | ✗ | ○ | †○ | ✗ |
 | [:in / :not-in](https://hl7.org/fhir/R4/search.html#modifiers) | ✗ | †○ | †○ | ✗ | ○ | †○ | ✗ |
 | **[Special Parameters](https://hl7.org/fhir/R4/search.html#all)** |
-| [_text](https://hl7.org/fhir/R4/search.html#text) (narrative search) | ◐² | ○ | ○ | ✗ | ✗ | ○ | ✗ |
-| [_content](https://hl7.org/fhir/R4/search.html#content) (full content) | ◐² | ○ | ○ | ✗ | ✗ | ○ | ✗ |
+| [_text](https://build.fhir.org/search.html#_text) (narrative search) | ◐² | ○ | ○ | ✗ | ✗ | ○ | ✗ |
+| [_content](https://build.fhir.org/search.html#_content) (full content) | ◐² | ○ | ○ | ✗ | ✗ | ○ | ✗ |
 | **Advanced Search** |
 | [Chained Parameters](https://hl7.org/fhir/R4/search.html#chaining) | ○ | ○ | ○ | ✗ | ○ | ✗ | ✗ |
 | [Reverse Chaining (_has)](https://hl7.org/fhir/R4/search.html#has) | ○ | ○ | ○ | ✗ | ○ | ✗ | ✗ |
