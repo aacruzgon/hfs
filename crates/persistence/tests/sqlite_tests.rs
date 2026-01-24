@@ -1909,3 +1909,154 @@ async fn test_conditional_create_multiple_matches() {
         assert_eq!(count, 2, "Should find exactly 2 matching patients");
     }
 }
+
+// ============================================================================
+// SearchParameter Resource Handling Tests
+// ============================================================================
+
+#[tokio::test]
+async fn test_search_parameter_create_registers_in_registry() {
+    let backend = create_backend();
+    let tenant = create_tenant("test-tenant");
+
+    // Create a custom SearchParameter
+    let search_param = json!({
+        "resourceType": "SearchParameter",
+        "id": "custom-patient-nickname",
+        "url": "http://example.org/fhir/SearchParameter/patient-nickname",
+        "name": "nickname",
+        "status": "active",
+        "code": "nickname",
+        "base": ["Patient"],
+        "type": "string",
+        "expression": "Patient.name.where(use='nickname').given"
+    });
+
+    backend.create(&tenant, "SearchParameter", search_param).await.unwrap();
+
+    // Verify the parameter is registered
+    let registry = backend.search_registry().read();
+    let param = registry.get_param("Patient", "nickname");
+    assert!(param.is_some(), "Custom SearchParameter should be registered");
+
+    let param = param.unwrap();
+    assert_eq!(param.code, "nickname");
+    assert_eq!(param.url, "http://example.org/fhir/SearchParameter/patient-nickname");
+}
+
+#[tokio::test]
+async fn test_search_parameter_create_draft_not_registered() {
+    let backend = create_backend();
+    let tenant = create_tenant("test-tenant");
+
+    // Create a draft SearchParameter (status != active)
+    let search_param = json!({
+        "resourceType": "SearchParameter",
+        "id": "draft-param",
+        "url": "http://example.org/fhir/SearchParameter/draft-param",
+        "name": "draft",
+        "status": "draft",
+        "code": "draft",
+        "base": ["Patient"],
+        "type": "string",
+        "expression": "Patient.extension('draft')"
+    });
+
+    backend.create(&tenant, "SearchParameter", search_param).await.unwrap();
+
+    // Verify the parameter is NOT registered (draft status)
+    let registry = backend.search_registry().read();
+    let param = registry.get_param("Patient", "draft");
+    assert!(param.is_none(), "Draft SearchParameter should not be registered");
+}
+
+#[tokio::test]
+async fn test_search_parameter_delete_unregisters() {
+    let backend = create_backend();
+    let tenant = create_tenant("test-tenant");
+
+    // Create an active SearchParameter
+    let search_param = json!({
+        "resourceType": "SearchParameter",
+        "id": "to-delete",
+        "url": "http://example.org/fhir/SearchParameter/to-delete",
+        "name": "todelete",
+        "status": "active",
+        "code": "todelete",
+        "base": ["Observation"],
+        "type": "token",
+        "expression": "Observation.code"
+    });
+
+    backend.create(&tenant, "SearchParameter", search_param).await.unwrap();
+
+    // Verify it's registered
+    {
+        let registry = backend.search_registry().read();
+        assert!(registry.get_param("Observation", "todelete").is_some());
+    }
+
+    // Delete the SearchParameter
+    backend.delete(&tenant, "SearchParameter", "to-delete").await.unwrap();
+
+    // Verify it's unregistered
+    let registry = backend.search_registry().read();
+    assert!(
+        registry.get_param("Observation", "todelete").is_none(),
+        "Deleted SearchParameter should be unregistered"
+    );
+}
+
+#[tokio::test]
+async fn test_search_parameter_update_status_change() {
+    let backend = create_backend();
+    let tenant = create_tenant("test-tenant");
+
+    // Create an active SearchParameter
+    let search_param = json!({
+        "resourceType": "SearchParameter",
+        "id": "status-change",
+        "url": "http://example.org/fhir/SearchParameter/status-change",
+        "name": "statuschange",
+        "status": "active",
+        "code": "statuschange",
+        "base": ["Condition"],
+        "type": "token",
+        "expression": "Condition.code"
+    });
+
+    let created = backend.create(&tenant, "SearchParameter", search_param).await.unwrap();
+
+    // Verify it's registered and active
+    {
+        let registry = backend.search_registry().read();
+        let param = registry.get_param("Condition", "statuschange");
+        assert!(param.is_some());
+        assert_eq!(param.unwrap().status, helios_persistence::search::SearchParameterStatus::Active);
+    }
+
+    // Update to retired status
+    let retired_param = json!({
+        "resourceType": "SearchParameter",
+        "id": "status-change",
+        "url": "http://example.org/fhir/SearchParameter/status-change",
+        "name": "statuschange",
+        "status": "retired",
+        "code": "statuschange",
+        "base": ["Condition"],
+        "type": "token",
+        "expression": "Condition.code"
+    });
+
+    backend.update(&tenant, &created, retired_param).await.unwrap();
+
+    // Verify status is updated in registry
+    let registry = backend.search_registry().read();
+    let param = registry.get_param("Condition", "statuschange");
+    assert!(param.is_some(), "Parameter should still exist in registry");
+    assert_eq!(
+        param.unwrap().status,
+        helios_persistence::search::SearchParameterStatus::Retired,
+        "Status should be updated to retired"
+    );
+}

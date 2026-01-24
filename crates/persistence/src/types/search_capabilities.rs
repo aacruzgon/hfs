@@ -528,7 +528,7 @@ impl Default for IndexingMode {
 /// JSONB query capabilities for a backend.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct JsonbCapabilities {
-    /// JSON path extraction (SQLite json_extract, PostgreSQL ->/->>).
+    /// JSON path extraction (PostgreSQL ->/->>).
     pub path_extraction: bool,
     /// JSON array iteration (SQLite json_each, PostgreSQL jsonb_array_elements).
     pub array_iteration: bool,

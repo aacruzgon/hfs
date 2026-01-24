@@ -24,8 +24,8 @@ use crate::types::{
     ReverseChainedParameter, SearchQuery, StoredResource,
 };
 
-use super::search::{QueryBuilder, SqlParam};
 use super::SqliteBackend;
+use super::search::{QueryBuilder, SqlParam};
 
 fn internal_error(message: String) -> StorageError {
     StorageError::Backend(BackendError::Internal {
@@ -62,8 +62,8 @@ impl SearchProvider for SqliteBackend {
 
         // Build the search filter subquery if there are search parameters
         let search_filter = if !query.parameters.is_empty() {
-            let builder = QueryBuilder::new(tenant_id, resource_type)
-                .with_param_offset(param_offset);
+            let builder =
+                QueryBuilder::new(tenant_id, resource_type).with_param_offset(param_offset);
             let fragment = builder.build(query);
             if !fragment.sql.is_empty() {
                 // The QueryBuilder returns a SELECT DISTINCT resource_id query
@@ -89,7 +89,8 @@ impl SearchProvider for SqliteBackend {
                              AND (last_updated < ?3 OR (last_updated = ?3 AND id < ?4))
                              ORDER BY last_updated DESC, id DESC
                              LIMIT {}",
-                            filter.sql, count + 1
+                            filter.sql,
+                            count + 1
                         )
                     } else {
                         format!(
@@ -101,7 +102,11 @@ impl SearchProvider for SqliteBackend {
                             count + 1
                         )
                     };
-                    (sql, true, search_filter.map(|f| f.params).unwrap_or_default())
+                    (
+                        sql,
+                        true,
+                        search_filter.map(|f| f.params).unwrap_or_default(),
+                    )
                 }
                 CursorDirection::Previous => {
                     let sql = if let Some(ref filter) = search_filter {
@@ -112,7 +117,8 @@ impl SearchProvider for SqliteBackend {
                              AND (last_updated > ?3 OR (last_updated = ?3 AND id > ?4))
                              ORDER BY last_updated ASC, id ASC
                              LIMIT {}",
-                            filter.sql, count + 1
+                            filter.sql,
+                            count + 1
                         )
                     } else {
                         format!(
@@ -124,7 +130,11 @@ impl SearchProvider for SqliteBackend {
                             count + 1
                         )
                     };
-                    (sql, false, search_filter.map(|f| f.params).unwrap_or_default())
+                    (
+                        sql,
+                        false,
+                        search_filter.map(|f| f.params).unwrap_or_default(),
+                    )
                 }
             }
         } else if let Some(offset) = query.offset {
@@ -136,7 +146,9 @@ impl SearchProvider for SqliteBackend {
                      AND id IN ({})
                      ORDER BY last_updated DESC, id DESC
                      LIMIT {} OFFSET {}",
-                    filter.sql, count + 1, offset
+                    filter.sql,
+                    count + 1,
+                    offset
                 )
             } else {
                 format!(
@@ -144,10 +156,15 @@ impl SearchProvider for SqliteBackend {
                      WHERE tenant_id = ?1 AND resource_type = ?2 AND is_deleted = 0
                      ORDER BY last_updated DESC, id DESC
                      LIMIT {} OFFSET {}",
-                    count + 1, offset
+                    count + 1,
+                    offset
                 )
             };
-            (sql, offset > 0, search_filter.map(|f| f.params).unwrap_or_default())
+            (
+                sql,
+                offset > 0,
+                search_filter.map(|f| f.params).unwrap_or_default(),
+            )
         } else {
             // First page (no cursor, no offset)
             let sql = if let Some(ref filter) = search_filter {
@@ -157,7 +174,8 @@ impl SearchProvider for SqliteBackend {
                      AND id IN ({})
                      ORDER BY last_updated DESC, id DESC
                      LIMIT {}",
-                    filter.sql, count + 1
+                    filter.sql,
+                    count + 1
                 )
             } else {
                 format!(
@@ -168,7 +186,11 @@ impl SearchProvider for SqliteBackend {
                     count + 1
                 )
             };
-            (sql, false, search_filter.map(|f| f.params).unwrap_or_default())
+            (
+                sql,
+                false,
+                search_filter.map(|f| f.params).unwrap_or_default(),
+            )
         };
 
         let mut stmt = conn
@@ -251,7 +273,6 @@ impl SearchProvider for SqliteBackend {
 
         let mut resources = Vec::new();
         for (id, version_id, data, last_updated_str) in raw_rows {
-
             let json_data: serde_json::Value = serde_json::from_slice(&data)
                 .map_err(|e| internal_error(format!("Failed to deserialize resource: {}", e)))?;
 
@@ -340,9 +361,11 @@ impl SearchProvider for SqliteBackend {
         let resource_type = &query.resource_type;
 
         // Build the search filter if there are search parameters
-        let (sql, all_params): (String, Vec<Box<dyn rusqlite::ToSql>>) = if !query.parameters.is_empty() {
-            let builder = QueryBuilder::new(tenant_id, resource_type)
-                .with_param_offset(2);
+        let (sql, all_params): (String, Vec<Box<dyn rusqlite::ToSql>>) = if !query
+            .parameters
+            .is_empty()
+        {
+            let builder = QueryBuilder::new(tenant_id, resource_type).with_param_offset(2);
             let fragment = builder.build(query);
 
             let mut params: Vec<Box<dyn rusqlite::ToSql>> = vec![
@@ -599,9 +622,9 @@ impl RevincludeProvider for SqliteBackend {
                     .join(" OR ")
             );
 
-            let mut stmt = conn
-                .prepare(&sql)
-                .map_err(|e| internal_error(format!("Failed to prepare revinclude query: {}", e)))?;
+            let mut stmt = conn.prepare(&sql).map_err(|e| {
+                internal_error(format!("Failed to prepare revinclude query: {}", e))
+            })?;
 
             // Build params: tenant_id, source_type, then all the patterns
             let mut param_values: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
@@ -622,7 +645,9 @@ impl RevincludeProvider for SqliteBackend {
                     let last_updated: String = row.get(3)?;
                     Ok((id, version_id, data, last_updated))
                 })
-                .map_err(|e| internal_error(format!("Failed to execute revinclude query: {}", e)))?;
+                .map_err(|e| {
+                    internal_error(format!("Failed to execute revinclude query: {}", e))
+                })?;
 
             for row in rows {
                 let (id, version_id, data, last_updated_str) =
@@ -699,13 +724,8 @@ impl ChainedSearchProvider for SqliteBackend {
             let target_type = self.infer_target_type(base_type, reference_param);
 
             // Find matching target resources
-            let matching_targets = self.find_resources_by_value(
-                &conn,
-                tenant_id,
-                &target_type,
-                search_param,
-                value,
-            )?;
+            let matching_targets =
+                self.find_resources_by_value(&conn, tenant_id, &target_type, search_param, value)?;
 
             if matching_targets.is_empty() {
                 return Ok(Vec::new());
@@ -767,7 +787,8 @@ impl ChainedSearchProvider for SqliteBackend {
             if let Some(resource) =
                 self.fetch_resource(&conn, tenant_id, &reverse_chain.source_type, &source_id)?
             {
-                let refs = self.extract_references(resource.content(), &reverse_chain.reference_param);
+                let refs =
+                    self.extract_references(resource.content(), &reverse_chain.reference_param);
                 for ref_str in refs {
                     if let Some((ref_type, ref_id)) = self.parse_reference(&ref_str) {
                         if ref_type == base_type {
@@ -792,7 +813,7 @@ impl SqliteBackend {
             _ => {
                 return Err(internal_error(
                     "Invalid cursor: missing or invalid timestamp".to_string(),
-                ))
+                ));
             }
         };
         let id = cursor.resource_id().to_string();
@@ -958,7 +979,7 @@ impl SqliteBackend {
         param_name: &str,
         value: &str,
     ) -> StorageResult<Vec<String>> {
-        // Use the pre-computed search_index table instead of json_extract
+        // Use the pre-computed search_index table instead
         // This is consistent with our PrecomputedIndex strategy
 
         // Handle token format (system|code or just code)
@@ -967,7 +988,10 @@ impl SqliteBackend {
             if parts.len() == 2 && !parts[0].is_empty() {
                 // system|code format
                 (
-                    format!("AND value_token_system = '{}'", parts[0].replace('\'', "''")),
+                    format!(
+                        "AND value_token_system = '{}'",
+                        parts[0].replace('\'', "''")
+                    ),
                     parts[1].to_string(),
                 )
             } else if parts.len() == 2 {
@@ -1192,7 +1216,9 @@ mod tests {
 
         // Second page using cursor
         let cursor = page1.resources.page_info.next_cursor.unwrap();
-        let query2 = SearchQuery::new("Patient").with_count(2).with_cursor(cursor);
+        let query2 = SearchQuery::new("Patient")
+            .with_count(2)
+            .with_cursor(cursor);
         let page2 = backend.search(&tenant, &query2).await.unwrap();
 
         assert_eq!(page2.resources.items.len(), 2);
@@ -1201,7 +1227,9 @@ mod tests {
 
         // Third page (last)
         let cursor = page2.resources.page_info.next_cursor.unwrap();
-        let query3 = SearchQuery::new("Patient").with_count(2).with_cursor(cursor);
+        let query3 = SearchQuery::new("Patient")
+            .with_count(2)
+            .with_cursor(cursor);
         let page3 = backend.search(&tenant, &query3).await.unwrap();
 
         assert_eq!(page3.resources.items.len(), 1);
@@ -1229,10 +1257,7 @@ mod tests {
 
         // Create 3 resources
         for _ in 0..3 {
-            backend
-                .create(&tenant, "Patient", json!({}))
-                .await
-                .unwrap();
+            backend.create(&tenant, "Patient", json!({})).await.unwrap();
         }
 
         // Request more than available
@@ -1366,7 +1391,11 @@ mod tests {
 
         // Create a patient
         let patient = backend
-            .create(&tenant, "Patient", json!({"id": "p1", "name": [{"family": "Smith"}]}))
+            .create(
+                &tenant,
+                "Patient",
+                json!({"id": "p1", "name": [{"family": "Smith"}]}),
+            )
             .await
             .unwrap();
 
@@ -1796,8 +1825,14 @@ mod tests {
     fn test_infer_target_type() {
         let backend = SqliteBackend::in_memory().unwrap();
 
-        assert_eq!(backend.infer_target_type("Observation", "patient"), "Patient");
-        assert_eq!(backend.infer_target_type("Observation", "subject"), "Patient");
+        assert_eq!(
+            backend.infer_target_type("Observation", "patient"),
+            "Patient"
+        );
+        assert_eq!(
+            backend.infer_target_type("Observation", "subject"),
+            "Patient"
+        );
         assert_eq!(
             backend.infer_target_type("Encounter", "practitioner"),
             "Practitioner"
@@ -1807,9 +1842,6 @@ mod tests {
             "Organization"
         );
         // Unknown param - capitalize first letter
-        assert_eq!(
-            backend.infer_target_type("Observation", "custom"),
-            "Custom"
-        );
+        assert_eq!(backend.infer_target_type("Observation", "custom"), "Custom");
     }
 }

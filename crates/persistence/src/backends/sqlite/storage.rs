@@ -21,6 +21,8 @@ use crate::error::TransactionError;
 use crate::types::Pagination;
 use crate::error::{BackendError, ConcurrencyError, ResourceError, StorageError, StorageResult};
 use crate::search::extractor::ExtractedValue;
+use crate::search::loader::{FhirVersion, SearchParameterLoader};
+use crate::search::registry::SearchParameterStatus;
 use crate::search::reindex::{ReindexableStorage, ResourcePage};
 use crate::tenant::TenantContext;
 use crate::types::{CursorValue, Page, PageCursor, PageInfo, StoredResource};
@@ -114,6 +116,11 @@ impl ResourceStorage for SqliteBackend {
 
         // Index the resource for search
         self.index_resource(&conn, tenant_id, resource_type, &id, &resource)?;
+
+        // Handle SearchParameter resources specially - update registry
+        if resource_type == "SearchParameter" {
+            self.handle_search_parameter_create(&resource)?;
+        }
 
         // Return the stored resource with updated metadata
         Ok(StoredResource::from_storage(
@@ -312,6 +319,11 @@ impl ResourceStorage for SqliteBackend {
         self.delete_search_index(&conn, tenant_id, resource_type, id)?;
         self.index_resource(&conn, tenant_id, resource_type, id, &resource)?;
 
+        // Handle SearchParameter resources specially - update registry
+        if resource_type == "SearchParameter" {
+            self.handle_search_parameter_update(current.content(), &resource)?;
+        }
+
         Ok(StoredResource::from_storage(
             resource_type,
             id,
@@ -383,6 +395,13 @@ impl ResourceStorage for SqliteBackend {
             params![tenant_id, resource_type, id],
         )
         .map_err(|e| internal_error(format!("Failed to delete search index: {}", e)))?;
+
+        // Handle SearchParameter resources specially - update registry
+        if resource_type == "SearchParameter" {
+            if let Ok(resource_json) = serde_json::from_slice::<Value>(&data) {
+                self.handle_search_parameter_delete(&resource_json)?;
+            }
+        }
 
         Ok(())
     }
@@ -875,6 +894,111 @@ impl SqliteBackend {
                 reference,
             )?;
         }
+        Ok(())
+    }
+}
+
+// SearchParameter Resource Handling
+impl SqliteBackend {
+    /// Handle creation of a SearchParameter resource.
+    ///
+    /// If the SearchParameter has status=active, it will be registered in the
+    /// search parameter registry, making it available for searches on new resources.
+    /// Existing resources will NOT be indexed for this parameter until $reindex is run.
+    fn handle_search_parameter_create(&self, resource: &Value) -> StorageResult<()> {
+        let loader = SearchParameterLoader::new(FhirVersion::R4);
+
+        match loader.parse_resource(resource) {
+            Ok(def) => {
+                // Only register if status is active
+                if def.status == SearchParameterStatus::Active {
+                    let mut registry = self.search_registry().write();
+                    // Ignore duplicate URL errors - the param may already be embedded
+                    if let Err(e) = registry.register(def) {
+                        tracing::debug!("SearchParameter registration skipped: {}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                // Log but don't fail - the resource is still stored
+                tracing::warn!("Failed to parse SearchParameter for registry: {}", e);
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Handle update of a SearchParameter resource.
+    ///
+    /// Updates the registry based on status changes:
+    /// - active -> retired: Parameter disabled for searches
+    /// - retired -> active: Parameter re-enabled for searches
+    /// - Any other change: Updates the registry entry
+    fn handle_search_parameter_update(
+        &self,
+        old_resource: &Value,
+        new_resource: &Value,
+    ) -> StorageResult<()> {
+        let loader = SearchParameterLoader::new(FhirVersion::R4);
+
+        let old_def = loader.parse_resource(old_resource).ok();
+        let new_def = loader.parse_resource(new_resource).ok();
+
+        match (old_def, new_def) {
+            (Some(old), Some(new)) => {
+                let mut registry = self.search_registry().write();
+
+                // If URL changed, unregister old and register new
+                if old.url != new.url {
+                    let _ = registry.unregister(&old.url);
+                    if new.status == SearchParameterStatus::Active {
+                        let _ = registry.register(new);
+                    }
+                } else if old.status != new.status {
+                    // Status change - update in registry
+                    if let Err(e) = registry.update_status(&new.url, new.status) {
+                        tracing::debug!("SearchParameter status update skipped: {}", e);
+                    }
+                } else {
+                    // Other changes - re-register (unregister then register)
+                    let _ = registry.unregister(&old.url);
+                    if new.status == SearchParameterStatus::Active {
+                        let _ = registry.register(new);
+                    }
+                }
+            }
+            (None, Some(new)) => {
+                // Old wasn't valid, try to register new
+                if new.status == SearchParameterStatus::Active {
+                    let mut registry = self.search_registry().write();
+                    let _ = registry.register(new);
+                }
+            }
+            (Some(old), None) => {
+                // New isn't valid, unregister old
+                let mut registry = self.search_registry().write();
+                let _ = registry.unregister(&old.url);
+            }
+            (None, None) => {
+                // Neither valid - nothing to do
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Handle deletion of a SearchParameter resource.
+    ///
+    /// Removes the parameter from the registry. Search index entries for this
+    /// parameter are NOT automatically cleaned up (use $reindex for that).
+    fn handle_search_parameter_delete(&self, resource: &Value) -> StorageResult<()> {
+        if let Some(url) = resource.get("url").and_then(|v| v.as_str()) {
+            let mut registry = self.search_registry().write();
+            if let Err(e) = registry.unregister(url) {
+                tracing::debug!("SearchParameter unregistration skipped: {}", e);
+            }
+        }
+
         Ok(())
     }
 }
