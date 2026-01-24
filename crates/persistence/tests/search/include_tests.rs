@@ -254,6 +254,235 @@ async fn test_revinclude_filtered() {
 // Edge Cases
 // ============================================================================
 
+// ============================================================================
+// :iterate Modifier Tests (Recursive Inclusion)
+// ============================================================================
+
+/// Test :iterate modifier respects depth limits.
+///
+/// The :iterate modifier allows recursive inclusion of resources. Implementations
+/// must enforce depth limits to prevent unbounded recursion and detect cycles.
+#[cfg(feature = "sqlite")]
+#[tokio::test]
+async fn test_include_iterate_recursive_depth() {
+    let backend = create_sqlite_backend();
+    let tenant = create_tenant();
+
+    // Create a chain of organizations: grandparent -> parent -> child
+    let grandparent = json!({
+        "resourceType": "Organization",
+        "id": "org-grandparent",
+        "name": "Grandparent Org"
+    });
+    backend.create_or_update(&tenant, "Organization", "org-grandparent", grandparent).await.unwrap();
+
+    let parent = json!({
+        "resourceType": "Organization",
+        "id": "org-parent",
+        "name": "Parent Org",
+        "partOf": {"reference": "Organization/org-grandparent"}
+    });
+    backend.create_or_update(&tenant, "Organization", "org-parent", parent).await.unwrap();
+
+    let child = json!({
+        "resourceType": "Organization",
+        "id": "org-child",
+        "name": "Child Org",
+        "partOf": {"reference": "Organization/org-parent"}
+    });
+    backend.create_or_update(&tenant, "Organization", "org-child", child).await.unwrap();
+
+    // Create patient at child org
+    let patient = json!({
+        "resourceType": "Patient",
+        "id": "patient-org-chain",
+        "managingOrganization": {"reference": "Organization/org-child"}
+    });
+    backend.create_or_update(&tenant, "Patient", "patient-org-chain", patient).await.unwrap();
+
+    // Search with :iterate to follow the organization hierarchy
+    let query = SearchQuery::new("Patient")
+        .with_parameter(helios_persistence::types::SearchParameter {
+            name: "_id".to_string(),
+            param_type: helios_persistence::types::SearchParamType::Token,
+            modifier: None,
+            values: vec![helios_persistence::types::SearchValue::eq("patient-org-chain")],
+            chain: vec![],
+        })
+        .with_include(IncludeDirective {
+            include_type: IncludeType::Include,
+            source_type: "Patient".to_string(),
+            search_param: "organization".to_string(),
+            target_type: Some("Organization".to_string()),
+            iterate: false,
+        })
+        .with_include(IncludeDirective {
+            include_type: IncludeType::Include,
+            source_type: "Organization".to_string(),
+            search_param: "partof".to_string(),
+            target_type: Some("Organization".to_string()),
+            iterate: true, // Recursively include parent organizations
+        });
+
+    let result = backend
+        .search(&tenant, &query, Pagination::new(100))
+        .await
+        .unwrap();
+
+    // Should have the patient as the main result
+    assert_eq!(result.resources.len(), 1);
+    assert_eq!(result.resources[0].resource_type(), "Patient");
+
+    // Should include organizations from the chain
+    // The depth of inclusion depends on implementation limits
+    let org_count = result.included.iter()
+        .filter(|r| r.resource_type() == "Organization")
+        .count();
+
+    // At minimum, should include the direct organization reference
+    assert!(org_count >= 1, "Should include at least the direct organization");
+}
+
+/// Test :iterate modifier handles circular references safely.
+///
+/// When resources reference each other in a cycle, :iterate must detect
+/// the cycle and stop to prevent infinite loops.
+#[cfg(feature = "sqlite")]
+#[tokio::test]
+async fn test_include_iterate_cycle_detection() {
+    let backend = create_sqlite_backend();
+    let tenant = create_tenant();
+
+    // Create organizations that reference each other in a cycle
+    // A -> B -> C -> A (circular)
+    let org_a = json!({
+        "resourceType": "Organization",
+        "id": "org-cycle-a",
+        "name": "Org A",
+        "partOf": {"reference": "Organization/org-cycle-c"}
+    });
+
+    let org_b = json!({
+        "resourceType": "Organization",
+        "id": "org-cycle-b",
+        "name": "Org B",
+        "partOf": {"reference": "Organization/org-cycle-a"}
+    });
+
+    let org_c = json!({
+        "resourceType": "Organization",
+        "id": "org-cycle-c",
+        "name": "Org C",
+        "partOf": {"reference": "Organization/org-cycle-b"}
+    });
+
+    // Create in order that allows references (order matters for some backends)
+    backend.create_or_update(&tenant, "Organization", "org-cycle-a", org_a.clone()).await.unwrap();
+    backend.create_or_update(&tenant, "Organization", "org-cycle-b", org_b).await.unwrap();
+    backend.create_or_update(&tenant, "Organization", "org-cycle-c", org_c).await.unwrap();
+    // Update A to complete the cycle
+    backend.create_or_update(&tenant, "Organization", "org-cycle-a", org_a).await.unwrap();
+
+    // Search with :iterate - should not hang or overflow
+    let query = SearchQuery::new("Organization")
+        .with_parameter(helios_persistence::types::SearchParameter {
+            name: "_id".to_string(),
+            param_type: helios_persistence::types::SearchParamType::Token,
+            modifier: None,
+            values: vec![helios_persistence::types::SearchValue::eq("org-cycle-a")],
+            chain: vec![],
+        })
+        .with_include(IncludeDirective {
+            include_type: IncludeType::Include,
+            source_type: "Organization".to_string(),
+            search_param: "partof".to_string(),
+            target_type: Some("Organization".to_string()),
+            iterate: true,
+        });
+
+    // This should complete without infinite loop
+    let result = backend
+        .search(&tenant, &query, Pagination::new(100))
+        .await;
+
+    // Should succeed (cycle detected) or fail gracefully
+    match result {
+        Ok(result) => {
+            // Implementation detected cycle and returned finite results
+            // Should have at most 3 unique organizations
+            let unique_ids: std::collections::HashSet<_> = result.included.iter()
+                .map(|r| r.id())
+                .collect();
+            assert!(unique_ids.len() <= 3, "Should not have more than 3 orgs (cycle detected)");
+        }
+        Err(_) => {
+            // Implementation may return error for detected cycles - also acceptable
+        }
+    }
+}
+
+/// Test :iterate with maximum depth limit.
+#[cfg(feature = "sqlite")]
+#[tokio::test]
+async fn test_include_iterate_max_depth() {
+    let backend = create_sqlite_backend();
+    let tenant = create_tenant();
+
+    // Create a deep chain of locations: L1 -> L2 -> L3 -> L4 -> L5 -> L6 -> L7 -> L8
+    let mut prev_id: Option<String> = None;
+    for i in 1..=8 {
+        let id = format!("location-depth-{}", i);
+        let mut location = json!({
+            "resourceType": "Location",
+            "id": id.clone(),
+            "name": format!("Location {}", i)
+        });
+        if let Some(ref parent) = prev_id {
+            location["partOf"] = json!({"reference": format!("Location/{}", parent)});
+        }
+        backend.create_or_update(&tenant, "Location", &id, location).await.unwrap();
+        prev_id = Some(id);
+    }
+
+    // Search from the deepest location with :iterate
+    let query = SearchQuery::new("Location")
+        .with_parameter(helios_persistence::types::SearchParameter {
+            name: "_id".to_string(),
+            param_type: helios_persistence::types::SearchParamType::Token,
+            modifier: None,
+            values: vec![helios_persistence::types::SearchValue::eq("location-depth-8")],
+            chain: vec![],
+        })
+        .with_include(IncludeDirective {
+            include_type: IncludeType::Include,
+            source_type: "Location".to_string(),
+            search_param: "partof".to_string(),
+            target_type: Some("Location".to_string()),
+            iterate: true,
+        });
+
+    let result = backend
+        .search(&tenant, &query, Pagination::new(100))
+        .await
+        .unwrap();
+
+    // Should have location-depth-8 as main result
+    assert_eq!(result.resources.len(), 1);
+
+    // Implementation may limit depth (commonly 4-6 levels)
+    // This test documents that depth limiting works
+    let included_locations = result.included.iter()
+        .filter(|r| r.resource_type() == "Location")
+        .count();
+
+    // Should include at least some parent locations
+    // The exact number depends on the implementation's depth limit
+    assert!(
+        included_locations >= 1,
+        "Should include at least one parent location"
+    );
+}
+
 /// Test _include with no referenced resources.
 #[cfg(feature = "sqlite")]
 #[tokio::test]

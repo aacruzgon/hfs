@@ -449,3 +449,230 @@ async fn test_string_search_empty_storage() {
 
     assert!(result.resources.is_empty());
 }
+
+// ============================================================================
+// Multi-Value AND/OR Semantics Tests
+// ============================================================================
+
+/// Test that multiple values within a single parameter use OR semantics.
+///
+/// Per FHIR spec: `name=Smith,Jones` means name matches "Smith" OR "Jones"
+/// Multiple values in a single parameter are comma-separated and OR'd together.
+#[cfg(feature = "sqlite")]
+#[tokio::test]
+async fn test_multivalue_or_semantics() {
+    let backend = create_sqlite_backend();
+    let tenant = create_tenant();
+    seed_test_patients(&backend, &tenant).await;
+
+    // Single parameter with multiple values = OR
+    // This is equivalent to: family=Smith OR family=Johnson
+    let query = SearchQuery::new("Patient").with_parameter(SearchParameter {
+        name: "family".to_string(),
+        param_type: SearchParamType::String,
+        modifier: None,
+        values: vec![SearchValue::eq("Smith"), SearchValue::eq("Johnson")],
+        chain: vec![],
+    });
+
+    let result = backend
+        .search(&tenant, &query, Pagination::new(100))
+        .await
+        .unwrap();
+
+    // Should find resources matching EITHER Smith or Johnson
+    assert!(!result.resources.is_empty(), "Should find matching resources");
+
+    for resource in &result.resources {
+        let family = resource.content()["name"][0]["family"]
+            .as_str()
+            .unwrap()
+            .to_lowercase();
+        assert!(
+            family.starts_with("smith") || family.starts_with("johnson"),
+            "Family '{}' should match 'smith' or 'johnson'",
+            family
+        );
+    }
+}
+
+/// Test that multiple separate parameters use AND semantics.
+///
+/// Per FHIR spec: `name=Smith&given=John` means name matches "Smith" AND given matches "John"
+/// Separate parameters are AND'd together.
+#[cfg(feature = "sqlite")]
+#[tokio::test]
+async fn test_multivalue_and_semantics() {
+    let backend = create_sqlite_backend();
+    let tenant = create_tenant();
+    seed_test_patients(&backend, &tenant).await;
+
+    // Multiple parameters = AND
+    // This is: family starts with "Smith" AND given starts with "John"
+    let query = SearchQuery::new("Patient")
+        .with_parameter(SearchParameter {
+            name: "family".to_string(),
+            param_type: SearchParamType::String,
+            modifier: None,
+            values: vec![SearchValue::eq("Smith")],
+            chain: vec![],
+        })
+        .with_parameter(SearchParameter {
+            name: "given".to_string(),
+            param_type: SearchParamType::String,
+            modifier: None,
+            values: vec![SearchValue::eq("John")],
+            chain: vec![],
+        });
+
+    let result = backend
+        .search(&tenant, &query, Pagination::new(100))
+        .await
+        .unwrap();
+
+    // Should only find resources matching BOTH conditions
+    for resource in &result.resources {
+        let family = resource.content()["name"][0]["family"]
+            .as_str()
+            .unwrap()
+            .to_lowercase();
+        let given = &resource.content()["name"][0]["given"];
+        let given_names: Vec<String> = given
+            .as_array()
+            .unwrap_or(&vec![])
+            .iter()
+            .filter_map(|v| v.as_str())
+            .map(|s| s.to_lowercase())
+            .collect();
+
+        assert!(
+            family.starts_with("smith"),
+            "Family '{}' should start with 'smith'",
+            family
+        );
+        assert!(
+            given_names.iter().any(|n| n.starts_with("john")),
+            "Given names {:?} should include one starting with 'john'",
+            given_names
+        );
+    }
+}
+
+/// Test combined AND/OR semantics in a single query.
+///
+/// Query: `family=Smith,Johnson&given=John` means:
+/// (family matches "Smith" OR family matches "Johnson") AND (given matches "John")
+#[cfg(feature = "sqlite")]
+#[tokio::test]
+async fn test_multivalue_combined_and_or_semantics() {
+    let backend = create_sqlite_backend();
+    let tenant = create_tenant();
+    seed_test_patients(&backend, &tenant).await;
+
+    // Combined: (family=Smith OR family=Johnson) AND given=John
+    let query = SearchQuery::new("Patient")
+        .with_parameter(SearchParameter {
+            name: "family".to_string(),
+            param_type: SearchParamType::String,
+            modifier: None,
+            values: vec![SearchValue::eq("Smith"), SearchValue::eq("Johnson")],
+            chain: vec![],
+        })
+        .with_parameter(SearchParameter {
+            name: "given".to_string(),
+            param_type: SearchParamType::String,
+            modifier: None,
+            values: vec![SearchValue::eq("John")],
+            chain: vec![],
+        });
+
+    let result = backend
+        .search(&tenant, &query, Pagination::new(100))
+        .await
+        .unwrap();
+
+    // Should find John Smith but not Jane Smith (wrong given) or Emily Johnson (wrong given)
+    for resource in &result.resources {
+        let family = resource.content()["name"][0]["family"]
+            .as_str()
+            .unwrap()
+            .to_lowercase();
+        let given = &resource.content()["name"][0]["given"];
+        let given_names: Vec<String> = given
+            .as_array()
+            .unwrap_or(&vec![])
+            .iter()
+            .filter_map(|v| v.as_str())
+            .map(|s| s.to_lowercase())
+            .collect();
+
+        // Must satisfy both conditions
+        assert!(
+            family.starts_with("smith") || family.starts_with("johnson"),
+            "Family '{}' should match smith or johnson",
+            family
+        );
+        assert!(
+            given_names.iter().any(|n| n.starts_with("john")),
+            "Must have given name starting with john"
+        );
+    }
+}
+
+/// Test that repeating the same parameter creates AND semantics for multiple conditions.
+///
+/// Per FHIR spec: `given=Jo&given=Ja` means given matches "Jo" AND given matches "Ja"
+/// This is useful for finding patients with multiple given names.
+#[cfg(feature = "sqlite")]
+#[tokio::test]
+async fn test_repeated_parameter_and_semantics() {
+    let backend = create_sqlite_backend();
+    let tenant = create_tenant();
+    seed_test_patients(&backend, &tenant).await;
+
+    // Repeated parameter = AND between the parameters
+    // This finds patients where given name array has BOTH a name starting with "Jo"
+    // AND a name starting with "Ja"
+    let query = SearchQuery::new("Patient")
+        .with_parameter(SearchParameter {
+            name: "given".to_string(),
+            param_type: SearchParamType::String,
+            modifier: None,
+            values: vec![SearchValue::eq("Jo")], // Matches "John", "Joseph", etc.
+            chain: vec![],
+        })
+        .with_parameter(SearchParameter {
+            name: "given".to_string(),
+            param_type: SearchParamType::String,
+            modifier: None,
+            values: vec![SearchValue::eq("Ja")], // Matches "Jacob", "Jane", "James", etc.
+            chain: vec![],
+        });
+
+    let result = backend
+        .search(&tenant, &query, Pagination::new(100))
+        .await
+        .unwrap();
+
+    // Should find "John Jacob Smith" (has both John and Jacob)
+    // Should NOT find "John Smith" (only John, no Ja*) or "Jane Smith" (only Jane, no Jo*)
+    for resource in &result.resources {
+        let given = &resource.content()["name"][0]["given"];
+        let given_names: Vec<String> = given
+            .as_array()
+            .unwrap_or(&vec![])
+            .iter()
+            .filter_map(|v| v.as_str())
+            .map(|s| s.to_lowercase())
+            .collect();
+
+        let has_jo = given_names.iter().any(|n| n.starts_with("jo"));
+        let has_ja = given_names.iter().any(|n| n.starts_with("ja"));
+
+        assert!(
+            has_jo && has_ja,
+            "Given names {:?} should have both Jo* and Ja*",
+            given_names
+        );
+    }
+}

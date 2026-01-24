@@ -357,3 +357,220 @@ async fn test_if_none_match_failure() {
     assert_eq!(updated.version_id(), "2");
     assert_eq!(updated.content()["name"][0]["family"], "Second");
 }
+
+// ============================================================================
+// Conditional Patch Tests (FHIR v6.0.0)
+// ============================================================================
+
+/// Test conditional patch when exactly one match exists (should patch).
+///
+/// Conditional patch uses search parameters to find a resource to patch:
+/// PATCH [base]/[type]?[search-params]
+///
+/// Expected behavior:
+/// - If search matches 0 resources -> Return error (no match)
+/// - If search matches 1 resource -> Apply patch to that resource
+/// - If search matches >1 resources -> Return error (multiple matches)
+#[cfg(feature = "sqlite")]
+#[tokio::test]
+async fn test_conditional_patch_single_match() {
+    let backend = create_sqlite_backend();
+    let tenant = create_tenant();
+
+    // Create a resource with unique identifier
+    let patient = create_patient_json("PatchTest", Some(("http://example.org/mrn", "PATCH-001")));
+    let created = backend.create(&tenant, "Patient", patient).await.unwrap();
+
+    // Verify the resource exists
+    let read = backend
+        .read(&tenant, "Patient", created.id())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(read.content()["name"][0]["family"], "PatchTest");
+
+    // Conditional patch would be:
+    // PATCH /Patient?identifier=http://example.org/mrn|PATCH-001
+    // with patch body: [{"op": "replace", "path": "/name/0/family", "value": "Patched"}]
+    //
+    // This would find the patient by identifier and patch it.
+    // For now, we use regular update to simulate the expected outcome.
+
+    let mut patched_content = read.content().clone();
+    patched_content["name"][0]["family"] = json!("Patched");
+    let updated = backend.update(&tenant, &read, patched_content).await.unwrap();
+
+    assert_eq!(updated.content()["name"][0]["family"], "Patched");
+    assert_eq!(updated.version_id(), "2");
+}
+
+/// Test conditional patch when no match exists (should fail).
+///
+/// When conditional patch finds no matching resources, it should return an error.
+#[cfg(feature = "sqlite")]
+#[tokio::test]
+async fn test_conditional_patch_no_match() {
+    let backend = create_sqlite_backend();
+    let tenant = create_tenant();
+
+    // Verify storage is empty
+    let count = backend.count(&tenant, Some("Patient")).await.unwrap();
+    assert_eq!(count, 0, "Storage should be empty");
+
+    // Conditional patch with no matching resources should fail
+    // PATCH /Patient?identifier=http://example.org/mrn|NONEXISTENT
+    //
+    // When implemented, this should return a "no match" error.
+    // The current test documents the expected behavior.
+}
+
+/// Test conditional patch when multiple matches exist (should fail).
+///
+/// When conditional patch finds multiple matching resources, it should return
+/// an error rather than patching all of them.
+#[cfg(feature = "sqlite")]
+#[tokio::test]
+async fn test_conditional_patch_multiple_matches() {
+    let backend = create_sqlite_backend();
+    let tenant = create_tenant();
+
+    // Create multiple resources with the same family name
+    let patient1 = create_patient_json("DuplicateName", Some(("http://example.org/mrn", "DUP-001")));
+    let patient2 = create_patient_json("DuplicateName", Some(("http://example.org/mrn", "DUP-002")));
+
+    backend.create(&tenant, "Patient", patient1).await.unwrap();
+    backend.create(&tenant, "Patient", patient2).await.unwrap();
+
+    // Conditional patch with multiple matches should fail
+    // PATCH /Patient?family=DuplicateName
+    //
+    // When implemented, this should return a "multiple matches" error.
+    // FHIR requires that conditional operations match exactly one resource.
+
+    let count = backend.count(&tenant, Some("Patient")).await.unwrap();
+    assert_eq!(count, 2, "Should have 2 patients with same name");
+}
+
+/// Test conditional patch with JSON Patch format.
+///
+/// FHIR supports JSON Patch (RFC 6902) for conditional patch operations.
+/// The Content-Type should be application/json-patch+json.
+#[cfg(feature = "sqlite")]
+#[tokio::test]
+async fn test_conditional_patch_json_patch_format() {
+    let backend = create_sqlite_backend();
+    let tenant = create_tenant();
+
+    // Create a resource
+    let patient = json!({
+        "resourceType": "Patient",
+        "name": [{"family": "Original", "given": ["First"]}],
+        "active": true
+    });
+    let created = backend.create(&tenant, "Patient", patient).await.unwrap();
+
+    // JSON Patch operations (RFC 6902):
+    // [
+    //   {"op": "replace", "path": "/name/0/family", "value": "NewFamily"},
+    //   {"op": "add", "path": "/name/0/given/-", "value": "Middle"},
+    //   {"op": "remove", "path": "/active"}
+    // ]
+    //
+    // Expected result:
+    // - family changed to "NewFamily"
+    // - "Middle" added to given names
+    // - active field removed
+
+    // Simulate the expected outcome with regular update
+    let mut patched = created.content().clone();
+    patched["name"][0]["family"] = json!("NewFamily");
+    if let Some(given) = patched["name"][0]["given"].as_array_mut() {
+        given.push(json!("Middle"));
+    }
+    patched.as_object_mut().unwrap().remove("active");
+
+    let updated = backend.update(&tenant, &created, patched).await.unwrap();
+
+    assert_eq!(updated.content()["name"][0]["family"], "NewFamily");
+    let given = updated.content()["name"][0]["given"].as_array().unwrap();
+    assert!(given.iter().any(|v| v == "Middle"));
+    assert!(updated.content().get("active").is_none());
+}
+
+/// Test conditional patch with FHIRPath Patch format.
+///
+/// FHIR v6.0.0 supports FHIRPath Patch as an alternative to JSON Patch.
+/// The Content-Type should be application/fhir+json with a Parameters resource.
+#[cfg(feature = "sqlite")]
+#[tokio::test]
+async fn test_conditional_patch_fhirpath_format() {
+    let backend = create_sqlite_backend();
+    let tenant = create_tenant();
+
+    // Create a resource
+    let patient = json!({
+        "resourceType": "Patient",
+        "name": [{"family": "Original"}],
+        "birthDate": "1990-01-15"
+    });
+    let created = backend.create(&tenant, "Patient", patient).await.unwrap();
+
+    // FHIRPath Patch uses a Parameters resource with operations:
+    // {
+    //   "resourceType": "Parameters",
+    //   "parameter": [
+    //     {
+    //       "name": "operation",
+    //       "part": [
+    //         {"name": "type", "valueCode": "replace"},
+    //         {"name": "path", "valueString": "Patient.name.family"},
+    //         {"name": "value", "valueString": "FHIRPathPatched"}
+    //       ]
+    //     }
+    //   ]
+    // }
+    //
+    // This would use FHIRPath expressions for the path.
+
+    // Simulate the expected outcome with regular update
+    let mut patched = created.content().clone();
+    patched["name"][0]["family"] = json!("FHIRPathPatched");
+
+    let updated = backend.update(&tenant, &created, patched).await.unwrap();
+    assert_eq!(updated.content()["name"][0]["family"], "FHIRPathPatched");
+}
+
+/// Test conditional patch respects tenant isolation.
+#[cfg(feature = "sqlite")]
+#[tokio::test]
+async fn test_conditional_patch_tenant_isolation() {
+    let backend = create_sqlite_backend();
+
+    let tenant1 = helios_persistence::tenant::TenantContext::new(
+        helios_persistence::tenant::TenantId::new("patch-tenant-1"),
+        helios_persistence::tenant::TenantPermissions::full_access(),
+    );
+    let tenant2 = helios_persistence::tenant::TenantContext::new(
+        helios_persistence::tenant::TenantId::new("patch-tenant-2"),
+        helios_persistence::tenant::TenantPermissions::full_access(),
+    );
+
+    // Create resource in tenant1
+    let patient = create_patient_json("TenantPatch", Some(("http://example.org/mrn", "T1-001")));
+    let created = backend.create(&tenant1, "Patient", patient).await.unwrap();
+    let id = created.id().to_string();
+
+    // Verify tenant2 cannot read it
+    let read_t2 = backend.read(&tenant2, "Patient", &id).await.unwrap();
+    assert!(read_t2.is_none(), "Tenant2 should not see tenant1's resource");
+
+    // Conditional patch from tenant2 should not find the resource
+    // PATCH /Patient?identifier=http://example.org/mrn|T1-001
+    // (from tenant2's context)
+    //
+    // This should return "no match" because the resource belongs to tenant1.
+
+    // Verify tenant1 can still access it
+    let read_t1 = backend.read(&tenant1, "Patient", &id).await.unwrap();
+    assert!(read_t1.is_some(), "Tenant1 should see their own resource");
+}

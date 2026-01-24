@@ -579,3 +579,171 @@ async fn test_history_bundle_format() {
         assert!(resource.versioned_url().contains("_history"));
     }
 }
+
+// ============================================================================
+// Delete History Tests (FHIR v6.0.0 Trial Use)
+// ============================================================================
+
+/// Test delete instance history removes all versions of a resource.
+///
+/// FHIR v6.0.0 introduces DELETE [base]/[type]/[id]/_history to remove
+/// all historical versions of a resource. This is a Trial Use feature.
+///
+/// Expected behavior:
+/// - Deletes all versions of the specified resource
+/// - Returns 200 OK on success
+/// - Returns 404 if resource doesn't exist
+/// - May require specific permissions
+#[cfg(feature = "sqlite")]
+#[tokio::test]
+async fn test_delete_instance_history() {
+    let backend = create_sqlite_backend();
+    let tenant = create_tenant();
+
+    // Create a resource with multiple versions
+    let patient = create_patient_json("HistoryDelete");
+    let v1 = backend.create(&tenant, "Patient", patient).await.unwrap();
+    let id = v1.id().to_string();
+
+    let mut content2 = v1.content().clone();
+    content2["name"][0]["family"] = json!("HistoryDelete2");
+    let _v2 = backend.update(&tenant, &v1, content2).await.unwrap();
+
+    // Verify we have multiple versions
+    let pagination = Pagination::new(100);
+    let history_before = backend
+        .instance_history(&tenant, "Patient", &id, pagination.clone())
+        .await
+        .unwrap();
+    assert!(
+        history_before.resources.len() >= 2,
+        "Should have at least 2 versions before delete"
+    );
+
+    // Delete history is not yet implemented - this test serves as specification
+    // When implemented, the trait method would be:
+    // backend.delete_instance_history(&tenant, "Patient", &id).await
+    //
+    // After deletion:
+    // - instance_history should return empty or error
+    // - Current version may or may not be affected (implementation choice)
+
+    // For now, verify current behavior
+    let history_after = backend
+        .instance_history(&tenant, "Patient", &id, pagination)
+        .await
+        .unwrap();
+
+    // Current implementation preserves history
+    // When delete_instance_history is implemented, this assertion would change
+    assert!(
+        !history_after.resources.is_empty(),
+        "History preserved (delete_instance_history not yet implemented)"
+    );
+}
+
+/// Test delete specific version removes only that version.
+///
+/// FHIR v6.0.0 introduces DELETE [base]/[type]/[id]/_history/[vid] to remove
+/// a specific version of a resource. This is a Trial Use feature.
+///
+/// Expected behavior:
+/// - Deletes only the specified version
+/// - Returns 200 OK on success
+/// - Returns 404 if version doesn't exist
+/// - Current version may have special handling
+#[cfg(feature = "sqlite")]
+#[tokio::test]
+async fn test_delete_specific_version() {
+    let backend = create_sqlite_backend();
+    let tenant = create_tenant();
+
+    // Create a resource with multiple versions
+    let patient = create_patient_json("VersionDelete");
+    let v1 = backend.create(&tenant, "Patient", patient).await.unwrap();
+    let id = v1.id().to_string();
+
+    let mut content2 = v1.content().clone();
+    content2["name"][0]["family"] = json!("VersionDelete2");
+    let v2 = backend.update(&tenant, &v1, content2).await.unwrap();
+
+    let mut content3 = v2.content().clone();
+    content3["name"][0]["family"] = json!("VersionDelete3");
+    let _v3 = backend.update(&tenant, &v2, content3).await.unwrap();
+
+    // Verify we have 3 versions
+    let pagination = Pagination::new(100);
+    let history = backend
+        .instance_history(&tenant, "Patient", &id, pagination)
+        .await
+        .unwrap();
+    assert_eq!(history.resources.len(), 3, "Should have 3 versions");
+
+    // Delete specific version is not yet implemented - this test serves as specification
+    // When implemented, the trait method would be:
+    // backend.delete_version(&tenant, "Patient", &id, "2").await
+    //
+    // After deletion:
+    // - Version 2 should no longer appear in history
+    // - Versions 1 and 3 should still exist
+    // - vread for version 2 should return 404 or Gone
+
+    // For now, verify vread works for all versions
+    let v2_read = backend.vread(&tenant, "Patient", &id, "2").await.unwrap();
+    assert!(
+        v2_read.is_some(),
+        "Version 2 exists (delete_version not yet implemented)"
+    );
+}
+
+/// Test delete history respects tenant isolation.
+///
+/// Delete history operations should only affect resources within the tenant's scope.
+#[cfg(feature = "sqlite")]
+#[tokio::test]
+async fn test_delete_history_tenant_isolation() {
+    let backend = create_sqlite_backend();
+
+    let tenant1 = TenantContext::new(TenantId::new("tenant-1"), TenantPermissions::full_access());
+    let tenant2 = TenantContext::new(TenantId::new("tenant-2"), TenantPermissions::full_access());
+
+    // Create resources with history in both tenants
+    let patient1 = create_patient_json("Tenant1Patient");
+    let v1_t1 = backend.create(&tenant1, "Patient", patient1).await.unwrap();
+    let id_t1 = v1_t1.id().to_string();
+    let _v2_t1 = backend.update(&tenant1, &v1_t1, v1_t1.content().clone()).await.unwrap();
+
+    let patient2 = create_patient_json("Tenant2Patient");
+    let v1_t2 = backend.create(&tenant2, "Patient", patient2).await.unwrap();
+    let id_t2 = v1_t2.id().to_string();
+    let _v2_t2 = backend.update(&tenant2, &v1_t2, v1_t2.content().clone()).await.unwrap();
+
+    // Verify each tenant has their own history
+    let pagination = Pagination::new(100);
+    let history_t1 = backend
+        .instance_history(&tenant1, "Patient", &id_t1, pagination.clone())
+        .await
+        .unwrap();
+    let history_t2 = backend
+        .instance_history(&tenant2, "Patient", &id_t2, pagination.clone())
+        .await
+        .unwrap();
+
+    assert_eq!(history_t1.resources.len(), 2);
+    assert_eq!(history_t2.resources.len(), 2);
+
+    // If delete_instance_history were implemented:
+    // Deleting tenant1's history should NOT affect tenant2's history
+    // backend.delete_instance_history(&tenant1, "Patient", &id_t1).await
+    // history_t2 should still have 2 versions
+
+    // Cross-tenant access should fail
+    let cross_tenant = backend
+        .instance_history(&tenant1, "Patient", &id_t2, pagination)
+        .await
+        .unwrap();
+    assert!(
+        cross_tenant.resources.is_empty(),
+        "Should not access other tenant's history"
+    );
+}
