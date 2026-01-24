@@ -86,20 +86,23 @@ impl SearchStrategyCapability for SqliteSearchStrategy {
     }
 
     fn supports_jsonb_evaluation(&self) -> bool {
-        // SQLite supports JSON1 extension for query-time evaluation
-        true
+        // We use PrecomputedIndex strategy exclusively - all searches go through
+        // the search_index table. Query-time JSONB evaluation is not implemented.
+        false
     }
 
     fn recommended_strategy(&self) -> SearchStrategy {
-        // For SQLite, pre-computed index is generally recommended
-        // because JSON1 queries can be slow on large datasets
+        // For SQLite, pre-computed index is the only supported strategy
         SearchStrategy::PrecomputedIndex
     }
 
     fn jsonb_capabilities(&self) -> JsonbCapabilities {
+        // We don't use query-time JSON evaluation - all searches use the
+        // pre-computed search_index table. These are set to false to reflect
+        // that we don't rely on JSON1 extension for search queries.
         JsonbCapabilities {
-            path_extraction: true,       // json_extract()
-            array_iteration: true,       // json_each()
+            path_extraction: false,      // Not used - we use search_index
+            array_iteration: false,      // Not used - we use search_index
             containment_operator: false, // Not in SQLite
             gin_index: false,            // Not in SQLite
         }
@@ -119,7 +122,7 @@ mod tests {
         let strategy = SqliteSearchStrategy::new();
 
         assert!(strategy.supports_precomputed_index());
-        assert!(strategy.supports_jsonb_evaluation());
+        assert!(!strategy.supports_jsonb_evaluation()); // We don't use query-time JSONB
         assert!(matches!(
             strategy.recommended_strategy(),
             SearchStrategy::PrecomputedIndex
@@ -143,8 +146,9 @@ mod tests {
         let strategy = SqliteSearchStrategy::new();
         let caps = strategy.jsonb_capabilities();
 
-        assert!(caps.path_extraction);
-        assert!(caps.array_iteration);
+        // We use PrecomputedIndex exclusively, so JSONB capabilities are not used
+        assert!(!caps.path_extraction);
+        assert!(!caps.array_iteration);
         assert!(!caps.containment_operator);
         assert!(!caps.gin_index);
     }

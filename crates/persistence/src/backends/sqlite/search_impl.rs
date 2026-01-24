@@ -949,24 +949,55 @@ impl SqliteBackend {
         }
     }
 
-    /// Find resources matching a simple field value search.
+    /// Find resources matching a simple field value search using the search index.
     fn find_resources_by_value(
         &self,
         conn: &rusqlite::Connection,
         tenant_id: &str,
         resource_type: &str,
-        field: &str,
+        param_name: &str,
         value: &str,
     ) -> StorageResult<Vec<String>> {
-        // Search for resources where the field contains or matches the value
-        let escaped_value = value.replace('\'', "''");
+        // Use the pre-computed search_index table instead of json_extract
+        // This is consistent with our PrecomputedIndex strategy
+
+        // Handle token format (system|code or just code)
+        let (system_clause, search_value) = if value.contains('|') {
+            let parts: Vec<&str> = value.splitn(2, '|').collect();
+            if parts.len() == 2 && !parts[0].is_empty() {
+                // system|code format
+                (
+                    format!("AND value_token_system = '{}'", parts[0].replace('\'', "''")),
+                    parts[1].to_string(),
+                )
+            } else if parts.len() == 2 {
+                // |code format (no system)
+                (
+                    "AND (value_token_system IS NULL OR value_token_system = '')".to_string(),
+                    parts[1].to_string(),
+                )
+            } else {
+                (String::new(), value.to_string())
+            }
+        } else {
+            (String::new(), value.to_string())
+        };
+
+        let escaped_value = search_value.replace('\'', "''");
+
+        // Query the search_index table for matching resources
+        // Search across string, token code, and reference values
         let sql = format!(
-            "SELECT id FROM resources
-             WHERE tenant_id = ?1 AND resource_type = ?2 AND is_deleted = 0
-             AND (json_extract(data, '$.{}') LIKE '%{}%'
-                  OR json_extract(data, '$.{}.value') LIKE '%{}%'
-                  OR json_extract(data, '$.{}.coding') LIKE '%{}%')",
-            field, escaped_value, field, escaped_value, field, escaped_value
+            "SELECT DISTINCT resource_id FROM search_index
+             WHERE tenant_id = ?1 AND resource_type = ?2 AND param_name = ?3
+             AND (
+                 value_string LIKE '%{}%' COLLATE NOCASE
+                 OR value_token_code = '{}'
+                 OR value_token_code LIKE '%{}%'
+                 OR value_reference LIKE '%{}%'
+             )
+             {}",
+            escaped_value, escaped_value, escaped_value, escaped_value, system_clause
         );
 
         let mut stmt = conn
@@ -974,7 +1005,9 @@ impl SqliteBackend {
             .map_err(|e| internal_error(format!("Failed to prepare find query: {}", e)))?;
 
         let rows = stmt
-            .query_map(params![tenant_id, resource_type], |row| row.get::<_, String>(0))
+            .query_map(params![tenant_id, resource_type, param_name], |row| {
+                row.get::<_, String>(0)
+            })
             .map_err(|e| internal_error(format!("Failed to execute find query: {}", e)))?;
 
         let mut ids = Vec::new();
