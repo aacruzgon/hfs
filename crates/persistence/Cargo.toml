@@ -45,6 +45,7 @@ uuid = { version = "1", features = ["v4", "serde"] }
 base64 = "0.22"
 regex = "1"
 parking_lot = "0.12"
+json-patch = "3"
 
 # SQLite backend
 rusqlite = { version = "0.33", features = ["bundled", "serde_json"], optional = true }

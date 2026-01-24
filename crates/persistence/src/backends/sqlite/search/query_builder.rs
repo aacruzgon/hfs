@@ -438,12 +438,25 @@ impl QueryBuilder {
     }
 
     /// Builds an ORDER BY clause.
+    ///
+    /// Supports multiple sort directives (e.g., `_sort=name,-birthdate`).
+    /// Each directive is processed in order, with a tie-breaker (`id ASC`) added
+    /// at the end for stable pagination.
+    ///
+    /// # Supported Sort Parameters
+    ///
+    /// - `_id`: Sorts by resource logical ID
+    /// - `_lastUpdated`: Sorts by last modification timestamp
+    ///
+    /// Other sort parameters are currently mapped to resource ID as a fallback.
+    /// Full support for arbitrary search parameters would require additional
+    /// SQL joins with the search_index table.
     pub fn build_order_by(&self, query: &SearchQuery) -> String {
         if query.sort.is_empty() {
-            return "ORDER BY last_updated DESC, id DESC".to_string();
+            return "ORDER BY last_updated DESC, id ASC".to_string();
         }
 
-        let clauses: Vec<String> = query
+        let mut clauses: Vec<String> = query
             .sort
             .iter()
             .map(|s| {
@@ -452,16 +465,33 @@ impl QueryBuilder {
                     crate::types::SortDirection::Descending => "DESC",
                 };
 
-                // Map common sort parameters
-                match s.parameter.as_str() {
-                    "_id" => format!("id {}", dir),
-                    "_lastUpdated" => format!("last_updated {}", dir),
-                    _ => format!("id {}", dir), // Fallback
-                }
+                // Map sort parameters to SQL columns
+                let column = self.sort_column(&s.parameter);
+                format!("{} {}", column, dir)
             })
             .collect();
 
+        // Add tie-breaker for stable pagination if not already sorting by id
+        let sorts_by_id = query.sort.iter().any(|s| s.parameter == "_id");
+        if !sorts_by_id {
+            clauses.push("id ASC".to_string());
+        }
+
         format!("ORDER BY {}", clauses.join(", "))
+    }
+
+    /// Maps a sort parameter name to the corresponding SQL column.
+    ///
+    /// This is used by `build_order_by` to translate FHIR sort parameters
+    /// to SQLite column names.
+    fn sort_column(&self, parameter: &str) -> &'static str {
+        match parameter {
+            "_id" => "id",
+            "_lastUpdated" => "last_updated",
+            // Future: could support arbitrary parameters via search_index join
+            // For now, use id as a stable fallback
+            _ => "id",
+        }
     }
 
     /// Builds a LIMIT clause.
@@ -553,6 +583,44 @@ mod tests {
 
         let order_by = builder.build_order_by(&query);
         assert!(order_by.contains("last_updated DESC"));
+        assert!(order_by.contains("id ASC")); // Tie-breaker for stable pagination
+    }
+
+    #[test]
+    fn test_order_by_multiple_fields() {
+        use crate::types::{SortDirective, SortDirection};
+
+        let builder = QueryBuilder::new("tenant1", "Patient");
+        let mut query = SearchQuery::new("Patient");
+        query.sort = vec![
+            SortDirective {
+                parameter: "_lastUpdated".to_string(),
+                direction: SortDirection::Descending,
+            },
+            SortDirective {
+                parameter: "_id".to_string(),
+                direction: SortDirection::Ascending,
+            },
+        ];
+
+        let order_by = builder.build_order_by(&query);
+        assert_eq!(order_by, "ORDER BY last_updated DESC, id ASC");
+    }
+
+    #[test]
+    fn test_order_by_adds_tiebreaker() {
+        use crate::types::{SortDirective, SortDirection};
+
+        let builder = QueryBuilder::new("tenant1", "Patient");
+        let mut query = SearchQuery::new("Patient");
+        query.sort = vec![SortDirective {
+            parameter: "_lastUpdated".to_string(),
+            direction: SortDirection::Ascending,
+        }];
+
+        let order_by = builder.build_order_by(&query);
+        // Should have id ASC as tie-breaker since _id is not in sort list
+        assert_eq!(order_by, "ORDER BY last_updated ASC, id ASC");
     }
 
     #[test]

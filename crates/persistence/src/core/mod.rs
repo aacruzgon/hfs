@@ -114,8 +114,8 @@ pub use search::{
     TextSearchProvider,
 };
 pub use storage::{
-    ConditionalCreateResult, ConditionalDeleteResult, ConditionalStorage, ConditionalUpdateResult,
-    PurgableStorage, ResourceStorage,
+    ConditionalCreateResult, ConditionalDeleteResult, ConditionalPatchResult, ConditionalStorage,
+    ConditionalUpdateResult, PatchFormat, PurgableStorage, ResourceStorage,
 };
 pub use transaction::{
     BundleEntry, BundleEntryResult, BundleMethod, BundleProvider, BundleResult, BundleType,

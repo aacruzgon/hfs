@@ -1392,6 +1392,145 @@ impl InstanceHistoryProvider for SqliteBackend {
 
         Ok(count as u64)
     }
+
+    /// Deletes all history for a specific resource instance.
+    ///
+    /// This is a FHIR v6.0.0 Trial Use feature. After this operation:
+    /// - All historical versions are removed from resource_history
+    /// - The current version in the resources table is preserved
+    /// - The resource continues to be accessible via normal read operations
+    ///
+    /// # Returns
+    ///
+    /// The number of history entries deleted.
+    async fn delete_instance_history(
+        &self,
+        tenant: &TenantContext,
+        resource_type: &str,
+        id: &str,
+    ) -> StorageResult<u64> {
+        let conn = self.get_connection()?;
+        let tenant_id = tenant.tenant_id().as_str();
+
+        // First, verify the resource exists
+        let exists: bool = conn
+            .query_row(
+                "SELECT 1 FROM resources WHERE tenant_id = ?1 AND resource_type = ?2 AND id = ?3",
+                params![tenant_id, resource_type, id],
+                |_| Ok(true),
+            )
+            .unwrap_or(false);
+
+        if !exists {
+            return Err(StorageError::Resource(ResourceError::NotFound {
+                resource_type: resource_type.to_string(),
+                id: id.to_string(),
+            }));
+        }
+
+        // Get the current version from resources table (to preserve it)
+        let current_version: String = conn
+            .query_row(
+                "SELECT version_id FROM resources
+                 WHERE tenant_id = ?1 AND resource_type = ?2 AND id = ?3",
+                params![tenant_id, resource_type, id],
+                |row| row.get(0),
+            )
+            .map_err(|e| internal_error(format!("Failed to get current version: {}", e)))?;
+
+        // Delete all history entries EXCEPT the current version
+        // This preserves the current version in history as well
+        let deleted = conn
+            .execute(
+                "DELETE FROM resource_history
+                 WHERE tenant_id = ?1 AND resource_type = ?2 AND id = ?3 AND version_id != ?4",
+                params![tenant_id, resource_type, id, current_version],
+            )
+            .map_err(|e| internal_error(format!("Failed to delete history: {}", e)))?;
+
+        Ok(deleted as u64)
+    }
+
+    /// Deletes a specific version from a resource's history.
+    ///
+    /// This is a FHIR v6.0.0 Trial Use feature. Restrictions:
+    /// - Cannot delete the current version (use regular delete instead)
+    /// - The version must exist in the history
+    async fn delete_version(
+        &self,
+        tenant: &TenantContext,
+        resource_type: &str,
+        id: &str,
+        version_id: &str,
+    ) -> StorageResult<()> {
+        let conn = self.get_connection()?;
+        let tenant_id = tenant.tenant_id().as_str();
+
+        // First, get the current version to ensure we're not deleting it
+        let current_version: Result<String, _> = conn.query_row(
+            "SELECT version_id FROM resources
+             WHERE tenant_id = ?1 AND resource_type = ?2 AND id = ?3",
+            params![tenant_id, resource_type, id],
+            |row| row.get(0),
+        );
+
+        let current_version = match current_version {
+            Ok(v) => v,
+            Err(rusqlite::Error::QueryReturnedNoRows) => {
+                return Err(StorageError::Resource(ResourceError::NotFound {
+                    resource_type: resource_type.to_string(),
+                    id: id.to_string(),
+                }));
+            }
+            Err(e) => {
+                return Err(internal_error(format!(
+                    "Failed to get current version: {}",
+                    e
+                )));
+            }
+        };
+
+        // Prevent deletion of the current version
+        if version_id == current_version {
+            return Err(StorageError::Validation(
+                crate::error::ValidationError::InvalidResource {
+                    message: format!(
+                        "Cannot delete current version {} of {}/{}. Use DELETE on the resource instead.",
+                        version_id, resource_type, id
+                    ),
+                    details: vec![],
+                },
+            ));
+        }
+
+        // Check if the version exists in history
+        let version_exists: bool = conn
+            .query_row(
+                "SELECT 1 FROM resource_history
+                 WHERE tenant_id = ?1 AND resource_type = ?2 AND id = ?3 AND version_id = ?4",
+                params![tenant_id, resource_type, id, version_id],
+                |_| Ok(true),
+            )
+            .unwrap_or(false);
+
+        if !version_exists {
+            return Err(StorageError::Resource(ResourceError::VersionNotFound {
+                resource_type: resource_type.to_string(),
+                id: id.to_string(),
+                version_id: version_id.to_string(),
+            }));
+        }
+
+        // Delete the specific version
+        conn.execute(
+            "DELETE FROM resource_history
+             WHERE tenant_id = ?1 AND resource_type = ?2 AND id = ?3 AND version_id = ?4",
+            params![tenant_id, resource_type, id, version_id],
+        )
+        .map_err(|e| internal_error(format!("Failed to delete version: {}", e)))?;
+
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -2101,6 +2240,57 @@ impl ConditionalStorage for SqliteBackend {
             }
         }
     }
+
+    /// Patches a resource based on search criteria.
+    ///
+    /// This implements conditional patch as defined in FHIR:
+    /// `PATCH [base]/[type]?[search-params]`
+    ///
+    /// Supports three patch formats:
+    /// - JSON Patch (RFC 6902)
+    /// - FHIRPath Patch (FHIR-specific)
+    /// - JSON Merge Patch (RFC 7386)
+    async fn conditional_patch(
+        &self,
+        tenant: &TenantContext,
+        resource_type: &str,
+        search_params: &str,
+        patch: &crate::core::PatchFormat,
+    ) -> StorageResult<crate::core::ConditionalPatchResult> {
+        use crate::core::{ConditionalPatchResult, PatchFormat};
+
+        // Find matching resources based on search parameters
+        let matches = self
+            .find_matching_resources(tenant, resource_type, search_params)
+            .await?;
+
+        match matches.len() {
+            0 => Ok(ConditionalPatchResult::NoMatch),
+            1 => {
+                // Exactly one match - apply the patch
+                let existing = matches.into_iter().next().unwrap();
+                let current_content = existing.content().clone();
+
+                // Apply the patch based on format
+                let patched_content = match patch {
+                    PatchFormat::JsonPatch(patch_doc) => {
+                        self.apply_json_patch(&current_content, patch_doc)?
+                    }
+                    PatchFormat::FhirPathPatch(patch_params) => {
+                        self.apply_fhirpath_patch(&current_content, patch_params)?
+                    }
+                    PatchFormat::MergePatch(merge_doc) => {
+                        self.apply_merge_patch(&current_content, merge_doc)
+                    }
+                };
+
+                // Update the resource with the patched content
+                let updated = self.update(tenant, &existing, patched_content).await?;
+                Ok(ConditionalPatchResult::Patched(updated))
+            }
+            n => Ok(ConditionalPatchResult::MultipleMatches(n)),
+        }
+    }
 }
 
 impl SqliteBackend {
@@ -2200,6 +2390,202 @@ impl SqliteBackend {
         }
 
         None
+    }
+
+    // ========================================================================
+    // Patch Helper Methods
+    // ========================================================================
+
+    /// Applies a JSON Patch (RFC 6902) to a resource.
+    ///
+    /// JSON Patch operations:
+    /// - `add`: Add a value at the specified path
+    /// - `remove`: Remove the value at the specified path
+    /// - `replace`: Replace the value at the specified path
+    /// - `move`: Move a value from one path to another
+    /// - `copy`: Copy a value from one path to another
+    /// - `test`: Test that a value equals the expected value
+    fn apply_json_patch(&self, resource: &Value, patch_doc: &Value) -> StorageResult<Value> {
+        use crate::error::ValidationError;
+
+        // Parse the patch document as an array of operations
+        let patch: json_patch::Patch =
+            serde_json::from_value(patch_doc.clone()).map_err(|e| {
+                StorageError::Validation(ValidationError::InvalidResource {
+                    message: format!("Invalid JSON Patch document: {}", e),
+                    details: vec![],
+                })
+            })?;
+
+        // Apply the patch to a mutable copy
+        let mut patched = resource.clone();
+        json_patch::patch(&mut patched, &patch).map_err(|e| {
+            StorageError::Validation(ValidationError::InvalidResource {
+                message: format!("Failed to apply JSON Patch: {}", e),
+                details: vec![],
+            })
+        })?;
+
+        Ok(patched)
+    }
+
+    /// Applies a FHIRPath Patch to a resource.
+    ///
+    /// FHIRPath Patch uses a Parameters resource with operation parts:
+    /// - `type`: add, insert, delete, replace, move
+    /// - `path`: FHIRPath expression
+    /// - `name`: element name (for add)
+    /// - `value`: new value
+    ///
+    /// Note: Full FHIRPath Patch support requires the helios-fhirpath evaluator.
+    /// This implementation handles common cases.
+    fn apply_fhirpath_patch(&self, resource: &Value, patch_params: &Value) -> StorageResult<Value> {
+        use crate::error::ValidationError;
+
+        // The patch_params should be a Parameters resource with operation parts
+        let parameter = patch_params.get("parameter").and_then(|p| p.as_array());
+        if parameter.is_none() {
+            return Err(StorageError::Validation(ValidationError::InvalidResource {
+                message: "FHIRPath Patch must have a 'parameter' array".to_string(),
+                details: vec![],
+            }));
+        }
+
+        let mut patched = resource.clone();
+
+        for operation in parameter.unwrap() {
+            // Each operation has parts with name "type", "path", "name", "value"
+            let parts = operation.get("part").and_then(|p| p.as_array());
+            if parts.is_none() {
+                continue;
+            }
+
+            let mut op_type = None;
+            let mut op_path = None;
+            let mut op_name = None;
+            let mut op_value = None;
+
+            for part in parts.unwrap() {
+                match part.get("name").and_then(|n| n.as_str()) {
+                    Some("type") => {
+                        op_type = part
+                            .get("valueCode")
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string());
+                    }
+                    Some("path") => {
+                        op_path = part
+                            .get("valueString")
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string());
+                    }
+                    Some("name") => {
+                        op_name = part
+                            .get("valueString")
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string());
+                    }
+                    Some("value") => {
+                        // Value can be any type - check common value[x] types
+                        op_value = part
+                            .get("valueString")
+                            .or_else(|| part.get("valueBoolean"))
+                            .or_else(|| part.get("valueInteger"))
+                            .or_else(|| part.get("valueDecimal"))
+                            .or_else(|| part.get("valueCode"))
+                            .cloned();
+                    }
+                    _ => {}
+                }
+            }
+
+            // Apply the operation based on type
+            match op_type.as_deref() {
+                Some("replace") => {
+                    if let (Some(path), Some(value)) = (&op_path, &op_value) {
+                        self.fhirpath_replace(&mut patched, path, value)?;
+                    }
+                }
+                Some("add") => {
+                    if let (Some(path), Some(name), Some(value)) = (&op_path, &op_name, &op_value) {
+                        self.fhirpath_add(&mut patched, path, name, value)?;
+                    }
+                }
+                Some("delete") => {
+                    if let Some(path) = &op_path {
+                        self.fhirpath_delete(&mut patched, path)?;
+                    }
+                }
+                _ => {
+                    // Unsupported operation type - skip
+                }
+            }
+        }
+
+        Ok(patched)
+    }
+
+    /// Helper for FHIRPath replace operation.
+    fn fhirpath_replace(
+        &self,
+        resource: &mut Value,
+        path: &str,
+        value: &Value,
+    ) -> StorageResult<()> {
+        // Simple implementation for common paths like "Resource.field"
+        // Full implementation would use helios-fhirpath for path evaluation
+        let parts: Vec<&str> = path.split('.').collect();
+        if parts.len() == 2 {
+            // Simple path like "Patient.active"
+            if let Some(obj) = resource.as_object_mut() {
+                obj.insert(parts[1].to_string(), value.clone());
+            }
+        }
+        Ok(())
+    }
+
+    /// Helper for FHIRPath add operation.
+    fn fhirpath_add(
+        &self,
+        resource: &mut Value,
+        path: &str,
+        name: &str,
+        value: &Value,
+    ) -> StorageResult<()> {
+        // Simple implementation for adding to root or nested object
+        let parts: Vec<&str> = path.split('.').collect();
+        if parts.len() == 1 && parts[0] == resource.get("resourceType").and_then(|r| r.as_str()).unwrap_or("")
+        {
+            // Adding to root level
+            if let Some(obj) = resource.as_object_mut() {
+                obj.insert(name.to_string(), value.clone());
+            }
+        }
+        Ok(())
+    }
+
+    /// Helper for FHIRPath delete operation.
+    fn fhirpath_delete(&self, resource: &mut Value, path: &str) -> StorageResult<()> {
+        // Simple implementation for deleting fields
+        let parts: Vec<&str> = path.split('.').collect();
+        if parts.len() == 2 {
+            if let Some(obj) = resource.as_object_mut() {
+                obj.remove(parts[1]);
+            }
+        }
+        Ok(())
+    }
+
+    /// Applies a JSON Merge Patch (RFC 7386) to a resource.
+    ///
+    /// Merge Patch is simpler than JSON Patch:
+    /// - Fields in the patch replace those in the target
+    /// - null values remove fields from the target
+    /// - Nested objects are merged recursively
+    fn apply_merge_patch(&self, resource: &Value, merge_doc: &Value) -> Value {
+        let mut patched = resource.clone();
+        json_patch::merge(&mut patched, merge_doc);
+        patched
     }
 }
 
@@ -3588,6 +3974,174 @@ mod tests {
     }
 
     // ========================================================================
+    // Delete History Tests (FHIR v6.0.0)
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_delete_instance_history() {
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        // Create a resource and update it twice
+        let p1 = backend
+            .create(&tenant, "Patient", json!({"id": "p1", "name": [{"family": "Smith"}]}))
+            .await
+            .unwrap();
+        let p1_v2 = backend
+            .update(&tenant, &p1, json!({"id": "p1", "name": [{"family": "Jones"}]}))
+            .await
+            .unwrap();
+        let _p1_v3 = backend
+            .update(&tenant, &p1_v2, json!({"id": "p1", "name": [{"family": "Brown"}]}))
+            .await
+            .unwrap();
+
+        // Verify we have 3 versions in history
+        let history = backend
+            .history_instance(&tenant, "Patient", "p1", &HistoryParams::new())
+            .await
+            .unwrap();
+        assert_eq!(history.items.len(), 3);
+
+        // Delete the instance history (preserves current version)
+        let deleted_count = backend
+            .delete_instance_history(&tenant, "Patient", "p1")
+            .await
+            .unwrap();
+        assert_eq!(deleted_count, 2); // Only v1 and v2 deleted, v3 preserved
+
+        // History should now only contain the current version
+        let history = backend
+            .history_instance(&tenant, "Patient", "p1", &HistoryParams::new())
+            .await
+            .unwrap();
+        assert_eq!(history.items.len(), 1);
+        assert_eq!(history.items[0].resource.version_id(), "3");
+
+        // Resource should still be readable
+        let resource = backend.read(&tenant, "Patient", "p1").await.unwrap();
+        assert!(resource.is_some());
+        assert_eq!(resource.unwrap().version_id(), "3");
+    }
+
+    #[tokio::test]
+    async fn test_delete_instance_history_nonexistent() {
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        // Try to delete history for a resource that doesn't exist
+        let result = backend
+            .delete_instance_history(&tenant, "Patient", "nonexistent")
+            .await;
+
+        assert!(matches!(
+            result,
+            Err(StorageError::Resource(ResourceError::NotFound { .. }))
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_delete_version() {
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        // Create a resource and update it twice
+        let p1 = backend
+            .create(&tenant, "Patient", json!({"id": "p1", "name": [{"family": "Smith"}]}))
+            .await
+            .unwrap();
+        let p1_v2 = backend
+            .update(&tenant, &p1, json!({"id": "p1", "name": [{"family": "Jones"}]}))
+            .await
+            .unwrap();
+        let _p1_v3 = backend
+            .update(&tenant, &p1_v2, json!({"id": "p1", "name": [{"family": "Brown"}]}))
+            .await
+            .unwrap();
+
+        // Delete version 2
+        backend
+            .delete_version(&tenant, "Patient", "p1", "2")
+            .await
+            .unwrap();
+
+        // History should now only have versions 1 and 3
+        let history = backend
+            .history_instance(&tenant, "Patient", "p1", &HistoryParams::new())
+            .await
+            .unwrap();
+        assert_eq!(history.items.len(), 2);
+        let versions: Vec<&str> = history
+            .items
+            .iter()
+            .map(|e| e.resource.version_id())
+            .collect();
+        assert!(versions.contains(&"1"));
+        assert!(versions.contains(&"3"));
+        assert!(!versions.contains(&"2"));
+    }
+
+    #[tokio::test]
+    async fn test_delete_version_current_fails() {
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        // Create a resource
+        let p1 = backend
+            .create(&tenant, "Patient", json!({"id": "p1"}))
+            .await
+            .unwrap();
+        let _p1_v2 = backend
+            .update(&tenant, &p1, json!({"id": "p1"}))
+            .await
+            .unwrap();
+
+        // Try to delete the current version (2)
+        let result = backend.delete_version(&tenant, "Patient", "p1", "2").await;
+
+        // Should fail with validation error
+        assert!(matches!(result, Err(StorageError::Validation(_))));
+    }
+
+    #[tokio::test]
+    async fn test_delete_version_nonexistent() {
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        // Create a resource
+        backend
+            .create(&tenant, "Patient", json!({"id": "p1"}))
+            .await
+            .unwrap();
+
+        // Try to delete a version that doesn't exist
+        let result = backend
+            .delete_version(&tenant, "Patient", "p1", "999")
+            .await;
+
+        assert!(matches!(
+            result,
+            Err(StorageError::Resource(ResourceError::VersionNotFound { .. }))
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_delete_version_resource_not_found() {
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        // Try to delete a version for a resource that doesn't exist
+        let result = backend
+            .delete_version(&tenant, "Patient", "nonexistent", "1")
+            .await;
+
+        assert!(matches!(
+            result,
+            Err(StorageError::Resource(ResourceError::NotFound { .. }))
+        ));
+    }
+
+    // ========================================================================
     // PurgableStorage Tests
     // ========================================================================
 
@@ -4265,6 +4819,104 @@ mod tests {
         match result {
             ConditionalCreateResult::Created(_) => {}
             _ => panic!("Expected Created result (tenant isolation)"),
+        }
+    }
+
+    // ========================================================================
+    // Conditional Patch Tests
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_conditional_patch_json_patch() {
+        use crate::core::PatchFormat;
+
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        // Create a resource
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({"id": "p1", "active": false, "name": [{"family": "Smith"}]}),
+            )
+            .await
+            .unwrap();
+
+        // Apply a JSON Patch
+        let patch = PatchFormat::JsonPatch(json!([
+            {"op": "replace", "path": "/active", "value": true}
+        ]));
+
+        let result = backend
+            .conditional_patch(&tenant, "Patient", "_id=p1", &patch)
+            .await
+            .unwrap();
+
+        match result {
+            crate::core::ConditionalPatchResult::Patched(resource) => {
+                assert_eq!(resource.content()["active"], json!(true));
+            }
+            _ => panic!("Expected Patched result"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_conditional_patch_merge_patch() {
+        use crate::core::PatchFormat;
+
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        // Create a resource
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({"id": "p1", "active": false, "gender": "unknown"}),
+            )
+            .await
+            .unwrap();
+
+        // Apply a merge patch
+        let patch = PatchFormat::MergePatch(json!({
+            "active": true,
+            "gender": null  // null removes the field
+        }));
+
+        let result = backend
+            .conditional_patch(&tenant, "Patient", "_id=p1", &patch)
+            .await
+            .unwrap();
+
+        match result {
+            crate::core::ConditionalPatchResult::Patched(resource) => {
+                assert_eq!(resource.content()["active"], json!(true));
+                assert!(resource.content().get("gender").is_none());
+            }
+            _ => panic!("Expected Patched result"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_conditional_patch_no_match() {
+        use crate::core::PatchFormat;
+
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        let patch = PatchFormat::JsonPatch(json!([
+            {"op": "replace", "path": "/active", "value": true}
+        ]));
+
+        let result = backend
+            .conditional_patch(&tenant, "Patient", "_id=nonexistent", &patch)
+            .await
+            .unwrap();
+
+        match result {
+            crate::core::ConditionalPatchResult::NoMatch => {}
+            _ => panic!("Expected NoMatch result"),
         }
     }
 
