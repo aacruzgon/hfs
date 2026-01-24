@@ -1624,3 +1624,288 @@ async fn test_reindex_operation_cancel() {
         "Job should be cancelled or already completed"
     );
 }
+
+// ============================================================================
+// Conditional Operations Tests (using search index)
+// ============================================================================
+
+use helios_persistence::core::{
+    ConditionalStorage, ConditionalCreateResult, ConditionalUpdateResult, ConditionalDeleteResult,
+};
+
+#[tokio::test]
+async fn test_conditional_create_with_identifier() {
+    let backend = create_backend();
+    let tenant = create_tenant("test-tenant");
+
+    // Create a patient with an identifier
+    let patient = json!({
+        "resourceType": "Patient",
+        "identifier": [{"system": "http://hospital.org/mrn", "value": "MRN-12345"}],
+        "name": [{"family": "Original"}]
+    });
+
+    // First conditional create - should create since no match
+    let result = backend.conditional_create(
+        &tenant,
+        "Patient",
+        patient.clone(),
+        "identifier=http://hospital.org/mrn|MRN-12345",
+    ).await.unwrap();
+
+    assert!(
+        matches!(result, ConditionalCreateResult::Created(_)),
+        "First conditional create should succeed"
+    );
+
+    // Extract the created resource
+    let created = match result {
+        ConditionalCreateResult::Created(r) => r,
+        _ => panic!("Expected Created result"),
+    };
+    let created_id = created.id().to_string();
+
+    // Second conditional create with same identifier - should return existing
+    let patient2 = json!({
+        "resourceType": "Patient",
+        "identifier": [{"system": "http://hospital.org/mrn", "value": "MRN-12345"}],
+        "name": [{"family": "Duplicate"}]
+    });
+
+    let result2 = backend.conditional_create(
+        &tenant,
+        "Patient",
+        patient2,
+        "identifier=http://hospital.org/mrn|MRN-12345",
+    ).await.unwrap();
+
+    assert!(
+        matches!(result2, ConditionalCreateResult::Exists(_)),
+        "Second conditional create should return existing resource"
+    );
+
+    // Verify it's the same resource
+    if let ConditionalCreateResult::Exists(existing) = result2 {
+        assert_eq!(existing.id(), created_id, "Should return same resource");
+    }
+}
+
+#[tokio::test]
+async fn test_conditional_create_with_id() {
+    let backend = create_backend();
+    let tenant = create_tenant("test-tenant");
+
+    // Create a patient with specific ID
+    let patient = json!({
+        "resourceType": "Patient",
+        "id": "test-patient-cond",
+        "name": [{"family": "TestPatient"}]
+    });
+    backend.create(&tenant, "Patient", patient.clone()).await.unwrap();
+
+    // Conditional create with _id search - should find existing
+    let patient2 = json!({
+        "resourceType": "Patient",
+        "name": [{"family": "Duplicate"}]
+    });
+
+    let result = backend.conditional_create(
+        &tenant,
+        "Patient",
+        patient2,
+        "_id=test-patient-cond",
+    ).await.unwrap();
+
+    assert!(
+        matches!(result, ConditionalCreateResult::Exists(_)),
+        "Conditional create with _id should find existing resource"
+    );
+
+    if let ConditionalCreateResult::Exists(existing) = result {
+        assert_eq!(existing.id(), "test-patient-cond");
+    }
+}
+
+#[tokio::test]
+async fn test_conditional_update_with_identifier() {
+    let backend = create_backend();
+    let tenant = create_tenant("test-tenant");
+
+    // Create a patient with an identifier
+    let patient = json!({
+        "resourceType": "Patient",
+        "identifier": [{"system": "http://hospital.org/mrn", "value": "MRN-UPDATE-1"}],
+        "name": [{"family": "Original"}]
+    });
+    backend.create(&tenant, "Patient", patient).await.unwrap();
+
+    // Conditional update - should find and update
+    let updated_patient = json!({
+        "resourceType": "Patient",
+        "identifier": [{"system": "http://hospital.org/mrn", "value": "MRN-UPDATE-1"}],
+        "name": [{"family": "Updated"}]
+    });
+
+    let result = backend.conditional_update(
+        &tenant,
+        "Patient",
+        updated_patient,
+        "identifier=http://hospital.org/mrn|MRN-UPDATE-1",
+        false,
+    ).await.unwrap();
+
+    assert!(
+        matches!(result, ConditionalUpdateResult::Updated(_)),
+        "Conditional update should find and update resource"
+    );
+
+    // Verify the update
+    if let ConditionalUpdateResult::Updated(updated) = result {
+        let content = updated.content();
+        let family = content["name"][0]["family"].as_str();
+        assert_eq!(family, Some("Updated"), "Resource should be updated");
+    }
+}
+
+#[tokio::test]
+async fn test_conditional_update_with_upsert() {
+    let backend = create_backend();
+    let tenant = create_tenant("test-tenant");
+
+    // Conditional update with upsert=true for non-existent resource
+    let patient = json!({
+        "resourceType": "Patient",
+        "identifier": [{"system": "http://hospital.org/mrn", "value": "MRN-UPSERT-1"}],
+        "name": [{"family": "NewPatient"}]
+    });
+
+    let result = backend.conditional_update(
+        &tenant,
+        "Patient",
+        patient,
+        "identifier=http://hospital.org/mrn|MRN-UPSERT-1",
+        true, // upsert=true
+    ).await.unwrap();
+
+    assert!(
+        matches!(result, ConditionalUpdateResult::Created(_)),
+        "Conditional update with upsert should create when no match"
+    );
+}
+
+#[tokio::test]
+async fn test_conditional_delete_with_identifier() {
+    let backend = create_backend();
+    let tenant = create_tenant("test-tenant");
+
+    // Create a patient with an identifier
+    let patient = json!({
+        "resourceType": "Patient",
+        "identifier": [{"system": "http://hospital.org/mrn", "value": "MRN-DELETE-1"}],
+        "name": [{"family": "ToDelete"}]
+    });
+    backend.create(&tenant, "Patient", patient).await.unwrap();
+
+    // Conditional delete - should find and delete
+    let result = backend.conditional_delete(
+        &tenant,
+        "Patient",
+        "identifier=http://hospital.org/mrn|MRN-DELETE-1",
+    ).await.unwrap();
+
+    assert!(
+        matches!(result, ConditionalDeleteResult::Deleted),
+        "Conditional delete should find and delete resource"
+    );
+
+    // Verify deletion by searching - should not find
+    let query = SearchQuery::new("Patient").with_parameter(SearchParameter {
+        name: "identifier".to_string(),
+        param_type: SearchParamType::Token,
+        modifier: None,
+        values: vec![SearchValue::eq("http://hospital.org/mrn|MRN-DELETE-1")],
+        chain: vec![],
+    });
+
+    let search_result = backend.search(&tenant, &query).await.unwrap();
+    assert!(search_result.resources.items.is_empty(), "Resource should be deleted");
+}
+
+#[tokio::test]
+async fn test_conditional_operations_tenant_isolation() {
+    let backend = create_backend();
+    let tenant_a = create_tenant("tenant-a");
+    let tenant_b = create_tenant("tenant-b");
+
+    // Create patient in tenant A
+    let patient = json!({
+        "resourceType": "Patient",
+        "identifier": [{"system": "http://hospital.org/mrn", "value": "MRN-SHARED"}],
+        "name": [{"family": "TenantA"}]
+    });
+    backend.create(&tenant_a, "Patient", patient).await.unwrap();
+
+    // Conditional create in tenant B with same identifier - should create (different tenant)
+    let patient_b = json!({
+        "resourceType": "Patient",
+        "identifier": [{"system": "http://hospital.org/mrn", "value": "MRN-SHARED"}],
+        "name": [{"family": "TenantB"}]
+    });
+
+    let result = backend.conditional_create(
+        &tenant_b,
+        "Patient",
+        patient_b,
+        "identifier=http://hospital.org/mrn|MRN-SHARED",
+    ).await.unwrap();
+
+    assert!(
+        matches!(result, ConditionalCreateResult::Created(_)),
+        "Conditional create should succeed in different tenant"
+    );
+}
+
+#[tokio::test]
+async fn test_conditional_create_multiple_matches() {
+    let backend = create_backend();
+    let tenant = create_tenant("test-tenant");
+
+    // Create two patients with same identifier value but different systems
+    // that would both match a code-only search
+    let patient1 = json!({
+        "resourceType": "Patient",
+        "identifier": [{"system": "http://system-a.org", "value": "SHARED-VALUE"}],
+        "name": [{"family": "Patient1"}]
+    });
+    backend.create(&tenant, "Patient", patient1).await.unwrap();
+
+    let patient2 = json!({
+        "resourceType": "Patient",
+        "identifier": [{"system": "http://system-b.org", "value": "SHARED-VALUE"}],
+        "name": [{"family": "Patient2"}]
+    });
+    backend.create(&tenant, "Patient", patient2).await.unwrap();
+
+    // Conditional create with code-only search (no system) - should find multiple matches
+    let patient3 = json!({
+        "resourceType": "Patient",
+        "identifier": [{"value": "SHARED-VALUE"}],
+        "name": [{"family": "Patient3"}]
+    });
+
+    let result = backend.conditional_create(
+        &tenant,
+        "Patient",
+        patient3,
+        "identifier=SHARED-VALUE",
+    ).await.unwrap();
+
+    assert!(
+        matches!(result, ConditionalCreateResult::MultipleMatches(_)),
+        "Should report multiple matches"
+    );
+
+    if let ConditionalCreateResult::MultipleMatches(count) = result {
+        assert_eq!(count, 2, "Should find exactly 2 matching patients");
+    }
+}

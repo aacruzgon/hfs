@@ -14,8 +14,9 @@ use crate::core::transaction::{
 };
 use crate::core::{
     ConditionalCreateResult, ConditionalDeleteResult, ConditionalStorage, ConditionalUpdateResult,
-    PurgableStorage, ResourceStorage, VersionedStorage,
+    PurgableStorage, ResourceStorage, SearchProvider, VersionedStorage,
 };
+use crate::types::{SearchParameter, SearchParamType, SearchQuery, SearchValue};
 use crate::error::TransactionError;
 use crate::types::Pagination;
 use crate::error::{BackendError, ConcurrencyError, ResourceError, StorageError, StorageResult};
@@ -1917,109 +1918,101 @@ impl ConditionalStorage for SqliteBackend {
 
 impl SqliteBackend {
     /// Find resources matching the given search parameters.
-    /// This is a simplified implementation that supports basic parameters.
+    ///
+    /// Uses the SearchProvider implementation to leverage the pre-computed search index,
+    /// ensuring consistent search behavior with the main search API.
     async fn find_matching_resources(
         &self,
         tenant: &TenantContext,
         resource_type: &str,
-        search_params: &str,
+        search_params_str: &str,
     ) -> StorageResult<Vec<StoredResource>> {
-        let conn = self.get_connection()?;
-        let tenant_id = tenant.tenant_id().as_str();
+        // Parse search parameters into (name, value) pairs
+        let parsed_params = parse_simple_search_params(search_params_str);
 
-        // Parse search parameters
-        let params = parse_simple_search_params(search_params);
+        if parsed_params.is_empty() {
+            // No search params means match all - but for conditional ops this is unusual
+            // Return empty to avoid unintended matches
+            return Ok(Vec::new());
+        }
 
-        // Build the WHERE clause
-        let mut conditions = vec![
-            "tenant_id = ?1".to_string(),
-            "resource_type = ?2".to_string(),
-            "is_deleted = 0".to_string(),
-        ];
+        // Build SearchParameter objects by looking up types from the registry
+        let search_params = self.build_search_parameters(resource_type, &parsed_params)?;
 
-        // Handle common search parameters
-        for (name, value) in &params {
-            match name.as_str() {
-                "_id" => {
-                    // Direct ID match
-                    conditions.push(format!("id = '{}'", value.replace('\'', "''")));
-                }
-                "identifier" => {
-                    // Search in JSON for identifier value
-                    // Handle format: system|value or just value
-                    if value.contains('|') {
-                        let parts: Vec<&str> = value.splitn(2, '|').collect();
-                        let system = parts[0].replace('\'', "''");
-                        let id_value = parts[1].replace('\'', "''");
-                        conditions.push(format!(
-                            "json_extract(data, '$.identifier') LIKE '%\"system\":\"{}\"%' AND json_extract(data, '$.identifier') LIKE '%\"value\":\"{}\"%'",
-                            system, id_value
-                        ));
-                    } else {
-                        let escaped_value = value.replace('\'', "''");
-                        conditions.push(format!(
-                            "json_extract(data, '$.identifier') LIKE '%\"value\":\"{}\"%'",
-                            escaped_value
-                        ));
+        // Build a SearchQuery
+        let query = SearchQuery {
+            resource_type: resource_type.to_string(),
+            parameters: search_params,
+            // No pagination limit for conditional operations - we need all matches
+            count: Some(1000), // Reasonable upper limit for conditional matching
+            ..Default::default()
+        };
+
+        // Use the SearchProvider implementation which uses the search index
+        let result = <Self as SearchProvider>::search(self, tenant, &query).await?;
+
+        Ok(result.resources.items)
+    }
+
+    /// Builds SearchParameter objects from parsed (name, value) pairs.
+    ///
+    /// Looks up the parameter type from the registry, falling back to sensible defaults
+    /// for common parameters when not found.
+    fn build_search_parameters(
+        &self,
+        resource_type: &str,
+        params: &[(String, String)],
+    ) -> StorageResult<Vec<SearchParameter>> {
+        let registry = self.search_registry().read();
+        let mut search_params = Vec::with_capacity(params.len());
+
+        for (name, value) in params {
+            // Look up the parameter definition to get its type
+            let param_type = self
+                .lookup_param_type(&registry, resource_type, name)
+                .unwrap_or_else(|| {
+                    // Fallback for common parameters when not in registry
+                    match name.as_str() {
+                        "_id" => SearchParamType::Token,
+                        "_lastUpdated" => SearchParamType::Date,
+                        "_tag" | "_profile" | "_security" => SearchParamType::Token,
+                        "identifier" => SearchParamType::Token,
+                        _ => SearchParamType::String, // Default fallback
                     }
-                }
-                _ => {
-                    // For other parameters, try a simple JSON path lookup
-                    let escaped_value = value.replace('\'', "''");
-                    conditions.push(format!(
-                        "(json_extract(data, '$.{}') = '{}' OR json_extract(data, '$.{}') LIKE '%{}%')",
-                        name, escaped_value, name, escaped_value
-                    ));
-                }
-            }
+                });
+
+            search_params.push(SearchParameter {
+                name: name.clone(),
+                param_type,
+                modifier: None,
+                values: vec![SearchValue::parse(value)],
+                chain: vec![],
+            });
         }
 
-        let sql = format!(
-            "SELECT id, version_id, data, last_updated FROM resources WHERE {}",
-            conditions.join(" AND ")
-        );
+        Ok(search_params)
+    }
 
-        let mut stmt = conn
-            .prepare(&sql)
-            .map_err(|e| internal_error(format!("Failed to prepare conditional query: {}", e)))?;
-
-        let rows = stmt
-            .query_map(params![tenant_id, resource_type], |row| {
-                let id: String = row.get(0)?;
-                let version_id: String = row.get(1)?;
-                let data: Vec<u8> = row.get(2)?;
-                let last_updated: String = row.get(3)?;
-                Ok((id, version_id, data, last_updated))
-            })
-            .map_err(|e| internal_error(format!("Failed to execute conditional query: {}", e)))?;
-
-        let mut resources = Vec::new();
-        for row in rows {
-            let (id, version_id, data, last_updated_str) =
-                row.map_err(|e| internal_error(format!("Failed to read row: {}", e)))?;
-
-            let json_data: serde_json::Value = serde_json::from_slice(&data)
-                .map_err(|e| serialization_error(format!("Failed to deserialize resource: {}", e)))?;
-
-            let last_updated = chrono::DateTime::parse_from_rfc3339(&last_updated_str)
-                .map_err(|e| internal_error(format!("Failed to parse last_updated: {}", e)))?
-                .with_timezone(&Utc);
-
-            let resource = StoredResource::from_storage(
-                resource_type,
-                &id,
-                &version_id,
-                tenant.tenant_id().clone(),
-                json_data,
-                last_updated,
-                last_updated,
-                None,
-            );
-
-            resources.push(resource);
+    /// Looks up a search parameter type from the registry.
+    ///
+    /// Checks both the specific resource type and "Resource" base type for common params.
+    fn lookup_param_type(
+        &self,
+        registry: &crate::search::SearchParameterRegistry,
+        resource_type: &str,
+        param_name: &str,
+    ) -> Option<SearchParamType> {
+        // First try the specific resource type
+        if let Some(def) = registry.get_param(resource_type, param_name) {
+            return Some(def.param_type);
         }
 
-        Ok(resources)
+        // Then try "Resource" for common parameters like _id, _lastUpdated
+        if let Some(def) = registry.get_param("Resource", param_name) {
+            return Some(def.param_type);
+        }
+
+        None
     }
 }
 
