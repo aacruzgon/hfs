@@ -186,6 +186,11 @@ impl SqliteBackend {
         })
     }
 
+    /// Get the search parameter registry.
+    pub(crate) fn get_search_registry(&self) -> Arc<RwLock<SearchParameterRegistry>> {
+        Arc::clone(&self.search_registry)
+    }
+
     /// Configure connection settings.
     fn configure_connection(&self) -> StorageResult<()> {
         let conn = self.get_connection()?;

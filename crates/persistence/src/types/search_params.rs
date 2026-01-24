@@ -341,6 +341,9 @@ pub struct ChainedParameter {
 }
 
 /// A reverse chained parameter (_has).
+///
+/// Supports nested `_has` queries like:
+/// `Patient?_has:Observation:subject:_has:Provenance:target:agent=X`
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReverseChainedParameter {
     /// The resource type that references this resource.
@@ -350,10 +353,101 @@ pub struct ReverseChainedParameter {
     pub reference_param: String,
 
     /// The search parameter on the source type.
+    /// For nested `_has`, this may be empty or "_has" indicating nesting.
     pub search_param: String,
 
-    /// The search value.
-    pub value: SearchValue,
+    /// The search value (None if this is a nested `_has` with further chaining).
+    pub value: Option<SearchValue>,
+
+    /// Nested reverse chain for multi-level `_has` queries.
+    pub nested: Option<Box<ReverseChainedParameter>>,
+}
+
+impl ReverseChainedParameter {
+    /// Creates a new terminal (non-nested) reverse chain parameter.
+    pub fn terminal(
+        source_type: impl Into<String>,
+        reference_param: impl Into<String>,
+        search_param: impl Into<String>,
+        value: SearchValue,
+    ) -> Self {
+        Self {
+            source_type: source_type.into(),
+            reference_param: reference_param.into(),
+            search_param: search_param.into(),
+            value: Some(value),
+            nested: None,
+        }
+    }
+
+    /// Creates a nested reverse chain parameter.
+    pub fn nested(
+        source_type: impl Into<String>,
+        reference_param: impl Into<String>,
+        inner: ReverseChainedParameter,
+    ) -> Self {
+        Self {
+            source_type: source_type.into(),
+            reference_param: reference_param.into(),
+            search_param: String::new(),
+            value: None,
+            nested: Some(Box::new(inner)),
+        }
+    }
+
+    /// Returns the depth of nesting (1 for non-nested, 2+ for nested).
+    pub fn depth(&self) -> usize {
+        match &self.nested {
+            Some(inner) => 1 + inner.depth(),
+            None => 1,
+        }
+    }
+
+    /// Returns true if this is a terminal (non-nested) reverse chain.
+    pub fn is_terminal(&self) -> bool {
+        self.nested.is_none()
+    }
+}
+
+/// Configuration for chain query limits.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChainConfig {
+    /// Maximum depth for forward chained parameters.
+    /// Default: 4, Maximum: 8
+    pub max_forward_depth: usize,
+
+    /// Maximum depth for reverse chained parameters (_has).
+    /// Default: 4, Maximum: 8
+    pub max_reverse_depth: usize,
+}
+
+impl Default for ChainConfig {
+    fn default() -> Self {
+        Self {
+            max_forward_depth: 4,
+            max_reverse_depth: 4,
+        }
+    }
+}
+
+impl ChainConfig {
+    /// Creates a new chain configuration with specified depths.
+    pub fn new(max_forward_depth: usize, max_reverse_depth: usize) -> Self {
+        Self {
+            max_forward_depth: max_forward_depth.min(8),
+            max_reverse_depth: max_reverse_depth.min(8),
+        }
+    }
+
+    /// Validates that forward chain depth is within limits.
+    pub fn validate_forward_depth(&self, depth: usize) -> bool {
+        depth <= self.max_forward_depth
+    }
+
+    /// Validates that reverse chain depth is within limits.
+    pub fn validate_reverse_depth(&self, depth: usize) -> bool {
+        depth <= self.max_reverse_depth
+    }
 }
 
 /// Include directive for _include and _revinclude.
