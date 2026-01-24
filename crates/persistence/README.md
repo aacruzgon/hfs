@@ -242,8 +242,8 @@ The matrix below shows which FHIR operations each backend supports. This reflect
 | [_text](https://build.fhir.org/search.html#_text) (narrative search) | ◐ | ○ | ○ | ✗ | ✗ | ○ | ✗ |
 | [_content](https://build.fhir.org/search.html#_content) (full content) | ◐ | ○ | ○ | ✗ | ✗ | ○ | ✗ |
 | **Advanced Search** |
-| [Chained Parameters](https://hl7.org/fhir/R4/search.html#chaining) | ○ | ○ | ○ | ✗ | ○ | ✗ | ✗ |
-| [Reverse Chaining (_has)](https://hl7.org/fhir/R4/search.html#has) | ○ | ○ | ○ | ✗ | ○ | ✗ | ✗ |
+| [Chained Parameters](https://hl7.org/fhir/R4/search.html#chaining) | ✓ | ○ | ○ | ✗ | ○ | ✗ | ✗ |
+| [Reverse Chaining (_has)](https://hl7.org/fhir/R4/search.html#has) | ✓ | ○ | ○ | ✗ | ○ | ✗ | ✗ |
 | [_include](https://hl7.org/fhir/R4/search.html#include) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
 | [_revinclude](https://hl7.org/fhir/R4/search.html#revinclude) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
 | **[Pagination](https://hl7.org/fhir/R4/http.html#paging)** |
@@ -339,6 +339,14 @@ The SQLite backend includes a complete FHIR search implementation using pre-comp
 - [x] `_content` parameter - searches all resource text
 - [x] Porter stemmer tokenization for improved search quality
 - [x] Automatic FTS indexing on resource create/update/delete
+
+**Chained Parameters & Reverse Chaining:**
+- [x] N-level forward chains (e.g., `Observation?subject.organization.name=Hospital`)
+- [x] Nested reverse chains / `_has` (e.g., `Patient?_has:Observation:subject:code=1234-5`)
+- [x] Type modifiers for ambiguous references (e.g., `subject:Patient.name=Smith`)
+- [x] SQL-based chain resolution using efficient nested subqueries
+- [x] Registry-based type inference with fallback heuristics
+- [x] Configurable depth limits (default: 4, max: 8)
 
 **Reindexing:**
 - [x] `ReindexableStorage` trait for backend-agnostic reindexing
