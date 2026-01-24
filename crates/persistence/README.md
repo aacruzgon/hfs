@@ -212,39 +212,40 @@ The matrix below shows which FHIR operations each backend supports. This reflect
 | [Versioning (vread)](https://hl7.org/fhir/R4/http.html#vread) | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
 | [Optimistic Locking](https://hl7.org/fhir/R4/http.html#concurrency) | ✓ | ○ | ○ | ○ | ○ | ✗ | ✗ |
 | [Instance History](https://hl7.org/fhir/R4/http.html#history) | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
-| [Type History](https://hl7.org/fhir/R4/http.html#history) | ○ | ○ | ○ | ✗ | ○ | ○ | ✗ |
-| [System History](https://hl7.org/fhir/R4/http.html#history) | ○ | ○ | ○ | ✗ | ○ | ○ | ✗ |
+| [Type History](https://hl7.org/fhir/R4/http.html#history) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
+| [System History](https://hl7.org/fhir/R4/http.html#history) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
 | [Transactions](https://hl7.org/fhir/R4/http.html#transaction) | ✓ | ○ | ○ | ✗ | ○ | ✗ | ✗ |
+| [Conditional Operations](https://hl7.org/fhir/R4/http.html#cond-update) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
 | **Multitenancy** |
 | Shared Schema | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
 | Schema-per-Tenant | ✗ | ○ | ○ | ✗ | ✗ | ○ | ✗ |
 | Database-per-Tenant | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
 | Row-Level Security | ✗ | ○ | ✗ | ✗ | ✗ | ✗ | ✗ |
 | **[Search Parameters](https://hl7.org/fhir/R4/search.html#ptypes)** |
-| [String](https://hl7.org/fhir/R4/search.html#string) | ◐ | ○ | ○ | ✗ | ○ | ○ | ✗ |
-| [Token](https://hl7.org/fhir/R4/search.html#token) | ◐ | ○ | ○ | ○ | ○ | ○ | ✗ |
-| [Reference](https://hl7.org/fhir/R4/search.html#reference) | ◐ | ○ | ○ | ✗ | ○ | ○ | ✗ |
-| [Date](https://hl7.org/fhir/R4/search.html#date) | ◐ | ○ | ○ | ○ | ○ | ○ | ○ |
-| [Number](https://hl7.org/fhir/R4/search.html#number) | ○ | ○ | ○ | ✗ | ○ | ○ | ○ |
-| [Quantity](https://hl7.org/fhir/R4/search.html#quantity) | ○ | ○ | ○ | ✗ | ✗ | ○ | ○ |
-| [URI](https://hl7.org/fhir/R4/search.html#uri) | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
-| [Composite](https://hl7.org/fhir/R4/search.html#composite) | ○ | ○ | ○ | ✗ | ○ | ○ | ✗ |
+| [String](https://hl7.org/fhir/R4/search.html#string) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
+| [Token](https://hl7.org/fhir/R4/search.html#token) | ✓ | ○ | ○ | ○ | ○ | ○ | ✗ |
+| [Reference](https://hl7.org/fhir/R4/search.html#reference) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
+| [Date](https://hl7.org/fhir/R4/search.html#date) | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
+| [Number](https://hl7.org/fhir/R4/search.html#number) | ✓ | ○ | ○ | ✗ | ○ | ○ | ○ |
+| [Quantity](https://hl7.org/fhir/R4/search.html#quantity) | ✓ | ○ | ○ | ✗ | ✗ | ○ | ○ |
+| [URI](https://hl7.org/fhir/R4/search.html#uri) | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
+| [Composite](https://hl7.org/fhir/R4/search.html#composite) | ◐ | ○ | ○ | ✗ | ○ | ○ | ✗ |
 | **[Search Modifiers](https://hl7.org/fhir/R4/search.html#modifiers)** |
-| [:exact](https://hl7.org/fhir/R4/search.html#modifiers) | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
-| [:contains](https://hl7.org/fhir/R4/search.html#modifiers) | ○ | ○ | ○ | ✗ | ○ | ○ | ✗ |
+| [:exact](https://hl7.org/fhir/R4/search.html#modifiers) | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
+| [:contains](https://hl7.org/fhir/R4/search.html#modifiers) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
 | [:text](https://hl7.org/fhir/R4/search.html#modifiers) (full-text) | ✗ | ○ | ○ | ✗ | ✗ | ○ | ✗ |
-| [:not](https://hl7.org/fhir/R4/search.html#modifiers) | ○ | ○ | ○ | ✗ | ○ | ○ | ○ |
-| [:missing](https://hl7.org/fhir/R4/search.html#modifiers) | ○ | ○ | ○ | ✗ | ○ | ○ | ○ |
+| [:not](https://hl7.org/fhir/R4/search.html#modifiers) | ✓ | ○ | ○ | ✗ | ○ | ○ | ○ |
+| [:missing](https://hl7.org/fhir/R4/search.html#modifiers) | ✓ | ○ | ○ | ✗ | ○ | ○ | ○ |
 | [:above / :below](https://hl7.org/fhir/R4/search.html#modifiers) | ✗ | †○ | †○ | ✗ | ○ | †○ | ✗ |
 | [:in / :not-in](https://hl7.org/fhir/R4/search.html#modifiers) | ✗ | †○ | †○ | ✗ | ○ | †○ | ✗ |
 | **Advanced Search** |
 | [Chained Parameters](https://hl7.org/fhir/R4/search.html#chaining) | ○ | ○ | ○ | ✗ | ○ | ✗ | ✗ |
 | [Reverse Chaining (_has)](https://hl7.org/fhir/R4/search.html#has) | ○ | ○ | ○ | ✗ | ○ | ✗ | ✗ |
-| [_include](https://hl7.org/fhir/R4/search.html#include) | ○ | ○ | ○ | ✗ | ○ | ○ | ✗ |
-| [_revinclude](https://hl7.org/fhir/R4/search.html#revinclude) | ○ | ○ | ○ | ✗ | ○ | ○ | ✗ |
+| [_include](https://hl7.org/fhir/R4/search.html#include) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
+| [_revinclude](https://hl7.org/fhir/R4/search.html#revinclude) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
 | **[Pagination](https://hl7.org/fhir/R4/http.html#paging)** |
 | Offset | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
-| Cursor (keyset) | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
+| Cursor (keyset) | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
 | **[Sorting](https://hl7.org/fhir/R4/search.html#sort)** |
 | Single field | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
 | Multiple fields | ○ | ○ | ○ | ✗ | ○ | ○ | ✗ |
@@ -304,8 +305,38 @@ The matrix below shows which FHIR operations each backend supports. This reflect
 - [x] Schema migrations
 - [x] ResourceStorage implementation
 - [x] VersionedStorage implementation
-- [x] SearchProvider implementation (basic search)
+- [x] History providers (instance, type, system)
 - [x] TransactionProvider implementation
+- [x] Conditional operations (conditional create/update/delete)
+
+#### SQLite Search Implementation ✓
+
+The SQLite backend includes a complete FHIR search implementation using pre-computed indexes:
+
+**Search Parameter Registry & Extraction:**
+- [x] `SearchParameterRegistry` - In-memory cache of active SearchParameter definitions
+- [x] `SearchParameterLoader` - Loads embedded R4 standard parameters at startup
+- [x] `SearchParameterExtractor` - FHIRPath-based value extraction using `helios-fhirpath`
+- [x] Dynamic SearchParameter handling - POST/PUT/DELETE to SearchParameter updates the registry
+
+**Search Index & Query:**
+- [x] Pre-computed `search_index` table for fast queries
+- [x] All 8 parameter type handlers (string, token, date, number, quantity, reference, URI, composite)
+- [x] Modifier support (:exact, :contains, :missing, :not, :identifier, :below, :above)
+- [x] Prefix support for date/number/quantity (eq, ne, gt, lt, ge, le, sa, eb, ap)
+- [x] `_include` and `_revinclude` resolution
+- [x] Cursor-based and offset pagination
+- [x] Single-field sorting
+
+**Reindexing:**
+- [x] `ReindexableStorage` trait for backend-agnostic reindexing
+- [x] `ReindexOperation` with background task execution
+- [x] Progress tracking and cancellation support
+- [ ] `$reindex` HTTP endpoint (planned for server layer)
+
+**Capability Reporting:**
+- [x] `SearchCapabilityProvider` implementation
+- [x] Runtime capability discovery from registry
 
 ### Phase 5+: Additional Backends (Planned)
 - [ ] PostgreSQL backend (JSONB, GIN indexes, RLS)
