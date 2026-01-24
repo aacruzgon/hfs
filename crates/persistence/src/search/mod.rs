@@ -75,5 +75,5 @@ pub use errors::{ExtractionError, LoaderError, RegistryError, ReindexError};
 pub use extractor::{ExtractedValue, SearchParameterExtractor};
 pub use loader::SearchParameterLoader;
 pub use registry::{RegistryUpdate, SearchParameterDefinition, SearchParameterRegistry, SearchParameterSource, SearchParameterStatus};
-pub use reindex::{ReindexOperation, ReindexProgress, ReindexRequest, ReindexStatus};
+pub use reindex::{ReindexableStorage, ReindexOperation, ReindexProgress, ReindexRequest, ReindexStatus, ResourcePage};
 pub use writer::SearchIndexWriter;

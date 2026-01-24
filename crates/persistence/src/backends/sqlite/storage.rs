@@ -20,6 +20,7 @@ use crate::error::TransactionError;
 use crate::types::Pagination;
 use crate::error::{BackendError, ConcurrencyError, ResourceError, StorageError, StorageResult};
 use crate::search::extractor::ExtractedValue;
+use crate::search::reindex::{ReindexableStorage, ResourcePage};
 use crate::tenant::TenantContext;
 use crate::types::{CursorValue, Page, PageCursor, PageInfo, StoredResource};
 
@@ -2331,6 +2332,199 @@ impl SqliteBackend {
                 },
             ))
         }
+    }
+}
+
+// ReindexableStorage implementation for SQLite backend.
+#[async_trait]
+impl ReindexableStorage for SqliteBackend {
+    async fn list_resource_types(&self, tenant: &TenantContext) -> StorageResult<Vec<String>> {
+        let conn = self.get_connection()?;
+        let tenant_id = tenant.tenant_id().as_str().to_string();
+
+        let mut stmt = conn
+            .prepare(
+                "SELECT DISTINCT resource_type FROM resources WHERE tenant_id = ?1 AND is_deleted = 0",
+            )
+            .map_err(|e| internal_error(format!("Failed to prepare statement: {}", e)))?;
+
+        let types: Vec<String> = stmt
+            .query_map([&tenant_id], |row| row.get(0))
+            .map_err(|e| internal_error(format!("Failed to query resource types: {}", e)))?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        Ok(types)
+    }
+
+    async fn count_resources(
+        &self,
+        tenant: &TenantContext,
+        resource_type: &str,
+    ) -> StorageResult<u64> {
+        self.count(tenant, Some(resource_type)).await
+    }
+
+    async fn fetch_resources_page(
+        &self,
+        tenant: &TenantContext,
+        resource_type: &str,
+        cursor: Option<&str>,
+        limit: u32,
+    ) -> StorageResult<ResourcePage> {
+        let conn = self.get_connection()?;
+        let tenant_id = tenant.tenant_id().as_str().to_string();
+
+        // Parse cursor if provided (format: "last_updated|id")
+        let (cursor_ts, cursor_id) = if let Some(c) = cursor {
+            let parts: Vec<&str> = c.split('|').collect();
+            if parts.len() == 2 {
+                (Some(parts[0].to_string()), Some(parts[1].to_string()))
+            } else {
+                (None, None)
+            }
+        } else {
+            (None, None)
+        };
+
+        // Build query based on whether we have a cursor
+        let (sql, params): (String, Vec<Box<dyn ToSql>>) = if let (Some(ts), Some(id)) =
+            (&cursor_ts, &cursor_id)
+        {
+            (
+                "SELECT id, version_id, data, last_updated FROM resources \
+                 WHERE tenant_id = ?1 AND resource_type = ?2 AND is_deleted = 0 \
+                 AND (last_updated > ?3 OR (last_updated = ?3 AND id > ?4)) \
+                 ORDER BY last_updated ASC, id ASC LIMIT ?5"
+                    .to_string(),
+                vec![
+                    Box::new(tenant_id.clone()) as Box<dyn ToSql>,
+                    Box::new(resource_type.to_string()),
+                    Box::new(ts.clone()),
+                    Box::new(id.clone()),
+                    Box::new(limit as i64),
+                ],
+            )
+        } else {
+            (
+                "SELECT id, version_id, data, last_updated FROM resources \
+                 WHERE tenant_id = ?1 AND resource_type = ?2 AND is_deleted = 0 \
+                 ORDER BY last_updated ASC, id ASC LIMIT ?3"
+                    .to_string(),
+                vec![
+                    Box::new(tenant_id.clone()) as Box<dyn ToSql>,
+                    Box::new(resource_type.to_string()),
+                    Box::new(limit as i64),
+                ],
+            )
+        };
+
+        let mut stmt = conn
+            .prepare(&sql)
+            .map_err(|e| internal_error(format!("Failed to prepare statement: {}", e)))?;
+
+        let param_refs: Vec<&dyn ToSql> = params.iter().map(|p| p.as_ref()).collect();
+
+        let resources: Vec<StoredResource> = stmt
+            .query_map(param_refs.as_slice(), |row| {
+                let id: String = row.get(0)?;
+                let version_id: String = row.get(1)?;
+                let data: Vec<u8> = row.get(2)?;
+                let last_updated: String = row.get(3)?;
+
+                Ok((id, version_id, data, last_updated))
+            })
+            .map_err(|e| internal_error(format!("Failed to query resources: {}", e)))?
+            .filter_map(|r| r.ok())
+            .filter_map(|(id, version_id, data, last_updated)| {
+                let content: Value = serde_json::from_slice(&data).ok()?;
+                let last_modified = chrono::DateTime::parse_from_rfc3339(&last_updated)
+                    .ok()?
+                    .with_timezone(&Utc);
+                Some(StoredResource::from_storage(
+                    resource_type.to_string(),
+                    id,
+                    version_id,
+                    tenant.tenant_id().clone(),
+                    content,
+                    last_modified, // created_at (use last_modified as approximation)
+                    last_modified,
+                    None, // not deleted
+                ))
+            })
+            .collect();
+
+        // Determine next cursor
+        let next_cursor = if resources.len() == limit as usize {
+            resources.last().map(|r| {
+                format!(
+                    "{}|{}",
+                    r.last_modified().to_rfc3339(),
+                    r.id()
+                )
+            })
+        } else {
+            None
+        };
+
+        Ok(ResourcePage {
+            resources,
+            next_cursor,
+        })
+    }
+
+    async fn delete_search_entries(
+        &self,
+        tenant: &TenantContext,
+        resource_type: &str,
+        resource_id: &str,
+    ) -> StorageResult<()> {
+        let conn = self.get_connection()?;
+        self.delete_search_index(&conn, tenant.tenant_id().as_str(), resource_type, resource_id)
+    }
+
+    async fn write_search_entries(
+        &self,
+        tenant: &TenantContext,
+        resource_type: &str,
+        resource_id: &str,
+        resource: &Value,
+    ) -> StorageResult<usize> {
+        let conn = self.get_connection()?;
+
+        // Use the dynamic extraction
+        let values = self
+            .search_extractor()
+            .extract(resource, resource_type)
+            .map_err(|e| internal_error(format!("Search parameter extraction failed: {}", e)))?;
+
+        let mut count = 0;
+        for value in values {
+            self.write_index_entry(
+                &conn,
+                tenant.tenant_id().as_str(),
+                resource_type,
+                resource_id,
+                &value,
+            )?;
+            count += 1;
+        }
+
+        Ok(count)
+    }
+
+    async fn clear_search_index(&self, tenant: &TenantContext) -> StorageResult<u64> {
+        let conn = self.get_connection()?;
+        let tenant_id = tenant.tenant_id().as_str();
+
+        let deleted = conn
+            .execute(
+                "DELETE FROM search_index WHERE tenant_id = ?1",
+                params![tenant_id],
+            )
+            .map_err(|e| internal_error(format!("Failed to clear search index: {}", e)))?;
+
+        Ok(deleted as u64)
     }
 }
 

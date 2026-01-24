@@ -1379,3 +1379,248 @@ async fn test_search_multiple_parameters() {
     // verifies AND logic works even if one param doesn't match
     assert!(result.resources.items.len() <= 2, "Multiple params should use AND logic");
 }
+
+// ============================================================================
+// Reindex Tests
+// ============================================================================
+
+use std::sync::Arc;
+use helios_persistence::search::{
+    ReindexableStorage, ReindexOperation, ReindexRequest, ReindexStatus,
+};
+
+#[tokio::test]
+async fn test_reindex_list_resource_types() {
+    let backend = create_backend();
+    let tenant = create_tenant("test-tenant");
+
+    // Create resources of different types
+    backend.create(&tenant, "Patient", json!({
+        "resourceType": "Patient",
+        "id": "p1"
+    })).await.unwrap();
+
+    backend.create(&tenant, "Observation", json!({
+        "resourceType": "Observation",
+        "id": "o1",
+        "status": "final"
+    })).await.unwrap();
+
+    backend.create(&tenant, "Patient", json!({
+        "resourceType": "Patient",
+        "id": "p2"
+    })).await.unwrap();
+
+    // List resource types
+    let types = backend.list_resource_types(&tenant).await.unwrap();
+    assert!(types.contains(&"Patient".to_string()));
+    assert!(types.contains(&"Observation".to_string()));
+    assert_eq!(types.len(), 2);
+}
+
+#[tokio::test]
+async fn test_reindex_count_resources() {
+    let backend = create_backend();
+    let tenant = create_tenant("test-tenant");
+
+    // Create some patients
+    for i in 1..=5 {
+        backend.create(&tenant, "Patient", json!({
+            "resourceType": "Patient",
+            "id": format!("patient-{}", i)
+        })).await.unwrap();
+    }
+
+    // Count patients
+    let count = backend.count_resources(&tenant, "Patient").await.unwrap();
+    assert_eq!(count, 5);
+
+    // Count observations (should be 0)
+    let count = backend.count_resources(&tenant, "Observation").await.unwrap();
+    assert_eq!(count, 0);
+}
+
+#[tokio::test]
+async fn test_reindex_fetch_resources_page() {
+    let backend = create_backend();
+    let tenant = create_tenant("test-tenant");
+
+    // Create patients
+    for i in 1..=10 {
+        backend.create(&tenant, "Patient", json!({
+            "resourceType": "Patient",
+            "id": format!("patient-{:02}", i)
+        })).await.unwrap();
+    }
+
+    // Fetch first page (5 resources)
+    let page1 = backend.fetch_resources_page(&tenant, "Patient", None, 5).await.unwrap();
+    assert_eq!(page1.resources.len(), 5);
+    assert!(page1.next_cursor.is_some());
+
+    // Fetch second page using cursor
+    let page2 = backend.fetch_resources_page(&tenant, "Patient", page1.next_cursor.as_deref(), 5).await.unwrap();
+    assert_eq!(page2.resources.len(), 5);
+
+    // Ensure no duplicates between pages
+    let page1_ids: Vec<&str> = page1.resources.iter().map(|r| r.id()).collect();
+    let page2_ids: Vec<&str> = page2.resources.iter().map(|r| r.id()).collect();
+    for id in &page1_ids {
+        assert!(!page2_ids.contains(id), "Duplicate ID found: {}", id);
+    }
+
+    // Fetch third page (should be empty or have no more cursor)
+    let page3 = backend.fetch_resources_page(&tenant, "Patient", page2.next_cursor.as_deref(), 5).await.unwrap();
+    assert!(page3.resources.is_empty() || page3.next_cursor.is_none());
+}
+
+#[tokio::test]
+async fn test_reindex_clear_search_index() {
+    let backend = create_backend();
+    let tenant = create_tenant("test-tenant");
+
+    // Create some resources (which will be indexed)
+    backend.create(&tenant, "Patient", json!({
+        "resourceType": "Patient",
+        "id": "p1",
+        "name": [{"family": "Smith"}],
+        "identifier": [{"system": "http://example.org", "value": "12345"}]
+    })).await.unwrap();
+
+    backend.create(&tenant, "Observation", json!({
+        "resourceType": "Observation",
+        "id": "o1",
+        "code": {"coding": [{"system": "http://loinc.org", "code": "1234-5"}]}
+    })).await.unwrap();
+
+    // Verify search works (search index has entries)
+    let query = SearchQuery::new("Patient").with_parameter(SearchParameter {
+        name: "identifier".to_string(),
+        param_type: SearchParamType::Token,
+        modifier: None,
+        values: vec![SearchValue::eq("12345")],
+        chain: vec![],
+    });
+    let result = backend.search(&tenant, &query).await.unwrap();
+    assert_eq!(result.resources.items.len(), 1, "Should find patient before clearing index");
+
+    // Clear the search index
+    let deleted = backend.clear_search_index(&tenant).await.unwrap();
+    assert!(deleted > 0, "Should have deleted some index entries");
+
+    // Verify search no longer finds the patient
+    let result = backend.search(&tenant, &query).await.unwrap();
+    assert_eq!(result.resources.items.len(), 0, "Should not find patient after clearing index");
+}
+
+#[tokio::test]
+async fn test_reindex_operation_full() {
+    let backend = Arc::new(create_backend());
+    let tenant = create_tenant("test-tenant");
+
+    // Create some resources
+    backend.create(&tenant, "Patient", json!({
+        "resourceType": "Patient",
+        "id": "p1",
+        "name": [{"family": "Smith"}],
+        "identifier": [{"system": "http://example.org", "value": "A001"}]
+    })).await.unwrap();
+
+    backend.create(&tenant, "Patient", json!({
+        "resourceType": "Patient",
+        "id": "p2",
+        "name": [{"family": "Jones"}],
+        "identifier": [{"system": "http://example.org", "value": "A002"}]
+    })).await.unwrap();
+
+    // Clear the search index to simulate needing a reindex
+    backend.clear_search_index(&tenant).await.unwrap();
+
+    // Verify search doesn't work
+    let query = SearchQuery::new("Patient").with_parameter(SearchParameter {
+        name: "identifier".to_string(),
+        param_type: SearchParamType::Token,
+        modifier: None,
+        values: vec![SearchValue::eq("A001")],
+        chain: vec![],
+    });
+    let result = backend.search(&tenant, &query).await.unwrap();
+    assert_eq!(result.resources.items.len(), 0, "Should not find patient before reindex");
+
+    // Create reindex operation
+    let reindex = ReindexOperation::new(
+        backend.clone(),
+        backend.search_extractor().clone(),
+    );
+
+    // Start reindex
+    let job_id = reindex.start(tenant.clone(), ReindexRequest::for_types(vec!["Patient"])).await.unwrap();
+
+    // Wait for completion (with timeout)
+    let mut attempts = 0;
+    loop {
+        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+        let progress = reindex.get_progress(&job_id).await.unwrap();
+
+        if progress.status == ReindexStatus::Completed {
+            assert_eq!(progress.processed_resources, 2, "Should have processed 2 patients");
+            assert!(progress.entries_created > 0, "Should have created index entries");
+            break;
+        }
+
+        if progress.status == ReindexStatus::Failed {
+            panic!("Reindex failed: {:?}", progress.error_message);
+        }
+
+        attempts += 1;
+        if attempts > 100 {
+            panic!("Reindex timed out");
+        }
+    }
+
+    // Verify search works again
+    let result = backend.search(&tenant, &query).await.unwrap();
+    assert_eq!(result.resources.items.len(), 1, "Should find patient after reindex");
+    assert_eq!(result.resources.items[0].id(), "p1");
+}
+
+#[tokio::test]
+async fn test_reindex_operation_cancel() {
+    let backend = Arc::new(create_backend());
+    let tenant = create_tenant("test-tenant");
+
+    // Create many resources to make reindex take longer
+    for i in 1..=100 {
+        backend.create(&tenant, "Patient", json!({
+            "resourceType": "Patient",
+            "id": format!("patient-{}", i),
+            "name": [{"family": format!("Patient{}", i)}]
+        })).await.unwrap();
+    }
+
+    // Clear the search index
+    backend.clear_search_index(&tenant).await.unwrap();
+
+    // Create reindex operation with small batch size to make it slower
+    let reindex = ReindexOperation::new(
+        backend.clone(),
+        backend.search_extractor().clone(),
+    );
+
+    // Start reindex
+    let request = ReindexRequest::all().with_batch_size(5);
+    let job_id = reindex.start(tenant.clone(), request).await.unwrap();
+
+    // Cancel immediately
+    reindex.cancel(&job_id).await.unwrap();
+
+    // Wait a bit for cancellation to take effect
+    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+    // Check status
+    let progress = reindex.get_progress(&job_id).await.unwrap();
+    assert!(
+        progress.status == ReindexStatus::Cancelled || progress.status == ReindexStatus::Completed,
+        "Job should be cancelled or already completed"
+    );
+}
