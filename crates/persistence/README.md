@@ -208,48 +208,48 @@ The matrix below shows which FHIR operations each backend supports. This reflect
 | Feature | SQLite | PostgreSQL | MongoDB | Cassandra | Neo4j | Elasticsearch | S3 |
 |---------|--------|------------|---------|-----------|-------|---------------|-----|
 | **Core Operations** |
-| [CRUD](https://hl7.org/fhir/R4/http.html#operations) | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
-| [Versioning (vread)](https://hl7.org/fhir/R4/http.html#vread) | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
-| [Optimistic Locking](https://hl7.org/fhir/R4/http.html#concurrency) | ✓ | ○ | ○ | ○ | ○ | ✗ | ✗ |
-| [Instance History](https://hl7.org/fhir/R4/http.html#history) | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
-| [Type History](https://hl7.org/fhir/R4/http.html#history) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
-| [System History](https://hl7.org/fhir/R4/http.html#history) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
-| [Transactions](https://hl7.org/fhir/R4/http.html#transaction) | ✓ | ○ | ○ | ✗ | ○ | ✗ | ✗ |
-| [Conditional Operations](https://hl7.org/fhir/R4/http.html#cond-update) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
+| [CRUD](https://build.fhir.org/http.html#crud) | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
+| [Versioning (vread)](https://build.fhir.org/http.html#vread) | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
+| [Optimistic Locking](https://build.fhir.org/http.html#concurrency) | ✓ | ○ | ○ | ○ | ○ | ✗ | ✗ |
+| [Instance History](https://build.fhir.org/http.html#history) | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
+| [Type History](https://build.fhir.org/http.html#history) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
+| [System History](https://build.fhir.org/http.html#history) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
+| [Transactions](https://build.fhir.org/http.html#transaction) | ✓ | ○ | ○ | ✗ | ○ | ✗ | ✗ |
+| [Conditional Operations](https://build.fhir.org/http.html#cond-update) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
 | **Multitenancy** |
 | Shared Schema | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
 | Schema-per-Tenant | ✗ | ○ | ○ | ✗ | ✗ | ○ | ✗ |
 | Database-per-Tenant | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
 | Row-Level Security | ✗ | ○ | ✗ | ✗ | ✗ | ✗ | ✗ |
-| **[Search Parameters](https://hl7.org/fhir/R4/search.html#ptypes)** |
-| [String](https://hl7.org/fhir/R4/search.html#string) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
-| [Token](https://hl7.org/fhir/R4/search.html#token) | ✓ | ○ | ○ | ○ | ○ | ○ | ✗ |
-| [Reference](https://hl7.org/fhir/R4/search.html#reference) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
-| [Date](https://hl7.org/fhir/R4/search.html#date) | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
-| [Number](https://hl7.org/fhir/R4/search.html#number) | ✓ | ○ | ○ | ✗ | ○ | ○ | ○ |
-| [Quantity](https://hl7.org/fhir/R4/search.html#quantity) | ✓ | ○ | ○ | ✗ | ✗ | ○ | ○ |
-| [URI](https://hl7.org/fhir/R4/search.html#uri) | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
-| [Composite](https://hl7.org/fhir/R4/search.html#composite) | ◐ | ○ | ○ | ✗ | ○ | ○ | ✗ |
-| **[Search Modifiers](https://hl7.org/fhir/R4/search.html#modifiers)** |
-| [:exact](https://hl7.org/fhir/R4/search.html#modifiers) | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
-| [:contains](https://hl7.org/fhir/R4/search.html#modifiers) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
-| [:text](https://hl7.org/fhir/R4/search.html#modifiers) (full-text) | ◐ | ○ | ○ | ✗ | ✗ | ○ | ✗ |
-| [:not](https://hl7.org/fhir/R4/search.html#modifiers) | ✓ | ○ | ○ | ✗ | ○ | ○ | ○ |
-| [:missing](https://hl7.org/fhir/R4/search.html#modifiers) | ✓ | ○ | ○ | ✗ | ○ | ○ | ○ |
-| [:above / :below](https://hl7.org/fhir/R4/search.html#modifiers) | ✗ | †○ | †○ | ✗ | ○ | †○ | ✗ |
-| [:in / :not-in](https://hl7.org/fhir/R4/search.html#modifiers) | ✗ | †○ | †○ | ✗ | ○ | †○ | ✗ |
-| **[Special Parameters](https://hl7.org/fhir/R4/search.html#all)** |
+| **[Search Parameters](https://build.fhir.org/search.html#ptypes)** |
+| [String](https://build.fhir.org/search.html#string) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
+| [Token](https://build.fhir.org/search.html#token) | ✓ | ○ | ○ | ○ | ○ | ○ | ✗ |
+| [Reference](https://build.fhir.org/search.html#reference) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
+| [Date](https://build.fhir.org/search.html#date) | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
+| [Number](https://build.fhir.org/search.html#number) | ✓ | ○ | ○ | ✗ | ○ | ○ | ○ |
+| [Quantity](https://build.fhir.org/search.html#quantity) | ✓ | ○ | ○ | ✗ | ✗ | ○ | ○ |
+| [URI](https://build.fhir.org/search.html#uri) | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
+| [Composite](https://build.fhir.org/search.html#composite) | ◐ | ○ | ○ | ✗ | ○ | ○ | ✗ |
+| **[Search Modifiers](https://build.fhir.org/search.html#modifiers)** |
+| [:exact](https://build.fhir.org/search.html#modifiers) | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
+| [:contains](https://build.fhir.org/search.html#modifiers) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
+| [:text](https://build.fhir.org/search.html#modifiers) (full-text) | ◐ | ○ | ○ | ✗ | ✗ | ○ | ✗ |
+| [:not](https://build.fhir.org/search.html#modifiers) | ✓ | ○ | ○ | ✗ | ○ | ○ | ○ |
+| [:missing](https://build.fhir.org/search.html#modifiers) | ✓ | ○ | ○ | ✗ | ○ | ○ | ○ |
+| [:above / :below](https://build.fhir.org/search.html#modifiers) | ✗ | †○ | †○ | ✗ | ○ | †○ | ✗ |
+| [:in / :not-in](https://build.fhir.org/search.html#modifiers) | ✗ | †○ | †○ | ✗ | ○ | †○ | ✗ |
+| **[Special Parameters](https://build.fhir.org/search.html#all)** |
 | [_text](https://build.fhir.org/search.html#_text) (narrative search) | ◐ | ○ | ○ | ✗ | ✗ | ○ | ✗ |
 | [_content](https://build.fhir.org/search.html#_content) (full content) | ◐ | ○ | ○ | ✗ | ✗ | ○ | ✗ |
 | **Advanced Search** |
-| [Chained Parameters](https://hl7.org/fhir/R4/search.html#chaining) | ✓ | ○ | ○ | ✗ | ○ | ✗ | ✗ |
-| [Reverse Chaining (_has)](https://hl7.org/fhir/R4/search.html#has) | ✓ | ○ | ○ | ✗ | ○ | ✗ | ✗ |
-| [_include](https://hl7.org/fhir/R4/search.html#include) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
-| [_revinclude](https://hl7.org/fhir/R4/search.html#revinclude) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
-| **[Pagination](https://hl7.org/fhir/R4/http.html#paging)** |
+| [Chained Parameters](https://build.fhir.org/search.html#chaining) | ✓ | ○ | ○ | ✗ | ○ | ✗ | ✗ |
+| [Reverse Chaining (_has)](https://build.fhir.org/search.html#has) | ✓ | ○ | ○ | ✗ | ○ | ✗ | ✗ |
+| [_include](https://build.fhir.org/search.html#include) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
+| [_revinclude](https://build.fhir.org/search.html#revinclude) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
+| **[Pagination](https://build.fhir.org/http.html#paging)** |
 | Offset | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
 | Cursor (keyset) | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
-| **[Sorting](https://hl7.org/fhir/R4/search.html#sort)** |
+| **[Sorting](https://build.fhir.org/search.html#sort)** |
 | Single field | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
 | Multiple fields | ○ | ○ | ○ | ✗ | ○ | ○ | ✗ |
 | **[Bulk Operations](https://hl7.org/fhir/uv/bulkdata/)** |

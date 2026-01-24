@@ -632,7 +632,7 @@ LIMIT 100;
 
 This requires a stable sort order with a unique tiebreaker (typically `_id`). The cursor encodes the sort key values of the last row returned.
 
-The `_cursor` parameter appears in FHIR Bundle `next` links and is a server-specific extension. Clients should treat pagination URLs as opaque and simply follow the `next` link, as described in the [FHIR spec](https://fhir.hl7.org/fhir/http.html#paging).
+The `_cursor` parameter appears in FHIR Bundle `next` links and is a server-specific extension. Clients should treat pagination URLs as opaque and simply follow the `next` link, as described in the [FHIR spec](https://build.fhir.org/http.html#paging).
 
 ```rust
 /// Core search: execute a query, return matches.
