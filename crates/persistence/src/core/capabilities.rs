@@ -440,6 +440,12 @@ impl ResourceSearchCapabilities {
         self
     }
 
+    /// Adds multiple search parameter capabilities.
+    pub fn with_param_list(mut self, params: Vec<SearchParamFullCapability>) -> Self {
+        self.search_params.extend(params);
+        self
+    }
+
     /// Adds special parameter support.
     pub fn with_special_params<I>(mut self, params: I) -> Self
     where

@@ -356,6 +356,136 @@ impl Backend for SqliteBackend {
     }
 }
 
+// ============================================================================
+// SearchCapabilityProvider Implementation
+// ============================================================================
+
+use crate::core::capabilities::{
+    GlobalSearchCapabilities, ResourceSearchCapabilities, SearchCapabilityProvider,
+};
+use crate::types::{
+    IncludeCapability, PaginationCapability, ResultModeCapability, SearchParamFullCapability,
+    SearchParamType, SpecialSearchParam,
+};
+
+impl SearchCapabilityProvider for SqliteBackend {
+    fn resource_search_capabilities(&self, resource_type: &str) -> Option<ResourceSearchCapabilities> {
+        // Get active parameters for this resource type from the registry
+        let params = {
+            let registry = self.search_registry.read();
+            registry.get_active_params(resource_type)
+        };
+
+        if params.is_empty() {
+            // Also check if there are Resource-level params
+            let common_params = {
+                let registry = self.search_registry.read();
+                registry.get_active_params("Resource")
+            };
+            if common_params.is_empty() {
+                return None;
+            }
+        }
+
+        // Build search parameter capabilities from the registry
+        let mut search_params = Vec::new();
+        for param in &params {
+            let mut cap = SearchParamFullCapability::new(&param.code, param.param_type)
+                .with_definition(&param.url);
+
+            // Add modifiers based on parameter type
+            let modifiers = Self::modifiers_for_type(param.param_type);
+            cap = cap.with_modifiers(modifiers);
+
+            // Add target types for reference parameters
+            if let Some(ref targets) = param.target {
+                cap = cap.with_targets(targets.iter().map(|s| s.as_str()));
+            }
+
+            search_params.push(cap);
+        }
+
+        // Add common Resource-level parameters
+        let common_params = {
+            let registry = self.search_registry.read();
+            registry.get_active_params("Resource")
+        };
+        for param in &common_params {
+            if !search_params.iter().any(|p| p.name == param.code) {
+                let mut cap = SearchParamFullCapability::new(&param.code, param.param_type)
+                    .with_definition(&param.url);
+                cap = cap.with_modifiers(Self::modifiers_for_type(param.param_type));
+                search_params.push(cap);
+            }
+        }
+
+        Some(
+            ResourceSearchCapabilities::new(resource_type)
+                .with_special_params(vec![
+                    SpecialSearchParam::Id,
+                    SpecialSearchParam::LastUpdated,
+                    SpecialSearchParam::Tag,
+                    SpecialSearchParam::Profile,
+                    SpecialSearchParam::Security,
+                ])
+                .with_include_capabilities(vec![
+                    IncludeCapability::Include,
+                    IncludeCapability::Revinclude,
+                ])
+                .with_pagination_capabilities(vec![
+                    PaginationCapability::Count,
+                    PaginationCapability::Offset,
+                    PaginationCapability::Cursor,
+                    PaginationCapability::MaxPageSize(1000),
+                    PaginationCapability::DefaultPageSize(20),
+                ])
+                .with_result_mode_capabilities(vec![
+                    ResultModeCapability::Total,
+                    ResultModeCapability::TotalNone,
+                    ResultModeCapability::TotalAccurate,
+                    ResultModeCapability::SummaryCount,
+                ])
+                .with_param_list(search_params),
+        )
+    }
+
+    fn global_search_capabilities(&self) -> GlobalSearchCapabilities {
+        GlobalSearchCapabilities::new()
+            .with_special_params(vec![
+                SpecialSearchParam::Id,
+                SpecialSearchParam::LastUpdated,
+                SpecialSearchParam::Tag,
+                SpecialSearchParam::Profile,
+                SpecialSearchParam::Security,
+            ])
+            .with_pagination(vec![
+                PaginationCapability::Count,
+                PaginationCapability::Offset,
+                PaginationCapability::Cursor,
+                PaginationCapability::MaxPageSize(1000),
+                PaginationCapability::DefaultPageSize(20),
+            ])
+            .with_system_search()
+    }
+}
+
+impl SqliteBackend {
+    /// Returns supported modifiers for a parameter type.
+    fn modifiers_for_type(param_type: SearchParamType) -> Vec<&'static str> {
+        match param_type {
+            SearchParamType::String => vec!["exact", "contains", "missing"],
+            SearchParamType::Token => vec!["not", "text", "in", "not-in", "of-type", "missing"],
+            SearchParamType::Reference => vec!["identifier", "missing"],
+            SearchParamType::Date => vec!["missing"],
+            SearchParamType::Number => vec!["missing"],
+            SearchParamType::Quantity => vec!["missing"],
+            SearchParamType::Uri => vec!["below", "above", "missing"],
+            SearchParamType::Composite => vec!["missing"],
+            SearchParamType::Special => vec![],
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -397,5 +527,69 @@ mod tests {
         let backend = SqliteBackend::in_memory().unwrap();
         let conn = backend.acquire().await.unwrap();
         backend.release(conn).await;
+    }
+
+    #[test]
+    fn test_search_capability_provider_patient() {
+        let backend = SqliteBackend::in_memory().unwrap();
+
+        // Get capabilities for Patient resource type
+        let caps = backend.resource_search_capabilities("Patient");
+        assert!(caps.is_some(), "Should have capabilities for Patient");
+
+        let caps = caps.unwrap();
+        assert_eq!(caps.resource_type, "Patient");
+
+        // Should have common special parameters
+        assert!(caps.supports_special(SpecialSearchParam::Id));
+        assert!(caps.supports_special(SpecialSearchParam::LastUpdated));
+
+        // Should support includes
+        assert!(caps.supports_include(IncludeCapability::Include));
+        assert!(caps.supports_include(IncludeCapability::Revinclude));
+
+        // Should have search parameters from the registry
+        // The exact set depends on what's loaded from R4 parameters
+        assert!(!caps.search_params.is_empty(), "Should have search parameters");
+    }
+
+    #[test]
+    fn test_global_search_capabilities() {
+        let backend = SqliteBackend::in_memory().unwrap();
+
+        let global = backend.global_search_capabilities();
+
+        // Should have common special parameters
+        assert!(global.common_special_params.contains(&SpecialSearchParam::Id));
+        assert!(global.common_special_params.contains(&SpecialSearchParam::LastUpdated));
+
+        // Should support system search
+        assert!(global.supports_system_search);
+
+        // Should have pagination capabilities
+        assert!(!global.common_pagination_capabilities.is_empty());
+    }
+
+    #[test]
+    fn test_modifiers_for_type() {
+        // String modifiers
+        let string_mods = SqliteBackend::modifiers_for_type(SearchParamType::String);
+        assert!(string_mods.contains(&"exact"));
+        assert!(string_mods.contains(&"contains"));
+        assert!(string_mods.contains(&"missing"));
+
+        // Token modifiers
+        let token_mods = SqliteBackend::modifiers_for_type(SearchParamType::Token);
+        assert!(token_mods.contains(&"not"));
+        assert!(token_mods.contains(&"text"));
+
+        // Reference modifiers
+        let ref_mods = SqliteBackend::modifiers_for_type(SearchParamType::Reference);
+        assert!(ref_mods.contains(&"identifier"));
+
+        // URI modifiers
+        let uri_mods = SqliteBackend::modifiers_for_type(SearchParamType::Uri);
+        assert!(uri_mods.contains(&"below"));
+        assert!(uri_mods.contains(&"above"));
     }
 }
