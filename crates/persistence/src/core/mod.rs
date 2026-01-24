@@ -100,8 +100,9 @@ pub mod versioned;
 // Re-export main types
 pub use backend::{Backend, BackendCapability, BackendConfig, BackendKind, BackendPoolStats};
 pub use capabilities::{
-    CapabilityProvider, Interaction, ResourceCapabilities, SearchParamCapability,
-    StorageCapabilities, SystemInteraction,
+    CapabilityProvider, GlobalSearchCapabilities, Interaction, ResourceCapabilities,
+    ResourceSearchCapabilities, SearchCapabilityProvider, SearchParamCapability,
+    StorageCapabilities, SystemInteraction, UnsupportedFeatureType, UnsupportedSearchFeature,
 };
 pub use history::{
     DifferentialHistoryProvider, HistoryEntry, HistoryMethod, HistoryPage, HistoryParams,

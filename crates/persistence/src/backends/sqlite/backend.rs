@@ -2,23 +2,42 @@
 
 use std::fmt::Debug;
 use std::path::Path;
+use std::sync::Arc;
 
 use async_trait::async_trait;
+use parking_lot::RwLock;
 use r2d2::{Pool, PooledConnection};
 use r2d2_sqlite::SqliteConnectionManager;
 use serde::{Deserialize, Serialize};
 
 use crate::core::{Backend, BackendCapability, BackendKind};
 use crate::error::{BackendError, StorageResult};
+use crate::search::{
+    SearchParameterExtractor, SearchParameterLoader, SearchParameterRegistry,
+};
+use crate::search::loader::FhirVersion;
 
 use super::schema;
 
 /// SQLite backend for FHIR resource storage.
-#[derive(Debug)]
 pub struct SqliteBackend {
     pool: Pool<SqliteConnectionManager>,
     config: SqliteBackendConfig,
     is_memory: bool,
+    /// Search parameter registry (in-memory cache of active parameters).
+    search_registry: Arc<RwLock<SearchParameterRegistry>>,
+    /// Extractor for deriving searchable values from resources.
+    search_extractor: Arc<SearchParameterExtractor>,
+}
+
+impl Debug for SqliteBackend {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SqliteBackend")
+            .field("config", &self.config)
+            .field("is_memory", &self.is_memory)
+            .field("search_registry_len", &self.search_registry.read().len())
+            .finish_non_exhaustive()
+    }
 }
 
 /// Configuration for the SQLite backend.
@@ -117,10 +136,30 @@ impl SqliteBackend {
                 })
             })?;
 
+        // Initialize the search parameter registry with embedded R4 parameters
+        let search_registry = Arc::new(RwLock::new(SearchParameterRegistry::new()));
+        {
+            let loader = SearchParameterLoader::new(FhirVersion::R4);
+            if let Ok(params) = loader.load_embedded() {
+                let mut registry = search_registry.write();
+                for param in params {
+                    // Ignore duplicate errors during initial load
+                    let _ = registry.register(param);
+                }
+                tracing::info!(
+                    "Loaded {} search parameters into registry",
+                    registry.len()
+                );
+            }
+        }
+        let search_extractor = Arc::new(SearchParameterExtractor::new(search_registry.clone()));
+
         let backend = Self {
             pool,
             config,
             is_memory,
+            search_registry,
+            search_extractor,
         };
 
         // Configure the connection
@@ -193,6 +232,16 @@ impl SqliteBackend {
     /// Returns the backend configuration.
     pub fn config(&self) -> &SqliteBackendConfig {
         &self.config
+    }
+
+    /// Returns a reference to the search parameter registry.
+    pub fn search_registry(&self) -> &Arc<RwLock<SearchParameterRegistry>> {
+        &self.search_registry
+    }
+
+    /// Returns a reference to the search parameter extractor.
+    pub fn search_extractor(&self) -> &Arc<SearchParameterExtractor> {
+        &self.search_extractor
     }
 }
 

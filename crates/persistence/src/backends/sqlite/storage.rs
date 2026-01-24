@@ -2,7 +2,7 @@
 
 use async_trait::async_trait;
 use chrono::Utc;
-use rusqlite::params;
+use rusqlite::{params, ToSql};
 use serde_json::Value;
 
 use crate::core::history::{
@@ -19,9 +19,11 @@ use crate::core::{
 use crate::error::TransactionError;
 use crate::types::Pagination;
 use crate::error::{BackendError, ConcurrencyError, ResourceError, StorageError, StorageResult};
+use crate::search::extractor::ExtractedValue;
 use crate::tenant::TenantContext;
 use crate::types::{CursorValue, Page, PageCursor, PageInfo, StoredResource};
 
+use super::search::writer::SqliteSearchIndexWriter;
 use super::SqliteBackend;
 
 fn internal_error(message: String) -> StorageError {
@@ -107,6 +109,9 @@ impl ResourceStorage for SqliteBackend {
             params![tenant_id, resource_type, id, version_id, data, last_updated],
         )
         .map_err(|e| internal_error(format!("Failed to insert history: {}", e)))?;
+
+        // Index the resource for search
+        self.index_resource(&conn, tenant_id, resource_type, &id, &resource)?;
 
         // Return the stored resource with updated metadata
         Ok(StoredResource::from_storage(
@@ -301,6 +306,10 @@ impl ResourceStorage for SqliteBackend {
         )
         .map_err(|e| internal_error(format!("Failed to insert history: {}", e)))?;
 
+        // Re-index the resource (delete old entries, add new)
+        self.delete_search_index(&conn, tenant_id, resource_type, id)?;
+        self.index_resource(&conn, tenant_id, resource_type, id, &resource)?;
+
         Ok(StoredResource::from_storage(
             resource_type,
             id,
@@ -400,6 +409,471 @@ impl ResourceStorage for SqliteBackend {
         .map_err(|e| internal_error(format!("Failed to count resources: {}", e)))?;
 
         Ok(count as u64)
+    }
+}
+
+// Search Index Helpers
+impl SqliteBackend {
+    /// Index a resource for search.
+    ///
+    /// This method uses the SearchParameterExtractor to dynamically extract
+    /// searchable values based on the configured SearchParameterRegistry.
+    /// Falls back to hardcoded common parameter extraction if the registry
+    /// extraction fails.
+    pub(crate) fn index_resource(
+        &self,
+        conn: &rusqlite::Connection,
+        tenant_id: &str,
+        resource_type: &str,
+        resource_id: &str,
+        resource: &Value,
+    ) -> StorageResult<()> {
+        // Try dynamic extraction using the registry-driven extractor
+        match self.index_resource_dynamic(conn, tenant_id, resource_type, resource_id, resource) {
+            Ok(count) => {
+                tracing::debug!(
+                    "Dynamically indexed {} values for {}/{}",
+                    count,
+                    resource_type,
+                    resource_id
+                );
+                Ok(())
+            }
+            Err(e) => {
+                tracing::warn!(
+                    "Dynamic extraction failed for {}/{}, falling back to hardcoded: {}",
+                    resource_type,
+                    resource_id,
+                    e
+                );
+                // Fall back to hardcoded extraction for common parameters
+                self.index_common_params(conn, tenant_id, resource_type, resource_id, resource)
+            }
+        }
+    }
+
+    /// Index a resource using dynamic extraction from the SearchParameterRegistry.
+    ///
+    /// Returns the number of index entries created.
+    fn index_resource_dynamic(
+        &self,
+        conn: &rusqlite::Connection,
+        tenant_id: &str,
+        resource_type: &str,
+        resource_id: &str,
+        resource: &Value,
+    ) -> StorageResult<usize> {
+        // Extract values using the registry-driven extractor
+        let values = self
+            .search_extractor()
+            .extract(resource, resource_type)
+            .map_err(|e| internal_error(format!("Search parameter extraction failed: {}", e)))?;
+
+        let mut count = 0;
+        for value in values {
+            self.write_index_entry(conn, tenant_id, resource_type, resource_id, &value)?;
+            count += 1;
+        }
+
+        Ok(count)
+    }
+
+    /// Writes a single ExtractedValue to the search_index table.
+    fn write_index_entry(
+        &self,
+        conn: &rusqlite::Connection,
+        tenant_id: &str,
+        resource_type: &str,
+        resource_id: &str,
+        value: &ExtractedValue,
+    ) -> StorageResult<()> {
+        use crate::search::converters::IndexValue;
+
+        // For date values, normalize the date format for consistent SQLite comparisons
+        let normalized_value = match &value.value {
+            IndexValue::Date { value: date_str, precision } => {
+                let normalized_date = Self::normalize_date_for_sqlite(date_str);
+                let mut normalized = value.clone();
+                normalized.value = IndexValue::Date {
+                    value: normalized_date,
+                    precision: *precision,
+                };
+                Some(normalized)
+            }
+            _ => None,
+        };
+
+        let value_to_use = normalized_value.as_ref().unwrap_or(value);
+        let sql_params = SqliteSearchIndexWriter::to_sql_params(
+            tenant_id,
+            resource_type,
+            resource_id,
+            value_to_use,
+        );
+
+        // Build parameter refs for rusqlite
+        let param_refs: Vec<&dyn ToSql> = sql_params
+            .iter()
+            .map(|p| self.sql_value_to_ref(p))
+            .collect();
+
+        conn.execute(SqliteSearchIndexWriter::insert_sql(), param_refs.as_slice())
+            .map_err(|e| internal_error(format!("Failed to insert search index entry: {}", e)))?;
+
+        Ok(())
+    }
+
+    /// Normalizes a date string for SQLite comparisons.
+    ///
+    /// Ensures dates have a time component for consistent range comparisons.
+    fn normalize_date_for_sqlite(value: &str) -> String {
+        if value.contains('T') {
+            value.to_string()
+        } else if value.len() == 10 {
+            // YYYY-MM-DD -> YYYY-MM-DDTHH:MM:SS
+            format!("{}T00:00:00", value)
+        } else if value.len() == 7 {
+            // YYYY-MM -> YYYY-MM-01T00:00:00
+            format!("{}-01T00:00:00", value)
+        } else if value.len() == 4 {
+            // YYYY -> YYYY-01-01T00:00:00
+            format!("{}-01-01T00:00:00", value)
+        } else {
+            value.to_string()
+        }
+    }
+
+    /// Converts a SqlValue to a rusqlite-compatible reference.
+    fn sql_value_to_ref<'a>(&'a self, value: &'a super::search::writer::SqlValue) -> &'a dyn ToSql {
+        use super::search::writer::SqlValue;
+        match value {
+            SqlValue::String(s) => s,
+            SqlValue::OptString(opt) => opt,
+            SqlValue::Int(i) => i,
+            SqlValue::OptInt(opt) => opt,
+            SqlValue::Float(f) => f,
+            SqlValue::Null => &rusqlite::types::Null,
+        }
+    }
+
+    /// Delete search index entries for a resource.
+    pub(crate) fn delete_search_index(
+        &self,
+        conn: &rusqlite::Connection,
+        tenant_id: &str,
+        resource_type: &str,
+        resource_id: &str,
+    ) -> StorageResult<()> {
+        conn.execute(
+            "DELETE FROM search_index WHERE tenant_id = ?1 AND resource_type = ?2 AND resource_id = ?3",
+            params![tenant_id, resource_type, resource_id],
+        )
+        .map_err(|e| internal_error(format!("Failed to delete search index: {}", e)))?;
+        Ok(())
+    }
+
+    /// Index common search parameters that exist across most resources.
+    fn index_common_params(
+        &self,
+        conn: &rusqlite::Connection,
+        tenant_id: &str,
+        resource_type: &str,
+        resource_id: &str,
+        resource: &Value,
+    ) -> StorageResult<()> {
+        // Index identifier (token)
+        if let Some(identifiers) = resource.get("identifier").and_then(|v| v.as_array()) {
+            for identifier in identifiers {
+                let system = identifier.get("system").and_then(|v| v.as_str());
+                let value = identifier.get("value").and_then(|v| v.as_str());
+                if let Some(val) = value {
+                    self.insert_token_index(
+                        conn,
+                        tenant_id,
+                        resource_type,
+                        resource_id,
+                        "identifier",
+                        system,
+                        val,
+                    )?;
+                }
+            }
+        }
+
+        // Index name for Patient, Practitioner, etc. (string)
+        if let Some(names) = resource.get("name").and_then(|v| v.as_array()) {
+            for name in names {
+                // Family name
+                if let Some(family) = name.get("family").and_then(|v| v.as_str()) {
+                    self.insert_string_index(
+                        conn,
+                        tenant_id,
+                        resource_type,
+                        resource_id,
+                        "family",
+                        family,
+                    )?;
+                    self.insert_string_index(
+                        conn,
+                        tenant_id,
+                        resource_type,
+                        resource_id,
+                        "name",
+                        family,
+                    )?;
+                }
+                // Given names
+                if let Some(given) = name.get("given").and_then(|v| v.as_array()) {
+                    for g in given {
+                        if let Some(gname) = g.as_str() {
+                            self.insert_string_index(
+                                conn,
+                                tenant_id,
+                                resource_type,
+                                resource_id,
+                                "given",
+                                gname,
+                            )?;
+                            self.insert_string_index(
+                                conn,
+                                tenant_id,
+                                resource_type,
+                                resource_id,
+                                "name",
+                                gname,
+                            )?;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Index code/coding (token) - common in many resources
+        if let Some(code) = resource.get("code") {
+            self.index_codeable_concept(
+                conn,
+                tenant_id,
+                resource_type,
+                resource_id,
+                "code",
+                code,
+            )?;
+        }
+
+        // Index status (token)
+        if let Some(status) = resource.get("status").and_then(|v| v.as_str()) {
+            self.insert_token_index(
+                conn,
+                tenant_id,
+                resource_type,
+                resource_id,
+                "status",
+                None,
+                status,
+            )?;
+        }
+
+        // Index subject/patient reference
+        if let Some(subject) = resource.get("subject") {
+            self.index_reference(
+                conn,
+                tenant_id,
+                resource_type,
+                resource_id,
+                "subject",
+                subject,
+            )?;
+        }
+        if let Some(patient) = resource.get("patient") {
+            self.index_reference(
+                conn,
+                tenant_id,
+                resource_type,
+                resource_id,
+                "patient",
+                patient,
+            )?;
+        }
+
+        // Index date fields
+        if let Some(date) = resource.get("date").and_then(|v| v.as_str()) {
+            self.insert_date_index(conn, tenant_id, resource_type, resource_id, "date", date)?;
+        }
+        if let Some(date) = resource.get("birthDate").and_then(|v| v.as_str()) {
+            self.insert_date_index(
+                conn,
+                tenant_id,
+                resource_type,
+                resource_id,
+                "birthdate",
+                date,
+            )?;
+        }
+
+        Ok(())
+    }
+
+    /// Insert a string index entry.
+    fn insert_string_index(
+        &self,
+        conn: &rusqlite::Connection,
+        tenant_id: &str,
+        resource_type: &str,
+        resource_id: &str,
+        param_name: &str,
+        value: &str,
+    ) -> StorageResult<()> {
+        conn.execute(
+            "INSERT INTO search_index (tenant_id, resource_type, resource_id, param_name, value_string)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![tenant_id, resource_type, resource_id, param_name, value.to_lowercase()],
+        )
+        .map_err(|e| internal_error(format!("Failed to insert string index: {}", e)))?;
+        Ok(())
+    }
+
+    /// Insert a token index entry.
+    fn insert_token_index(
+        &self,
+        conn: &rusqlite::Connection,
+        tenant_id: &str,
+        resource_type: &str,
+        resource_id: &str,
+        param_name: &str,
+        system: Option<&str>,
+        code: &str,
+    ) -> StorageResult<()> {
+        conn.execute(
+            "INSERT INTO search_index (tenant_id, resource_type, resource_id, param_name, value_token_system, value_token_code)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![tenant_id, resource_type, resource_id, param_name, system, code],
+        )
+        .map_err(|e| internal_error(format!("Failed to insert token index: {}", e)))?;
+        Ok(())
+    }
+
+    /// Insert a date index entry.
+    fn insert_date_index(
+        &self,
+        conn: &rusqlite::Connection,
+        tenant_id: &str,
+        resource_type: &str,
+        resource_id: &str,
+        param_name: &str,
+        value: &str,
+    ) -> StorageResult<()> {
+        // Normalize date format: ensure we have at least YYYY-MM-DDTHH:MM:SS
+        // This enables proper range comparisons in SQLite
+        let normalized = if value.contains('T') {
+            value.to_string()
+        } else if value.len() == 10 {
+            // YYYY-MM-DD -> YYYY-MM-DDTHH:MM:SS
+            format!("{}T00:00:00", value)
+        } else if value.len() == 7 {
+            // YYYY-MM -> YYYY-MM-01T00:00:00
+            format!("{}-01T00:00:00", value)
+        } else if value.len() == 4 {
+            // YYYY -> YYYY-01-01T00:00:00
+            format!("{}-01-01T00:00:00", value)
+        } else {
+            value.to_string()
+        };
+
+        conn.execute(
+            "INSERT INTO search_index (tenant_id, resource_type, resource_id, param_name, value_date)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![tenant_id, resource_type, resource_id, param_name, normalized],
+        )
+        .map_err(|e| internal_error(format!("Failed to insert date index: {}", e)))?;
+        Ok(())
+    }
+
+    /// Insert a reference index entry.
+    fn insert_reference_index(
+        &self,
+        conn: &rusqlite::Connection,
+        tenant_id: &str,
+        resource_type: &str,
+        resource_id: &str,
+        param_name: &str,
+        reference: &str,
+    ) -> StorageResult<()> {
+        conn.execute(
+            "INSERT INTO search_index (tenant_id, resource_type, resource_id, param_name, value_reference)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![tenant_id, resource_type, resource_id, param_name, reference],
+        )
+        .map_err(|e| internal_error(format!("Failed to insert reference index: {}", e)))?;
+        Ok(())
+    }
+
+    /// Index a CodeableConcept or Coding.
+    fn index_codeable_concept(
+        &self,
+        conn: &rusqlite::Connection,
+        tenant_id: &str,
+        resource_type: &str,
+        resource_id: &str,
+        param_name: &str,
+        value: &Value,
+    ) -> StorageResult<()> {
+        // Check for coding array (CodeableConcept)
+        if let Some(codings) = value.get("coding").and_then(|v| v.as_array()) {
+            for coding in codings {
+                let system = coding.get("system").and_then(|v| v.as_str());
+                let code = coding.get("code").and_then(|v| v.as_str());
+                if let Some(c) = code {
+                    self.insert_token_index(
+                        conn,
+                        tenant_id,
+                        resource_type,
+                        resource_id,
+                        param_name,
+                        system,
+                        c,
+                    )?;
+                }
+            }
+        }
+        // Check for direct Coding
+        else if let (Some(code), system) = (
+            value.get("code").and_then(|v| v.as_str()),
+            value.get("system").and_then(|v| v.as_str()),
+        ) {
+            self.insert_token_index(
+                conn,
+                tenant_id,
+                resource_type,
+                resource_id,
+                param_name,
+                system,
+                code,
+            )?;
+        }
+        Ok(())
+    }
+
+    /// Index a Reference.
+    fn index_reference(
+        &self,
+        conn: &rusqlite::Connection,
+        tenant_id: &str,
+        resource_type: &str,
+        resource_id: &str,
+        param_name: &str,
+        value: &Value,
+    ) -> StorageResult<()> {
+        if let Some(reference) = value.get("reference").and_then(|v| v.as_str()) {
+            self.insert_reference_index(
+                conn,
+                tenant_id,
+                resource_type,
+                resource_id,
+                param_name,
+                reference,
+            )?;
+        }
+        Ok(())
     }
 }
 

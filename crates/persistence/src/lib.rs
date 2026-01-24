@@ -138,6 +138,7 @@
 pub mod backends;
 pub mod core;
 pub mod error;
+pub mod search;
 pub mod strategy;
 pub mod tenant;
 pub mod types;

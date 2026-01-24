@@ -5,7 +5,7 @@ use rusqlite::Connection;
 use crate::error::StorageResult;
 
 /// Current schema version.
-pub const SCHEMA_VERSION: i32 = 1;
+pub const SCHEMA_VERSION: i32 = 2;
 
 /// Initialize the database schema.
 pub fn initialize_schema(conn: &Connection) -> StorageResult<()> {
@@ -130,16 +130,19 @@ fn create_schema_v1(conn: &Connection) -> StorageResult<()> {
             resource_type TEXT NOT NULL,
             resource_id TEXT NOT NULL,
             param_name TEXT NOT NULL,
-            param_type TEXT NOT NULL,
+            param_url TEXT,
             value_string TEXT,
             value_token_system TEXT,
             value_token_code TEXT,
             value_date TEXT,
+            value_date_precision TEXT,
             value_number REAL,
             value_quantity_value REAL,
             value_quantity_unit TEXT,
+            value_quantity_system TEXT,
             value_reference TEXT,
             value_uri TEXT,
+            composite_group INTEGER,
             FOREIGN KEY (tenant_id, resource_type, resource_id)
                 REFERENCES resources(tenant_id, resource_type, id) ON DELETE CASCADE
         )",
@@ -173,8 +176,13 @@ fn create_indexes(conn: &Connection) -> StorageResult<()> {
         "CREATE INDEX IF NOT EXISTS idx_search_token ON search_index(tenant_id, resource_type, param_name, value_token_system, value_token_code)",
         "CREATE INDEX IF NOT EXISTS idx_search_date ON search_index(tenant_id, resource_type, param_name, value_date)",
         "CREATE INDEX IF NOT EXISTS idx_search_number ON search_index(tenant_id, resource_type, param_name, value_number)",
+        "CREATE INDEX IF NOT EXISTS idx_search_quantity ON search_index(tenant_id, resource_type, param_name, value_quantity_value, value_quantity_unit)",
         "CREATE INDEX IF NOT EXISTS idx_search_reference ON search_index(tenant_id, resource_type, param_name, value_reference)",
         "CREATE INDEX IF NOT EXISTS idx_search_uri ON search_index(tenant_id, resource_type, param_name, value_uri)",
+        // Index for composite parameter matching
+        "CREATE INDEX IF NOT EXISTS idx_search_composite ON search_index(tenant_id, resource_type, resource_id, param_name, composite_group)",
+        // Index for resource-based lookups
+        "CREATE INDEX IF NOT EXISTS idx_search_resource ON search_index(tenant_id, resource_type, resource_id)",
     ];
 
     for index_sql in &indexes {
@@ -196,8 +204,7 @@ fn migrate_schema(conn: &Connection, from_version: i32) -> StorageResult<()> {
 
     while version < SCHEMA_VERSION {
         match version {
-            // Add migration functions here as needed
-            // 1 => migrate_v1_to_v2(conn)?,
+            1 => migrate_v1_to_v2(conn)?,
             _ => {
                 return Err(crate::error::StorageError::Backend(
                     crate::error::BackendError::Internal {
@@ -210,6 +217,47 @@ fn migrate_schema(conn: &Connection, from_version: i32) -> StorageResult<()> {
         }
         version += 1;
         set_schema_version(conn, version)?;
+    }
+
+    Ok(())
+}
+
+/// Migrate from schema version 1 to version 2.
+///
+/// This migration adds new columns to the search_index table:
+/// - param_url: Canonical URL for the search parameter
+/// - value_date_precision: Precision tracking for date values
+/// - value_quantity_system: System URI for quantity units
+/// - composite_group: Group ID for composite parameter components
+fn migrate_v1_to_v2(conn: &Connection) -> StorageResult<()> {
+    let migrations = [
+        // Add new columns to search_index table
+        "ALTER TABLE search_index ADD COLUMN param_url TEXT",
+        "ALTER TABLE search_index ADD COLUMN value_date_precision TEXT",
+        "ALTER TABLE search_index ADD COLUMN value_quantity_system TEXT",
+        "ALTER TABLE search_index ADD COLUMN composite_group INTEGER",
+    ];
+
+    for sql in &migrations {
+        // Ignore errors for column already exists (idempotent migration)
+        let _ = conn.execute(sql, []);
+    }
+
+    // Create new indexes
+    let indexes = [
+        "CREATE INDEX IF NOT EXISTS idx_search_quantity ON search_index(tenant_id, resource_type, param_name, value_quantity_value, value_quantity_unit)",
+        "CREATE INDEX IF NOT EXISTS idx_search_composite ON search_index(tenant_id, resource_type, resource_id, param_name, composite_group)",
+        "CREATE INDEX IF NOT EXISTS idx_search_resource ON search_index(tenant_id, resource_type, resource_id)",
+    ];
+
+    for index_sql in &indexes {
+        conn.execute(index_sql, []).map_err(|e| {
+            crate::error::StorageError::Backend(crate::error::BackendError::Internal {
+                backend_name: "sqlite".to_string(),
+                message: format!("Failed to create index in migration: {}", e),
+                source: None,
+            })
+        })?;
     }
 
     Ok(())

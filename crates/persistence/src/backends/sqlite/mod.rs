@@ -69,7 +69,8 @@
 
 mod backend;
 mod schema;
-mod search;
+pub mod search;
+mod search_impl;
 mod storage;
 mod transaction;
 

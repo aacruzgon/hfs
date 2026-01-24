@@ -5,6 +5,7 @@
 //! - Multi-type search
 //! - _include and _revinclude support
 //! - Chained search parameter support
+//! - Search parameter filtering using the search_index table
 
 use std::collections::HashSet;
 
@@ -23,6 +24,7 @@ use crate::types::{
     ReverseChainedParameter, SearchQuery, StoredResource,
 };
 
+use super::search::{QueryBuilder, SqlParam};
 use super::SqliteBackend;
 
 fn internal_error(message: String) -> StorageError {
@@ -53,85 +55,188 @@ impl SearchProvider for SqliteBackend {
             .as_ref()
             .and_then(|c| PageCursor::decode(c).ok());
 
+        // Determine param offset based on pagination mode
+        // Cursor pagination: ?1=tenant, ?2=type, ?3=timestamp, ?4=id -> offset=4
+        // Non-cursor: ?1=tenant, ?2=type -> offset=2
+        let param_offset = if cursor.is_some() { 4 } else { 2 };
+
+        // Build the search filter subquery if there are search parameters
+        let search_filter = if !query.parameters.is_empty() {
+            let builder = QueryBuilder::new(tenant_id, resource_type)
+                .with_param_offset(param_offset);
+            let fragment = builder.build(query);
+            if !fragment.sql.is_empty() {
+                // The QueryBuilder returns a SELECT DISTINCT resource_id query
+                // We use this as a subquery to filter the resources table
+                Some(fragment)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
         // Build query based on pagination mode
-        let (sql, has_previous) = if let Some(ref cursor) = cursor {
+        let (sql, has_previous, search_params) = if let Some(ref cursor) = cursor {
             // Cursor-based pagination using keyset
             match cursor.direction() {
                 CursorDirection::Next => {
-                    // Forward pagination: get items after the cursor position
-                    // With DESC ordering, "after" means smaller timestamps (or same timestamp with smaller id)
-                    let sql = format!(
-                        "SELECT id, version_id, data, last_updated FROM resources
-                         WHERE tenant_id = ?1 AND resource_type = ?2 AND is_deleted = 0
-                         AND (last_updated < ?3 OR (last_updated = ?3 AND id < ?4))
-                         ORDER BY last_updated DESC, id DESC
-                         LIMIT {}",
-                        count + 1
-                    );
-                    (sql, true) // There's a previous page since we have a cursor
+                    let sql = if let Some(ref filter) = search_filter {
+                        format!(
+                            "SELECT id, version_id, data, last_updated FROM resources
+                             WHERE tenant_id = ?1 AND resource_type = ?2 AND is_deleted = 0
+                             AND id IN ({})
+                             AND (last_updated < ?3 OR (last_updated = ?3 AND id < ?4))
+                             ORDER BY last_updated DESC, id DESC
+                             LIMIT {}",
+                            filter.sql, count + 1
+                        )
+                    } else {
+                        format!(
+                            "SELECT id, version_id, data, last_updated FROM resources
+                             WHERE tenant_id = ?1 AND resource_type = ?2 AND is_deleted = 0
+                             AND (last_updated < ?3 OR (last_updated = ?3 AND id < ?4))
+                             ORDER BY last_updated DESC, id DESC
+                             LIMIT {}",
+                            count + 1
+                        )
+                    };
+                    (sql, true, search_filter.map(|f| f.params).unwrap_or_default())
                 }
                 CursorDirection::Previous => {
-                    // Backward pagination: get items before the cursor position
-                    // With DESC ordering, "before" means larger timestamps
-                    let sql = format!(
-                        "SELECT id, version_id, data, last_updated FROM resources
-                         WHERE tenant_id = ?1 AND resource_type = ?2 AND is_deleted = 0
-                         AND (last_updated > ?3 OR (last_updated = ?3 AND id > ?4))
-                         ORDER BY last_updated ASC, id ASC
-                         LIMIT {}",
-                        count + 1
-                    );
-                    (sql, false) // Will determine based on results
+                    let sql = if let Some(ref filter) = search_filter {
+                        format!(
+                            "SELECT id, version_id, data, last_updated FROM resources
+                             WHERE tenant_id = ?1 AND resource_type = ?2 AND is_deleted = 0
+                             AND id IN ({})
+                             AND (last_updated > ?3 OR (last_updated = ?3 AND id > ?4))
+                             ORDER BY last_updated ASC, id ASC
+                             LIMIT {}",
+                            filter.sql, count + 1
+                        )
+                    } else {
+                        format!(
+                            "SELECT id, version_id, data, last_updated FROM resources
+                             WHERE tenant_id = ?1 AND resource_type = ?2 AND is_deleted = 0
+                             AND (last_updated > ?3 OR (last_updated = ?3 AND id > ?4))
+                             ORDER BY last_updated ASC, id ASC
+                             LIMIT {}",
+                            count + 1
+                        )
+                    };
+                    (sql, false, search_filter.map(|f| f.params).unwrap_or_default())
                 }
             }
         } else if let Some(offset) = query.offset {
             // Offset-based pagination (legacy support)
-            let sql = format!(
-                "SELECT id, version_id, data, last_updated FROM resources
-                 WHERE tenant_id = ?1 AND resource_type = ?2 AND is_deleted = 0
-                 ORDER BY last_updated DESC, id DESC
-                 LIMIT {} OFFSET {}",
-                count + 1,
-                offset
-            );
-            (sql, offset > 0)
+            let sql = if let Some(ref filter) = search_filter {
+                format!(
+                    "SELECT id, version_id, data, last_updated FROM resources
+                     WHERE tenant_id = ?1 AND resource_type = ?2 AND is_deleted = 0
+                     AND id IN ({})
+                     ORDER BY last_updated DESC, id DESC
+                     LIMIT {} OFFSET {}",
+                    filter.sql, count + 1, offset
+                )
+            } else {
+                format!(
+                    "SELECT id, version_id, data, last_updated FROM resources
+                     WHERE tenant_id = ?1 AND resource_type = ?2 AND is_deleted = 0
+                     ORDER BY last_updated DESC, id DESC
+                     LIMIT {} OFFSET {}",
+                    count + 1, offset
+                )
+            };
+            (sql, offset > 0, search_filter.map(|f| f.params).unwrap_or_default())
         } else {
             // First page (no cursor, no offset)
-            let sql = format!(
-                "SELECT id, version_id, data, last_updated FROM resources
-                 WHERE tenant_id = ?1 AND resource_type = ?2 AND is_deleted = 0
-                 ORDER BY last_updated DESC, id DESC
-                 LIMIT {}",
-                count + 1
-            );
-            (sql, false)
+            let sql = if let Some(ref filter) = search_filter {
+                format!(
+                    "SELECT id, version_id, data, last_updated FROM resources
+                     WHERE tenant_id = ?1 AND resource_type = ?2 AND is_deleted = 0
+                     AND id IN ({})
+                     ORDER BY last_updated DESC, id DESC
+                     LIMIT {}",
+                    filter.sql, count + 1
+                )
+            } else {
+                format!(
+                    "SELECT id, version_id, data, last_updated FROM resources
+                     WHERE tenant_id = ?1 AND resource_type = ?2 AND is_deleted = 0
+                     ORDER BY last_updated DESC, id DESC
+                     LIMIT {}",
+                    count + 1
+                )
+            };
+            (sql, false, search_filter.map(|f| f.params).unwrap_or_default())
         };
 
         let mut stmt = conn
             .prepare(&sql)
             .map_err(|e| internal_error(format!("Failed to prepare search query: {}", e)))?;
 
-        // Collect raw row data first to avoid closure type issues
+        // Build the parameter list for binding
+        // Base params are always tenant_id and resource_type
+        // For cursor pagination, add cursor_timestamp and cursor_id
+        // Then append any search params from the QueryBuilder
         let raw_rows: Vec<(String, String, Vec<u8>, String)> = if let Some(ref cursor) = cursor {
             let (cursor_timestamp, cursor_id) = Self::extract_cursor_values(cursor)?;
+
+            // Build params: [tenant_id, resource_type, cursor_timestamp, cursor_id, ...search_params]
+            let mut all_params: Vec<Box<dyn rusqlite::ToSql>> = vec![
+                Box::new(tenant_id.to_string()),
+                Box::new(resource_type.to_string()),
+                Box::new(cursor_timestamp),
+                Box::new(cursor_id),
+            ];
+
+            // Add search params
+            for param in &search_params {
+                match param {
+                    SqlParam::String(s) => all_params.push(Box::new(s.clone())),
+                    SqlParam::Integer(i) => all_params.push(Box::new(*i)),
+                    SqlParam::Float(f) => all_params.push(Box::new(*f)),
+                    SqlParam::Null => all_params.push(Box::new(Option::<String>::None)),
+                }
+            }
+
+            let param_refs: Vec<&dyn rusqlite::ToSql> =
+                all_params.iter().map(|p| p.as_ref()).collect();
+
             let rows = stmt
-                .query_map(
-                    params![tenant_id, resource_type, cursor_timestamp, cursor_id],
-                    |row| {
-                        let id: String = row.get(0)?;
-                        let version_id: String = row.get(1)?;
-                        let data: Vec<u8> = row.get(2)?;
-                        let last_updated: String = row.get(3)?;
-                        Ok((id, version_id, data, last_updated))
-                    },
-                )
+                .query_map(param_refs.as_slice(), |row| {
+                    let id: String = row.get(0)?;
+                    let version_id: String = row.get(1)?;
+                    let data: Vec<u8> = row.get(2)?;
+                    let last_updated: String = row.get(3)?;
+                    Ok((id, version_id, data, last_updated))
+                })
                 .map_err(|e| internal_error(format!("Failed to execute search: {}", e)))?;
 
             rows.collect::<Result<Vec<_>, _>>()
                 .map_err(|e| internal_error(format!("Failed to read row: {}", e)))?
         } else {
+            // Build params: [tenant_id, resource_type, ...search_params]
+            let mut all_params: Vec<Box<dyn rusqlite::ToSql>> = vec![
+                Box::new(tenant_id.to_string()),
+                Box::new(resource_type.to_string()),
+            ];
+
+            // Add search params
+            for param in &search_params {
+                match param {
+                    SqlParam::String(s) => all_params.push(Box::new(s.clone())),
+                    SqlParam::Integer(i) => all_params.push(Box::new(*i)),
+                    SqlParam::Float(f) => all_params.push(Box::new(*f)),
+                    SqlParam::Null => all_params.push(Box::new(Option::<String>::None)),
+                }
+            }
+
+            let param_refs: Vec<&dyn rusqlite::ToSql> =
+                all_params.iter().map(|p| p.as_ref()).collect();
+
             let rows = stmt
-                .query_map(params![tenant_id, resource_type], |row| {
+                .query_map(param_refs.as_slice(), |row| {
                     let id: String = row.get(0)?;
                     let version_id: String = row.get(1)?;
                     let data: Vec<u8> = row.get(2)?;
@@ -234,12 +339,46 @@ impl SearchProvider for SqliteBackend {
         let tenant_id = tenant.tenant_id().as_str();
         let resource_type = &query.resource_type;
 
+        // Build the search filter if there are search parameters
+        let (sql, all_params): (String, Vec<Box<dyn rusqlite::ToSql>>) = if !query.parameters.is_empty() {
+            let builder = QueryBuilder::new(tenant_id, resource_type)
+                .with_param_offset(2);
+            let fragment = builder.build(query);
+
+            let mut params: Vec<Box<dyn rusqlite::ToSql>> = vec![
+                Box::new(tenant_id.to_string()),
+                Box::new(resource_type.to_string()),
+            ];
+
+            // Add search params
+            for param in &fragment.params {
+                match param {
+                    SqlParam::String(s) => params.push(Box::new(s.clone())),
+                    SqlParam::Integer(i) => params.push(Box::new(*i)),
+                    SqlParam::Float(f) => params.push(Box::new(*f)),
+                    SqlParam::Null => params.push(Box::new(Option::<String>::None)),
+                }
+            }
+
+            let sql = format!(
+                "SELECT COUNT(*) FROM resources WHERE tenant_id = ?1 AND resource_type = ?2 AND is_deleted = 0 AND id IN ({})",
+                fragment.sql
+            );
+
+            (sql, params)
+        } else {
+            let sql = "SELECT COUNT(*) FROM resources WHERE tenant_id = ?1 AND resource_type = ?2 AND is_deleted = 0".to_string();
+            let params: Vec<Box<dyn rusqlite::ToSql>> = vec![
+                Box::new(tenant_id.to_string()),
+                Box::new(resource_type.to_string()),
+            ];
+            (sql, params)
+        };
+
+        let param_refs: Vec<&dyn rusqlite::ToSql> = all_params.iter().map(|p| p.as_ref()).collect();
+
         let count: i64 = conn
-            .query_row(
-                "SELECT COUNT(*) FROM resources WHERE tenant_id = ?1 AND resource_type = ?2 AND is_deleted = 0",
-                params![tenant_id, resource_type],
-                |row| row.get(0),
-            )
+            .query_row(&sql, param_refs.as_slice(), |row| row.get(0))
             .map_err(|e| internal_error(format!("Failed to count resources: {}", e)))?;
 
         Ok(count as u64)

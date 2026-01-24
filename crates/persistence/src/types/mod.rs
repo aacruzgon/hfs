@@ -70,6 +70,7 @@
 //! ```
 
 mod pagination;
+mod search_capabilities;
 mod search_params;
 mod stored_resource;
 
@@ -85,3 +86,9 @@ pub use search_params::{
 };
 
 pub use stored_resource::{ResourceMeta, ResourceMethod, StoredResource, StoredResourceBuilder};
+
+pub use search_capabilities::{
+    ChainingCapability, CompositeComponent, DatePrecision, IncludeCapability, IndexingMode,
+    JsonbCapabilities, PaginationCapability, ResultModeCapability, SearchParamFullCapability,
+    SearchStrategy, SpecialSearchParam,
+};

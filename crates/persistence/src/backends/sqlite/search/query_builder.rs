@@ -1,0 +1,518 @@
+//! SQL Query Builder for FHIR Search.
+//!
+//! Translates FHIR search queries into SQL statements that can be executed
+//! against the SQLite search_index table.
+
+use std::collections::HashSet;
+
+use crate::types::{
+    SearchModifier, SearchParamType, SearchParameter, SearchPrefix, SearchQuery, SearchValue,
+};
+
+use super::parameter_handlers::{
+    DateHandler, NumberHandler, QuantityHandler, ReferenceHandler, StringHandler, TokenHandler,
+    UriHandler,
+};
+
+/// A fragment of SQL with bound parameters.
+#[derive(Debug, Clone)]
+pub struct SqlFragment {
+    /// The SQL clause.
+    pub sql: String,
+    /// Bound parameter values.
+    pub params: Vec<SqlParam>,
+}
+
+/// A bound SQL parameter.
+#[derive(Debug, Clone)]
+pub enum SqlParam {
+    /// String parameter.
+    String(String),
+    /// Integer parameter.
+    Integer(i64),
+    /// Float parameter.
+    Float(f64),
+    /// Null parameter.
+    Null,
+}
+
+impl SqlParam {
+    /// Creates a string parameter.
+    pub fn string(s: impl Into<String>) -> Self {
+        SqlParam::String(s.into())
+    }
+
+    /// Creates an integer parameter.
+    pub fn integer(i: i64) -> Self {
+        SqlParam::Integer(i)
+    }
+
+    /// Creates a float parameter.
+    pub fn float(f: f64) -> Self {
+        SqlParam::Float(f)
+    }
+}
+
+impl SqlFragment {
+    /// Creates a new SQL fragment.
+    pub fn new(sql: impl Into<String>) -> Self {
+        Self {
+            sql: sql.into(),
+            params: Vec::new(),
+        }
+    }
+
+    /// Creates a fragment with parameters.
+    pub fn with_params(sql: impl Into<String>, params: Vec<SqlParam>) -> Self {
+        Self {
+            sql: sql.into(),
+            params,
+        }
+    }
+
+    /// Adds a parameter placeholder and returns the placeholder string.
+    pub fn add_param(&mut self, param: SqlParam) -> String {
+        self.params.push(param);
+        format!("?{}", self.params.len())
+    }
+
+    /// Combines with another fragment using AND.
+    pub fn and(mut self, other: SqlFragment) -> Self {
+        if !self.sql.is_empty() && !other.sql.is_empty() {
+            self.sql = format!("({}) AND ({})", self.sql, other.sql);
+        } else if !other.sql.is_empty() {
+            self.sql = other.sql;
+        }
+        self.params.extend(other.params);
+        self
+    }
+
+    /// Combines with another fragment using OR.
+    pub fn or(mut self, other: SqlFragment) -> Self {
+        if !self.sql.is_empty() && !other.sql.is_empty() {
+            self.sql = format!("({}) OR ({})", self.sql, other.sql);
+        } else if !other.sql.is_empty() {
+            self.sql = other.sql;
+        }
+        self.params.extend(other.params);
+        self
+    }
+
+    /// Returns true if this fragment is empty.
+    pub fn is_empty(&self) -> bool {
+        self.sql.is_empty()
+    }
+}
+
+/// Builds SQL queries from FHIR search parameters.
+pub struct QueryBuilder {
+    /// The tenant ID for the query.
+    tenant_id: String,
+    /// The resource type being searched.
+    resource_type: String,
+    /// Base parameter offset for parameter placeholders.
+    ///
+    /// When the subquery is embedded in an outer query that already uses
+    /// params ?1-?N, set this to N so search params start at ?(N+1).
+    param_offset: usize,
+    /// Whether to skip tenant/resource type params (they're shared with outer query).
+    skip_base_params: bool,
+}
+
+impl QueryBuilder {
+    /// Creates a new query builder.
+    pub fn new(tenant_id: impl Into<String>, resource_type: impl Into<String>) -> Self {
+        Self {
+            tenant_id: tenant_id.into(),
+            resource_type: resource_type.into(),
+            param_offset: 0,
+            skip_base_params: false,
+        }
+    }
+
+    /// Sets the parameter offset for embedded subqueries.
+    ///
+    /// When the generated SQL will be embedded in an outer query that already
+    /// uses params ?1, ?2, etc., set this offset so the subquery's search
+    /// params don't conflict.
+    ///
+    /// The offset should be the total number of params used by the outer query
+    /// BEFORE the subquery. For example:
+    /// - Outer query uses ?1 (tenant) and ?2 (type): offset = 2
+    /// - Outer query uses ?1-?4 for cursor pagination: offset = 4
+    ///
+    /// Note: The subquery still references ?1 and ?2 for tenant/resource type
+    /// since those bind to the same values as the outer query.
+    pub fn with_param_offset(mut self, offset: usize) -> Self {
+        self.param_offset = offset;
+        self.skip_base_params = true;
+        self
+    }
+
+    /// Builds a complete search query.
+    ///
+    /// Returns SQL that selects matching resource IDs from the search_index table.
+    pub fn build(&self, query: &SearchQuery) -> SqlFragment {
+        let mut conditions = Vec::new();
+
+        // Base conditions: tenant and resource type
+        // These always use ?1 and ?2 since they're shared with the outer query
+        let mut base = SqlFragment::new(
+            "SELECT DISTINCT resource_id FROM search_index WHERE tenant_id = ?1 AND resource_type = ?2",
+        );
+
+        // Only include base params if not skipping (i.e., not embedded in outer query)
+        if !self.skip_base_params {
+            base.params.push(SqlParam::string(&self.tenant_id));
+            base.params.push(SqlParam::string(&self.resource_type));
+        }
+
+        // Calculate the starting offset for search params
+        // If embedded, use the provided offset; otherwise, start after base params
+        let search_param_offset = if self.skip_base_params {
+            self.param_offset
+        } else {
+            2 // After ?1 (tenant) and ?2 (resource_type)
+        };
+
+        // Build conditions for each parameter, tracking how many params we've added
+        let mut current_offset = search_param_offset;
+        for param in &query.parameters {
+            if let Some(condition) = self.build_parameter_condition(param, current_offset) {
+                current_offset += condition.params.len();
+                conditions.push(condition);
+            }
+        }
+
+        // Combine all conditions with AND
+        if !conditions.is_empty() {
+            let mut combined = conditions.remove(0);
+            for cond in conditions {
+                combined = combined.and(cond);
+            }
+
+            base.sql = format!("{} AND ({})", base.sql, combined.sql);
+            base.params.extend(combined.params);
+        }
+
+        base
+    }
+
+    /// Builds a condition for a single search parameter.
+    fn build_parameter_condition(
+        &self,
+        param: &SearchParameter,
+        param_offset: usize,
+    ) -> Option<SqlFragment> {
+        // Handle special parameters
+        if param.name.starts_with('_') {
+            return self.build_special_parameter_condition(param, param_offset);
+        }
+
+        // Multiple values are ORed together
+        let mut or_conditions = Vec::new();
+
+        for value in &param.values {
+            let condition = self.build_value_condition(param, value, param_offset + or_conditions.len());
+            if let Some(cond) = condition {
+                or_conditions.push(cond);
+            }
+        }
+
+        if or_conditions.is_empty() {
+            return None;
+        }
+
+        // Combine with OR
+        let mut combined = or_conditions.remove(0);
+        for cond in or_conditions {
+            combined = combined.or(cond);
+        }
+
+        // Wrap in subquery to ensure proper AND/OR semantics
+        Some(SqlFragment::with_params(
+            format!(
+                "resource_id IN (SELECT resource_id FROM search_index WHERE tenant_id = ?1 AND resource_type = ?2 AND param_name = '{}' AND ({}))",
+                param.name, combined.sql
+            ),
+            combined.params,
+        ))
+    }
+
+    /// Builds a condition for a special parameter (_id, _lastUpdated, etc.).
+    fn build_special_parameter_condition(
+        &self,
+        param: &SearchParameter,
+        param_offset: usize,
+    ) -> Option<SqlFragment> {
+        match param.name.as_str() {
+            "_id" => {
+                // _id searches directly on the resources table
+                let mut conditions = Vec::new();
+                for (i, value) in param.values.iter().enumerate() {
+                    conditions.push(SqlFragment::with_params(
+                        format!("id = ?{}", param_offset + i + 1),
+                        vec![SqlParam::string(&value.value)],
+                    ));
+                }
+
+                if conditions.is_empty() {
+                    return None;
+                }
+
+                let mut combined = conditions.remove(0);
+                for cond in conditions {
+                    combined = combined.or(cond);
+                }
+
+                Some(SqlFragment::with_params(
+                    format!(
+                        "resource_id IN (SELECT id FROM resources WHERE tenant_id = ?1 AND resource_type = ?2 AND ({}))",
+                        combined.sql
+                    ),
+                    combined.params,
+                ))
+            }
+            "_lastUpdated" => {
+                // _lastUpdated is stored in the resources table
+                self.build_date_conditions_on_resources(&param.values, param_offset)
+            }
+            _ => {
+                // Other special parameters - fall through to regular handling
+                None
+            }
+        }
+    }
+
+    /// Builds date conditions for the resources table (for _lastUpdated).
+    fn build_date_conditions_on_resources(
+        &self,
+        values: &[SearchValue],
+        param_offset: usize,
+    ) -> Option<SqlFragment> {
+        let mut conditions = Vec::new();
+
+        for (i, value) in values.iter().enumerate() {
+            let cond = DateHandler::build_sql(value, param_offset + i);
+            if !cond.is_empty() {
+                conditions.push(cond);
+            }
+        }
+
+        if conditions.is_empty() {
+            return None;
+        }
+
+        let mut combined = conditions.remove(0);
+        for cond in conditions {
+            combined = combined.or(cond);
+        }
+
+        Some(SqlFragment::with_params(
+            format!(
+                "resource_id IN (SELECT id FROM resources WHERE tenant_id = ?1 AND resource_type = ?2 AND ({}))",
+                combined.sql.replace("value_date", "last_updated")
+            ),
+            combined.params,
+        ))
+    }
+
+    /// Builds a condition for a single value.
+    fn build_value_condition(
+        &self,
+        param: &SearchParameter,
+        value: &SearchValue,
+        param_offset: usize,
+    ) -> Option<SqlFragment> {
+        // Handle :missing modifier
+        if let Some(SearchModifier::Missing) = &param.modifier {
+            return self.build_missing_condition(param, value);
+        }
+
+        // Build condition based on parameter type
+        let fragment = match param.param_type {
+            SearchParamType::String => {
+                StringHandler::build_sql(value, param.modifier.as_ref(), param_offset)
+            }
+            SearchParamType::Token => {
+                TokenHandler::build_sql(value, param.modifier.as_ref(), param_offset)
+            }
+            SearchParamType::Date => DateHandler::build_sql(value, param_offset),
+            SearchParamType::Number => NumberHandler::build_sql(value, param_offset),
+            SearchParamType::Quantity => QuantityHandler::build_sql(value, param_offset),
+            SearchParamType::Reference => {
+                ReferenceHandler::build_sql(value, param.modifier.as_ref(), param_offset)
+            }
+            SearchParamType::Uri => {
+                UriHandler::build_sql(value, param.modifier.as_ref(), param_offset)
+            }
+            SearchParamType::Composite => {
+                // Composite parameters are more complex
+                return None;
+            }
+            SearchParamType::Special => {
+                // Should have been handled by build_special_parameter_condition
+                return None;
+            }
+        };
+
+        if fragment.is_empty() {
+            None
+        } else {
+            Some(fragment)
+        }
+    }
+
+    /// Builds a condition for the :missing modifier.
+    fn build_missing_condition(
+        &self,
+        param: &SearchParameter,
+        value: &SearchValue,
+    ) -> Option<SqlFragment> {
+        let is_missing = value.value.to_lowercase() == "true";
+
+        if is_missing {
+            // Missing = true: resources with NO index entry for this param
+            Some(SqlFragment::new(format!(
+                "resource_id NOT IN (SELECT resource_id FROM search_index WHERE tenant_id = ?1 AND resource_type = ?2 AND param_name = '{}')",
+                param.name
+            )))
+        } else {
+            // Missing = false: resources WITH an index entry for this param
+            Some(SqlFragment::new(format!(
+                "resource_id IN (SELECT resource_id FROM search_index WHERE tenant_id = ?1 AND resource_type = ?2 AND param_name = '{}')",
+                param.name
+            )))
+        }
+    }
+
+    /// Builds an ORDER BY clause.
+    pub fn build_order_by(&self, query: &SearchQuery) -> String {
+        if query.sort.is_empty() {
+            return "ORDER BY last_updated DESC, id DESC".to_string();
+        }
+
+        let clauses: Vec<String> = query
+            .sort
+            .iter()
+            .map(|s| {
+                let dir = match s.direction {
+                    crate::types::SortDirection::Ascending => "ASC",
+                    crate::types::SortDirection::Descending => "DESC",
+                };
+
+                // Map common sort parameters
+                match s.parameter.as_str() {
+                    "_id" => format!("id {}", dir),
+                    "_lastUpdated" => format!("last_updated {}", dir),
+                    _ => format!("id {}", dir), // Fallback
+                }
+            })
+            .collect();
+
+        format!("ORDER BY {}", clauses.join(", "))
+    }
+
+    /// Builds a LIMIT clause.
+    pub fn build_limit(&self, query: &SearchQuery) -> String {
+        let count = query.count.unwrap_or(100);
+        if let Some(offset) = query.offset {
+            format!("LIMIT {} OFFSET {}", count + 1, offset)
+        } else {
+            format!("LIMIT {}", count + 1)
+        }
+    }
+
+    /// Returns the set of parameter names used in a query.
+    pub fn get_used_params(query: &SearchQuery) -> HashSet<String> {
+        let mut params = HashSet::new();
+        for param in &query.parameters {
+            params.insert(param.name.clone());
+        }
+        params
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_sql_fragment() {
+        let mut frag = SqlFragment::new("value_string = ?1");
+        frag.params.push(SqlParam::string("test"));
+
+        assert!(!frag.is_empty());
+        assert_eq!(frag.params.len(), 1);
+    }
+
+    #[test]
+    fn test_fragment_and() {
+        let frag1 = SqlFragment::with_params("a = ?1", vec![SqlParam::string("x")]);
+        let frag2 = SqlFragment::with_params("b = ?2", vec![SqlParam::string("y")]);
+
+        let combined = frag1.and(frag2);
+        assert!(combined.sql.contains("AND"));
+        assert_eq!(combined.params.len(), 2);
+    }
+
+    #[test]
+    fn test_fragment_or() {
+        let frag1 = SqlFragment::with_params("a = ?1", vec![SqlParam::string("x")]);
+        let frag2 = SqlFragment::with_params("b = ?2", vec![SqlParam::string("y")]);
+
+        let combined = frag1.or(frag2);
+        assert!(combined.sql.contains("OR"));
+    }
+
+    #[test]
+    fn test_query_builder_basic() {
+        let builder = QueryBuilder::new("tenant1", "Patient");
+
+        let query = SearchQuery::new("Patient");
+        let fragment = builder.build(&query);
+
+        assert!(fragment.sql.contains("search_index"));
+        assert!(fragment.sql.contains("tenant_id"));
+        assert!(fragment.sql.contains("resource_type"));
+    }
+
+    #[test]
+    fn test_query_builder_with_param() {
+        let builder = QueryBuilder::new("tenant1", "Patient");
+
+        let mut query = SearchQuery::new("Patient");
+        query.parameters.push(SearchParameter {
+            name: "name".to_string(),
+            param_type: SearchParamType::String,
+            modifier: None,
+            values: vec![SearchValue::eq("smith")],
+            chain: vec![],
+        });
+
+        let fragment = builder.build(&query);
+
+        assert!(fragment.sql.contains("param_name = 'name'"));
+    }
+
+    #[test]
+    fn test_order_by_default() {
+        let builder = QueryBuilder::new("tenant1", "Patient");
+        let query = SearchQuery::new("Patient");
+
+        let order_by = builder.build_order_by(&query);
+        assert!(order_by.contains("last_updated DESC"));
+    }
+
+    #[test]
+    fn test_limit_with_offset() {
+        let builder = QueryBuilder::new("tenant1", "Patient");
+        let mut query = SearchQuery::new("Patient");
+        query.count = Some(10);
+        query.offset = Some(20);
+
+        let limit = builder.build_limit(&query);
+        assert!(limit.contains("LIMIT 11"));
+        assert!(limit.contains("OFFSET 20"));
+    }
+}

@@ -8,7 +8,10 @@ use std::collections::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::types::SearchParamType;
+use crate::types::{
+    ChainingCapability, IncludeCapability, PaginationCapability, ResultModeCapability,
+    SearchParamFullCapability, SearchParamType, SearchQuery, SpecialSearchParam,
+};
 
 /// Supported FHIR interactions for a resource type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -389,6 +392,394 @@ pub trait CapabilityProvider {
     }
 }
 
+// ============================================================================
+// Enhanced Search Capabilities
+// ============================================================================
+
+/// Comprehensive search capabilities for a resource type.
+///
+/// This provides detailed information about what search features are supported
+/// for a specific resource type, including all parameters, modifiers, and
+/// special capabilities.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ResourceSearchCapabilities {
+    /// The resource type these capabilities apply to.
+    pub resource_type: String,
+
+    /// Full capability information for each search parameter.
+    pub search_params: Vec<SearchParamFullCapability>,
+
+    /// Supported special parameters (_id, _lastUpdated, etc.).
+    pub special_params: HashSet<SpecialSearchParam>,
+
+    /// Include/revinclude capabilities.
+    pub include_capabilities: HashSet<IncludeCapability>,
+
+    /// Chaining capabilities.
+    pub chaining_capabilities: HashSet<ChainingCapability>,
+
+    /// Pagination capabilities.
+    pub pagination_capabilities: HashSet<PaginationCapability>,
+
+    /// Result mode capabilities (_summary, _elements, _total).
+    pub result_mode_capabilities: HashSet<ResultModeCapability>,
+}
+
+impl ResourceSearchCapabilities {
+    /// Creates new search capabilities for a resource type.
+    pub fn new(resource_type: impl Into<String>) -> Self {
+        Self {
+            resource_type: resource_type.into(),
+            ..Default::default()
+        }
+    }
+
+    /// Adds a search parameter capability.
+    pub fn with_param(mut self, param: SearchParamFullCapability) -> Self {
+        self.search_params.push(param);
+        self
+    }
+
+    /// Adds special parameter support.
+    pub fn with_special_params<I>(mut self, params: I) -> Self
+    where
+        I: IntoIterator<Item = SpecialSearchParam>,
+    {
+        self.special_params.extend(params);
+        self
+    }
+
+    /// Adds include capabilities.
+    pub fn with_include_capabilities<I>(mut self, caps: I) -> Self
+    where
+        I: IntoIterator<Item = IncludeCapability>,
+    {
+        self.include_capabilities.extend(caps);
+        self
+    }
+
+    /// Adds chaining capabilities.
+    pub fn with_chaining_capabilities<I>(mut self, caps: I) -> Self
+    where
+        I: IntoIterator<Item = ChainingCapability>,
+    {
+        self.chaining_capabilities.extend(caps);
+        self
+    }
+
+    /// Adds pagination capabilities.
+    pub fn with_pagination_capabilities<I>(mut self, caps: I) -> Self
+    where
+        I: IntoIterator<Item = PaginationCapability>,
+    {
+        self.pagination_capabilities.extend(caps);
+        self
+    }
+
+    /// Adds result mode capabilities.
+    pub fn with_result_mode_capabilities<I>(mut self, caps: I) -> Self
+    where
+        I: IntoIterator<Item = ResultModeCapability>,
+    {
+        self.result_mode_capabilities.extend(caps);
+        self
+    }
+
+    /// Returns the capability for a specific parameter by name.
+    pub fn get_param(&self, name: &str) -> Option<&SearchParamFullCapability> {
+        self.search_params.iter().find(|p| p.name == name)
+    }
+
+    /// Returns whether a special parameter is supported.
+    pub fn supports_special(&self, param: SpecialSearchParam) -> bool {
+        self.special_params.contains(&param)
+    }
+
+    /// Returns whether a specific include capability is supported.
+    pub fn supports_include(&self, cap: IncludeCapability) -> bool {
+        self.include_capabilities.contains(&cap)
+    }
+
+    /// Returns whether chaining is supported.
+    pub fn supports_chaining(&self) -> bool {
+        self.chaining_capabilities
+            .contains(&ChainingCapability::ForwardChain)
+    }
+
+    /// Returns whether reverse chaining (_has) is supported.
+    pub fn supports_reverse_chaining(&self) -> bool {
+        self.chaining_capabilities
+            .contains(&ChainingCapability::ReverseChain)
+    }
+}
+
+/// Global search capabilities across all resource types.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct GlobalSearchCapabilities {
+    /// Common special parameters supported for all types.
+    pub common_special_params: HashSet<SpecialSearchParam>,
+
+    /// Common include capabilities for all types.
+    pub common_include_capabilities: HashSet<IncludeCapability>,
+
+    /// Common pagination capabilities.
+    pub common_pagination_capabilities: HashSet<PaginationCapability>,
+
+    /// Common result mode capabilities.
+    pub common_result_mode_capabilities: HashSet<ResultModeCapability>,
+
+    /// Maximum chain depth supported.
+    pub max_chain_depth: Option<u8>,
+
+    /// Whether system-level search is supported.
+    pub supports_system_search: bool,
+
+    /// Supported common sort parameters (_id, _lastUpdated).
+    pub common_sort_params: Vec<String>,
+}
+
+impl GlobalSearchCapabilities {
+    /// Creates new global search capabilities.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Adds common special parameters.
+    pub fn with_special_params<I>(mut self, params: I) -> Self
+    where
+        I: IntoIterator<Item = SpecialSearchParam>,
+    {
+        self.common_special_params.extend(params);
+        self
+    }
+
+    /// Adds common pagination capabilities.
+    pub fn with_pagination<I>(mut self, caps: I) -> Self
+    where
+        I: IntoIterator<Item = PaginationCapability>,
+    {
+        self.common_pagination_capabilities.extend(caps);
+        self
+    }
+
+    /// Sets max chain depth.
+    pub fn with_max_chain_depth(mut self, depth: u8) -> Self {
+        self.max_chain_depth = Some(depth);
+        self
+    }
+
+    /// Enables system search.
+    pub fn with_system_search(mut self) -> Self {
+        self.supports_system_search = true;
+        self
+    }
+}
+
+/// Error returned when a search query uses unsupported features.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UnsupportedSearchFeature {
+    /// Type of unsupported feature.
+    pub feature_type: UnsupportedFeatureType,
+    /// Description of the unsupported feature.
+    pub description: String,
+    /// The parameter or feature that caused the error.
+    pub parameter: Option<String>,
+    /// Suggested alternative, if any.
+    pub suggestion: Option<String>,
+}
+
+/// Types of unsupported search features.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum UnsupportedFeatureType {
+    /// Parameter not defined for this resource type.
+    UnknownParameter,
+    /// Modifier not supported for this parameter.
+    UnsupportedModifier,
+    /// Prefix not supported for this parameter type.
+    UnsupportedPrefix,
+    /// Chaining not supported.
+    UnsupportedChaining,
+    /// Reverse chaining (_has) not supported.
+    UnsupportedReverseChaining,
+    /// Include/revinclude not supported.
+    UnsupportedInclude,
+    /// Composite parameter not supported.
+    UnsupportedComposite,
+    /// Special parameter not supported.
+    UnsupportedSpecialParameter,
+    /// Result mode not supported.
+    UnsupportedResultMode,
+    /// Pagination mode not supported.
+    UnsupportedPagination,
+}
+
+impl UnsupportedSearchFeature {
+    /// Creates a new unsupported feature error.
+    pub fn new(feature_type: UnsupportedFeatureType, description: impl Into<String>) -> Self {
+        Self {
+            feature_type,
+            description: description.into(),
+            parameter: None,
+            suggestion: None,
+        }
+    }
+
+    /// Sets the parameter that caused the error.
+    pub fn with_parameter(mut self, param: impl Into<String>) -> Self {
+        self.parameter = Some(param.into());
+        self
+    }
+
+    /// Sets a suggestion for the user.
+    pub fn with_suggestion(mut self, suggestion: impl Into<String>) -> Self {
+        self.suggestion = Some(suggestion.into());
+        self
+    }
+
+    /// Creates an unknown parameter error.
+    pub fn unknown_parameter(resource_type: &str, param: &str) -> Self {
+        Self::new(
+            UnsupportedFeatureType::UnknownParameter,
+            format!(
+                "Parameter '{}' is not defined for resource type '{}'",
+                param, resource_type
+            ),
+        )
+        .with_parameter(param)
+    }
+
+    /// Creates an unsupported modifier error.
+    pub fn unsupported_modifier(param: &str, modifier: &str) -> Self {
+        Self::new(
+            UnsupportedFeatureType::UnsupportedModifier,
+            format!("Modifier '{}' is not supported for parameter '{}'", modifier, param),
+        )
+        .with_parameter(format!("{}:{}", param, modifier))
+    }
+
+    /// Creates an unsupported prefix error.
+    pub fn unsupported_prefix(param: &str, prefix: &str) -> Self {
+        Self::new(
+            UnsupportedFeatureType::UnsupportedPrefix,
+            format!("Prefix '{}' is not supported for parameter '{}'", prefix, param),
+        )
+        .with_parameter(param)
+    }
+}
+
+impl std::fmt::Display for UnsupportedSearchFeature {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.description)?;
+        if let Some(ref suggestion) = self.suggestion {
+            write!(f, " ({})", suggestion)?;
+        }
+        Ok(())
+    }
+}
+
+impl std::error::Error for UnsupportedSearchFeature {}
+
+/// Trait for providing detailed search capabilities.
+///
+/// This trait extends basic capability reporting with detailed search
+/// capability information and query validation.
+pub trait SearchCapabilityProvider: Send + Sync {
+    /// Returns detailed search capabilities for a resource type.
+    ///
+    /// Returns `None` if the resource type is not supported.
+    fn resource_search_capabilities(&self, resource_type: &str) -> Option<ResourceSearchCapabilities>;
+
+    /// Returns global search capabilities that apply to all resource types.
+    fn global_search_capabilities(&self) -> GlobalSearchCapabilities;
+
+    /// Validates a search query against the backend's capabilities.
+    ///
+    /// Returns `Ok(())` if the query is fully supported, or an error
+    /// describing the first unsupported feature encountered.
+    fn validate_search_query(&self, query: &SearchQuery) -> Result<(), UnsupportedSearchFeature> {
+        let resource_type = &query.resource_type;
+        let caps = self
+            .resource_search_capabilities(resource_type)
+            .ok_or_else(|| {
+                UnsupportedSearchFeature::new(
+                    UnsupportedFeatureType::UnknownParameter,
+                    format!("Resource type '{}' is not supported", resource_type),
+                )
+            })?;
+
+        // Validate each parameter
+        for param in &query.parameters {
+            // Check if parameter is defined
+            let param_cap = caps.get_param(&param.name).ok_or_else(|| {
+                UnsupportedSearchFeature::unknown_parameter(resource_type, &param.name)
+            })?;
+
+            // Check modifier if present
+            if let Some(ref modifier) = param.modifier {
+                let modifier_str = modifier.to_string();
+                if !param_cap.supports_modifier(&modifier_str) {
+                    return Err(UnsupportedSearchFeature::unsupported_modifier(
+                        &param.name,
+                        &modifier_str,
+                    ));
+                }
+            }
+
+            // Check prefixes
+            for value in &param.values {
+                let prefix_str = value.prefix.to_string();
+                if !param_cap.supports_prefix(&prefix_str) {
+                    return Err(UnsupportedSearchFeature::unsupported_prefix(
+                        &param.name,
+                        &prefix_str,
+                    ));
+                }
+            }
+
+            // Check chaining
+            if !param.chain.is_empty() && !caps.supports_chaining() {
+                return Err(UnsupportedSearchFeature::new(
+                    UnsupportedFeatureType::UnsupportedChaining,
+                    "Chained search parameters are not supported",
+                ));
+            }
+        }
+
+        // Check reverse chaining
+        if !query.reverse_chains.is_empty() && !caps.supports_reverse_chaining() {
+            return Err(UnsupportedSearchFeature::new(
+                UnsupportedFeatureType::UnsupportedReverseChaining,
+                "_has (reverse chaining) is not supported",
+            ));
+        }
+
+        // Check includes
+        for include in &query.includes {
+            let include_cap = if include.include_type == crate::types::IncludeType::Include {
+                if include.iterate {
+                    IncludeCapability::IncludeIterate
+                } else {
+                    IncludeCapability::Include
+                }
+            } else if include.iterate {
+                IncludeCapability::RevincludeIterate
+            } else {
+                IncludeCapability::Revinclude
+            };
+
+            if !caps.supports_include(include_cap) {
+                return Err(UnsupportedSearchFeature::new(
+                    UnsupportedFeatureType::UnsupportedInclude,
+                    format!("{:?} is not supported", include_cap),
+                ));
+            }
+        }
+
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -465,5 +856,54 @@ mod tests {
         assert_eq!(rest["mode"], "server");
         assert!(rest["resource"].is_array());
         assert!(rest["interaction"].is_array());
+    }
+
+    // =========================================================================
+    // Enhanced Search Capabilities Tests
+    // =========================================================================
+
+    #[test]
+    fn test_resource_search_capabilities() {
+        let caps = ResourceSearchCapabilities::new("Patient")
+            .with_param(SearchParamFullCapability::new("name", SearchParamType::String))
+            .with_special_params(vec![SpecialSearchParam::Id, SpecialSearchParam::LastUpdated])
+            .with_include_capabilities(vec![IncludeCapability::Include]);
+
+        assert_eq!(caps.resource_type, "Patient");
+        assert!(caps.get_param("name").is_some());
+        assert!(caps.supports_special(SpecialSearchParam::Id));
+        assert!(caps.supports_include(IncludeCapability::Include));
+    }
+
+    #[test]
+    fn test_global_search_capabilities() {
+        let global = GlobalSearchCapabilities::new()
+            .with_special_params(vec![SpecialSearchParam::Id])
+            .with_max_chain_depth(3)
+            .with_system_search();
+
+        assert!(global.common_special_params.contains(&SpecialSearchParam::Id));
+        assert_eq!(global.max_chain_depth, Some(3));
+        assert!(global.supports_system_search);
+    }
+
+    #[test]
+    fn test_unsupported_search_feature() {
+        let err = UnsupportedSearchFeature::unknown_parameter("Patient", "unknown");
+        assert_eq!(err.feature_type, UnsupportedFeatureType::UnknownParameter);
+        assert!(err.parameter.is_some());
+        assert!(err.to_string().contains("unknown"));
+
+        let err2 = UnsupportedSearchFeature::unsupported_modifier("name", "phonetic");
+        assert_eq!(err2.feature_type, UnsupportedFeatureType::UnsupportedModifier);
+    }
+
+    #[test]
+    fn test_search_capabilities_chaining() {
+        let caps = ResourceSearchCapabilities::new("Observation")
+            .with_chaining_capabilities(vec![ChainingCapability::ForwardChain]);
+
+        assert!(caps.supports_chaining());
+        assert!(!caps.supports_reverse_chaining());
     }
 }
