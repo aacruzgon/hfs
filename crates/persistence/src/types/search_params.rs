@@ -521,6 +521,12 @@ impl SearchQuery {
         self
     }
 
+    /// Sets the cursor for keyset pagination.
+    pub fn with_cursor(mut self, cursor: String) -> Self {
+        self.cursor = Some(cursor);
+        self
+    }
+
     /// Returns true if this query uses any features that require special backend support.
     pub fn requires_advanced_features(&self) -> bool {
         // Chained parameters

@@ -54,6 +54,36 @@ impl SearchResult {
         self
     }
 
+    /// Returns the number of matching resources in this page.
+    pub fn len(&self) -> usize {
+        self.resources.len()
+    }
+
+    /// Returns true if there are no matching resources.
+    pub fn is_empty(&self) -> bool {
+        self.resources.is_empty()
+    }
+
+    /// Returns the cursor for the next page, if there is one.
+    pub fn next_cursor(&self) -> Option<&String> {
+        self.resources.page_info.next_cursor.as_ref()
+    }
+
+    /// Returns the cursor for the previous page, if there is one.
+    pub fn previous_cursor(&self) -> Option<&String> {
+        self.resources.page_info.previous_cursor.as_ref()
+    }
+
+    /// Returns whether there are more results after this page.
+    pub fn has_next(&self) -> bool {
+        self.resources.page_info.has_next
+    }
+
+    /// Returns whether there are results before this page.
+    pub fn has_previous(&self) -> bool {
+        self.resources.page_info.has_previous
+    }
+
     /// Converts the result to a FHIR SearchBundle.
     pub fn to_bundle(&self, base_url: &str, self_link: &str) -> SearchBundle {
         use crate::types::{BundleEntry, SearchBundle};

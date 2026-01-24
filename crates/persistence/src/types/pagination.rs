@@ -39,9 +39,31 @@ impl Default for Pagination {
 }
 
 impl Pagination {
+    /// Creates pagination with cursor mode and the specified count.
+    pub fn new(count: u32) -> Self {
+        Self {
+            count,
+            mode: PaginationMode::Cursor(None),
+        }
+    }
+
     /// Creates pagination with cursor mode and default count.
     pub fn cursor() -> Self {
         Self::default()
+    }
+
+    /// Creates pagination with a cursor string and specified count.
+    pub fn with_cursor(count: u32, cursor: String) -> Self {
+        match PageCursor::decode(&cursor) {
+            Ok(page_cursor) => Self {
+                count,
+                mode: PaginationMode::Cursor(Some(page_cursor)),
+            },
+            Err(_) => Self {
+                count,
+                mode: PaginationMode::Cursor(None),
+            },
+        }
     }
 
     /// Creates pagination with offset mode.

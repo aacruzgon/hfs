@@ -19,7 +19,8 @@ use crate::core::{
 use crate::error::{BackendError, StorageError, StorageResult};
 use crate::tenant::TenantContext;
 use crate::types::{
-    IncludeDirective, Page, PageInfo, ReverseChainedParameter, SearchQuery, StoredResource,
+    CursorDirection, CursorValue, IncludeDirective, Page, PageCursor, PageInfo,
+    ReverseChainedParameter, SearchQuery, StoredResource,
 };
 
 use super::SqliteBackend;
@@ -43,44 +44,113 @@ impl SearchProvider for SqliteBackend {
         let tenant_id = tenant.tenant_id().as_str();
         let resource_type = &query.resource_type;
 
-        // Get count and offset with defaults
+        // Get count with default
         let count = query.count.unwrap_or(100) as usize;
-        let offset = query.offset.unwrap_or(0) as usize;
 
-        // Basic implementation - just return all resources of the type
-        // Full search parameter support is TODO
-        let sql = format!(
-            "SELECT id, version_id, data, last_updated FROM resources
-             WHERE tenant_id = ?1 AND resource_type = ?2 AND is_deleted = 0
-             ORDER BY last_updated DESC
-             LIMIT {} OFFSET {}",
-            count + 1, // Fetch one extra to check if there are more
-            offset
-        );
+        // Check for cursor-based pagination
+        let cursor = query
+            .cursor
+            .as_ref()
+            .and_then(|c| PageCursor::decode(c).ok());
+
+        // Build query based on pagination mode
+        let (sql, has_previous) = if let Some(ref cursor) = cursor {
+            // Cursor-based pagination using keyset
+            match cursor.direction() {
+                CursorDirection::Next => {
+                    // Forward pagination: get items after the cursor position
+                    // With DESC ordering, "after" means smaller timestamps (or same timestamp with smaller id)
+                    let sql = format!(
+                        "SELECT id, version_id, data, last_updated FROM resources
+                         WHERE tenant_id = ?1 AND resource_type = ?2 AND is_deleted = 0
+                         AND (last_updated < ?3 OR (last_updated = ?3 AND id < ?4))
+                         ORDER BY last_updated DESC, id DESC
+                         LIMIT {}",
+                        count + 1
+                    );
+                    (sql, true) // There's a previous page since we have a cursor
+                }
+                CursorDirection::Previous => {
+                    // Backward pagination: get items before the cursor position
+                    // With DESC ordering, "before" means larger timestamps
+                    let sql = format!(
+                        "SELECT id, version_id, data, last_updated FROM resources
+                         WHERE tenant_id = ?1 AND resource_type = ?2 AND is_deleted = 0
+                         AND (last_updated > ?3 OR (last_updated = ?3 AND id > ?4))
+                         ORDER BY last_updated ASC, id ASC
+                         LIMIT {}",
+                        count + 1
+                    );
+                    (sql, false) // Will determine based on results
+                }
+            }
+        } else if let Some(offset) = query.offset {
+            // Offset-based pagination (legacy support)
+            let sql = format!(
+                "SELECT id, version_id, data, last_updated FROM resources
+                 WHERE tenant_id = ?1 AND resource_type = ?2 AND is_deleted = 0
+                 ORDER BY last_updated DESC, id DESC
+                 LIMIT {} OFFSET {}",
+                count + 1,
+                offset
+            );
+            (sql, offset > 0)
+        } else {
+            // First page (no cursor, no offset)
+            let sql = format!(
+                "SELECT id, version_id, data, last_updated FROM resources
+                 WHERE tenant_id = ?1 AND resource_type = ?2 AND is_deleted = 0
+                 ORDER BY last_updated DESC, id DESC
+                 LIMIT {}",
+                count + 1
+            );
+            (sql, false)
+        };
 
         let mut stmt = conn
             .prepare(&sql)
             .map_err(|e| internal_error(format!("Failed to prepare search query: {}", e)))?;
 
-        let rows = stmt
-            .query_map(params![tenant_id, resource_type], |row| {
-                let id: String = row.get(0)?;
-                let version_id: String = row.get(1)?;
-                let data: Vec<u8> = row.get(2)?;
-                let last_updated: String = row.get(3)?;
-                Ok((id, version_id, data, last_updated))
-            })
-            .map_err(|e| internal_error(format!("Failed to execute search: {}", e)))?;
+        // Collect raw row data first to avoid closure type issues
+        let raw_rows: Vec<(String, String, Vec<u8>, String)> = if let Some(ref cursor) = cursor {
+            let (cursor_timestamp, cursor_id) = Self::extract_cursor_values(cursor)?;
+            let rows = stmt
+                .query_map(
+                    params![tenant_id, resource_type, cursor_timestamp, cursor_id],
+                    |row| {
+                        let id: String = row.get(0)?;
+                        let version_id: String = row.get(1)?;
+                        let data: Vec<u8> = row.get(2)?;
+                        let last_updated: String = row.get(3)?;
+                        Ok((id, version_id, data, last_updated))
+                    },
+                )
+                .map_err(|e| internal_error(format!("Failed to execute search: {}", e)))?;
+
+            rows.collect::<Result<Vec<_>, _>>()
+                .map_err(|e| internal_error(format!("Failed to read row: {}", e)))?
+        } else {
+            let rows = stmt
+                .query_map(params![tenant_id, resource_type], |row| {
+                    let id: String = row.get(0)?;
+                    let version_id: String = row.get(1)?;
+                    let data: Vec<u8> = row.get(2)?;
+                    let last_updated: String = row.get(3)?;
+                    Ok((id, version_id, data, last_updated))
+                })
+                .map_err(|e| internal_error(format!("Failed to execute search: {}", e)))?;
+
+            rows.collect::<Result<Vec<_>, _>>()
+                .map_err(|e| internal_error(format!("Failed to read row: {}", e)))?
+        };
 
         let mut resources = Vec::new();
-        for row in rows {
-            let (id, version_id, data, last_updated) =
-                row.map_err(|e| internal_error(format!("Failed to read row: {}", e)))?;
+        for (id, version_id, data, last_updated_str) in raw_rows {
 
             let json_data: serde_json::Value = serde_json::from_slice(&data)
                 .map_err(|e| internal_error(format!("Failed to deserialize resource: {}", e)))?;
 
-            let last_updated = chrono::DateTime::parse_from_rfc3339(&last_updated)
+            let last_updated = chrono::DateTime::parse_from_rfc3339(&last_updated_str)
                 .map_err(|e| internal_error(format!("Failed to parse last_updated: {}", e)))?
                 .with_timezone(&Utc);
 
@@ -90,12 +160,21 @@ impl SearchProvider for SqliteBackend {
                 version_id,
                 tenant.tenant_id().clone(),
                 json_data,
-                last_updated, // Use last_updated as created_at (we don't track created_at separately)
                 last_updated,
-                None, // Not deleted
+                last_updated,
+                None,
             );
 
             resources.push(resource);
+        }
+
+        // For backward pagination, reverse the results to maintain DESC order
+        if cursor
+            .as_ref()
+            .map(|c| c.direction() == CursorDirection::Previous)
+            .unwrap_or(false)
+        {
+            resources.reverse();
         }
 
         // Check if there are more results (we fetched one extra)
@@ -104,12 +183,37 @@ impl SearchProvider for SqliteBackend {
             resources.pop(); // Remove the extra one
         }
 
+        // Generate cursors for pagination
+        let next_cursor = if has_next {
+            resources.last().map(|r| {
+                let cursor = PageCursor::new(
+                    vec![CursorValue::String(r.last_modified().to_rfc3339())],
+                    r.id(),
+                );
+                cursor.encode()
+            })
+        } else {
+            None
+        };
+
+        let previous_cursor = if has_previous {
+            resources.first().map(|r| {
+                let cursor = PageCursor::previous(
+                    vec![CursorValue::String(r.last_modified().to_rfc3339())],
+                    r.id(),
+                );
+                cursor.encode()
+            })
+        } else {
+            None
+        };
+
         let page_info = PageInfo {
-            next_cursor: None, // Cursor-based pagination TODO
-            previous_cursor: None,
+            next_cursor,
+            previous_cursor,
             total: None,
             has_next,
-            has_previous: offset > 0,
+            has_previous,
         };
 
         let page = Page::new(resources, page_info);
@@ -541,6 +645,21 @@ impl ChainedSearchProvider for SqliteBackend {
 
 // Helper methods for search implementations
 impl SqliteBackend {
+    /// Extract timestamp and ID from a cursor for keyset pagination.
+    fn extract_cursor_values(cursor: &PageCursor) -> StorageResult<(String, String)> {
+        let sort_values = cursor.sort_values();
+        let timestamp = match sort_values.first() {
+            Some(CursorValue::String(s)) => s.clone(),
+            _ => {
+                return Err(internal_error(
+                    "Invalid cursor: missing or invalid timestamp".to_string(),
+                ))
+            }
+        };
+        let id = cursor.resource_id().to_string();
+        Ok((timestamp, id))
+    }
+
     /// Extract references from a resource for a given search parameter.
     fn extract_references(&self, content: &serde_json::Value, search_param: &str) -> Vec<String> {
         let mut refs = Vec::new();
@@ -872,6 +991,98 @@ mod tests {
 
         let result2 = backend.search(&tenant2, &query).await.unwrap();
         assert_eq!(result2.resources.items.len(), 2);
+    }
+
+    // ========================================================================
+    // Cursor Pagination Tests
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_cursor_pagination_basic() {
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        // Create 5 resources
+        for i in 0..5 {
+            backend
+                .create(&tenant, "Patient", json!({"name": format!("Patient{}", i)}))
+                .await
+                .unwrap();
+        }
+
+        // First page with limit of 2
+        let query = SearchQuery::new("Patient").with_count(2);
+        let page1 = backend.search(&tenant, &query).await.unwrap();
+
+        assert_eq!(page1.resources.items.len(), 2);
+        assert!(page1.resources.page_info.has_next);
+        assert!(page1.resources.page_info.next_cursor.is_some());
+
+        // Second page using cursor
+        let cursor = page1.resources.page_info.next_cursor.unwrap();
+        let query2 = SearchQuery::new("Patient").with_count(2).with_cursor(cursor);
+        let page2 = backend.search(&tenant, &query2).await.unwrap();
+
+        assert_eq!(page2.resources.items.len(), 2);
+        assert!(page2.resources.page_info.has_next);
+        assert!(page2.resources.page_info.has_previous);
+
+        // Third page (last)
+        let cursor = page2.resources.page_info.next_cursor.unwrap();
+        let query3 = SearchQuery::new("Patient").with_count(2).with_cursor(cursor);
+        let page3 = backend.search(&tenant, &query3).await.unwrap();
+
+        assert_eq!(page3.resources.items.len(), 1);
+        assert!(!page3.resources.page_info.has_next);
+        assert!(page3.resources.page_info.next_cursor.is_none());
+
+        // Verify no overlapping IDs
+        let page1_ids: Vec<_> = page1.resources.items.iter().map(|r| r.id()).collect();
+        let page2_ids: Vec<_> = page2.resources.items.iter().map(|r| r.id()).collect();
+        let page3_ids: Vec<_> = page3.resources.items.iter().map(|r| r.id()).collect();
+
+        for id in &page1_ids {
+            assert!(!page2_ids.contains(id), "Page 1 and 2 should not overlap");
+            assert!(!page3_ids.contains(id), "Page 1 and 3 should not overlap");
+        }
+        for id in &page2_ids {
+            assert!(!page3_ids.contains(id), "Page 2 and 3 should not overlap");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_cursor_pagination_no_more_results() {
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        // Create 3 resources
+        for _ in 0..3 {
+            backend
+                .create(&tenant, "Patient", json!({}))
+                .await
+                .unwrap();
+        }
+
+        // Request more than available
+        let query = SearchQuery::new("Patient").with_count(10);
+        let result = backend.search(&tenant, &query).await.unwrap();
+
+        assert_eq!(result.resources.items.len(), 3);
+        assert!(!result.resources.page_info.has_next);
+        assert!(result.resources.page_info.next_cursor.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_cursor_pagination_empty() {
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        let query = SearchQuery::new("Patient").with_count(10);
+        let result = backend.search(&tenant, &query).await.unwrap();
+
+        assert!(result.resources.items.is_empty());
+        assert!(!result.resources.page_info.has_next);
+        assert!(!result.resources.page_info.has_previous);
     }
 
     // ========================================================================
