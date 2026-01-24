@@ -181,6 +181,20 @@ pub enum ExtractionError {
         /// Description of the problem.
         message: String,
     },
+
+    /// FHIRPath expression evaluation error.
+    FhirPathError {
+        /// The FHIRPath expression that failed.
+        expression: String,
+        /// The error message from the evaluator.
+        message: String,
+    },
+
+    /// Generic value conversion error.
+    ConversionError {
+        /// Description of the conversion error.
+        message: String,
+    },
 }
 
 impl fmt::Display for ExtractionError {
@@ -209,6 +223,12 @@ impl fmt::Display for ExtractionError {
             }
             ExtractionError::InvalidResource { message } => {
                 write!(f, "Invalid resource: {}", message)
+            }
+            ExtractionError::FhirPathError { expression, message } => {
+                write!(f, "FHIRPath error evaluating '{}': {}", expression, message)
+            }
+            ExtractionError::ConversionError { message } => {
+                write!(f, "Conversion error: {}", message)
             }
         }
     }

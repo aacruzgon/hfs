@@ -2,9 +2,13 @@
 //!
 //! Uses FHIRPath expressions to extract searchable values from FHIR resources.
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
+use helios_fhirpath::EvaluationContext;
+use helios_fhirpath_support::EvaluationResult;
 use parking_lot::RwLock;
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -150,9 +154,8 @@ impl SearchParameterExtractor {
             return Ok(Vec::new());
         }
 
-        // For now, use a simple JSON path-based extraction
-        // In a full implementation, this would use the FHIRPath evaluator
-        let values = self.evaluate_expression(resource, &param.expression)?;
+        // Evaluate the FHIRPath expression using the actual evaluator
+        let values = self.evaluate_fhirpath(resource, &param.expression)?;
 
         let mut results = Vec::new();
         for value in values {
@@ -170,181 +173,117 @@ impl SearchParameterExtractor {
         Ok(results)
     }
 
-    /// Evaluates a FHIRPath expression against a resource.
-    ///
-    /// This is a simplified implementation that handles common patterns.
-    /// A full implementation would use the helios-fhirpath crate.
-    fn evaluate_expression(
+    /// Evaluates a FHIRPath expression against a resource using the helios-fhirpath evaluator.
+    fn evaluate_fhirpath(
         &self,
         resource: &Value,
         expression: &str,
     ) -> Result<Vec<Value>, ExtractionError> {
-        // Parse the expression into path segments
-        let segments = self.parse_path(expression);
-        if segments.is_empty() {
-            return Ok(Vec::new());
-        }
+        // Convert JSON to EvaluationResult and set up context
+        let eval_result = json_to_evaluation_result(resource)?;
 
-        // Navigate to the values
-        self.navigate_path(resource, &segments)
+        // Create evaluation context with the resource as 'this'
+        let mut context = EvaluationContext::new_empty_with_default_version();
+        context.set_this(eval_result);
+
+        // Evaluate the FHIRPath expression
+        let result = helios_fhirpath::evaluate_expression(expression, &context)
+            .map_err(|e| ExtractionError::FhirPathError {
+                expression: expression.to_string(),
+                message: e,
+            })?;
+
+        // Convert EvaluationResult back to JSON values
+        evaluation_result_to_json_values(&result)
     }
+}
 
-    /// Parses a FHIRPath expression into path segments.
-    fn parse_path(&self, expression: &str) -> Vec<PathSegment> {
-        let mut segments = Vec::new();
-        let mut current = expression.to_string();
-
-        // Handle Resource.path prefix
-        if let Some(dot_pos) = current.find('.') {
-            let prefix = &current[..dot_pos];
-            // Skip the resource type prefix (e.g., "Patient.")
-            if prefix.chars().next().map(|c| c.is_uppercase()).unwrap_or(false) {
-                current = current[dot_pos + 1..].to_string();
-            }
-        }
-
-        // Split on dots, but handle function calls
-        let mut path = current.as_str();
-        while !path.is_empty() {
-            // Check for function call
-            if let Some(paren_start) = path.find('(') {
-                let name = &path[..paren_start];
-                if let Some(paren_end) = path.find(')') {
-                    let func_name = name.split('.').last().unwrap_or(name);
-                    let arg = &path[paren_start + 1..paren_end];
-
-                    // Handle common functions
-                    match func_name {
-                        "where" | "ofType" | "resolve" => {
-                            // Skip function, continue with remaining path
-                            if paren_end + 1 < path.len() && path.as_bytes()[paren_end + 1] == b'.' {
-                                path = &path[paren_end + 2..];
-                            } else {
-                                path = &path[paren_end + 1..];
-                            }
-
-                            // For ofType, filter by type
-                            if func_name == "ofType" {
-                                segments.push(PathSegment::TypeFilter(arg.to_string()));
-                            }
-                            continue;
-                        }
-                        _ => {}
-                    }
-                }
-            }
-
-            // Regular path segment
-            let dot_pos = path.find('.').unwrap_or(path.len());
-            let paren_pos = path.find('(').unwrap_or(path.len());
-            let segment_end = dot_pos.min(paren_pos);
-
-            if segment_end > 0 {
-                let segment = &path[..segment_end];
-                if !segment.is_empty() {
-                    segments.push(PathSegment::Field(segment.to_string()));
-                }
-            }
-
-            if segment_end < path.len() && path.as_bytes()[segment_end] == b'.' {
-                path = &path[segment_end + 1..];
+/// Converts a serde_json::Value to an EvaluationResult.
+fn json_to_evaluation_result(value: &Value) -> Result<EvaluationResult, ExtractionError> {
+    match value {
+        Value::Null => Ok(EvaluationResult::Empty),
+        Value::Bool(b) => Ok(EvaluationResult::boolean(*b)),
+        Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                Ok(EvaluationResult::integer(i))
+            } else if let Some(f) = n.as_f64() {
+                Ok(EvaluationResult::decimal(
+                    Decimal::try_from(f).map_err(|e| ExtractionError::ConversionError {
+                        message: format!("Invalid decimal: {}", e),
+                    })?,
+                ))
             } else {
-                path = &path[segment_end..];
-            }
-
-            if path.starts_with('(') {
-                // Skip to after closing paren
-                if let Some(end) = path.find(')') {
-                    path = &path[end + 1..];
-                    if path.starts_with('.') {
-                        path = &path[1..];
-                    }
-                } else {
-                    break;
-                }
+                Err(ExtractionError::ConversionError {
+                    message: "Invalid number".to_string(),
+                })
             }
         }
-
-        segments
-    }
-
-    /// Navigates a resource according to path segments.
-    fn navigate_path(
-        &self,
-        value: &Value,
-        segments: &[PathSegment],
-    ) -> Result<Vec<Value>, ExtractionError> {
-        if segments.is_empty() {
-            return Ok(vec![value.clone()]);
+        Value::String(s) => Ok(EvaluationResult::string(s.clone())),
+        Value::Array(arr) => {
+            let results: Result<Vec<_>, _> = arr.iter().map(json_to_evaluation_result).collect();
+            Ok(EvaluationResult::collection(results?))
         }
-
-        let segment = &segments[0];
-        let remaining = &segments[1..];
-
-        match segment {
-            PathSegment::Field(name) => {
-                match value {
-                    Value::Object(obj) => {
-                        if let Some(child) = obj.get(name) {
-                            self.navigate_path(child, remaining)
-                        } else {
-                            // Check for polymorphic field (e.g., "effective" -> "effectiveDateTime")
-                            let candidates: Vec<_> = obj
-                                .keys()
-                                .filter(|k| k.starts_with(name))
-                                .collect();
-
-                            if candidates.len() == 1 {
-                                self.navigate_path(&obj[candidates[0]], remaining)
-                            } else {
-                                Ok(Vec::new())
-                            }
-                        }
-                    }
-                    Value::Array(arr) => {
-                        let mut results = Vec::new();
-                        for item in arr {
-                            results.extend(self.navigate_path(item, segments)?);
-                        }
-                        Ok(results)
-                    }
-                    _ => Ok(Vec::new()),
-                }
+        Value::Object(obj) => {
+            let mut map = HashMap::new();
+            for (key, val) in obj {
+                let eval_val = json_to_evaluation_result(val)?;
+                map.insert(key.clone(), eval_val);
             }
-            PathSegment::TypeFilter(type_name) => {
-                // Filter by FHIR type
-                match value {
-                    Value::Object(obj) => {
-                        if let Some(Value::String(rt)) = obj.get("resourceType") {
-                            if rt == type_name {
-                                return self.navigate_path(value, remaining);
-                            }
-                        }
-                        // Check if it's a complex type (e.g., Quantity, Period)
-                        // For now, pass through and let downstream handle it
-                        self.navigate_path(value, remaining)
-                    }
-                    Value::Array(arr) => {
-                        let mut results = Vec::new();
-                        for item in arr {
-                            results.extend(self.navigate_path(item, segments)?);
-                        }
-                        Ok(results)
-                    }
-                    _ => self.navigate_path(value, remaining),
-                }
-            }
+            Ok(EvaluationResult::Object {
+                map,
+                type_info: None,
+            })
         }
     }
 }
 
-/// A segment of a parsed FHIRPath expression.
-#[derive(Debug, Clone)]
-enum PathSegment {
-    /// A field name to navigate to.
-    Field(String),
-    /// A type filter (from ofType() function).
-    TypeFilter(String),
+/// Converts an EvaluationResult back to JSON values for the converter.
+fn evaluation_result_to_json_values(result: &EvaluationResult) -> Result<Vec<Value>, ExtractionError> {
+    match result {
+        EvaluationResult::Empty => Ok(Vec::new()),
+        EvaluationResult::Boolean(b, _) => Ok(vec![Value::Bool(*b)]),
+        EvaluationResult::String(s, _) => Ok(vec![Value::String(s.clone())]),
+        EvaluationResult::Integer(i, _) => Ok(vec![Value::Number((*i).into())]),
+        EvaluationResult::Integer64(i, _) => Ok(vec![Value::Number((*i).into())]),
+        EvaluationResult::Decimal(d, _) => {
+            // Convert decimal to JSON number
+            let f: f64 = (*d).try_into().unwrap_or(0.0);
+            Ok(vec![Value::Number(
+                serde_json::Number::from_f64(f).unwrap_or_else(|| serde_json::Number::from(0)),
+            )])
+        }
+        EvaluationResult::Date(s, _) => Ok(vec![Value::String(s.clone())]),
+        EvaluationResult::DateTime(s, _) => Ok(vec![Value::String(s.clone())]),
+        EvaluationResult::Time(s, _) => Ok(vec![Value::String(s.clone())]),
+        EvaluationResult::Quantity(value, unit, _) => {
+            // Convert Quantity to JSON object
+            let f: f64 = (*value).try_into().unwrap_or(0.0);
+            Ok(vec![serde_json::json!({
+                "value": f,
+                "unit": unit
+            })])
+        }
+        EvaluationResult::Collection { items, .. } => {
+            let mut values = Vec::new();
+            for item in items {
+                values.extend(evaluation_result_to_json_values(item)?);
+            }
+            Ok(values)
+        }
+        EvaluationResult::Object { map, .. } => {
+            // Convert object back to JSON
+            let mut obj = serde_json::Map::new();
+            for (key, val) in map {
+                let json_vals = evaluation_result_to_json_values(val)?;
+                if json_vals.len() == 1 {
+                    obj.insert(key.clone(), json_vals.into_iter().next().unwrap());
+                } else if !json_vals.is_empty() {
+                    obj.insert(key.clone(), Value::Array(json_vals));
+                }
+            }
+            Ok(vec![Value::Object(obj)])
+        }
+    }
 }
 
 impl std::fmt::Debug for SearchParameterExtractor {
@@ -388,11 +327,11 @@ mod tests {
 
         // Should have extracted name values
         let name_values: Vec<_> = values.iter().filter(|v| v.param_name == "name").collect();
-        assert!(!name_values.is_empty());
+        assert!(!name_values.is_empty(), "Should extract 'name' values");
 
         // Should have extracted family
         let family_values: Vec<_> = values.iter().filter(|v| v.param_name == "family").collect();
-        assert!(!family_values.is_empty());
+        assert!(!family_values.is_empty(), "Should extract 'family' values");
     }
 
     #[test]
@@ -413,46 +352,12 @@ mod tests {
         let values = extractor.extract(&patient, "Patient").unwrap();
 
         let id_values: Vec<_> = values.iter().filter(|v| v.param_name == "identifier").collect();
-        assert!(!id_values.is_empty());
+        assert!(!id_values.is_empty(), "Should extract 'identifier' values");
 
         if let IndexValue::Token { system, code } = &id_values[0].value {
             assert_eq!(system.as_ref().unwrap(), "http://hospital.org/mrn");
             assert_eq!(code, "12345");
         }
-    }
-
-    #[test]
-    fn test_parse_simple_path() {
-        let extractor = create_test_extractor();
-        let segments = extractor.parse_path("Patient.name");
-
-        assert_eq!(segments.len(), 1);
-        if let PathSegment::Field(name) = &segments[0] {
-            assert_eq!(name, "name");
-        }
-    }
-
-    #[test]
-    fn test_parse_nested_path() {
-        let extractor = create_test_extractor();
-        let segments = extractor.parse_path("Patient.name.family");
-
-        assert_eq!(segments.len(), 2);
-        if let PathSegment::Field(name) = &segments[0] {
-            assert_eq!(name, "name");
-        }
-        if let PathSegment::Field(name) = &segments[1] {
-            assert_eq!(name, "family");
-        }
-    }
-
-    #[test]
-    fn test_parse_path_with_function() {
-        let extractor = create_test_extractor();
-        let segments = extractor.parse_path("Observation.value.ofType(Quantity)");
-
-        // Should have "value" and a type filter
-        assert!(segments.len() >= 1);
     }
 
     #[test]
@@ -483,11 +388,11 @@ mod tests {
 
         // Should have code
         let code_values: Vec<_> = values.iter().filter(|v| v.param_name == "code").collect();
-        assert!(!code_values.is_empty());
+        assert!(!code_values.is_empty(), "Should extract 'code' values");
 
         // Should have subject
         let subject_values: Vec<_> = values.iter().filter(|v| v.param_name == "subject").collect();
-        assert!(!subject_values.is_empty());
+        assert!(!subject_values.is_empty(), "Should extract 'subject' values");
     }
 
     #[test]
@@ -510,5 +415,75 @@ mod tests {
 
         let result = extractor.extract(&patient, "Observation");
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_fhirpath_with_where_clause() {
+        let extractor = create_test_extractor();
+
+        // Test a patient with multiple names - FHIRPath should be able to filter
+        let patient = json!({
+            "resourceType": "Patient",
+            "id": "123",
+            "name": [
+                {
+                    "use": "official",
+                    "family": "Smith",
+                    "given": ["John"]
+                },
+                {
+                    "use": "nickname",
+                    "given": ["Johnny"]
+                }
+            ]
+        });
+
+        let values = extractor.extract(&patient, "Patient").unwrap();
+
+        // Should extract all names (both official and nickname)
+        let name_values: Vec<_> = values.iter().filter(|v| v.param_name == "name").collect();
+        assert!(name_values.len() >= 2, "Should extract multiple name values");
+    }
+
+    #[test]
+    fn test_json_to_evaluation_result() {
+        // Test basic types
+        assert!(matches!(
+            json_to_evaluation_result(&json!(null)).unwrap(),
+            EvaluationResult::Empty
+        ));
+
+        assert!(matches!(
+            json_to_evaluation_result(&json!(true)).unwrap(),
+            EvaluationResult::Boolean(true, _)
+        ));
+
+        assert!(matches!(
+            json_to_evaluation_result(&json!("test")).unwrap(),
+            EvaluationResult::String(s, _) if s == "test"
+        ));
+
+        assert!(matches!(
+            json_to_evaluation_result(&json!(42)).unwrap(),
+            EvaluationResult::Integer(42, _)
+        ));
+
+        // Test array
+        if let EvaluationResult::Collection { items, .. } =
+            json_to_evaluation_result(&json!([1, 2, 3])).unwrap()
+        {
+            assert_eq!(items.len(), 3);
+        } else {
+            panic!("Expected collection");
+        }
+
+        // Test object
+        if let EvaluationResult::Object { map, .. } =
+            json_to_evaluation_result(&json!({"key": "value"})).unwrap()
+        {
+            assert!(map.contains_key("key"));
+        } else {
+            panic!("Expected object");
+        }
     }
 }
