@@ -192,7 +192,16 @@ Helper macros for code generation used by other components.
 ### 7. [`helios-fhirpath-support`](crates/fhirpath-support) - Shared Utilities
 Common types and traits for FHIRPath evaluation.
 
-### 8. [`helios-hfs`](crates/hfs) - Main Server Application
+### 8. [`helios-persistence`](crates/persistence) - Polyglot Persistence Layer
+Storage backend abstraction supporting multiple database technologies optimized for different FHIR workloads.
+- **SQLite Backend**: Complete implementation with full FHIR search support (reference implementation)
+- **Polyglot Architecture**: Route queries to optimal backends (PostgreSQL, MongoDB, Neo4j, Elasticsearch, S3)
+- **FHIR Search**: All parameter types, modifiers, _include/_revinclude, cursor pagination
+- **FHIRPath Extraction**: Pre-computed search indexes using `helios-fhirpath` for value extraction
+- **Multitenancy**: Shared schema, schema-per-tenant, and database-per-tenant isolation strategies
+- **SearchParameter Management**: Dynamic registration via FHIR API with automatic reindexing
+
+### 9. [`helios-hfs`](crates/hfs) - Main Server Application
 The main Helios FHIR Server application (coming soon).
 
 ## Design Principles
