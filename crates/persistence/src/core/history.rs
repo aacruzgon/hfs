@@ -171,6 +171,82 @@ pub trait InstanceHistoryProvider: VersionedStorage {
         resource_type: &str,
         id: &str,
     ) -> StorageResult<u64>;
+
+    /// Deletes all history for a specific resource instance.
+    ///
+    /// This is a FHIR v6.0.0 Trial Use feature:
+    /// `DELETE [base]/[type]/[id]/_history`
+    ///
+    /// After this operation, the resource's history is cleared but the current
+    /// version may optionally be preserved (implementation-defined).
+    ///
+    /// # Arguments
+    ///
+    /// * `tenant` - The tenant context for this operation
+    /// * `resource_type` - The FHIR resource type
+    /// * `id` - The resource's logical ID
+    ///
+    /// # Returns
+    ///
+    /// The number of history entries deleted.
+    ///
+    /// # Errors
+    ///
+    /// * `StorageError::Resource(NotFound)` - If the resource doesn't exist
+    /// * `StorageError::Tenant` - If the tenant doesn't have delete permission
+    /// * `StorageError::Backend(NotSupported)` - If delete history is not supported
+    async fn delete_instance_history(
+        &self,
+        tenant: &TenantContext,
+        resource_type: &str,
+        id: &str,
+    ) -> StorageResult<u64> {
+        // Default implementation returns UnsupportedCapability
+        let _ = (tenant, resource_type, id);
+        Err(crate::error::StorageError::Backend(
+            crate::error::BackendError::UnsupportedCapability {
+                backend_name: "unknown".to_string(),
+                capability: "delete_instance_history".to_string(),
+            },
+        ))
+    }
+
+    /// Deletes a specific version from a resource's history.
+    ///
+    /// This is a FHIR v6.0.0 Trial Use feature:
+    /// `DELETE [base]/[type]/[id]/_history/[vid]`
+    ///
+    /// Deleting the current version may have special semantics depending on
+    /// the implementation (e.g., promoting the previous version or failing).
+    ///
+    /// # Arguments
+    ///
+    /// * `tenant` - The tenant context for this operation
+    /// * `resource_type` - The FHIR resource type
+    /// * `id` - The resource's logical ID
+    /// * `version_id` - The specific version to delete
+    ///
+    /// # Errors
+    ///
+    /// * `StorageError::Resource(VersionNotFound)` - If the version doesn't exist
+    /// * `StorageError::Tenant` - If the tenant doesn't have delete permission
+    /// * `StorageError::Backend(NotSupported)` - If delete version is not supported
+    async fn delete_version(
+        &self,
+        tenant: &TenantContext,
+        resource_type: &str,
+        id: &str,
+        version_id: &str,
+    ) -> StorageResult<()> {
+        // Default implementation returns NotSupported
+        let _ = (tenant, resource_type, id, version_id);
+        Err(crate::error::StorageError::Backend(
+            crate::error::BackendError::UnsupportedCapability {
+                backend_name: "unknown".to_string(),
+                capability: "delete_version".to_string(),
+            },
+        ))
+    }
 }
 
 /// Provider for type-level history.

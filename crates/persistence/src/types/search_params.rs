@@ -104,6 +104,20 @@ pub enum SearchModifier {
     CodeOnly,
     /// Iterate through results (_include modifier).
     Iterate,
+    /// Advanced text search with synonyms and linguistic matching (FHIR v6.0.0).
+    ///
+    /// This modifier enables sophisticated text matching that may include:
+    /// - Synonym expansion
+    /// - Linguistic stemming
+    /// - Fuzzy matching
+    ///
+    /// Requires external terminology service integration.
+    TextAdvanced,
+    /// Match on code text/display value (token parameters, FHIR v6.0.0).
+    ///
+    /// Searches the text/display value of a CodeableConcept or Coding
+    /// rather than the code itself.
+    CodeText,
 }
 
 impl fmt::Display for SearchModifier {
@@ -123,6 +137,8 @@ impl fmt::Display for SearchModifier {
             SearchModifier::OfType => write!(f, "ofType"),
             SearchModifier::CodeOnly => write!(f, "code"),
             SearchModifier::Iterate => write!(f, "iterate"),
+            SearchModifier::TextAdvanced => write!(f, "text-advanced"),
+            SearchModifier::CodeText => write!(f, "code-text"),
         }
     }
 }
@@ -144,6 +160,8 @@ impl SearchModifier {
             "oftype" => Some(SearchModifier::OfType),
             "code" => Some(SearchModifier::CodeOnly),
             "iterate" => Some(SearchModifier::Iterate),
+            "text-advanced" => Some(SearchModifier::TextAdvanced),
+            "code-text" => Some(SearchModifier::CodeText),
             _ => {
                 // Check if it's a resource type modifier
                 if s.chars().next().map(|c| c.is_uppercase()).unwrap_or(false) {
@@ -176,6 +194,10 @@ impl SearchModifier {
             SearchModifier::OfType => param_type == SearchParamType::Token,
             SearchModifier::CodeOnly => param_type == SearchParamType::Token,
             SearchModifier::Iterate => false, // Only for _include/_revinclude
+            SearchModifier::TextAdvanced => {
+                param_type == SearchParamType::String || param_type == SearchParamType::Token
+            }
+            SearchModifier::CodeText => param_type == SearchParamType::Token,
         }
     }
 }
@@ -324,6 +346,65 @@ impl SearchValue {
     pub fn parse(s: &str) -> Self {
         let (prefix, value) = SearchPrefix::extract(s);
         Self::new(prefix, value)
+    }
+
+    /// Creates a token search value with optional system and code.
+    ///
+    /// Format: `[system]|[code]` or just `[code]`
+    pub fn token(system: Option<&str>, code: impl Into<String>) -> Self {
+        let code = code.into();
+        match system {
+            Some(sys) => Self::eq(format!("{}|{}", sys, code)),
+            None => Self::eq(code),
+        }
+    }
+
+    /// Creates a token search value with system only (no code).
+    ///
+    /// Format: `[system]|`
+    pub fn token_system_only(system: impl Into<String>) -> Self {
+        Self::eq(format!("{}|", system.into()))
+    }
+
+    /// Creates a boolean search value.
+    pub fn boolean(value: bool) -> Self {
+        Self::eq(value.to_string())
+    }
+
+    /// Creates a string search value (alias for eq).
+    pub fn string(value: impl Into<String>) -> Self {
+        Self::eq(value)
+    }
+
+    /// Creates a search value for :of-type modifier with three-part format.
+    ///
+    /// Format: `[type-system]|[type-code]|[value]`
+    ///
+    /// This is used with the :of-type modifier to search typed identifiers.
+    /// The format specifies the identifier type (system and code) followed
+    /// by the identifier value to match.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// // Search for SSN identifier with value "123-45-6789"
+    /// SearchValue::of_type(
+    ///     "http://terminology.hl7.org/CodeSystem/v2-0203",
+    ///     "SS",
+    ///     "123-45-6789"
+    /// )
+    /// ```
+    pub fn of_type(
+        type_system: impl Into<String>,
+        type_code: impl Into<String>,
+        value: impl Into<String>,
+    ) -> Self {
+        Self::eq(format!(
+            "{}|{}|{}",
+            type_system.into(),
+            type_code.into(),
+            value.into()
+        ))
     }
 }
 

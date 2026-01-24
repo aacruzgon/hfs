@@ -325,6 +325,47 @@ pub enum ConditionalDeleteResult {
     MultipleMatches(usize),
 }
 
+/// Result of a conditional patch operation.
+#[derive(Debug, Clone)]
+pub enum ConditionalPatchResult {
+    /// Resource was patched successfully.
+    Patched(StoredResource),
+    /// No resource matched the condition.
+    NoMatch,
+    /// Multiple resources matched (error condition).
+    MultipleMatches(usize),
+}
+
+/// Patch format for conditional patch operations.
+#[derive(Debug, Clone)]
+pub enum PatchFormat {
+    /// JSON Patch (RFC 6902) - application/json-patch+json
+    ///
+    /// Example:
+    /// ```json
+    /// [
+    ///   {"op": "replace", "path": "/name/0/family", "value": "NewName"},
+    ///   {"op": "add", "path": "/active", "value": true}
+    /// ]
+    /// ```
+    JsonPatch(Value),
+
+    /// FHIRPath Patch - application/fhir+json with Parameters resource
+    ///
+    /// Uses a Parameters resource with operation parts containing:
+    /// - type: add, insert, delete, replace, move
+    /// - path: FHIRPath expression
+    /// - name: element name (for add)
+    /// - value: new value
+    FhirPathPatch(Value),
+
+    /// JSON Merge Patch (RFC 7386) - application/merge-patch+json
+    ///
+    /// Simpler format where the patch document mirrors the structure
+    /// of the resource with only changed fields.
+    MergePatch(Value),
+}
+
 /// Extension trait for conditional operations based on search criteria.
 #[async_trait]
 pub trait ConditionalStorage: ResourceStorage {
@@ -394,6 +435,43 @@ pub trait ConditionalStorage: ResourceStorage {
         resource_type: &str,
         search_params: &str,
     ) -> StorageResult<ConditionalDeleteResult>;
+
+    /// Patches a resource based on search criteria.
+    ///
+    /// This implements conditional patch as defined in FHIR:
+    /// `PATCH [base]/[type]?[search-params]`
+    ///
+    /// # Arguments
+    ///
+    /// * `tenant` - The tenant context
+    /// * `resource_type` - The FHIR resource type
+    /// * `search_params` - Search parameters to find the resource
+    /// * `patch` - The patch to apply (JSON Patch, FHIRPath Patch, or Merge Patch)
+    ///
+    /// # Returns
+    ///
+    /// * `Patched` - If exactly one match was found and patched
+    /// * `NoMatch` - If no match was found
+    /// * `MultipleMatches` - If multiple matches were found (error)
+    ///
+    /// # Errors
+    ///
+    /// * `StorageError::Validation` - If the patch is invalid or would create invalid resource
+    /// * `StorageError::Backend(NotSupported)` - If conditional patch is not supported
+    async fn conditional_patch(
+        &self,
+        tenant: &TenantContext,
+        resource_type: &str,
+        search_params: &str,
+        patch: &PatchFormat,
+    ) -> StorageResult<ConditionalPatchResult> {
+        // Default implementation returns NotSupported
+        let _ = (tenant, resource_type, search_params, patch);
+        Err(StorageError::Backend(crate::error::BackendError::UnsupportedCapability {
+            backend_name: "unknown".to_string(),
+            capability: "conditional_patch".to_string(),
+        }))
+    }
 }
 
 #[cfg(test)]
