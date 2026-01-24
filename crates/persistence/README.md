@@ -203,6 +203,8 @@ let query_with_include = SearchQuery::new("Observation")
 
 The matrix below shows which FHIR operations each backend supports. This reflects the actual implementation status, not aspirational goals.
 
+> **Note:** Documentation links reference [build.fhir.org](https://build.fhir.org), which contains the current FHIR development version (v6.0.0). Some features marked as planned are new in v6.0.0 and may be labeled "Trial Use" in the specification.
+
 **Legend:** ✓ Implemented | ◐ Partial | ○ Planned | ✗ Not planned | † Requires external service
 
 | Feature | SQLite | PostgreSQL | MongoDB | Cassandra | Neo4j | Elasticsearch | S3 |
@@ -216,6 +218,8 @@ The matrix below shows which FHIR operations each backend supports. This reflect
 | [System History](https://build.fhir.org/http.html#history) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
 | [Transactions](https://build.fhir.org/http.html#transaction) | ✓ | ○ | ○ | ✗ | ○ | ✗ | ✗ |
 | [Conditional Operations](https://build.fhir.org/http.html#cond-update) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
+| [Conditional Patch](https://build.fhir.org/http.html#patch) | ○ | ○ | ○ | ✗ | ○ | ○ | ✗ |
+| [Delete History](https://build.fhir.org/http.html#delete) (v6.0.0) | ○ | ○ | ○ | ✗ | ○ | ✗ | ✗ |
 | **Multitenancy** |
 | Shared Schema | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
 | Schema-per-Tenant | ✗ | ○ | ○ | ✗ | ✗ | ○ | ✗ |
@@ -238,9 +242,12 @@ The matrix below shows which FHIR operations each backend supports. This reflect
 | [:missing](https://build.fhir.org/search.html#modifiers) | ✓ | ○ | ○ | ✗ | ○ | ○ | ○ |
 | [:above / :below](https://build.fhir.org/search.html#modifiers) | ✗ | †○ | †○ | ✗ | ○ | †○ | ✗ |
 | [:in / :not-in](https://build.fhir.org/search.html#modifiers) | ✗ | †○ | †○ | ✗ | ○ | †○ | ✗ |
+| [:of-type](https://build.fhir.org/search.html#modifiers) | ○ | ○ | ○ | ✗ | ○ | ○ | ✗ |
+| [:text-advanced](https://build.fhir.org/search.html#modifiers) (v6.0.0) | ✗ | †○ | †○ | ✗ | ✗ | †○ | ✗ |
 | **[Special Parameters](https://build.fhir.org/search.html#all)** |
 | [_text](https://build.fhir.org/search.html#_text) (narrative search) | ◐ | ○ | ○ | ✗ | ✗ | ○ | ✗ |
 | [_content](https://build.fhir.org/search.html#_content) (full content) | ◐ | ○ | ○ | ✗ | ✗ | ○ | ✗ |
+| [_filter](https://build.fhir.org/search.html#_filter) (advanced filtering) | ○ | ○ | ○ | ✗ | ○ | ○ | ✗ |
 | **Advanced Search** |
 | [Chained Parameters](https://build.fhir.org/search.html#chaining) | ✓ | ○ | ○ | ✗ | ○ | ✗ | ✗ |
 | [Reverse Chaining (_has)](https://build.fhir.org/search.html#has) | ✓ | ○ | ○ | ✗ | ○ | ✗ | ✗ |
