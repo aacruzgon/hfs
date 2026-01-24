@@ -285,6 +285,10 @@ impl QueryBuilder {
                 // _content searches all text content via FTS5
                 self.build_fts_condition(&param.values, "full_content", param_offset)
             }
+            "_filter" => {
+                // _filter uses advanced filter expression syntax
+                self.build_filter_condition(&param.values, param_offset)
+            }
             _ => {
                 // Other special parameters - fall through to regular handling
                 None
@@ -366,6 +370,62 @@ impl QueryBuilder {
             ),
             combined.params,
         ))
+    }
+
+    /// Builds conditions for _filter parameter.
+    ///
+    /// The _filter parameter allows complex filter expressions using a
+    /// syntax similar to FHIRPath. See <https://build.fhir.org/search_filter.html>.
+    ///
+    /// # Examples
+    ///
+    /// ```text
+    /// _filter=name eq "Smith"
+    /// _filter=name eq "Smith" and birthdate gt 1980-01-01
+    /// _filter=(status eq active or status eq pending) and category eq urgent
+    /// ```
+    fn build_filter_condition(
+        &self,
+        values: &[SearchValue],
+        param_offset: usize,
+    ) -> Option<SqlFragment> {
+        use super::filter_parser::{FilterParser, FilterSqlGenerator};
+
+        if values.is_empty() {
+            return None;
+        }
+
+        let mut conditions = Vec::new();
+        let mut current_offset = param_offset;
+
+        for value in values {
+            // Parse the filter expression
+            match FilterParser::parse(&value.value) {
+                Ok(expr) => {
+                    // Generate SQL from the parsed expression
+                    let mut generator = FilterSqlGenerator::new(current_offset);
+                    let sql = generator.generate(&expr);
+                    current_offset += sql.params.len();
+                    conditions.push(sql);
+                }
+                Err(e) => {
+                    // Log parse error but continue with other filters
+                    tracing::warn!("Failed to parse _filter expression '{}': {}", value.value, e);
+                }
+            }
+        }
+
+        if conditions.is_empty() {
+            return None;
+        }
+
+        // AND together multiple _filter values
+        let mut combined = conditions.remove(0);
+        for cond in conditions {
+            combined = combined.and(cond);
+        }
+
+        Some(combined)
     }
 
     /// Builds a condition for a single value.
