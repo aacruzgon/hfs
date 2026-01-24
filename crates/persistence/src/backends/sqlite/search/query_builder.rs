@@ -277,11 +277,62 @@ impl QueryBuilder {
                 // _lastUpdated is stored in the resources table
                 self.build_date_conditions_on_resources(&param.values, param_offset)
             }
+            "_text" => {
+                // _text searches the narrative text (text.div) via FTS5
+                self.build_fts_condition(&param.values, "narrative_text", param_offset)
+            }
+            "_content" => {
+                // _content searches all text content via FTS5
+                self.build_fts_condition(&param.values, "full_content", param_offset)
+            }
             _ => {
                 // Other special parameters - fall through to regular handling
                 None
             }
         }
+    }
+
+    /// Builds FTS5 conditions for _text and _content searches.
+    fn build_fts_condition(
+        &self,
+        values: &[SearchValue],
+        column: &str,
+        param_offset: usize,
+    ) -> Option<SqlFragment> {
+        use super::fts::Fts5Search;
+
+        let mut conditions = Vec::new();
+
+        for (i, value) in values.iter().enumerate() {
+            // Escape and prepare the search term
+            let search_term = Fts5Search::escape_fts_query(&value.value);
+            if search_term.is_empty() {
+                continue;
+            }
+
+            // Build the FTS match query
+            // Use the column prefix to search only the specified column
+            let param_num = param_offset + i + 1;
+            conditions.push(SqlFragment::with_params(
+                format!(
+                    "resource_id IN (SELECT resource_id FROM resource_fts WHERE {} MATCH ?{})",
+                    column, param_num
+                ),
+                vec![SqlParam::string(&search_term)],
+            ));
+        }
+
+        if conditions.is_empty() {
+            return None;
+        }
+
+        // OR together multiple search terms
+        let mut combined = conditions.remove(0);
+        for cond in conditions {
+            combined = combined.or(cond);
+        }
+
+        Some(combined)
     }
 
     /// Builds date conditions for the resources table (for _lastUpdated).

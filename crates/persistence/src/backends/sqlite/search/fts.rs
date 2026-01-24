@@ -1,8 +1,121 @@
 //! FTS5 Full-Text Search integration.
 //!
 //! Provides optional FTS5-based searching for string and text content.
+//! Supports FHIR _text and _content search parameters.
+
+use serde_json::Value;
 
 use super::query_builder::{SqlFragment, SqlParam};
+
+/// Content extracted from a resource for full-text search.
+#[derive(Debug, Clone, Default)]
+pub struct SearchableContent {
+    /// Narrative text from the resource's text.div element (HTML stripped).
+    /// Used for _text searches.
+    pub narrative: String,
+    /// Full text content extracted from all string fields in the resource.
+    /// Used for _content searches.
+    pub full_content: String,
+}
+
+impl SearchableContent {
+    /// Creates a new empty SearchableContent.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Returns true if both narrative and full_content are empty.
+    pub fn is_empty(&self) -> bool {
+        self.narrative.is_empty() && self.full_content.is_empty()
+    }
+}
+
+/// Extracts searchable text content from a FHIR resource.
+///
+/// Extracts:
+/// - Narrative text from text.div (with HTML stripped)
+/// - Full content from all string values in the resource
+pub fn extract_searchable_content(resource: &Value) -> SearchableContent {
+    SearchableContent {
+        // _text: Extract and strip HTML from narrative
+        narrative: extract_narrative(resource),
+        // _content: Extract all string values recursively
+        full_content: extract_all_strings(resource),
+    }
+}
+
+/// Extracts narrative text from a resource's text.div element.
+///
+/// Strips HTML tags and returns plain text.
+fn extract_narrative(resource: &Value) -> String {
+    resource
+        .get("text")
+        .and_then(|t| t.get("div"))
+        .and_then(|d| d.as_str())
+        .map(strip_html_tags)
+        .unwrap_or_default()
+}
+
+/// Strips HTML tags from a string.
+///
+/// Simple HTML stripping - removes everything between < and >.
+fn strip_html_tags(html: &str) -> String {
+    let mut result = String::with_capacity(html.len());
+    let mut in_tag = false;
+
+    for c in html.chars() {
+        match c {
+            '<' => in_tag = true,
+            '>' => in_tag = false,
+            _ if !in_tag => result.push(c),
+            _ => {}
+        }
+    }
+
+    // Normalize whitespace
+    result
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Extracts all string values from a JSON value recursively.
+///
+/// Concatenates all string values found in the resource, separated by spaces.
+fn extract_all_strings(value: &Value) -> String {
+    let mut strings = Vec::new();
+    extract_strings_recursive(value, &mut strings);
+    strings.join(" ")
+}
+
+/// Recursively extracts string values from a JSON value.
+fn extract_strings_recursive(value: &Value, strings: &mut Vec<String>) {
+    match value {
+        Value::String(s) => {
+            // Skip empty strings and URLs (typically not useful for text search)
+            if !s.is_empty() && !s.starts_with("http://") && !s.starts_with("https://") {
+                strings.push(s.clone());
+            }
+        }
+        Value::Array(arr) => {
+            for item in arr {
+                extract_strings_recursive(item, strings);
+            }
+        }
+        Value::Object(obj) => {
+            for (key, val) in obj {
+                // Skip technical fields that aren't useful for text search
+                if !matches!(
+                    key.as_str(),
+                    "resourceType" | "id" | "meta" | "extension" | "url" | "reference"
+                ) {
+                    extract_strings_recursive(val, strings);
+                }
+            }
+        }
+        _ => {}
+    }
+}
 
 /// FTS5 search helper for full-text search operations.
 pub struct Fts5Search;
@@ -94,7 +207,7 @@ impl Fts5Search {
     }
 
     /// Escapes special characters for FTS5 queries.
-    fn escape_fts_query(term: &str) -> String {
+    pub fn escape_fts_query(term: &str) -> String {
         // FTS5 special characters that need escaping in queries
         let mut result = String::with_capacity(term.len());
         for c in term.chars() {
@@ -140,6 +253,7 @@ impl Fts5Search {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn test_escape_fts_query() {
@@ -174,5 +288,101 @@ mod tests {
         let frag = Fts5Search::build_prefix_query("smi", 1);
 
         assert!(frag.sql.contains("MATCH"));
+    }
+
+    #[test]
+    fn test_strip_html_tags() {
+        assert_eq!(strip_html_tags("<p>Hello</p>"), "Hello");
+        assert_eq!(
+            strip_html_tags("<div><p>Hello <b>world</b></p></div>"),
+            "Hello world"
+        );
+        assert_eq!(strip_html_tags("No tags here"), "No tags here");
+        assert_eq!(strip_html_tags("<br/>"), "");
+        assert_eq!(
+            strip_html_tags("<div xmlns=\"http://www.w3.org/1999/xhtml\">Test</div>"),
+            "Test"
+        );
+    }
+
+    #[test]
+    fn test_extract_narrative() {
+        let patient = json!({
+            "resourceType": "Patient",
+            "text": {
+                "status": "generated",
+                "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>John Smith, born 1970-01-15</p></div>"
+            }
+        });
+
+        let narrative = extract_narrative(&patient);
+        assert!(narrative.contains("John Smith"));
+        assert!(narrative.contains("born"));
+        assert!(!narrative.contains("<"));
+    }
+
+    #[test]
+    fn test_extract_narrative_no_text() {
+        let patient = json!({
+            "resourceType": "Patient",
+            "name": [{"family": "Smith"}]
+        });
+
+        let narrative = extract_narrative(&patient);
+        assert!(narrative.is_empty());
+    }
+
+    #[test]
+    fn test_extract_all_strings() {
+        let patient = json!({
+            "resourceType": "Patient",
+            "id": "123",
+            "name": [{
+                "family": "Smith",
+                "given": ["John", "James"]
+            }],
+            "address": [{
+                "city": "Boston",
+                "state": "MA"
+            }]
+        });
+
+        let content = extract_all_strings(&patient);
+        assert!(content.contains("Smith"));
+        assert!(content.contains("John"));
+        assert!(content.contains("James"));
+        assert!(content.contains("Boston"));
+        // Should skip resourceType and id
+        assert!(!content.contains("Patient"));
+    }
+
+    #[test]
+    fn test_extract_searchable_content() {
+        let patient = json!({
+            "resourceType": "Patient",
+            "text": {
+                "div": "<div>John Smith from Boston</div>"
+            },
+            "name": [{"family": "Smith", "given": ["John"]}],
+            "address": [{"city": "Boston"}]
+        });
+
+        let content = extract_searchable_content(&patient);
+        assert!(!content.is_empty());
+        assert!(content.narrative.contains("John Smith"));
+        assert!(content.full_content.contains("Smith"));
+        assert!(content.full_content.contains("Boston"));
+    }
+
+    #[test]
+    fn test_searchable_content_is_empty() {
+        let content = SearchableContent::new();
+        assert!(content.is_empty());
+
+        let content = SearchableContent {
+            narrative: "test".to_string(),
+            full_content: String::new(),
+        };
+        assert!(!content.is_empty());
     }
 }

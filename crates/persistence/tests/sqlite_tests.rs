@@ -2060,3 +2060,90 @@ async fn test_search_parameter_update_status_change() {
         "Status should be updated to retired"
     );
 }
+
+// ============================================================================
+// FTS5 Full-Text Search Tests
+// ============================================================================
+
+#[tokio::test]
+async fn test_fts_indexing_does_not_fail() {
+    // This test verifies that creating resources with narrative text
+    // does not fail, regardless of whether FTS5 is available.
+    // FTS5 availability depends on the SQLite build options.
+
+    let backend = create_backend();
+    let tenant = create_tenant("test-tenant");
+
+    // Create a patient with narrative text
+    let patient = json!({
+        "resourceType": "Patient",
+        "id": "fts-test-1",
+        "text": {
+            "status": "generated",
+            "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>John Smith, male patient born 1970-01-15</p></div>"
+        },
+        "name": [{"family": "Smith", "given": ["John"]}],
+        "gender": "male"
+    });
+
+    // This should succeed regardless of FTS5 availability
+    let result = backend.create(&tenant, "Patient", patient).await;
+    assert!(result.is_ok(), "Creating resource with narrative should succeed");
+
+    // Read it back to verify
+    let read = backend.read(&tenant, "Patient", "fts-test-1").await.unwrap();
+    assert!(read.is_some());
+}
+
+#[tokio::test]
+async fn test_fts_update_does_not_fail() {
+    let backend = create_backend();
+    let tenant = create_tenant("test-tenant");
+
+    // Create a patient
+    let patient = json!({
+        "resourceType": "Patient",
+        "id": "fts-update-test",
+        "text": {
+            "div": "<div>Original narrative</div>"
+        },
+        "name": [{"family": "Original"}]
+    });
+
+    let created = backend.create(&tenant, "Patient", patient).await.unwrap();
+
+    // Update with new narrative
+    let updated_patient = json!({
+        "resourceType": "Patient",
+        "id": "fts-update-test",
+        "text": {
+            "div": "<div>Updated narrative with new content</div>"
+        },
+        "name": [{"family": "Updated"}]
+    });
+
+    let result = backend.update(&tenant, &created, updated_patient).await;
+    assert!(result.is_ok(), "Updating resource with narrative should succeed");
+}
+
+#[tokio::test]
+async fn test_fts_delete_does_not_fail() {
+    let backend = create_backend();
+    let tenant = create_tenant("test-tenant");
+
+    // Create a patient with narrative
+    let patient = json!({
+        "resourceType": "Patient",
+        "id": "fts-delete-test",
+        "text": {
+            "div": "<div>Test patient for deletion</div>"
+        },
+        "name": [{"family": "Test"}]
+    });
+
+    backend.create(&tenant, "Patient", patient).await.unwrap();
+
+    // Delete should succeed (and clean up FTS if available)
+    let result = backend.delete(&tenant, "Patient", "fts-delete-test").await;
+    assert!(result.is_ok(), "Deleting resource should succeed");
+}

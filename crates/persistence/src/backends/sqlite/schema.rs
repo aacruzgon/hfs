@@ -5,7 +5,7 @@ use rusqlite::Connection;
 use crate::error::StorageResult;
 
 /// Current schema version.
-pub const SCHEMA_VERSION: i32 = 2;
+pub const SCHEMA_VERSION: i32 = 3;
 
 /// Initialize the database schema.
 pub fn initialize_schema(conn: &Connection) -> StorageResult<()> {
@@ -159,6 +159,9 @@ fn create_schema_v1(conn: &Connection) -> StorageResult<()> {
     // Create indexes for efficient queries
     create_indexes(conn)?;
 
+    // Create FTS5 table for full-text search (if available)
+    create_fts_table(conn)?;
+
     Ok(())
 }
 
@@ -198,6 +201,47 @@ fn create_indexes(conn: &Connection) -> StorageResult<()> {
     Ok(())
 }
 
+/// Create FTS5 virtual table for full-text search.
+///
+/// This is optional - if FTS5 is not available, the function succeeds silently.
+fn create_fts_table(conn: &Connection) -> StorageResult<()> {
+    // Check if FTS5 is available
+    let fts5_available: i32 = conn
+        .query_row(
+            "SELECT sqlite_compileoption_used('ENABLE_FTS5')",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+
+    if fts5_available == 0 {
+        // FTS5 not available - skip silently
+        return Ok(());
+    }
+
+    // Create the FTS5 virtual table for full-text search
+    conn.execute(
+        "CREATE VIRTUAL TABLE IF NOT EXISTS resource_fts USING fts5(
+            resource_id UNINDEXED,
+            resource_type UNINDEXED,
+            tenant_id UNINDEXED,
+            narrative_text,
+            full_content,
+            tokenize='porter unicode61 remove_diacritics 1'
+        )",
+        [],
+    )
+    .map_err(|e| {
+        crate::error::StorageError::Backend(crate::error::BackendError::Internal {
+            backend_name: "sqlite".to_string(),
+            message: format!("Failed to create resource_fts table: {}", e),
+            source: None,
+        })
+    })?;
+
+    Ok(())
+}
+
 /// Run schema migrations from current version to latest.
 fn migrate_schema(conn: &Connection, from_version: i32) -> StorageResult<()> {
     let mut version = from_version;
@@ -205,6 +249,7 @@ fn migrate_schema(conn: &Connection, from_version: i32) -> StorageResult<()> {
     while version < SCHEMA_VERSION {
         match version {
             1 => migrate_v1_to_v2(conn)?,
+            2 => migrate_v2_to_v3(conn)?,
             _ => {
                 return Err(crate::error::StorageError::Backend(
                     crate::error::BackendError::Internal {
@@ -263,9 +308,57 @@ fn migrate_v1_to_v2(conn: &Connection) -> StorageResult<()> {
     Ok(())
 }
 
+/// Migrate from schema version 2 to version 3.
+///
+/// This migration adds FTS5 full-text search support for _text and _content searches:
+/// - resource_fts: FTS5 virtual table for full-text search
+/// - Stores narrative text (for _text) and full content (for _content)
+fn migrate_v2_to_v3(conn: &Connection) -> StorageResult<()> {
+    // Check if FTS5 is available
+    let fts5_available: i32 = conn
+        .query_row(
+            "SELECT sqlite_compileoption_used('ENABLE_FTS5')",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+
+    if fts5_available == 0 {
+        // FTS5 not available - log warning but don't fail
+        // _text and _content searches will be unsupported
+        tracing::warn!("FTS5 not available - full-text search features will be disabled");
+        return Ok(());
+    }
+
+    // Create the FTS5 virtual table for full-text search
+    // Uses external content mode for smaller index size
+    conn.execute(
+        "CREATE VIRTUAL TABLE IF NOT EXISTS resource_fts USING fts5(
+            resource_id UNINDEXED,
+            resource_type UNINDEXED,
+            tenant_id UNINDEXED,
+            narrative_text,
+            full_content,
+            tokenize='porter unicode61 remove_diacritics 1'
+        )",
+        [],
+    )
+    .map_err(|e| {
+        crate::error::StorageError::Backend(crate::error::BackendError::Internal {
+            backend_name: "sqlite".to_string(),
+            message: format!("Failed to create resource_fts table: {}", e),
+            source: None,
+        })
+    })?;
+
+    Ok(())
+}
+
 /// Drop all tables (for testing).
 #[cfg(test)]
 pub fn drop_all_tables(conn: &Connection) -> StorageResult<()> {
+    // Drop FTS5 table first (if exists)
+    let _ = conn.execute("DROP TABLE IF EXISTS resource_fts", []);
     conn.execute("DROP TABLE IF EXISTS search_index", [])
         .map_err(|e| {
             crate::error::StorageError::Backend(crate::error::BackendError::Internal {

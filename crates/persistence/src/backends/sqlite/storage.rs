@@ -458,7 +458,6 @@ impl SqliteBackend {
                     resource_type,
                     resource_id
                 );
-                Ok(())
             }
             Err(e) => {
                 tracing::warn!(
@@ -468,9 +467,65 @@ impl SqliteBackend {
                     e
                 );
                 // Fall back to hardcoded extraction for common parameters
-                self.index_common_params(conn, tenant_id, resource_type, resource_id, resource)
+                self.index_common_params(conn, tenant_id, resource_type, resource_id, resource)?;
             }
         }
+
+        // Index FTS content for _text and _content searches
+        self.index_fts_content(conn, tenant_id, resource_type, resource_id, resource)?;
+
+        Ok(())
+    }
+
+    /// Index full-text search content for _text and _content searches.
+    ///
+    /// This populates the resource_fts table if FTS5 is available.
+    fn index_fts_content(
+        &self,
+        conn: &rusqlite::Connection,
+        tenant_id: &str,
+        resource_type: &str,
+        resource_id: &str,
+        resource: &Value,
+    ) -> StorageResult<()> {
+        use super::search::fts::extract_searchable_content;
+
+        // Check if FTS table exists (created in schema v3)
+        let fts_exists: bool = conn
+            .query_row(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='resource_fts'",
+                [],
+                |_| Ok(true),
+            )
+            .unwrap_or(false);
+
+        if !fts_exists {
+            // FTS5 not available - skip silently
+            return Ok(());
+        }
+
+        // Extract searchable content
+        let content = extract_searchable_content(resource);
+
+        if content.is_empty() {
+            return Ok(());
+        }
+
+        // Insert into FTS table
+        conn.execute(
+            "INSERT INTO resource_fts (resource_id, resource_type, tenant_id, narrative_text, full_content)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![
+                resource_id,
+                resource_type,
+                tenant_id,
+                content.narrative,
+                content.full_content
+            ],
+        )
+        .map_err(|e| internal_error(format!("Failed to insert FTS content: {}", e)))?;
+
+        Ok(())
     }
 
     /// Index a resource using dynamic extraction from the SearchParameterRegistry.
@@ -585,11 +640,19 @@ impl SqliteBackend {
         resource_type: &str,
         resource_id: &str,
     ) -> StorageResult<()> {
+        // Delete from main search index
         conn.execute(
             "DELETE FROM search_index WHERE tenant_id = ?1 AND resource_type = ?2 AND resource_id = ?3",
             params![tenant_id, resource_type, resource_id],
         )
         .map_err(|e| internal_error(format!("Failed to delete search index: {}", e)))?;
+
+        // Delete from FTS table if it exists
+        let _ = conn.execute(
+            "DELETE FROM resource_fts WHERE tenant_id = ?1 AND resource_type = ?2 AND resource_id = ?3",
+            params![tenant_id, resource_type, resource_id],
+        );
+
         Ok(())
     }
 

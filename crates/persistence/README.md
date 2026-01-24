@@ -233,11 +233,14 @@ The matrix below shows which FHIR operations each backend supports. This reflect
 | **[Search Modifiers](https://hl7.org/fhir/R4/search.html#modifiers)** |
 | [:exact](https://hl7.org/fhir/R4/search.html#modifiers) | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
 | [:contains](https://hl7.org/fhir/R4/search.html#modifiers) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
-| [:text](https://hl7.org/fhir/R4/search.html#modifiers) (full-text) | ✗ | ○ | ○ | ✗ | ✗ | ○ | ✗ |
+| [:text](https://hl7.org/fhir/R4/search.html#modifiers) (full-text) | ◐² | ○ | ○ | ✗ | ✗ | ○ | ✗ |
 | [:not](https://hl7.org/fhir/R4/search.html#modifiers) | ✓ | ○ | ○ | ✗ | ○ | ○ | ○ |
 | [:missing](https://hl7.org/fhir/R4/search.html#modifiers) | ✓ | ○ | ○ | ✗ | ○ | ○ | ○ |
 | [:above / :below](https://hl7.org/fhir/R4/search.html#modifiers) | ✗ | †○ | †○ | ✗ | ○ | †○ | ✗ |
 | [:in / :not-in](https://hl7.org/fhir/R4/search.html#modifiers) | ✗ | †○ | †○ | ✗ | ○ | †○ | ✗ |
+| **[Special Parameters](https://hl7.org/fhir/R4/search.html#all)** |
+| [_text](https://hl7.org/fhir/R4/search.html#_text) (narrative search) | ◐² | ○ | ○ | ✗ | ✗ | ○ | ✗ |
+| [_content](https://hl7.org/fhir/R4/search.html#_content) (full content) | ◐² | ○ | ○ | ✗ | ✗ | ○ | ✗ |
 | **Advanced Search** |
 | [Chained Parameters](https://hl7.org/fhir/R4/search.html#chaining) | ○ | ○ | ○ | ✗ | ○ | ✗ | ✗ |
 | [Reverse Chaining (_has)](https://hl7.org/fhir/R4/search.html#has) | ○ | ○ | ○ | ✗ | ○ | ✗ | ✗ |
@@ -252,6 +255,9 @@ The matrix below shows which FHIR operations each backend supports. This reflect
 | **[Bulk Operations](https://hl7.org/fhir/uv/bulkdata/)** |
 | [Bulk Export](https://hl7.org/fhir/uv/bulkdata/export.html) | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
 | Bulk Import | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
+
+**Notes:**
+- ² FTS5 full-text search requires SQLite compiled with `ENABLE_FTS5`. Available in most distributions.
 
 ### Backend Selection Guide
 
@@ -327,6 +333,16 @@ The SQLite backend includes a complete FHIR search implementation using pre-comp
 - [x] `_include` and `_revinclude` resolution
 - [x] Cursor-based and offset pagination
 - [x] Single-field sorting
+
+**Full-Text Search (FTS5):**
+- [x] `resource_fts` FTS5 virtual table for full-text indexing
+- [x] Narrative text extraction from `text.div` with HTML stripping
+- [x] Full content extraction from all resource string values
+- [x] `_text` parameter - searches narrative content
+- [x] `_content` parameter - searches all resource text
+- [x] Porter stemmer tokenization for improved search quality
+- [x] Automatic FTS indexing on resource create/update/delete
+- [x] Graceful fallback when FTS5 not available in SQLite build
 
 **Reindexing:**
 - [x] `ReindexableStorage` trait for backend-agnostic reindexing
