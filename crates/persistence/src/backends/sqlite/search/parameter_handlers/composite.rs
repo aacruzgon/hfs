@@ -1,8 +1,8 @@
 //! Composite parameter SQL handler.
 
-use crate::types::{SearchParamType, SearchPrefix, SearchValue};
+use crate::types::{CompositeSearchComponent, SearchParamType, SearchPrefix, SearchValue};
 
-use super::super::query_builder::SqlFragment;
+use super::super::query_builder::{SqlFragment, SqlParam};
 use super::{DateHandler, NumberHandler, QuantityHandler, StringHandler, TokenHandler};
 
 /// Handles composite parameter SQL generation.
@@ -22,6 +22,59 @@ pub struct CompositeComponentDef {
 }
 
 impl CompositeHandler {
+    /// Builds SQL for a composite parameter value using CompositeSearchComponent definitions.
+    ///
+    /// This is the primary entry point called from QueryBuilder.
+    /// Since composite parameters need to match all component conditions on the same row,
+    /// we simply combine all conditions with AND. The outer query already filters by
+    /// param_name, so we just need the value conditions.
+    ///
+    /// Note: For true composite group matching (where values must come from the same
+    /// composite instance), we would need the extractor to populate composite_group
+    /// during indexing and use a more complex query. For now, we match all conditions
+    /// which works for simple cases.
+    pub fn build_composite_sql(
+        value: &SearchValue,
+        _param_name: &str,
+        components: &[CompositeSearchComponent],
+        param_offset: usize,
+    ) -> SqlFragment {
+        let composite_value = &value.value;
+        let parts: Vec<&str> = composite_value.split('$').collect();
+
+        if parts.len() != components.len() || components.is_empty() {
+            return SqlFragment::new("1 = 0");
+        }
+
+        let mut component_conditions = Vec::new();
+        let mut all_params = Vec::new();
+        let mut current_offset = param_offset;
+
+        // Build condition for each component
+        for (part, component) in parts.iter().zip(components.iter()) {
+            let component_value = Self::parse_component_value(part);
+            let fragment = Self::build_component_sql_from_type(
+                &component_value,
+                component.param_type,
+                current_offset,
+            );
+
+            if fragment.sql == "1 = 0" {
+                return SqlFragment::new("1 = 0");
+            }
+
+            component_conditions.push(fragment.sql);
+            current_offset += fragment.params.len();
+            all_params.extend(fragment.params);
+        }
+
+        // Combine all component conditions - they must all match
+        // The outer query context already filters by param_name and resource context
+        let conditions_sql = component_conditions.join(" AND ");
+
+        SqlFragment::with_params(format!("({})", conditions_sql), all_params)
+    }
+
     /// Builds SQL for a composite parameter value.
     ///
     /// The value should be in the format "value1$value2$..." where each value
@@ -45,7 +98,7 @@ impl CompositeHandler {
         let mut params = Vec::new();
         let mut current_offset = param_offset;
 
-        for (i, (part, component)) in parts.iter().zip(components.iter()).enumerate() {
+        for (part, component) in parts.iter().zip(components.iter()) {
             // Create a SearchValue for this component part
             let component_value = Self::parse_component_value(part);
 
@@ -65,6 +118,22 @@ impl CompositeHandler {
         // All conditions must match on the same composite_group
         // We wrap the conditions to ensure they're matched together
         SqlFragment::with_params(format!("({})", conditions.join(" AND ")), params)
+    }
+
+    /// Builds component SQL from a SearchParamType directly.
+    fn build_component_sql_from_type(
+        value: &SearchValue,
+        param_type: SearchParamType,
+        param_offset: usize,
+    ) -> SqlFragment {
+        match param_type {
+            SearchParamType::Token => TokenHandler::build_sql(value, None, param_offset),
+            SearchParamType::String => StringHandler::build_sql(value, None, param_offset),
+            SearchParamType::Date => DateHandler::build_sql(value, param_offset),
+            SearchParamType::Number => NumberHandler::build_sql(value, param_offset),
+            SearchParamType::Quantity => QuantityHandler::build_sql(value, param_offset),
+            _ => SqlFragment::new("1 = 0"),
+        }
     }
 
     /// Parses a component value, extracting any prefix.

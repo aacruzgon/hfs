@@ -62,6 +62,7 @@ async fn test_date_search_eq() {
         modifier: None,
         values: vec![SearchValue::date(SearchPrefix::Eq, "1980-01-15")],
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend
@@ -93,6 +94,7 @@ async fn test_date_search_lt() {
         modifier: None,
         values: vec![SearchValue::date(SearchPrefix::Lt, "1985-01-01")],
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend
@@ -121,6 +123,7 @@ async fn test_date_search_gt() {
         modifier: None,
         values: vec![SearchValue::date(SearchPrefix::Gt, "2000-01-01")],
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend
@@ -148,6 +151,7 @@ async fn test_date_search_le() {
         modifier: None,
         values: vec![SearchValue::date(SearchPrefix::Le, "1990-06-30")],
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend
@@ -175,6 +179,7 @@ async fn test_date_search_ge() {
         modifier: None,
         values: vec![SearchValue::date(SearchPrefix::Ge, "2000-01-01")],
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend
@@ -208,6 +213,7 @@ async fn test_date_search_range() {
             modifier: None,
             values: vec![SearchValue::date(SearchPrefix::Ge, "1985-01-01")],
             chain: vec![],
+        components: vec![],
         })
         .with_parameter(SearchParameter {
             name: "birthdate".to_string(),
@@ -215,6 +221,7 @@ async fn test_date_search_range() {
             modifier: None,
             values: vec![SearchValue::date(SearchPrefix::Le, "2005-12-31")],
             chain: vec![],
+        components: vec![],
         });
 
     let result = backend
@@ -247,6 +254,7 @@ async fn test_date_search_year_precision() {
         modifier: None,
         values: vec![SearchValue::date(SearchPrefix::Eq, "1990")],
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend

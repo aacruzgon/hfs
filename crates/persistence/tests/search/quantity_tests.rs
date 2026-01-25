@@ -82,6 +82,7 @@ async fn test_quantity_search_value_only() {
         modifier: None,
         values: vec![SearchValue::quantity(SearchPrefix::Eq, 70.0, None, None)],
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend
@@ -116,6 +117,7 @@ async fn test_quantity_search_value_and_unit() {
             Some("kg"),
         )],
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend
@@ -141,6 +143,7 @@ async fn test_quantity_search_gt() {
         modifier: None,
         values: vec![SearchValue::quantity(SearchPrefix::Gt, 100.0, None, None)],
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend

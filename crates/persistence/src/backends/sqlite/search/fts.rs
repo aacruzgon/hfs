@@ -56,17 +56,86 @@ fn extract_narrative(resource: &Value) -> String {
         .unwrap_or_default()
 }
 
-/// Strips HTML tags from a string.
+/// Strips HTML tags from a string and decodes HTML entities.
 ///
-/// Simple HTML stripping - removes everything between < and >.
+/// Handles:
+/// - HTML tags (removes everything between < and >)
+/// - CDATA sections (extracts content)
+/// - HTML entities (&lt;, &gt;, &amp;, &nbsp;, &quot;, &apos;, &#123;, &#x1F;, etc.)
 fn strip_html_tags(html: &str) -> String {
     let mut result = String::with_capacity(html.len());
     let mut in_tag = false;
+    let mut chars = html.chars().peekable();
 
-    for c in html.chars() {
+    while let Some(c) = chars.next() {
         match c {
-            '<' => in_tag = true,
-            '>' => in_tag = false,
+            '<' => {
+                // Check for CDATA section: <![CDATA[...]]>
+                if chars.peek() == Some(&'!') {
+                    let lookahead: String = chars.clone().take(8).collect();
+                    if lookahead.starts_with("![CDATA[") {
+                        // Skip the "![CDATA[" prefix
+                        for _ in 0..8 {
+                            chars.next();
+                        }
+                        // Extract until ]]>
+                        let mut cdata_content = String::new();
+                        while let Some(ch) = chars.next() {
+                            if ch == ']' {
+                                let next_two: String = chars.clone().take(2).collect();
+                                if next_two == "]>" {
+                                    chars.next(); // skip ]
+                                    chars.next(); // skip >
+                                    break;
+                                }
+                            }
+                            cdata_content.push(ch);
+                        }
+                        result.push_str(&cdata_content);
+                        result.push(' ');
+                        continue;
+                    }
+                }
+                in_tag = true;
+            }
+            '>' if in_tag => {
+                in_tag = false;
+            }
+            '&' if !in_tag => {
+                // Collect entity up to ';' (max 10 chars for safety)
+                let mut entity = String::new();
+                let mut found_semicolon = false;
+                for _ in 0..10 {
+                    if let Some(&ch) = chars.peek() {
+                        if ch == ';' {
+                            chars.next(); // consume the semicolon
+                            found_semicolon = true;
+                            break;
+                        } else if ch.is_alphanumeric() || ch == '#' {
+                            entity.push(ch);
+                            chars.next();
+                        } else {
+                            break;
+                        }
+                    } else {
+                        break;
+                    }
+                }
+                if found_semicolon {
+                    if let Some(decoded) = decode_html_entity(&entity) {
+                        result.push(decoded);
+                    } else {
+                        // Unknown entity, keep as-is
+                        result.push('&');
+                        result.push_str(&entity);
+                        result.push(';');
+                    }
+                } else {
+                    // Not a valid entity, keep the ampersand and collected chars
+                    result.push('&');
+                    result.push_str(&entity);
+                }
+            }
             _ if !in_tag => result.push(c),
             _ => {}
         }
@@ -77,6 +146,31 @@ fn strip_html_tags(html: &str) -> String {
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+/// Decodes an HTML entity to its character equivalent.
+///
+/// Supports named entities (lt, gt, amp, nbsp, quot, apos) and
+/// numeric entities (&#123; decimal, &#x1F; hexadecimal).
+fn decode_html_entity(entity: &str) -> Option<char> {
+    match entity {
+        "lt" => Some('<'),
+        "gt" => Some('>'),
+        "amp" => Some('&'),
+        "nbsp" => Some(' '),
+        "quot" => Some('"'),
+        "apos" => Some('\''),
+        s if s.starts_with('#') => {
+            let num = s.strip_prefix('#')?;
+            let code = if let Some(hex) = num.strip_prefix('x').or_else(|| num.strip_prefix('X')) {
+                u32::from_str_radix(hex, 16).ok()?
+            } else {
+                num.parse().ok()?
+            };
+            char::from_u32(code)
+        }
+        _ => None,
+    }
 }
 
 /// Extracts all string values from a JSON value recursively.
@@ -303,6 +397,101 @@ mod tests {
             strip_html_tags("<div xmlns=\"http://www.w3.org/1999/xhtml\">Test</div>"),
             "Test"
         );
+    }
+
+    #[test]
+    fn test_strip_html_entities() {
+        // Named entities
+        assert_eq!(strip_html_tags("&lt;tag&gt;"), "<tag>");
+        assert_eq!(strip_html_tags("Tom &amp; Jerry"), "Tom & Jerry");
+        assert_eq!(strip_html_tags("He said &quot;hello&quot;"), "He said \"hello\"");
+        assert_eq!(strip_html_tags("It&apos;s fine"), "It's fine");
+        assert_eq!(strip_html_tags("Non&nbsp;breaking"), "Non breaking");
+
+        // Numeric entities (decimal)
+        assert_eq!(strip_html_tags("&#60;&#62;"), "<>");
+        assert_eq!(strip_html_tags("&#65;&#66;&#67;"), "ABC");
+
+        // Numeric entities (hexadecimal)
+        assert_eq!(strip_html_tags("&#x3C;&#x3E;"), "<>");
+        assert_eq!(strip_html_tags("&#x41;&#x42;&#x43;"), "ABC");
+        assert_eq!(strip_html_tags("&#X41;&#X42;"), "AB"); // uppercase X
+
+        // Mixed content with entities
+        assert_eq!(
+            strip_html_tags("<p>Price: &lt;$100 &amp; discount</p>"),
+            "Price: <$100 & discount"
+        );
+    }
+
+    #[test]
+    fn test_strip_html_cdata() {
+        assert_eq!(
+            strip_html_tags("<![CDATA[Some raw content]]>"),
+            "Some raw content"
+        );
+        assert_eq!(
+            strip_html_tags("<div><![CDATA[Inner CDATA]]></div>"),
+            "Inner CDATA"
+        );
+        assert_eq!(
+            strip_html_tags("Before <![CDATA[inside]]> after"),
+            "Before inside after"
+        );
+        // CDATA with special characters
+        assert_eq!(
+            strip_html_tags("<![CDATA[<script>alert('hi')</script>]]>"),
+            "<script>alert('hi')</script>"
+        );
+    }
+
+    #[test]
+    fn test_strip_html_edge_cases() {
+        // Unclosed entity (should preserve as-is)
+        assert_eq!(strip_html_tags("a & b"), "a & b");
+        assert_eq!(strip_html_tags("a &unknown; b"), "a &unknown; b");
+
+        // Empty input
+        assert_eq!(strip_html_tags(""), "");
+
+        // Only whitespace
+        assert_eq!(strip_html_tags("   "), "");
+
+        // Self-closing tags
+        assert_eq!(strip_html_tags("<br/><hr/>text"), "text");
+
+        // Complex FHIR narrative
+        let fhir_narrative = r#"<div xmlns="http://www.w3.org/1999/xhtml">
+            <p>Patient: John Smith &amp; family</p>
+            <p>DOB: &lt;1970-01-15&gt;</p>
+        </div>"#;
+        assert_eq!(
+            strip_html_tags(fhir_narrative),
+            "Patient: John Smith & family DOB: <1970-01-15>"
+        );
+    }
+
+    #[test]
+    fn test_decode_html_entity() {
+        assert_eq!(decode_html_entity("lt"), Some('<'));
+        assert_eq!(decode_html_entity("gt"), Some('>'));
+        assert_eq!(decode_html_entity("amp"), Some('&'));
+        assert_eq!(decode_html_entity("nbsp"), Some(' '));
+        assert_eq!(decode_html_entity("quot"), Some('"'));
+        assert_eq!(decode_html_entity("apos"), Some('\''));
+
+        // Decimal numeric
+        assert_eq!(decode_html_entity("#65"), Some('A'));
+        assert_eq!(decode_html_entity("#97"), Some('a'));
+
+        // Hexadecimal numeric
+        assert_eq!(decode_html_entity("#x41"), Some('A'));
+        assert_eq!(decode_html_entity("#X41"), Some('A'));
+        assert_eq!(decode_html_entity("#x1F600"), Some('😀')); // emoji
+
+        // Unknown
+        assert_eq!(decode_html_entity("unknown"), None);
+        assert_eq!(decode_html_entity("#invalid"), None);
     }
 
     #[test]

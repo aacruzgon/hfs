@@ -181,6 +181,7 @@ async fn test_reverse_chaining() {
             modifier: None,
             values: vec![SearchValue::token(Some("http://loinc.org"), "8867-4")],
             chain: vec![],
+        components: vec![],
         },
     );
 
@@ -211,6 +212,7 @@ async fn test_reverse_chaining_no_matches() {
             modifier: None,
             values: vec![SearchValue::token(Some("http://loinc.org"), "NONEXISTENT")],
             chain: vec![],
+        components: vec![],
         },
     );
 

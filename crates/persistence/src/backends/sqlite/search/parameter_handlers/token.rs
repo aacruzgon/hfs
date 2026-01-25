@@ -31,12 +31,12 @@ impl TokenHandler {
             return SqlFragment::with_params(format!("NOT ({})", inner.sql), inner.params);
         }
 
-        // Handle :text modifier
+        // Handle :text modifier - search on display text (Coding.display, CodeableConcept.text)
         if matches!(modifier, Some(SearchModifier::Text)) {
-            // Full-text search on code display text
+            // Search on the display text column for human-readable text matching
             return SqlFragment::with_params(
                 format!(
-                    "value_token_code COLLATE NOCASE LIKE '%' || ?{} || '%'",
+                    "value_token_display COLLATE NOCASE LIKE '%' || ?{} || '%'",
                     param_num
                 ),
                 vec![SqlParam::string(&value.value.to_lowercase())],
@@ -107,17 +107,11 @@ impl TokenHandler {
     /// - `Patient?identifier:of-type=http://terminology.hl7.org/CodeSystem/v2-0203|MR|12345`
     ///   matches patients with a Medical Record Number identifier with value "12345".
     ///
-    /// # Implementation Notes
-    ///
-    /// This implementation matches:
-    /// 1. The identifier.system (if provided as type-system)
-    /// 2. The identifier.value
-    ///
-    /// Full type matching (identifier.type.coding) is not supported without
-    /// additional indexing of the type field. The type-system and type-code
-    /// components are currently used to filter by identifier.system.
+    /// This implementation uses the dedicated type columns:
+    /// - `value_identifier_type_system` - stores identifier.type.coding[0].system
+    /// - `value_identifier_type_code` - stores identifier.type.coding[0].code
     fn build_of_type_sql(value: &str, param_offset: usize) -> SqlFragment {
-        let param_num = param_offset + 1;
+        let mut param_num = param_offset + 1;
 
         // Parse the three-part format: type-system|type-code|identifier-value
         let parts: Vec<&str> = value.splitn(3, '|').collect();
@@ -128,49 +122,60 @@ impl TokenHandler {
                 let type_code = parts[1];
                 let identifier_value = parts[2];
 
-                if type_system.is_empty() && type_code.is_empty() {
-                    // ||value - match identifier with no type, just value
-                    SqlFragment::with_params(
-                        format!("value_token_code = ?{}", param_num),
-                        vec![SqlParam::string(identifier_value)],
-                    )
-                } else if type_system.is_empty() {
-                    // |type-code|value - match by type code (in system column) and value
-                    // Note: In current indexing, identifier.system goes to value_token_system
-                    // This is a best-effort match for type code
-                    SqlFragment::with_params(
-                        format!(
-                            "value_token_code = ?{}",
-                            param_num
-                        ),
-                        vec![SqlParam::string(identifier_value)],
-                    )
+                let mut conditions = Vec::new();
+                let mut params = Vec::new();
+
+                // Always match on identifier value (required)
+                if !identifier_value.is_empty() {
+                    conditions.push(format!("value_token_code = ?{}", param_num));
+                    params.push(SqlParam::string(identifier_value));
+                    param_num += 1;
+                }
+
+                // Match on type system if provided
+                if !type_system.is_empty() {
+                    conditions.push(format!("value_identifier_type_system = ?{}", param_num));
+                    params.push(SqlParam::string(type_system));
+                    param_num += 1;
+                }
+
+                // Match on type code if provided
+                if !type_code.is_empty() {
+                    conditions.push(format!("value_identifier_type_code = ?{}", param_num));
+                    params.push(SqlParam::string(type_code));
+                }
+
+                if conditions.is_empty() {
+                    // No valid conditions
+                    SqlFragment::new("1 = 0")
                 } else {
-                    // type-system|type-code|value - full type matching
-                    // Currently, we match by system (if identifier has system) and value
-                    // Full type.coding matching would require schema enhancements
-                    if identifier_value.is_empty() {
-                        // Just match by type system
-                        SqlFragment::with_params(
-                            format!("value_token_system = ?{}", param_num),
-                            vec![SqlParam::string(type_system)],
-                        )
-                    } else {
-                        // Match by value; type system used as identifier system filter
-                        SqlFragment::with_params(
-                            format!("value_token_code = ?{}", param_num),
-                            vec![SqlParam::string(identifier_value)],
-                        )
-                    }
+                    SqlFragment::with_params(conditions.join(" AND "), params)
                 }
             }
             2 => {
                 // type-code|value format (no type-system)
+                let type_code = parts[0];
                 let identifier_value = parts[1];
-                SqlFragment::with_params(
-                    format!("value_token_code = ?{}", param_num),
-                    vec![SqlParam::string(identifier_value)],
-                )
+
+                let mut conditions = Vec::new();
+                let mut params = Vec::new();
+
+                if !identifier_value.is_empty() {
+                    conditions.push(format!("value_token_code = ?{}", param_num));
+                    params.push(SqlParam::string(identifier_value));
+                    param_num += 1;
+                }
+
+                if !type_code.is_empty() {
+                    conditions.push(format!("value_identifier_type_code = ?{}", param_num));
+                    params.push(SqlParam::string(type_code));
+                }
+
+                if conditions.is_empty() {
+                    SqlFragment::new("1 = 0")
+                } else {
+                    SqlFragment::with_params(conditions.join(" AND "), params)
+                }
             }
             1 => {
                 // Just value (no type info)
@@ -246,9 +251,11 @@ mod tests {
         );
         let frag = TokenHandler::build_sql(&value, Some(&SearchModifier::OfType), 0);
 
-        // Should match the identifier value
+        // Should match identifier value, type system, and type code
         assert!(frag.sql.contains("value_token_code = ?1"));
-        assert_eq!(frag.params.len(), 1);
+        assert!(frag.sql.contains("value_identifier_type_system = ?2"));
+        assert!(frag.sql.contains("value_identifier_type_code = ?3"));
+        assert_eq!(frag.params.len(), 3);
     }
 
     #[test]
@@ -257,7 +264,10 @@ mod tests {
         let value = SearchValue::new(SearchPrefix::Eq, "|MR|12345");
         let frag = TokenHandler::build_sql(&value, Some(&SearchModifier::OfType), 0);
 
+        // Should match identifier value and type code (no type system)
         assert!(frag.sql.contains("value_token_code = ?1"));
+        assert!(frag.sql.contains("value_identifier_type_code = ?2"));
+        assert_eq!(frag.params.len(), 2);
     }
 
     #[test]
@@ -266,12 +276,20 @@ mod tests {
         let value = SearchValue::new(SearchPrefix::Eq, "MR|12345");
         let frag = TokenHandler::build_sql(&value, Some(&SearchModifier::OfType), 0);
 
+        // Should match identifier value and type code
         assert!(frag.sql.contains("value_token_code = ?1"));
-        // Should match the identifier value
+        assert!(frag.sql.contains("value_identifier_type_code = ?2"));
+        assert_eq!(frag.params.len(), 2);
+        // Verify parameters
         if let SqlParam::String(s) = &frag.params[0] {
             assert_eq!(s, "12345");
         } else {
-            panic!("Expected string parameter");
+            panic!("Expected string parameter for identifier value");
+        }
+        if let SqlParam::String(s) = &frag.params[1] {
+            assert_eq!(s, "MR");
+        } else {
+            panic!("Expected string parameter for type code");
         }
     }
 }

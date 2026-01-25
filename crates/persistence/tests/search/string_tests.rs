@@ -65,6 +65,7 @@ async fn test_string_search_default() {
         modifier: None,
         values: vec![SearchValue::eq("Smith")],
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend
@@ -104,6 +105,7 @@ async fn test_string_search_case_insensitive() {
         modifier: None,
         values: vec![SearchValue::eq("smith")],
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend
@@ -134,6 +136,7 @@ async fn test_string_search_exact() {
         modifier: Some(SearchModifier::Exact),
         values: vec![SearchValue::eq("Smith")],
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend
@@ -163,6 +166,7 @@ async fn test_string_search_exact_case_sensitive() {
         modifier: Some(SearchModifier::Exact),
         values: vec![SearchValue::eq("smith")],
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend
@@ -193,6 +197,7 @@ async fn test_string_search_contains() {
         modifier: Some(SearchModifier::Contains),
         values: vec![SearchValue::eq("son")],
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend
@@ -234,6 +239,7 @@ async fn test_string_search_given_name() {
         modifier: None,
         values: vec![SearchValue::eq("John")],
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend
@@ -277,6 +283,7 @@ async fn test_string_search_combined_name() {
             modifier: None,
             values: vec![SearchValue::eq("Smith")],
             chain: vec![],
+        components: vec![],
         })
         .with_parameter(SearchParameter {
             name: "given".to_string(),
@@ -284,6 +291,7 @@ async fn test_string_search_combined_name() {
             modifier: None,
             values: vec![SearchValue::eq("John")],
             chain: vec![],
+        components: vec![],
         });
 
     let result = backend
@@ -321,6 +329,7 @@ async fn test_string_search_apostrophe() {
         modifier: None,
         values: vec![SearchValue::eq("O'Brien")],
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend
@@ -347,6 +356,7 @@ async fn test_string_search_spaces() {
         modifier: None,
         values: vec![SearchValue::eq("Van Der Berg")],
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend
@@ -377,6 +387,7 @@ async fn test_string_search_or_values() {
         modifier: None,
         values: vec![SearchValue::eq("Smith"), SearchValue::eq("Johnson")],
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend
@@ -417,6 +428,7 @@ async fn test_string_search_no_results() {
         modifier: None,
         values: vec![SearchValue::eq("NonexistentName")],
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend
@@ -440,6 +452,7 @@ async fn test_string_search_empty_storage() {
         modifier: None,
         values: vec![SearchValue::eq("Smith")],
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend
@@ -473,6 +486,7 @@ async fn test_multivalue_or_semantics() {
         modifier: None,
         values: vec![SearchValue::eq("Smith"), SearchValue::eq("Johnson")],
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend
@@ -516,6 +530,7 @@ async fn test_multivalue_and_semantics() {
             modifier: None,
             values: vec![SearchValue::eq("Smith")],
             chain: vec![],
+        components: vec![],
         })
         .with_parameter(SearchParameter {
             name: "given".to_string(),
@@ -523,6 +538,7 @@ async fn test_multivalue_and_semantics() {
             modifier: None,
             values: vec![SearchValue::eq("John")],
             chain: vec![],
+        components: vec![],
         });
 
     let result = backend
@@ -577,6 +593,7 @@ async fn test_multivalue_combined_and_or_semantics() {
             modifier: None,
             values: vec![SearchValue::eq("Smith"), SearchValue::eq("Johnson")],
             chain: vec![],
+        components: vec![],
         })
         .with_parameter(SearchParameter {
             name: "given".to_string(),
@@ -584,6 +601,7 @@ async fn test_multivalue_combined_and_or_semantics() {
             modifier: None,
             values: vec![SearchValue::eq("John")],
             chain: vec![],
+        components: vec![],
         });
 
     let result = backend
@@ -640,6 +658,7 @@ async fn test_repeated_parameter_and_semantics() {
             modifier: None,
             values: vec![SearchValue::eq("Jo")], // Matches "John", "Joseph", etc.
             chain: vec![],
+        components: vec![],
         })
         .with_parameter(SearchParameter {
             name: "given".to_string(),
@@ -647,6 +666,7 @@ async fn test_repeated_parameter_and_semantics() {
             modifier: None,
             values: vec![SearchValue::eq("Ja")], // Matches "Jacob", "Jane", "James", etc.
             chain: vec![],
+        components: vec![],
         });
 
     let result = backend

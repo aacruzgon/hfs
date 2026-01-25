@@ -275,7 +275,13 @@ fn evaluation_result_to_json_values(result: &EvaluationResult) -> Result<Vec<Val
             let mut obj = serde_json::Map::new();
             for (key, val) in map {
                 let json_vals = evaluation_result_to_json_values(val)?;
-                if json_vals.len() == 1 {
+                // Check if the original value was a Collection - if so, preserve it as an array
+                // even if it has only one element, since FHIR arrays should stay as arrays
+                let is_collection = matches!(val, EvaluationResult::Collection { .. });
+                if is_collection {
+                    // Always preserve arrays as arrays
+                    obj.insert(key.clone(), Value::Array(json_vals));
+                } else if json_vals.len() == 1 {
                     obj.insert(key.clone(), json_vals.into_iter().next().unwrap());
                 } else if !json_vals.is_empty() {
                     obj.insert(key.clone(), Value::Array(json_vals));
@@ -354,7 +360,7 @@ mod tests {
         let id_values: Vec<_> = values.iter().filter(|v| v.param_name == "identifier").collect();
         assert!(!id_values.is_empty(), "Should extract 'identifier' values");
 
-        if let IndexValue::Token { system, code } = &id_values[0].value {
+        if let IndexValue::Token { system, code, .. } = &id_values[0].value {
             assert_eq!(system.as_ref().unwrap(), "http://hospital.org/mrn");
             assert_eq!(code, "12345");
         }
@@ -443,6 +449,63 @@ mod tests {
         // Should extract all names (both official and nickname)
         let name_values: Vec<_> = values.iter().filter(|v| v.param_name == "name").collect();
         assert!(name_values.len() >= 2, "Should extract multiple name values");
+    }
+
+    #[test]
+    fn test_extract_observation_code_with_display() {
+        let extractor = create_test_extractor();
+
+        let observation = json!({
+            "resourceType": "Observation",
+            "id": "obs1",
+            "status": "final",
+            "code": {
+                "coding": [
+                    {
+                        "system": "http://loinc.org",
+                        "code": "8867-4",
+                        "display": "Heart rate"
+                    }
+                ]
+            }
+        });
+
+        // Extract values
+        let values = extractor.extract(&observation, "Observation").unwrap();
+
+        // Should have extracted code values
+        let code_values: Vec<_> = values.iter().filter(|v| v.param_name == "code").collect();
+        assert!(!code_values.is_empty(), "Should extract 'code' values");
+
+        // Check that display is populated
+        if let Some(first_code) = code_values.first() {
+            if let IndexValue::Token { display, .. } = &first_code.value {
+                assert_eq!(display.as_deref(), Some("Heart rate"), "Display should be populated");
+            }
+        }
+    }
+
+    #[test]
+    fn test_extract_resource_id() {
+        let extractor = create_test_extractor();
+
+        let patient = json!({
+            "resourceType": "Patient",
+            "id": "p1"
+        });
+
+        let values = extractor.extract(&patient, "Patient").unwrap();
+
+        // Should have extracted _id
+        let id_values: Vec<_> = values.iter().filter(|v| v.param_name == "_id").collect();
+        assert!(!id_values.is_empty(), "Should extract '_id' parameter");
+
+        // Check the value
+        if let Some(first_id) = id_values.first() {
+            if let IndexValue::Token { code, .. } = &first_id.value {
+                assert_eq!(code, "p1", "_id should be 'p1'");
+            }
+        }
     }
 
     #[test]

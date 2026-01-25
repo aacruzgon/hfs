@@ -45,6 +45,7 @@
 //!         modifier: None,
 //!         values: vec![SearchValue::eq("Smith")],
 //!         chain: vec![],
+//!         components: vec![],
 //!     })
 //!     .with_sort(SortDirective::parse("-_lastUpdated"))
 //!     .with_count(20);
@@ -80,9 +81,9 @@ pub use pagination::{
 };
 
 pub use search_params::{
-    ChainConfig, ChainedParameter, IncludeDirective, IncludeType, ReverseChainedParameter,
-    SearchModifier, SearchParamType, SearchParameter, SearchPrefix, SearchQuery, SearchValue,
-    SortDirection, SortDirective, SummaryMode, TotalMode,
+    ChainConfig, ChainedParameter, CompositeSearchComponent, IncludeDirective, IncludeType,
+    ReverseChainedParameter, SearchModifier, SearchParamType, SearchParameter, SearchPrefix,
+    SearchQuery, SearchValue, SortDirection, SortDirective, SummaryMode, TotalMode,
 };
 
 pub use stored_resource::{ResourceMeta, ResourceMethod, StoredResource, StoredResourceBuilder};

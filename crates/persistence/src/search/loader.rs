@@ -275,12 +275,15 @@ impl SearchParameterLoader {
         let mut params = Vec::new();
 
         // Common parameters for all resource types
+        // Note: We use simplified expressions without "Resource." prefix since our FHIRPath
+        // evaluator doesn't support Resource type filtering. The FHIR spec uses "Resource.id",
+        // but we simplify to just "id" which works correctly when evaluated in the resource context.
         params.push(
             SearchParameterDefinition::new(
                 "http://hl7.org/fhir/SearchParameter/Resource-id",
                 "_id",
                 SearchParamType::Token,
-                "Resource.id",
+                "id",
             )
             .with_base(vec!["Resource"])
             .with_source(SearchParameterSource::Embedded),
@@ -291,7 +294,7 @@ impl SearchParameterLoader {
                 "http://hl7.org/fhir/SearchParameter/Resource-lastUpdated",
                 "_lastUpdated",
                 SearchParamType::Date,
-                "Resource.meta.lastUpdated",
+                "meta.lastUpdated",
             )
             .with_base(vec!["Resource"])
             .with_source(SearchParameterSource::Embedded),
@@ -302,7 +305,7 @@ impl SearchParameterLoader {
                 "http://hl7.org/fhir/SearchParameter/Resource-tag",
                 "_tag",
                 SearchParamType::Token,
-                "Resource.meta.tag",
+                "meta.tag",
             )
             .with_base(vec!["Resource"])
             .with_source(SearchParameterSource::Embedded),
@@ -313,7 +316,7 @@ impl SearchParameterLoader {
                 "http://hl7.org/fhir/SearchParameter/Resource-profile",
                 "_profile",
                 SearchParamType::Uri,
-                "Resource.meta.profile",
+                "meta.profile",
             )
             .with_base(vec!["Resource"])
             .with_source(SearchParameterSource::Embedded),
@@ -324,7 +327,7 @@ impl SearchParameterLoader {
                 "http://hl7.org/fhir/SearchParameter/Resource-security",
                 "_security",
                 SearchParamType::Token,
-                "Resource.meta.security",
+                "meta.security",
             )
             .with_base(vec!["Resource"])
             .with_source(SearchParameterSource::Embedded),

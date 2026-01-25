@@ -48,6 +48,7 @@ async fn test_missing_true() {
         modifier: Some(SearchModifier::Missing),
         values: vec![SearchValue::boolean(true)],
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend
@@ -82,6 +83,7 @@ async fn test_missing_false() {
         modifier: Some(SearchModifier::Missing),
         values: vec![SearchValue::boolean(false)],
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend
@@ -119,6 +121,7 @@ async fn test_not_modifier() {
         modifier: Some(SearchModifier::Not),
         values: vec![SearchValue::token(None, "male")],
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend
@@ -160,6 +163,7 @@ async fn test_text_modifier() {
         modifier: Some(SearchModifier::Text),
         values: vec![SearchValue::string("heart rate")],
         chain: vec![],
+        components: vec![],
     });
 
     let _result = backend
@@ -207,6 +211,7 @@ async fn test_identifier_modifier() {
             "MRN001",
         )],
         chain: vec![],
+        components: vec![],
     });
 
     let _result = backend
@@ -273,6 +278,7 @@ async fn test_of_type_modifier_three_part_format() {
             "123-45-6789",
         )],
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend
@@ -342,6 +348,7 @@ async fn test_of_type_modifier_type_discrimination() {
             "DL-999888",
         )],
         chain: vec![],
+        components: vec![],
     });
 
     // Search for passport type - should NOT match (patient has no passport)
@@ -355,6 +362,7 @@ async fn test_of_type_modifier_type_discrimination() {
             "DL-999888", // Same value but wrong type
         )],
         chain: vec![],
+        components: vec![],
     });
 
     // Test documents expected behavior when :of-type is implemented

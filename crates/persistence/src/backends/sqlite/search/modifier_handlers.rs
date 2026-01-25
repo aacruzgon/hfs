@@ -46,6 +46,7 @@ mod tests {
             modifier: Some(SearchModifier::Missing),
             values: vec![SearchValue::eq("true")],
             chain: vec![],
+            components: vec![],
         };
 
         let frag = build_missing_condition(&param, true);
@@ -62,6 +63,7 @@ mod tests {
             modifier: Some(SearchModifier::Missing),
             values: vec![SearchValue::eq("false")],
             chain: vec![],
+            components: vec![],
         };
 
         let frag = build_missing_condition(&param, false);

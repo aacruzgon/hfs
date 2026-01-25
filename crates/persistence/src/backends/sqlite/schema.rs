@@ -5,7 +5,7 @@ use rusqlite::Connection;
 use crate::error::StorageResult;
 
 /// Current schema version.
-pub const SCHEMA_VERSION: i32 = 3;
+pub const SCHEMA_VERSION: i32 = 4;
 
 /// Initialize the database schema.
 pub fn initialize_schema(conn: &Connection) -> StorageResult<()> {
@@ -134,6 +134,7 @@ fn create_schema_v1(conn: &Connection) -> StorageResult<()> {
             value_string TEXT,
             value_token_system TEXT,
             value_token_code TEXT,
+            value_token_display TEXT,
             value_date TEXT,
             value_date_precision TEXT,
             value_number REAL,
@@ -143,6 +144,8 @@ fn create_schema_v1(conn: &Connection) -> StorageResult<()> {
             value_reference TEXT,
             value_uri TEXT,
             composite_group INTEGER,
+            value_identifier_type_system TEXT,
+            value_identifier_type_code TEXT,
             FOREIGN KEY (tenant_id, resource_type, resource_id)
                 REFERENCES resources(tenant_id, resource_type, id) ON DELETE CASCADE
         )",
@@ -186,6 +189,10 @@ fn create_indexes(conn: &Connection) -> StorageResult<()> {
         "CREATE INDEX IF NOT EXISTS idx_search_composite ON search_index(tenant_id, resource_type, resource_id, param_name, composite_group)",
         // Index for resource-based lookups
         "CREATE INDEX IF NOT EXISTS idx_search_resource ON search_index(tenant_id, resource_type, resource_id)",
+        // Index for :text modifier searches (token display text)
+        "CREATE INDEX IF NOT EXISTS idx_search_token_display ON search_index(tenant_id, resource_type, param_name, value_token_display)",
+        // Index for :of-type modifier searches (identifier type)
+        "CREATE INDEX IF NOT EXISTS idx_search_identifier_type ON search_index(tenant_id, resource_type, param_name, value_identifier_type_system, value_identifier_type_code)",
     ];
 
     for index_sql in &indexes {
@@ -250,6 +257,7 @@ fn migrate_schema(conn: &Connection, from_version: i32) -> StorageResult<()> {
         match version {
             1 => migrate_v1_to_v2(conn)?,
             2 => migrate_v2_to_v3(conn)?,
+            3 => migrate_v3_to_v4(conn)?,
             _ => {
                 return Err(crate::error::StorageError::Backend(
                     crate::error::BackendError::Internal {
@@ -350,6 +358,47 @@ fn migrate_v2_to_v3(conn: &Connection) -> StorageResult<()> {
             source: None,
         })
     })?;
+
+    Ok(())
+}
+
+/// Migrate from schema version 3 to version 4.
+///
+/// This migration adds columns for enhanced token search:
+/// - value_token_display: Display text for Coding.display and CodeableConcept.text (:text modifier)
+/// - value_identifier_type_system: System URI for Identifier.type.coding (:of-type modifier)
+/// - value_identifier_type_code: Code for Identifier.type.coding (:of-type modifier)
+fn migrate_v3_to_v4(conn: &Connection) -> StorageResult<()> {
+    let migrations = [
+        // Add columns for :text modifier support (token display text)
+        "ALTER TABLE search_index ADD COLUMN value_token_display TEXT",
+        // Add columns for :of-type modifier support (identifier type)
+        "ALTER TABLE search_index ADD COLUMN value_identifier_type_system TEXT",
+        "ALTER TABLE search_index ADD COLUMN value_identifier_type_code TEXT",
+    ];
+
+    for sql in &migrations {
+        // Ignore errors for column already exists (idempotent migration)
+        let _ = conn.execute(sql, []);
+    }
+
+    // Create indexes for efficient searching
+    let indexes = [
+        // Index for :text modifier searches
+        "CREATE INDEX IF NOT EXISTS idx_search_token_display ON search_index(tenant_id, resource_type, param_name, value_token_display)",
+        // Index for :of-type modifier searches
+        "CREATE INDEX IF NOT EXISTS idx_search_identifier_type ON search_index(tenant_id, resource_type, param_name, value_identifier_type_system, value_identifier_type_code)",
+    ];
+
+    for index_sql in &indexes {
+        conn.execute(index_sql, []).map_err(|e| {
+            crate::error::StorageError::Backend(crate::error::BackendError::Internal {
+                backend_name: "sqlite".to_string(),
+                message: format!("Failed to create index in migration: {}", e),
+                source: None,
+            })
+        })?;
+    }
 
     Ok(())
 }

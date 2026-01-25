@@ -224,6 +224,7 @@ async fn test_revinclude_filtered() {
             modifier: None,
             values: vec![helios_persistence::types::SearchValue::eq("patient-1")],
             chain: vec![],
+        components: vec![],
         })
         .with_include(IncludeDirective {
             include_type: IncludeType::Revinclude,
@@ -308,6 +309,7 @@ async fn test_include_iterate_recursive_depth() {
             modifier: None,
             values: vec![helios_persistence::types::SearchValue::eq("patient-org-chain")],
             chain: vec![],
+        components: vec![],
         })
         .with_include(IncludeDirective {
             include_type: IncludeType::Include,
@@ -391,6 +393,7 @@ async fn test_include_iterate_cycle_detection() {
             modifier: None,
             values: vec![helios_persistence::types::SearchValue::eq("org-cycle-a")],
             chain: vec![],
+        components: vec![],
         })
         .with_include(IncludeDirective {
             include_type: IncludeType::Include,
@@ -452,6 +455,7 @@ async fn test_include_iterate_max_depth() {
             modifier: None,
             values: vec![helios_persistence::types::SearchValue::eq("location-depth-8")],
             chain: vec![],
+        components: vec![],
         })
         .with_include(IncludeDirective {
             include_type: IncludeType::Include,

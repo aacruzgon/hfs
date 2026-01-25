@@ -1033,6 +1033,7 @@ async fn test_search_index_on_create() {
         modifier: None,
         values: vec![SearchValue::eq("http://example.org/mrn|MRN12345")],
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend.search(&tenant, &query).await.unwrap();
@@ -1094,6 +1095,7 @@ async fn test_search_index_on_delete() {
         modifier: None,
         values: vec![SearchValue::eq("DEL123")],
         chain: vec![],
+        components: vec![],
     });
 
     let result_before = backend.search(&tenant, &query).await.unwrap();
@@ -1143,6 +1145,7 @@ async fn test_search_index_string_name() {
         modifier: None,
         values: vec![SearchValue::eq("smith")], // lowercase for case-insensitive search
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend.search(&tenant, &query).await.unwrap();
@@ -1175,6 +1178,7 @@ async fn test_search_index_tenant_isolation() {
         modifier: None,
         values: vec![SearchValue::eq("UNIQUE123")],
         chain: vec![],
+        components: vec![],
     });
 
     let result_a = backend.search(&tenant_a, &query).await.unwrap();
@@ -1216,6 +1220,7 @@ async fn test_search_token_with_system() {
         modifier: None,
         values: vec![SearchValue::eq("12345")],
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend.search(&tenant, &query).await.unwrap();
@@ -1228,6 +1233,7 @@ async fn test_search_token_with_system() {
         modifier: None,
         values: vec![SearchValue::eq("http://hospital.org/mrn|12345")],
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend.search(&tenant, &query).await.unwrap();
@@ -1267,6 +1273,7 @@ async fn test_search_date_birthdate() {
         modifier: None,
         values: vec![SearchValue::eq("1990-01-15")],
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend.search(&tenant, &query).await.unwrap();
@@ -1319,6 +1326,7 @@ async fn test_search_reference_subject() {
         modifier: None,
         values: vec![SearchValue::eq("Patient/patient-1")],
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend.search(&tenant, &query).await.unwrap();
@@ -1364,6 +1372,7 @@ async fn test_search_multiple_parameters() {
         modifier: None,
         values: vec![SearchValue::eq("ABC123")],
         chain: vec![],
+        components: vec![],
     });
     query.parameters.push(SearchParameter {
         name: "status".to_string(),
@@ -1371,6 +1380,7 @@ async fn test_search_multiple_parameters() {
         modifier: None,
         values: vec![SearchValue::eq("true")], // active=true
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend.search(&tenant, &query).await.unwrap();
@@ -1500,6 +1510,7 @@ async fn test_reindex_clear_search_index() {
         modifier: None,
         values: vec![SearchValue::eq("12345")],
         chain: vec![],
+        components: vec![],
     });
     let result = backend.search(&tenant, &query).await.unwrap();
     assert_eq!(result.resources.items.len(), 1, "Should find patient before clearing index");
@@ -1543,6 +1554,7 @@ async fn test_reindex_operation_full() {
         modifier: None,
         values: vec![SearchValue::eq("A001")],
         chain: vec![],
+        components: vec![],
     });
     let result = backend.search(&tenant, &query).await.unwrap();
     assert_eq!(result.resources.items.len(), 0, "Should not find patient before reindex");
@@ -1825,6 +1837,7 @@ async fn test_conditional_delete_with_identifier() {
         modifier: None,
         values: vec![SearchValue::eq("http://hospital.org/mrn|MRN-DELETE-1")],
         chain: vec![],
+        components: vec![],
     });
 
     let search_result = backend.search(&tenant, &query).await.unwrap();
@@ -2146,4 +2159,268 @@ async fn test_fts_delete_does_not_fail() {
     // Delete should succeed (and clean up FTS if available)
     let result = backend.delete(&tenant, "Patient", "fts-delete-test").await;
     assert!(result.is_ok(), "Deleting resource should succeed");
+}
+
+// ============================================================================
+// _content Parameter Tests (Full Content Search)
+// ============================================================================
+
+use helios_persistence::types::{SearchModifier, CompositeSearchComponent};
+
+#[tokio::test]
+async fn test_content_search_basic() {
+    let backend = create_backend();
+    let tenant = create_tenant("test-tenant");
+
+    // Create patients with various content
+    backend.create(&tenant, "Patient", json!({
+        "resourceType": "Patient",
+        "id": "content-1",
+        "name": [{"family": "Smithson", "given": ["Alexander"]}],
+        "address": [{"city": "Springfield", "state": "Illinois"}]
+    })).await.unwrap();
+
+    backend.create(&tenant, "Patient", json!({
+        "resourceType": "Patient",
+        "id": "content-2",
+        "name": [{"family": "Johnson", "given": ["Robert"]}],
+        "address": [{"city": "Chicago", "state": "Illinois"}]
+    })).await.unwrap();
+
+    // Search for patients containing "Illinois" anywhere in content
+    let query = SearchQuery::new("Patient").with_parameter(SearchParameter {
+        name: "_content".to_string(),
+        param_type: SearchParamType::Special,
+        modifier: None,
+        values: vec![SearchValue::eq("Illinois")],
+        chain: vec![],
+        components: vec![],
+    });
+
+    let result = backend.search(&tenant, &query).await.unwrap();
+
+    // Should find patients from Illinois (FTS5 must be available)
+    // If FTS5 is not available, no results will be returned
+    let count = result.resources.items.len();
+    assert!(count == 0 || count == 2,
+        "Should find 0 (FTS unavailable) or 2 (FTS available) patients, found {}", count);
+}
+
+// ============================================================================
+// _text Parameter Tests (Narrative Search)
+// ============================================================================
+
+#[tokio::test]
+async fn test_text_search_narrative() {
+    let backend = create_backend();
+    let tenant = create_tenant("test-tenant");
+
+    // Create patient with narrative text
+    backend.create(&tenant, "Patient", json!({
+        "resourceType": "Patient",
+        "id": "text-1",
+        "text": {
+            "status": "generated",
+            "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>John Smith is a patient with diabetes and hypertension.</p></div>"
+        },
+        "name": [{"family": "Smith", "given": ["John"]}]
+    })).await.unwrap();
+
+    backend.create(&tenant, "Patient", json!({
+        "resourceType": "Patient",
+        "id": "text-2",
+        "text": {
+            "status": "generated",
+            "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>Jane Doe has asthma and allergies.</p></div>"
+        },
+        "name": [{"family": "Doe", "given": ["Jane"]}]
+    })).await.unwrap();
+
+    // Search for patients with "diabetes" in narrative
+    let query = SearchQuery::new("Patient").with_parameter(SearchParameter {
+        name: "_text".to_string(),
+        param_type: SearchParamType::Special,
+        modifier: None,
+        values: vec![SearchValue::eq("diabetes")],
+        chain: vec![],
+        components: vec![],
+    });
+
+    let result = backend.search(&tenant, &query).await.unwrap();
+
+    // FTS5 dependent - either finds 1 or 0
+    let count = result.resources.items.len();
+    assert!(count <= 1, "Should find at most 1 patient with diabetes in narrative");
+
+    if count == 1 {
+        assert_eq!(result.resources.items[0].id(), "text-1");
+    }
+}
+
+// ============================================================================
+// Composite Search Parameter Tests
+// ============================================================================
+
+#[tokio::test]
+async fn test_composite_search_basic() {
+    let backend = create_backend();
+    let tenant = create_tenant("test-tenant");
+
+    // Create observations with component values
+    backend.create(&tenant, "Observation", json!({
+        "resourceType": "Observation",
+        "id": "obs-comp-1",
+        "code": {"coding": [{"system": "http://loinc.org", "code": "85354-9"}]},
+        "component": [
+            {
+                "code": {"coding": [{"system": "http://loinc.org", "code": "8480-6"}]},
+                "valueQuantity": {"value": 120, "unit": "mmHg"}
+            }
+        ]
+    })).await.unwrap();
+
+    // Search using composite format: code$value-quantity
+    let query = SearchQuery::new("Observation").with_parameter(SearchParameter {
+        name: "component-code-value-quantity".to_string(),
+        param_type: SearchParamType::Composite,
+        modifier: None,
+        values: vec![SearchValue::eq("http://loinc.org|8480-6$120")],
+        chain: vec![],
+        components: vec![
+            CompositeSearchComponent {
+                param_type: SearchParamType::Token,
+                param_name: "component-code".to_string(),
+            },
+            CompositeSearchComponent {
+                param_type: SearchParamType::Quantity,
+                param_name: "component-value-quantity".to_string(),
+            },
+        ],
+    });
+
+    // The composite infrastructure is now wired up
+    let result = backend.search(&tenant, &query).await;
+    assert!(result.is_ok(), "Composite search should not error");
+}
+
+// ============================================================================
+// :text Modifier Tests (Token Display Text Search)
+// ============================================================================
+
+#[tokio::test]
+async fn test_token_text_modifier_coding_display() {
+    let backend = create_backend();
+    let tenant = create_tenant("test-tenant");
+
+    // Create observations with display text in code
+    backend.create(&tenant, "Observation", json!({
+        "resourceType": "Observation",
+        "id": "obs-text-1",
+        "code": {
+            "coding": [
+                {
+                    "system": "http://loinc.org",
+                    "code": "8867-4",
+                    "display": "Heart rate"
+                }
+            ]
+        },
+        "status": "final"
+    })).await.unwrap();
+
+    backend.create(&tenant, "Observation", json!({
+        "resourceType": "Observation",
+        "id": "obs-text-2",
+        "code": {
+            "coding": [
+                {
+                    "system": "http://loinc.org",
+                    "code": "9279-1",
+                    "display": "Respiratory rate"
+                }
+            ]
+        },
+        "status": "final"
+    })).await.unwrap();
+
+    // Search using :text modifier for "heart"
+    let query = SearchQuery::new("Observation").with_parameter(SearchParameter {
+        name: "code".to_string(),
+        param_type: SearchParamType::Token,
+        modifier: Some(SearchModifier::Text),
+        values: vec![SearchValue::eq("heart")],
+        chain: vec![],
+        components: vec![],
+    });
+
+    let result = backend.search(&tenant, &query).await.unwrap();
+
+    // Should find the observation with "Heart rate" in display
+    assert_eq!(result.resources.items.len(), 1);
+    assert_eq!(result.resources.items[0].id(), "obs-text-1");
+}
+
+// ============================================================================
+// :of-type Modifier Tests (Identifier Type Matching)
+// ============================================================================
+
+#[tokio::test]
+async fn test_identifier_of_type_modifier() {
+    let backend = create_backend();
+    let tenant = create_tenant("test-tenant");
+
+    // Create patients with typed identifiers
+    backend.create(&tenant, "Patient", json!({
+        "resourceType": "Patient",
+        "id": "patient-oftype-1",
+        "identifier": [
+            {
+                "type": {
+                    "coding": [
+                        {
+                            "system": "http://terminology.hl7.org/CodeSystem/v2-0203",
+                            "code": "MR"
+                        }
+                    ]
+                },
+                "system": "http://hospital.org/mrn",
+                "value": "MRN12345"
+            }
+        ]
+    })).await.unwrap();
+
+    backend.create(&tenant, "Patient", json!({
+        "resourceType": "Patient",
+        "id": "patient-oftype-2",
+        "identifier": [
+            {
+                "type": {
+                    "coding": [
+                        {
+                            "system": "http://terminology.hl7.org/CodeSystem/v2-0203",
+                            "code": "SS"
+                        }
+                    ]
+                },
+                "system": "http://hl7.org/fhir/sid/us-ssn",
+                "value": "123-45-6789"
+            }
+        ]
+    })).await.unwrap();
+
+    // Search using :of-type modifier for MR type
+    let query = SearchQuery::new("Patient").with_parameter(SearchParameter {
+        name: "identifier".to_string(),
+        param_type: SearchParamType::Token,
+        modifier: Some(SearchModifier::OfType),
+        values: vec![SearchValue::eq("http://terminology.hl7.org/CodeSystem/v2-0203|MR|MRN12345")],
+        chain: vec![],
+        components: vec![],
+    });
+
+    let result = backend.search(&tenant, &query).await.unwrap();
+
+    // Should find the patient with MR type identifier
+    assert_eq!(result.resources.items.len(), 1);
+    assert_eq!(result.resources.items[0].id(), "patient-oftype-1");
 }

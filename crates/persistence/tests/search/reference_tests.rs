@@ -80,6 +80,7 @@ async fn test_reference_search_relative() {
         modifier: None,
         values: vec![SearchValue::reference("Patient/patient-1")],
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend
@@ -112,6 +113,7 @@ async fn test_reference_search_id_only() {
         modifier: None,
         values: vec![SearchValue::reference("patient-1")],
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend
@@ -138,6 +140,7 @@ async fn test_reference_search_type_modifier() {
         modifier: None,
         values: vec![SearchValue::reference("patient-1")],
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend
@@ -162,6 +165,7 @@ async fn test_reference_search_no_results() {
         modifier: None,
         values: vec![SearchValue::reference("Patient/nonexistent")],
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend

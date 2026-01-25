@@ -1108,7 +1108,7 @@ impl EvaluationResult {
     ///
     /// # Arguments
     /// * `r4_compat` - If true, uses R4 semantics where 0 is false and non-zero is true.
-    ///                 If false, uses R5+ semantics where all integers are truthy.
+    ///   If false, uses R5+ semantics where all integers are truthy.
     pub fn to_boolean_for_logic_with_r4_compat(
         &self,
         r4_compat: bool,

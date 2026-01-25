@@ -346,6 +346,7 @@ async fn test_pagination_with_filter() {
             "1970-01-01",
         )],
         chain: vec![],
+        components: vec![],
     });
 
     let mut total_found = 0;

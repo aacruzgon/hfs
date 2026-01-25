@@ -2364,6 +2364,7 @@ impl SqliteBackend {
                 modifier: None,
                 values: vec![SearchValue::parse(value)],
                 chain: vec![],
+            components: vec![],
             });
         }
 
@@ -5163,5 +5164,156 @@ mod tests {
             .unwrap();
         assert_eq!(rt, "Observation");
         assert_eq!(id, "obs-1");
+    }
+
+    // ========================================================================
+    // Search Index Display Text Tests
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_search_index_display_text_populated() {
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        // Create an observation with display text
+        backend
+            .create(
+                &tenant,
+                "Observation",
+                json!({
+                    "resourceType": "Observation",
+                    "id": "obs-display-test",
+                    "code": {
+                        "coding": [
+                            {
+                                "system": "http://loinc.org",
+                                "code": "8867-4",
+                                "display": "Heart rate"
+                            }
+                        ]
+                    },
+                    "status": "final"
+                }),
+            )
+            .await
+            .unwrap();
+
+        // Query the search_index directly
+        let conn = backend.get_connection().unwrap();
+        let mut stmt = conn
+            .prepare(
+                "SELECT param_name, value_token_system, value_token_code, value_token_display
+             FROM search_index
+             WHERE tenant_id = 'test-tenant'
+               AND resource_id = 'obs-display-test'
+               AND param_name = 'code'",
+            )
+            .unwrap();
+
+        let rows: Vec<(String, Option<String>, Option<String>, Option<String>)> = stmt
+            .query_map([], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+            })
+            .unwrap()
+            .filter_map(|r| r.ok())
+            .collect();
+
+        // Should have at least one entry
+        assert!(
+            !rows.is_empty(),
+            "Should have indexed 'code' parameter for Observation"
+        );
+
+        // Find the entry with code 8867-4
+        let entry = rows
+            .iter()
+            .find(|(_, _, code, _)| code.as_deref() == Some("8867-4"));
+        assert!(entry.is_some(), "Should have entry with code 8867-4");
+
+        // Verify display text is populated
+        let (_, _, _, display) = entry.unwrap();
+        assert_eq!(
+            display.as_deref(),
+            Some("Heart rate"),
+            "Display text should be 'Heart rate'"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_search_index_identifier_type_populated() {
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+
+        // Create a patient with typed identifier
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({
+                    "resourceType": "Patient",
+                    "id": "patient-type-test",
+                    "identifier": [
+                        {
+                            "type": {
+                                "coding": [
+                                    {
+                                        "system": "http://terminology.hl7.org/CodeSystem/v2-0203",
+                                        "code": "MR"
+                                    }
+                                ]
+                            },
+                            "system": "http://hospital.org/mrn",
+                            "value": "MRN12345"
+                        }
+                    ]
+                }),
+            )
+            .await
+            .unwrap();
+
+        // Query the search_index directly
+        let conn = backend.get_connection().unwrap();
+        let mut stmt = conn
+            .prepare(
+                "SELECT param_name, value_token_code, value_identifier_type_system, value_identifier_type_code
+             FROM search_index
+             WHERE tenant_id = 'test-tenant'
+               AND resource_id = 'patient-type-test'
+               AND param_name = 'identifier'",
+            )
+            .unwrap();
+
+        let rows: Vec<(String, Option<String>, Option<String>, Option<String>)> = stmt
+            .query_map([], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+            })
+            .unwrap()
+            .filter_map(|r| r.ok())
+            .collect();
+
+        // Should have at least one entry
+        assert!(
+            !rows.is_empty(),
+            "Should have indexed 'identifier' parameter for Patient"
+        );
+
+        // Find the entry with value MRN12345
+        let entry = rows
+            .iter()
+            .find(|(_, code, _, _)| code.as_deref() == Some("MRN12345"));
+        assert!(entry.is_some(), "Should have entry with value MRN12345");
+
+        // Verify identifier type is populated
+        let (_, _, type_system, type_code) = entry.unwrap();
+        assert_eq!(
+            type_system.as_deref(),
+            Some("http://terminology.hl7.org/CodeSystem/v2-0203"),
+            "Identifier type system should be populated"
+        );
+        assert_eq!(
+            type_code.as_deref(),
+            Some("MR"),
+            "Identifier type code should be populated"
+        );
     }
 }

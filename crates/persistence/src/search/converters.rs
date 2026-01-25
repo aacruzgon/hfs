@@ -22,6 +22,12 @@ pub enum IndexValue {
         system: Option<String>,
         /// Code value.
         code: String,
+        /// Display text (Coding.display or CodeableConcept.text) for :text modifier.
+        display: Option<String>,
+        /// Identifier type system (for :of-type modifier).
+        identifier_type_system: Option<String>,
+        /// Identifier type code (for :of-type modifier).
+        identifier_type_code: Option<String>,
     },
 
     /// Date/DateTime value with precision tracking.
@@ -72,6 +78,9 @@ impl IndexValue {
         IndexValue::Token {
             system,
             code: code.into(),
+            display: None,
+            identifier_type_system: None,
+            identifier_type_code: None,
         }
     }
 
@@ -80,6 +89,52 @@ impl IndexValue {
         IndexValue::Token {
             system: None,
             code: code.into(),
+            display: None,
+            identifier_type_system: None,
+            identifier_type_code: None,
+        }
+    }
+
+    /// Creates a token index value with display text for :text modifier.
+    pub fn token_with_display(
+        system: Option<String>,
+        code: impl Into<String>,
+        display: Option<String>,
+    ) -> Self {
+        IndexValue::Token {
+            system,
+            code: code.into(),
+            display,
+            identifier_type_system: None,
+            identifier_type_code: None,
+        }
+    }
+
+    /// Creates a token index value for identifiers with type information for :of-type modifier.
+    pub fn identifier_with_type(
+        system: Option<String>,
+        value: impl Into<String>,
+        type_system: Option<String>,
+        type_code: Option<String>,
+    ) -> Self {
+        IndexValue::Token {
+            system,
+            code: value.into(),
+            display: None,
+            identifier_type_system: type_system,
+            identifier_type_code: type_code,
+        }
+    }
+
+    /// Creates a token index value for display-only text (e.g., CodeableConcept.text).
+    /// This is used when there's only display text without a code.
+    pub fn token_display_only(display: impl Into<String>) -> Self {
+        IndexValue::Token {
+            system: None,
+            code: String::new(), // Empty code for display-only
+            display: Some(display.into()),
+            identifier_type_system: None,
+            identifier_type_code: None,
         }
     }
 
@@ -276,31 +331,56 @@ impl ValueConverter {
                 results.push(IndexValue::token_code(b.to_string()));
             }
             Value::Object(obj) => {
-                // Coding
-                if obj.contains_key("code") || obj.contains_key("system") {
+                // Coding (has code and optionally system/display)
+                if obj.contains_key("code") && !obj.contains_key("coding") {
                     let system = obj.get("system").and_then(|v| v.as_str()).map(String::from);
                     let code = obj.get("code").and_then(|v| v.as_str()).unwrap_or_default();
+                    let display = obj.get("display").and_then(|v| v.as_str()).map(String::from);
                     if !code.is_empty() {
-                        results.push(IndexValue::token(system, code));
+                        results.push(IndexValue::token_with_display(system, code, display));
                     }
                 }
 
-                // CodeableConcept
+                // CodeableConcept (has coding array and optionally text)
                 if let Some(coding) = obj.get("coding").and_then(|v| v.as_array()) {
                     for c in coding {
                         if let Some(code) = c.get("code").and_then(|v| v.as_str()) {
                             let system = c.get("system").and_then(|v| v.as_str()).map(String::from);
-                            results.push(IndexValue::token(system, code));
+                            let display = c.get("display").and_then(|v| v.as_str()).map(String::from);
+                            results.push(IndexValue::token_with_display(system, code, display));
+                        }
+                    }
+                    // Also index CodeableConcept.text for :text modifier searches
+                    if let Some(text) = obj.get("text").and_then(|v| v.as_str()) {
+                        if !text.is_empty() {
+                            results.push(IndexValue::token_display_only(text));
                         }
                     }
                 }
 
-                // Identifier
-                if obj.contains_key("value") && !obj.contains_key("code") {
+                // Identifier (has value, may have system and type)
+                if obj.contains_key("value") && !obj.contains_key("code") && !obj.contains_key("coding") {
                     let system = obj.get("system").and_then(|v| v.as_str()).map(String::from);
                     let value = obj.get("value").and_then(|v| v.as_str()).unwrap_or_default();
+
+                    // Extract Identifier.type.coding for :of-type modifier
+                    let (type_system, type_code) = obj
+                        .get("type")
+                        .and_then(|t| t.get("coding"))
+                        .and_then(|c| c.as_array())
+                        .and_then(|arr| arr.first())
+                        .map(|coding| {
+                            (
+                                coding.get("system").and_then(|v| v.as_str()).map(String::from),
+                                coding.get("code").and_then(|v| v.as_str()).map(String::from),
+                            )
+                        })
+                        .unwrap_or((None, None));
+
                     if !value.is_empty() {
-                        results.push(IndexValue::token(system, value));
+                        results.push(IndexValue::identifier_with_type(
+                            system, value, type_system, type_code,
+                        ));
                     }
                 }
 
@@ -506,7 +586,7 @@ mod tests {
         let results = ValueConverter::convert(&value, SearchParamType::Token, "code").unwrap();
         assert_eq!(results.len(), 1);
 
-        if let IndexValue::Token { system, code } = &results[0] {
+        if let IndexValue::Token { system, code, .. } = &results[0] {
             assert_eq!(system.as_ref().unwrap(), "http://loinc.org");
             assert_eq!(code, "12345-6");
         }
@@ -522,7 +602,8 @@ mod tests {
             "text": "Some condition"
         });
         let results = ValueConverter::convert(&value, SearchParamType::Token, "code").unwrap();
-        assert_eq!(results.len(), 2);
+        // Now includes: 2 coding values + 1 text value for :text modifier
+        assert_eq!(results.len(), 3);
     }
 
     #[test]
@@ -534,7 +615,7 @@ mod tests {
         let results = ValueConverter::convert(&value, SearchParamType::Token, "identifier").unwrap();
         assert_eq!(results.len(), 1);
 
-        if let IndexValue::Token { system, code } = &results[0] {
+        if let IndexValue::Token { system, code, .. } = &results[0] {
             assert_eq!(system.as_ref().unwrap(), "http://hospital.org/mrn");
             assert_eq!(code, "12345");
         }
@@ -601,5 +682,80 @@ mod tests {
         let value = json!(["one", "two", "three"]);
         let results = ValueConverter::convert(&value, SearchParamType::String, "name").unwrap();
         assert_eq!(results.len(), 3);
+    }
+
+    #[test]
+    fn test_convert_codeable_concept_with_display() {
+        // This is what would be extracted from Observation.code
+        let value = json!({
+            "coding": [
+                {
+                    "system": "http://loinc.org",
+                    "code": "8867-4",
+                    "display": "Heart rate"
+                }
+            ]
+        });
+        let results = ValueConverter::convert(&value, SearchParamType::Token, "code").unwrap();
+
+        // Should have at least the coding entry
+        assert!(!results.is_empty(), "Should have at least one result");
+
+        // Find the token with code 8867-4
+        let heart_rate = results
+            .iter()
+            .find(|v| matches!(v, IndexValue::Token { code, .. } if code == "8867-4"));
+        assert!(heart_rate.is_some(), "Should have token with code 8867-4");
+
+        // Verify display is populated
+        if let Some(IndexValue::Token { system, code, display, .. }) = heart_rate {
+            assert_eq!(system.as_ref().unwrap(), "http://loinc.org");
+            assert_eq!(code, "8867-4");
+            assert_eq!(display.as_ref().unwrap(), "Heart rate", "Display text should be populated");
+        }
+    }
+
+    #[test]
+    fn test_convert_identifier_with_type() {
+        // Identifier with type for :of-type modifier
+        let value = json!({
+            "type": {
+                "coding": [
+                    {
+                        "system": "http://terminology.hl7.org/CodeSystem/v2-0203",
+                        "code": "MR"
+                    }
+                ]
+            },
+            "system": "http://hospital.org/mrn",
+            "value": "MRN12345"
+        });
+        let results = ValueConverter::convert(&value, SearchParamType::Token, "identifier").unwrap();
+
+        assert_eq!(results.len(), 1);
+
+        if let IndexValue::Token {
+            system,
+            code,
+            identifier_type_system,
+            identifier_type_code,
+            ..
+        } = &results[0]
+        {
+            assert_eq!(system.as_ref().unwrap(), "http://hospital.org/mrn");
+            assert_eq!(code, "MRN12345");
+            assert_eq!(
+                identifier_type_system.as_ref().unwrap(),
+                "http://terminology.hl7.org/CodeSystem/v2-0203",
+                "Identifier type system should be populated"
+            );
+            assert_eq!(
+                identifier_type_code.as_ref().unwrap(),
+                "MR",
+                "Identifier type code should be populated"
+            );
+        } else {
+            panic!("Expected Token variant");
+        }
     }
 }

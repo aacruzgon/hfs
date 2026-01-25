@@ -218,6 +218,7 @@ fn test_polyglot_query_routing() {
             modifier: None,
             values: vec![SearchValue::string("cardiac")],
             chain: vec![],
+        components: vec![],
         })
         // Terminology: code:below=...
         .with_parameter(SearchParameter {
@@ -226,6 +227,7 @@ fn test_polyglot_query_routing() {
             modifier: Some("below".to_string()),
             values: vec![SearchValue::token("http://loinc.org", "8867-4")],
             chain: vec![],
+        components: vec![],
         })
         // Include
         .with_include(IncludeDirective {
@@ -269,6 +271,7 @@ fn test_simple_query_uses_only_primary() {
         modifier: None,
         values: vec![SearchValue::eq("patient-123")],
         chain: vec![],
+        components: vec![],
     });
 
     composite.route_query(&query);

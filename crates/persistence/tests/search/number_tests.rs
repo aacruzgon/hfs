@@ -52,6 +52,7 @@ async fn test_number_search_eq() {
         modifier: None,
         values: vec![SearchValue::number(SearchPrefix::Eq, 0.5)],
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend
@@ -76,6 +77,7 @@ async fn test_number_search_lt() {
         modifier: None,
         values: vec![SearchValue::number(SearchPrefix::Lt, 0.6)],
         chain: vec![],
+        components: vec![],
     });
 
     let _result = backend
@@ -98,6 +100,7 @@ async fn test_number_search_gt() {
         modifier: None,
         values: vec![SearchValue::number(SearchPrefix::Gt, 0.4)],
         chain: vec![],
+        components: vec![],
     });
 
     let _result = backend

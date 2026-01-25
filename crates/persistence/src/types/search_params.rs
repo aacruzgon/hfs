@@ -12,9 +12,10 @@ use serde::{Deserialize, Serialize};
 /// FHIR search parameter types.
 ///
 /// See: https://build.fhir.org/search.html#ptypes
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum SearchParamType {
+    #[default]
     /// A simple string, like a name or description.
     String,
     /// A search against a URI.
@@ -300,22 +301,44 @@ impl SearchPrefix {
 }
 
 /// A parsed search parameter with its value.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SearchParameter {
     /// The parameter name (e.g., "name", "identifier").
+    #[serde(default)]
     pub name: String,
 
     /// The parameter type.
+    #[serde(default)]
     pub param_type: SearchParamType,
 
     /// Modifier, if any.
+    #[serde(default)]
     pub modifier: Option<SearchModifier>,
 
     /// The search value(s). Multiple values are ORed.
+    #[serde(default)]
     pub values: Vec<SearchValue>,
 
     /// Chained parameters (e.g., patient.name=Smith).
+    #[serde(default)]
     pub chain: Vec<ChainedParameter>,
+
+    /// Components for composite parameters.
+    /// Each component defines the type and expression for extracting component values.
+    #[serde(default)]
+    pub components: Vec<CompositeSearchComponent>,
+}
+
+/// Component definition for a composite search parameter.
+///
+/// Used when building composite search queries to define how each
+/// component of the composite value should be matched.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompositeSearchComponent {
+    /// The parameter type of this component (token, quantity, date, etc.).
+    pub param_type: SearchParamType,
+    /// The parameter name/code for this component.
+    pub param_name: String,
 }
 
 /// A single search value with optional prefix.

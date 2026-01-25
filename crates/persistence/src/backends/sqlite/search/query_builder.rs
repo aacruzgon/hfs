@@ -10,8 +10,8 @@ use crate::types::{
 };
 
 use super::parameter_handlers::{
-    DateHandler, NumberHandler, QuantityHandler, ReferenceHandler, StringHandler, TokenHandler,
-    UriHandler,
+    CompositeHandler, DateHandler, NumberHandler, QuantityHandler, ReferenceHandler,
+    StringHandler, TokenHandler, UriHandler,
 };
 
 /// A fragment of SQL with bound parameters.
@@ -458,8 +458,17 @@ impl QueryBuilder {
                 UriHandler::build_sql(value, param.modifier.as_ref(), param_offset)
             }
             SearchParamType::Composite => {
-                // Composite parameters are more complex
-                return None;
+                // Composite parameters require component definitions
+                if param.components.is_empty() {
+                    // No components defined, cannot process
+                    return None;
+                }
+                CompositeHandler::build_composite_sql(
+                    value,
+                    &param.name,
+                    &param.components,
+                    param_offset,
+                )
             }
             SearchParamType::Special => {
                 // Should have been handled by build_special_parameter_condition
@@ -629,6 +638,7 @@ mod tests {
             modifier: None,
             values: vec![SearchValue::eq("smith")],
             chain: vec![],
+            components: vec![],
         });
 
         let fragment = builder.build(&query);

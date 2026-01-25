@@ -16,16 +16,18 @@ impl SqliteSearchIndexWriter {
         r#"
         INSERT INTO search_index (
             tenant_id, resource_type, resource_id, param_name, param_url,
-            value_string, value_token_system, value_token_code,
+            value_string, value_token_system, value_token_code, value_token_display,
             value_date, value_date_precision,
             value_number, value_quantity_value, value_quantity_unit, value_quantity_system,
-            value_reference, value_uri, composite_group
+            value_reference, value_uri, composite_group,
+            value_identifier_type_system, value_identifier_type_code
         ) VALUES (
             ?1, ?2, ?3, ?4, ?5,
-            ?6, ?7, ?8,
-            ?9, ?10,
-            ?11, ?12, ?13, ?14,
-            ?15, ?16, ?17
+            ?6, ?7, ?8, ?9,
+            ?10, ?11,
+            ?12, ?13, ?14, ?15,
+            ?16, ?17, ?18,
+            ?19, ?20
         )
         "#
     }
@@ -63,6 +65,7 @@ impl SqliteSearchIndexWriter {
                 params.push(SqlValue::OptString(Some(s.clone()))); // value_string
                 params.push(SqlValue::Null); // value_token_system
                 params.push(SqlValue::Null); // value_token_code
+                params.push(SqlValue::Null); // value_token_display
                 params.push(SqlValue::Null); // value_date
                 params.push(SqlValue::Null); // value_date_precision
                 params.push(SqlValue::Null); // value_number
@@ -72,10 +75,17 @@ impl SqliteSearchIndexWriter {
                 params.push(SqlValue::Null); // value_reference
                 params.push(SqlValue::Null); // value_uri
             }
-            IndexValue::Token { system, code } => {
+            IndexValue::Token {
+                system,
+                code,
+                display,
+                identifier_type_system,
+                identifier_type_code,
+            } => {
                 params.push(SqlValue::Null); // value_string
                 params.push(SqlValue::OptString(system.clone())); // value_token_system
                 params.push(SqlValue::String(code.clone())); // value_token_code
+                params.push(SqlValue::OptString(display.clone())); // value_token_display
                 params.push(SqlValue::Null); // value_date
                 params.push(SqlValue::Null); // value_date_precision
                 params.push(SqlValue::Null); // value_number
@@ -84,11 +94,16 @@ impl SqliteSearchIndexWriter {
                 params.push(SqlValue::Null); // value_quantity_system
                 params.push(SqlValue::Null); // value_reference
                 params.push(SqlValue::Null); // value_uri
+                params.push(SqlValue::OptInt(extracted.composite_group.map(|g| g as i64))); // composite_group
+                params.push(SqlValue::OptString(identifier_type_system.clone())); // value_identifier_type_system
+                params.push(SqlValue::OptString(identifier_type_code.clone())); // value_identifier_type_code
+                return params;
             }
             IndexValue::Date { value, precision } => {
                 params.push(SqlValue::Null); // value_string
                 params.push(SqlValue::Null); // value_token_system
                 params.push(SqlValue::Null); // value_token_code
+                params.push(SqlValue::Null); // value_token_display
                 params.push(SqlValue::String(value.clone())); // value_date
                 params.push(SqlValue::String(precision.to_string())); // value_date_precision
                 params.push(SqlValue::Null); // value_number
@@ -102,6 +117,7 @@ impl SqliteSearchIndexWriter {
                 params.push(SqlValue::Null); // value_string
                 params.push(SqlValue::Null); // value_token_system
                 params.push(SqlValue::Null); // value_token_code
+                params.push(SqlValue::Null); // value_token_display
                 params.push(SqlValue::Null); // value_date
                 params.push(SqlValue::Null); // value_date_precision
                 params.push(SqlValue::Float(*n)); // value_number
@@ -120,6 +136,7 @@ impl SqliteSearchIndexWriter {
                 params.push(SqlValue::Null); // value_string
                 params.push(SqlValue::Null); // value_token_system
                 params.push(SqlValue::Null); // value_token_code
+                params.push(SqlValue::Null); // value_token_display
                 params.push(SqlValue::Null); // value_date
                 params.push(SqlValue::Null); // value_date_precision
                 params.push(SqlValue::Null); // value_number
@@ -137,6 +154,7 @@ impl SqliteSearchIndexWriter {
                 params.push(SqlValue::Null); // value_string
                 params.push(SqlValue::Null); // value_token_system
                 params.push(SqlValue::Null); // value_token_code
+                params.push(SqlValue::Null); // value_token_display
                 params.push(SqlValue::Null); // value_date
                 params.push(SqlValue::Null); // value_date_precision
                 params.push(SqlValue::Null); // value_number
@@ -150,6 +168,7 @@ impl SqliteSearchIndexWriter {
                 params.push(SqlValue::Null); // value_string
                 params.push(SqlValue::Null); // value_token_system
                 params.push(SqlValue::Null); // value_token_code
+                params.push(SqlValue::Null); // value_token_display
                 params.push(SqlValue::Null); // value_date
                 params.push(SqlValue::Null); // value_date_precision
                 params.push(SqlValue::Null); // value_number
@@ -161,8 +180,10 @@ impl SqliteSearchIndexWriter {
             }
         }
 
-        // Add composite_group
-        params.push(SqlValue::OptInt(extracted.composite_group.map(|g| g as i64)));
+        // Add remaining columns for non-Token types
+        params.push(SqlValue::OptInt(extracted.composite_group.map(|g| g as i64))); // composite_group
+        params.push(SqlValue::Null); // value_identifier_type_system
+        params.push(SqlValue::Null); // value_identifier_type_code
 
         params
     }
@@ -230,7 +251,7 @@ mod tests {
 
         let params = SqliteSearchIndexWriter::to_sql_params("tenant1", "Patient", "123", &extracted);
 
-        assert_eq!(params.len(), 17);
+        assert_eq!(params.len(), 20); // Updated for new columns
         assert!(matches!(&params[0], SqlValue::String(s) if s == "tenant1"));
         assert!(matches!(&params[5], SqlValue::OptString(Some(s)) if s == "Smith"));
     }
@@ -244,14 +265,65 @@ mod tests {
             value: IndexValue::Token {
                 system: Some("http://example.org".to_string()),
                 code: "12345".to_string(),
+                display: None,
+                identifier_type_system: None,
+                identifier_type_code: None,
             },
             composite_group: None,
         };
 
         let params = SqliteSearchIndexWriter::to_sql_params("tenant1", "Patient", "123", &extracted);
 
+        assert_eq!(params.len(), 20); // Updated for new columns
         assert!(matches!(&params[6], SqlValue::OptString(Some(s)) if s == "http://example.org"));
         assert!(matches!(&params[7], SqlValue::String(s) if s == "12345"));
+    }
+
+    #[test]
+    fn test_token_with_display_params() {
+        let extracted = ExtractedValue {
+            param_name: "code".to_string(),
+            param_url: "http://hl7.org/fhir/SearchParameter/clinical-code".to_string(),
+            param_type: SearchParamType::Token,
+            value: IndexValue::Token {
+                system: Some("http://loinc.org".to_string()),
+                code: "12345-6".to_string(),
+                display: Some("Test Display".to_string()),
+                identifier_type_system: None,
+                identifier_type_code: None,
+            },
+            composite_group: None,
+        };
+
+        let params = SqliteSearchIndexWriter::to_sql_params("tenant1", "Observation", "123", &extracted);
+
+        assert_eq!(params.len(), 20);
+        assert!(matches!(&params[8], SqlValue::OptString(Some(s)) if s == "Test Display")); // value_token_display
+    }
+
+    #[test]
+    fn test_identifier_with_type_params() {
+        let extracted = ExtractedValue {
+            param_name: "identifier".to_string(),
+            param_url: "http://hl7.org/fhir/SearchParameter/Patient-identifier".to_string(),
+            param_type: SearchParamType::Token,
+            value: IndexValue::Token {
+                system: Some("http://hospital.org/mrn".to_string()),
+                code: "MRN12345".to_string(),
+                display: None,
+                identifier_type_system: Some("http://terminology.hl7.org/CodeSystem/v2-0203".to_string()),
+                identifier_type_code: Some("MR".to_string()),
+            },
+            composite_group: None,
+        };
+
+        let params = SqliteSearchIndexWriter::to_sql_params("tenant1", "Patient", "123", &extracted);
+
+        assert_eq!(params.len(), 20);
+        // value_identifier_type_system is at index 18
+        assert!(matches!(&params[18], SqlValue::OptString(Some(s)) if s == "http://terminology.hl7.org/CodeSystem/v2-0203"));
+        // value_identifier_type_code is at index 19
+        assert!(matches!(&params[19], SqlValue::OptString(Some(s)) if s == "MR"));
     }
 
     #[test]
@@ -269,7 +341,7 @@ mod tests {
 
         let params = SqliteSearchIndexWriter::to_sql_params("tenant1", "Patient", "123", &extracted);
 
-        assert!(matches!(&params[8], SqlValue::String(s) if s == "2024-01-15"));
+        assert!(matches!(&params[9], SqlValue::String(s) if s == "2024-01-15")); // Updated index for new column
     }
 
     #[test]
@@ -289,7 +361,7 @@ mod tests {
 
         let params = SqliteSearchIndexWriter::to_sql_params("tenant1", "Observation", "456", &extracted);
 
-        assert!(matches!(&params[11], SqlValue::Float(f) if (*f - 5.4).abs() < 0.001));
-        assert!(matches!(&params[12], SqlValue::OptString(Some(s)) if s == "mg"));
+        assert!(matches!(&params[12], SqlValue::Float(f) if (*f - 5.4).abs() < 0.001)); // Updated index
+        assert!(matches!(&params[13], SqlValue::OptString(Some(s)) if s == "mg")); // Updated index
     }
 }

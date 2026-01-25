@@ -24,6 +24,7 @@ fn test_detect_basic_search_features() {
         modifier: None,
         values: vec![SearchValue::string("Smith")],
         chain: vec![],
+        components: vec![],
     });
 
     let features = detect_query_features(&query);
@@ -41,6 +42,7 @@ fn test_detect_date_search_features() {
         modifier: None,
         values: vec![SearchValue::date(SearchPrefix::Gt, "1990-01-01")],
         chain: vec![],
+        components: vec![],
     });
 
     let features = detect_query_features(&query);
@@ -57,6 +59,7 @@ fn test_detect_token_search_features() {
         modifier: None,
         values: vec![SearchValue::token("http://loinc.org", "8867-4")],
         chain: vec![],
+        components: vec![],
     });
 
     let features = detect_query_features(&query);
@@ -73,6 +76,7 @@ fn test_detect_reference_search_features() {
         modifier: None,
         values: vec![SearchValue::reference("Patient/123")],
         chain: vec![],
+        components: vec![],
     });
 
     let features = detect_query_features(&query);
@@ -105,6 +109,7 @@ fn test_detect_reverse_chained_features() {
         modifier: None,
         values: vec![SearchValue::string("Observation:subject:code=8867-4")],
         chain: vec![],
+        components: vec![],
     });
 
     let features = detect_query_features(&query);
@@ -153,6 +158,7 @@ fn test_detect_fulltext_search_features() {
         modifier: None,
         values: vec![SearchValue::string("cardiac patient")],
         chain: vec![],
+        components: vec![],
     });
 
     let features = detect_query_features(&query);
@@ -169,6 +175,7 @@ fn test_detect_terminology_search_features() {
         modifier: Some("below".to_string()),
         values: vec![SearchValue::token("http://loinc.org", "8867-4")],
         chain: vec![],
+        components: vec![],
     });
 
     let features = detect_query_features(&query);
@@ -200,6 +207,7 @@ fn test_route_simple_query_to_primary() {
         modifier: None,
         values: vec![SearchValue::eq("patient-123")],
         chain: vec![],
+        components: vec![],
     });
 
     let routing = route_query(&query);
@@ -237,6 +245,7 @@ fn test_route_fulltext_to_search_backend() {
         modifier: None,
         values: vec![SearchValue::string("chronic heart failure")],
         chain: vec![],
+        components: vec![],
     });
 
     let routing = route_query(&query);
@@ -257,6 +266,7 @@ fn test_route_terminology_to_terminology_service() {
         modifier: Some("below".to_string()),
         values: vec![SearchValue::token("http://loinc.org", "8867-4")],
         chain: vec![],
+        components: vec![],
     });
 
     let routing = route_query(&query);
@@ -283,6 +293,7 @@ fn test_route_complex_query_to_multiple_backends() {
             modifier: None,
             values: vec![SearchValue::string("cardiac")],
             chain: vec![],
+        components: vec![],
         })
         .with_parameter(SearchParameter {
             name: "code".to_string(),
@@ -290,6 +301,7 @@ fn test_route_complex_query_to_multiple_backends() {
             modifier: Some("below".to_string()),
             values: vec![SearchValue::token("http://loinc.org", "8867-4")],
             chain: vec![],
+        components: vec![],
         })
         .with_include(IncludeDirective {
             include_type: IncludeType::Include,
@@ -362,6 +374,7 @@ fn test_decompose_query() {
             modifier: None,
             values: vec![SearchValue::token("http://loinc.org", "8867-4")],
             chain: vec![],
+        components: vec![],
         })
         .with_parameter(SearchParameter {
             name: "_text".to_string(),
@@ -369,6 +382,7 @@ fn test_decompose_query() {
             modifier: None,
             values: vec![SearchValue::string("cardiac")],
             chain: vec![],
+        components: vec![],
         });
 
     let parts = decompose_query(&query);
@@ -395,6 +409,7 @@ fn test_decomposition_preserves_parameters() {
             modifier: None,
             values: vec![SearchValue::string("Smith")],
             chain: vec![],
+        components: vec![],
         })
         .with_parameter(SearchParameter {
             name: "birthdate".to_string(),
@@ -402,6 +417,7 @@ fn test_decomposition_preserves_parameters() {
             modifier: None,
             values: vec![SearchValue::date(SearchPrefix::Gt, "1990-01-01")],
             chain: vec![],
+        components: vec![],
         });
 
     let parts = decompose_query(&query);

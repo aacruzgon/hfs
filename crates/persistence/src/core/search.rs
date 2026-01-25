@@ -144,6 +144,7 @@ impl SearchResult {
 ///             modifier: None,
 ///             values: vec![SearchValue::eq("Smith")],
 ///             chain: vec![],
+///             components: vec![],
 ///         })
 ///         .with_count(20);
 ///

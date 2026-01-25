@@ -122,6 +122,7 @@ async fn test_token_search_system_and_code() {
             "MRN001",
         )],
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend
@@ -152,6 +153,7 @@ async fn test_token_search_code_only() {
         modifier: None,
         values: vec![SearchValue::token(None, "8867-4")],
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend
@@ -177,6 +179,7 @@ async fn test_token_search_system_only() {
         modifier: None,
         values: vec![SearchValue::token_system_only("http://example.org/mrn")],
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend
@@ -207,6 +210,7 @@ async fn test_token_search_gender() {
         modifier: None,
         values: vec![SearchValue::token(None, "male")],
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend
@@ -234,6 +238,7 @@ async fn test_token_search_gender_female() {
         modifier: None,
         values: vec![SearchValue::token(None, "female")],
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend
@@ -262,6 +267,7 @@ async fn test_token_search_status() {
         modifier: None,
         values: vec![SearchValue::token(None, "final")],
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend
@@ -294,6 +300,7 @@ async fn test_token_search_not_modifier() {
         modifier: Some(SearchModifier::Not),
         values: vec![SearchValue::token(None, "male")],
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend
@@ -329,6 +336,7 @@ async fn test_token_search_or_values() {
             SearchValue::token(Some("http://loinc.org"), "8310-5"),
         ],
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend
@@ -359,6 +367,7 @@ async fn test_token_search_identifier_no_system() {
         modifier: None,
         values: vec![SearchValue::token(None, "LOCAL123")],
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend
@@ -392,6 +401,7 @@ async fn test_token_search_no_results() {
             "NONEXISTENT",
         )],
         chain: vec![],
+        components: vec![],
     });
 
     let result = backend

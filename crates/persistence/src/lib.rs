@@ -117,6 +117,7 @@
 //!         modifier: Some(SearchModifier::Contains),
 //!         values: vec![SearchValue::eq("smith")],
 //!         chain: vec![],
+//!         components: vec![],
 //!     })
 //!     .with_sort(SortDirective::parse("-_lastUpdated"))
 //!     .with_count(20);
