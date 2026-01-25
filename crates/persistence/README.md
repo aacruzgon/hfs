@@ -233,20 +233,20 @@ The matrix below shows which FHIR operations each backend supports. This reflect
 | [Number](https://build.fhir.org/search.html#number) | ✓ | ○ | ○ | ✗ | ○ | ○ | ○ |
 | [Quantity](https://build.fhir.org/search.html#quantity) | ✓ | ○ | ○ | ✗ | ✗ | ○ | ○ |
 | [URI](https://build.fhir.org/search.html#uri) | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
-| [Composite](https://build.fhir.org/search.html#composite) | ◐[1] | ○ | ○ | ✗ | ○ | ○ | ✗ |
+| [Composite](https://build.fhir.org/search.html#composite) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
 | **[Search Modifiers](https://build.fhir.org/search.html#modifiers)** |
 | [:exact](https://build.fhir.org/search.html#modifiers) | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
 | [:contains](https://build.fhir.org/search.html#modifiers) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
-| [:text](https://build.fhir.org/search.html#modifiers) (full-text) | ◐[2] | ○ | ○ | ✗ | ✗ | ○ | ✗ |
+| [:text](https://build.fhir.org/search.html#modifiers) (full-text) | ✓ | ○ | ○ | ✗ | ✗ | ○ | ✗ |
 | [:not](https://build.fhir.org/search.html#modifiers) | ✓ | ○ | ○ | ✗ | ○ | ○ | ○ |
 | [:missing](https://build.fhir.org/search.html#modifiers) | ✓ | ○ | ○ | ✗ | ○ | ○ | ○ |
 | [:above / :below](https://build.fhir.org/search.html#modifiers) | ✗ | †○ | †○ | ✗ | ○ | †○ | ✗ |
 | [:in / :not-in](https://build.fhir.org/search.html#modifiers) | ✗ | †○ | †○ | ✗ | ○ | †○ | ✗ |
-| [:of-type](https://build.fhir.org/search.html#modifiers) | ◐[5] | ○ | ○ | ✗ | ○ | ○ | ✗ |
+| [:of-type](https://build.fhir.org/search.html#modifiers) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
 | [:text-advanced](https://build.fhir.org/search.html#modifiers) | ✗ | †○ | †○ | ✗ | ✗ | †○ | ✗ |
 | **[Special Parameters](https://build.fhir.org/search.html#all)** |
-| [_text](https://build.fhir.org/search.html#_text) (narrative search) | ◐[3] | ○ | ○ | ✗ | ✗ | ○ | ✗ |
-| [_content](https://build.fhir.org/search.html#_content) (full content) | ◐[4] | ○ | ○ | ✗ | ✗ | ○ | ✗ |
+| [_text](https://build.fhir.org/search.html#_text) (narrative search) | ✓ | ○ | ○ | ✗ | ✗ | ○ | ✗ |
+| [_content](https://build.fhir.org/search.html#_content) (full content) | ✓ | ○ | ○ | ✗ | ✗ | ○ | ✗ |
 | [_filter](https://build.fhir.org/search.html#_filter) (advanced filtering) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
 | **Advanced Search** |
 | [Chained Parameters](https://build.fhir.org/search.html#chaining) | ✓ | ○ | ○ | ✗ | ○ | ✗ | ✗ |
@@ -262,18 +262,6 @@ The matrix below shows which FHIR operations each backend supports. This reflect
 | **[Bulk Operations](https://hl7.org/fhir/uv/bulkdata/)** |
 | [Bulk Export](https://hl7.org/fhir/uv/bulkdata/export.html) | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
 | Bulk Import | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
-
-#### Footnotes
-
-**[1] Composite Search Parameters:** Infrastructure exists (composite_group column, CompositeHandler), but query execution is disabled in QueryBuilder. The handler parses `$`-separated values but results aren't yet wired into search dispatch.
-
-**[2] :text Modifier:** Uses LIKE patterns instead of true full-text search. Token `:text` modifier searches code values with substring matching rather than display text from CodeableConcept.text fields.
-
-**[3] _text Parameter:** FTS5 virtual table exists with HTML stripping for `text.div`. Basic functionality works but edge cases in HTML stripping and index synchronization need hardening.
-
-**[4] _content Parameter:** Similar to `_text` - recursive string extraction exists but operational integration and testing are incomplete.
-
-**[5] :of-type Modifier:** Parses the three-part format (type-system|type-code|value) and matches identifier.value. Full type matching (identifier.type.coding) requires additional indexing of the type field.
 
 ### Backend Selection Guide
 
