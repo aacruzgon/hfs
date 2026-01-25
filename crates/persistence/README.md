@@ -243,7 +243,7 @@ The matrix below shows which FHIR operations each backend supports. This reflect
 | [:above / :below](https://build.fhir.org/search.html#modifiers) | ✗ | †○ | †○ | ✗ | ○ | †○ | ✗ |
 | [:in / :not-in](https://build.fhir.org/search.html#modifiers) | ✗ | †○ | †○ | ✗ | ○ | †○ | ✗ |
 | [:of-type](https://build.fhir.org/search.html#modifiers) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
-| [:text-advanced](https://build.fhir.org/search.html#modifiers) | ✗ | †○ | †○ | ✗ | ✗ | †○ | ✗ |
+| [:text-advanced](https://build.fhir.org/search.html#modifiertextadvanced) | ○ | †○ | †○ | ✗ | ✗ | †○ | ✗ |
 | **[Special Parameters](https://build.fhir.org/search.html#all)** |
 | [_text](https://build.fhir.org/search.html#_text) (narrative search) | ✓ | ○ | ○ | ✗ | ✗ | ○ | ✗ |
 | [_content](https://build.fhir.org/search.html#_content) (full content) | ✓ | ○ | ○ | ✗ | ✗ | ○ | ✗ |
