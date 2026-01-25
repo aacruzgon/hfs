@@ -659,7 +659,10 @@ impl UnsupportedSearchFeature {
     pub fn unsupported_modifier(param: &str, modifier: &str) -> Self {
         Self::new(
             UnsupportedFeatureType::UnsupportedModifier,
-            format!("Modifier '{}' is not supported for parameter '{}'", modifier, param),
+            format!(
+                "Modifier '{}' is not supported for parameter '{}'",
+                modifier, param
+            ),
         )
         .with_parameter(format!("{}:{}", param, modifier))
     }
@@ -668,7 +671,10 @@ impl UnsupportedSearchFeature {
     pub fn unsupported_prefix(param: &str, prefix: &str) -> Self {
         Self::new(
             UnsupportedFeatureType::UnsupportedPrefix,
-            format!("Prefix '{}' is not supported for parameter '{}'", prefix, param),
+            format!(
+                "Prefix '{}' is not supported for parameter '{}'",
+                prefix, param
+            ),
         )
         .with_parameter(param)
     }
@@ -694,7 +700,10 @@ pub trait SearchCapabilityProvider: Send + Sync {
     /// Returns detailed search capabilities for a resource type.
     ///
     /// Returns `None` if the resource type is not supported.
-    fn resource_search_capabilities(&self, resource_type: &str) -> Option<ResourceSearchCapabilities>;
+    fn resource_search_capabilities(
+        &self,
+        resource_type: &str,
+    ) -> Option<ResourceSearchCapabilities>;
 
     /// Returns global search capabilities that apply to all resource types.
     fn global_search_capabilities(&self) -> GlobalSearchCapabilities;
@@ -871,8 +880,14 @@ mod tests {
     #[test]
     fn test_resource_search_capabilities() {
         let caps = ResourceSearchCapabilities::new("Patient")
-            .with_param(SearchParamFullCapability::new("name", SearchParamType::String))
-            .with_special_params(vec![SpecialSearchParam::Id, SpecialSearchParam::LastUpdated])
+            .with_param(SearchParamFullCapability::new(
+                "name",
+                SearchParamType::String,
+            ))
+            .with_special_params(vec![
+                SpecialSearchParam::Id,
+                SpecialSearchParam::LastUpdated,
+            ])
             .with_include_capabilities(vec![IncludeCapability::Include]);
 
         assert_eq!(caps.resource_type, "Patient");
@@ -888,7 +903,11 @@ mod tests {
             .with_max_chain_depth(3)
             .with_system_search();
 
-        assert!(global.common_special_params.contains(&SpecialSearchParam::Id));
+        assert!(
+            global
+                .common_special_params
+                .contains(&SpecialSearchParam::Id)
+        );
         assert_eq!(global.max_chain_depth, Some(3));
         assert!(global.supports_system_search);
     }
@@ -901,7 +920,10 @@ mod tests {
         assert!(err.to_string().contains("unknown"));
 
         let err2 = UnsupportedSearchFeature::unsupported_modifier("name", "phonetic");
-        assert_eq!(err2.feature_type, UnsupportedFeatureType::UnsupportedModifier);
+        assert_eq!(
+            err2.feature_type,
+            UnsupportedFeatureType::UnsupportedModifier
+        );
     }
 
     #[test]

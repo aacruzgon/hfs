@@ -39,7 +39,7 @@ impl TokenHandler {
                     "value_token_display COLLATE NOCASE LIKE '%' || ?{} || '%'",
                     param_num
                 ),
-                vec![SqlParam::string(&value.value.to_lowercase())],
+                vec![SqlParam::string(value.value.to_lowercase())],
             );
         }
 
@@ -354,7 +354,11 @@ mod tests {
         assert!(frag.sql.contains("MATCH"));
         // The query param should be a quoted phrase
         if let SqlParam::String(s) = &frag.params[0] {
-            assert!(s.contains("\"heart failure\""), "Query should contain phrase: {}", s);
+            assert!(
+                s.contains("\"heart failure\""),
+                "Query should contain phrase: {}",
+                s
+            );
         }
     }
 

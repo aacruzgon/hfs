@@ -390,7 +390,7 @@ impl DatabasePerTenantStrategy {
         let id = tenant_id.as_str();
 
         // Replace hierarchy separators with underscores
-        let sanitized = id.replace('/', "_").replace('-', "_");
+        let sanitized = id.replace(['/', '-'], "_");
 
         // Truncate if too long
         if sanitized.len() > self.config.max_tenant_id_length {
@@ -472,12 +472,14 @@ impl TenantResolver for DatabasePerTenantStrategy {
 ///
 /// Provides utilities for creating, dropping, and managing tenant databases.
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct TenantDatabaseManager {
     strategy: DatabasePerTenantStrategy,
     admin_user: String,
     admin_password: String,
 }
 
+#[allow(dead_code)]
 impl TenantDatabaseManager {
     /// Creates a new database manager.
     pub fn new(
@@ -560,6 +562,7 @@ impl TenantDatabaseManager {
 
 /// Information about a tenant's database.
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct TenantDatabaseInfo {
     /// The tenant ID.
     pub tenant_id: String,

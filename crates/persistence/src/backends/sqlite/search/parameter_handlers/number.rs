@@ -31,7 +31,7 @@ impl NumberHandler {
             SearchPrefix::Ge => Self::build_greater_equal(num_value, param_num),
             SearchPrefix::Le => Self::build_less_equal(num_value, param_num),
             SearchPrefix::Sa => Self::build_greater_than(num_value, param_num), // Same as gt for numbers
-            SearchPrefix::Eb => Self::build_less_than(num_value, param_num),    // Same as lt for numbers
+            SearchPrefix::Eb => Self::build_less_than(num_value, param_num), // Same as lt for numbers
             SearchPrefix::Ap => Self::build_approximately(num_value, param_num),
         }
     }
@@ -112,11 +112,7 @@ impl NumberHandler {
         let margin = (value.abs() * 0.1).max(0.0001); // At least 0.0001 for very small numbers
 
         SqlFragment::with_params(
-            format!(
-                "value_number BETWEEN ?{} AND ?{}",
-                param_num,
-                param_num + 1
-            ),
+            format!("value_number BETWEEN ?{} AND ?{}", param_num, param_num + 1),
             vec![
                 SqlParam::float(value - margin),
                 SqlParam::float(value + margin),

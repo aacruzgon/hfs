@@ -534,6 +534,7 @@ fn migrate_v4_to_v5(conn: &Connection) -> StorageResult<()> {
 
 /// Drop all tables (for testing).
 #[cfg(test)]
+#[allow(dead_code)]
 pub fn drop_all_tables(conn: &Connection) -> StorageResult<()> {
     // Drop FTS5 table first (if exists)
     let _ = conn.execute("DROP TABLE IF EXISTS resource_fts", []);

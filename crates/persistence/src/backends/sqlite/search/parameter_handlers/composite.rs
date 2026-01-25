@@ -2,7 +2,7 @@
 
 use crate::types::{CompositeSearchComponent, SearchParamType, SearchPrefix, SearchValue};
 
-use super::super::query_builder::{SqlFragment, SqlParam};
+use super::super::query_builder::SqlFragment;
 use super::{DateHandler, NumberHandler, QuantityHandler, StringHandler, TokenHandler};
 
 /// Handles composite parameter SQL generation.
@@ -152,8 +152,8 @@ impl CompositeHandler {
         ];
 
         for (prefix_str, prefix) in prefixes {
-            if part.starts_with(prefix_str) {
-                return SearchValue::new(prefix, &part[prefix_str.len()..]);
+            if let Some(stripped) = part.strip_prefix(prefix_str) {
+                return SearchValue::new(prefix, stripped);
             }
         }
 

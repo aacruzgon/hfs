@@ -7,6 +7,9 @@
 //! Uses the search_index table to resolve chains efficiently via SQL subqueries
 //! instead of in-memory iteration.
 
+// Error enum variant fields are self-documenting
+#![allow(missing_docs)]
+
 use std::sync::Arc;
 
 use parking_lot::RwLock;
@@ -43,11 +46,20 @@ pub enum ChainError {
     /// Chain exceeds maximum allowed depth.
     MaxDepthExceeded { depth: usize, max: usize },
     /// Reference parameter not found in registry.
-    UnknownReferenceParam { resource_type: String, param: String },
+    UnknownReferenceParam {
+        resource_type: String,
+        param: String,
+    },
     /// Cannot determine target type for reference.
-    AmbiguousTargetType { resource_type: String, param: String },
+    AmbiguousTargetType {
+        resource_type: String,
+        param: String,
+    },
     /// Terminal parameter not found.
-    UnknownTerminalParam { resource_type: String, param: String },
+    UnknownTerminalParam {
+        resource_type: String,
+        param: String,
+    },
     /// Chain is empty.
     EmptyChain,
     /// Invalid chain syntax.
@@ -58,23 +70,36 @@ impl std::fmt::Display for ChainError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ChainError::MaxDepthExceeded { depth, max } => {
-                write!(f, "Chain depth {} exceeds maximum allowed depth {}", depth, max)
+                write!(
+                    f,
+                    "Chain depth {} exceeds maximum allowed depth {}",
+                    depth, max
+                )
             }
-            ChainError::UnknownReferenceParam { resource_type, param } => {
+            ChainError::UnknownReferenceParam {
+                resource_type,
+                param,
+            } => {
                 write!(
                     f,
                     "Unknown reference parameter '{}' for resource type '{}'",
                     param, resource_type
                 )
             }
-            ChainError::AmbiguousTargetType { resource_type, param } => {
+            ChainError::AmbiguousTargetType {
+                resource_type,
+                param,
+            } => {
                 write!(
                     f,
                     "Ambiguous target type for parameter '{}' on '{}'. Use type modifier.",
                     param, resource_type
                 )
             }
-            ChainError::UnknownTerminalParam { resource_type, param } => {
+            ChainError::UnknownTerminalParam {
+                resource_type,
+                param,
+            } => {
                 write!(
                     f,
                     "Unknown terminal parameter '{}' for resource type '{}'",
@@ -176,8 +201,7 @@ impl ChainQueryBuilder {
         let mut current_type = self.base_type.clone();
 
         // Process all parts except the last (which is the terminal parameter)
-        for i in 0..parts.len() - 1 {
-            let part = parts[i];
+        for part in parts.iter().take(parts.len() - 1) {
             let (ref_param, explicit_type) = self.parse_chain_part(part);
 
             // Resolve the target type
@@ -542,7 +566,10 @@ impl ChainQueryBuilder {
         let param_num = self.param_offset + 1;
         let (sql, params) = self.build_reverse_chain_recursive(reverse_chain, 1, param_num)?;
 
-        Ok(SqlFragment::with_params(format!("r.id IN ({})", sql), params))
+        Ok(SqlFragment::with_params(
+            format!("r.id IN ({})", sql),
+            params,
+        ))
     }
 
     /// Recursively builds reverse chain SQL.
@@ -563,8 +590,13 @@ impl ChainQueryBuilder {
             })?;
 
             // Build the search condition for the terminal parameter
-            let (search_condition, search_param) =
-                self.build_reverse_terminal_condition(&rc.source_type, &rc.search_param, value, depth + 1, param_num)?;
+            let (search_condition, search_param) = self.build_reverse_terminal_condition(
+                &rc.source_type,
+                &rc.search_param,
+                value,
+                depth + 1,
+                param_num,
+            )?;
 
             // Build the reference extraction query
             let depth2 = depth + 1;
@@ -735,11 +767,7 @@ impl ChainQueryBuilder {
 }
 
 /// Builds a date comparison condition.
-fn build_date_condition(
-    column: &str,
-    value: &SearchValue,
-    param_num: usize,
-) -> (String, SqlParam) {
+fn build_date_condition(column: &str, value: &SearchValue, param_num: usize) -> (String, SqlParam) {
     use crate::types::SearchPrefix;
 
     let (op, val) = match value.prefix {
@@ -866,8 +894,7 @@ mod tests {
     #[test]
     fn test_parse_simple_chain() {
         let registry = create_test_registry();
-        let builder =
-            ChainQueryBuilder::new("tenant1", "Observation", registry);
+        let builder = ChainQueryBuilder::new("tenant1", "Observation", registry);
 
         let result = builder.parse_chain("subject.name");
         assert!(result.is_ok());
@@ -883,8 +910,7 @@ mod tests {
     #[test]
     fn test_parse_multi_level_chain() {
         let registry = create_test_registry();
-        let builder =
-            ChainQueryBuilder::new("tenant1", "Observation", registry);
+        let builder = ChainQueryBuilder::new("tenant1", "Observation", registry);
 
         let result = builder.parse_chain("subject.organization.name");
         assert!(result.is_ok());
@@ -901,8 +927,7 @@ mod tests {
     #[test]
     fn test_parse_chain_with_type_modifier() {
         let registry = create_test_registry();
-        let builder =
-            ChainQueryBuilder::new("tenant1", "Observation", registry);
+        let builder = ChainQueryBuilder::new("tenant1", "Observation", registry);
 
         let result = builder.parse_chain("subject:Patient.name");
         assert!(result.is_ok());
@@ -927,8 +952,7 @@ mod tests {
     #[test]
     fn test_build_forward_chain_sql() {
         let registry = create_test_registry();
-        let builder =
-            ChainQueryBuilder::new("tenant1", "Observation", registry);
+        let builder = ChainQueryBuilder::new("tenant1", "Observation", registry);
 
         let chain = builder.parse_chain("subject.name").unwrap();
         let value = SearchValue::eq("Smith");

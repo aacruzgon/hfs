@@ -195,8 +195,7 @@ impl SchemaPerTenantStrategy {
     /// Normalizes a tenant ID to a valid schema name component.
     fn normalize_tenant_id(&self, id: &str) -> String {
         id.to_lowercase()
-            .replace('/', "_")
-            .replace('-', "_")
+            .replace(['/', '-'], "_")
             .chars()
             .filter(|c| c.is_ascii_alphanumeric() || *c == '_')
             .collect()
@@ -336,10 +335,12 @@ impl TenantResolver for SchemaPerTenantStrategy {
 
 /// Manages schema lifecycle operations.
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct SchemaManager<'a> {
     strategy: &'a SchemaPerTenantStrategy,
 }
 
+#[allow(dead_code)]
 impl<'a> SchemaManager<'a> {
     /// Creates a new schema manager.
     pub fn new(strategy: &'a SchemaPerTenantStrategy) -> Self {
@@ -356,6 +357,7 @@ impl<'a> SchemaManager<'a> {
     }
 
     /// Generates DDL to create a table in a specific schema.
+    #[allow(dead_code)]
     pub fn create_table_ddl(&self, schema: &str, table_ddl: &str) -> String {
         // Prepend SET search_path to ensure table is created in correct schema
         format!(
@@ -368,6 +370,7 @@ impl<'a> SchemaManager<'a> {
     /// Generates SQL to migrate all tenant schemas.
     ///
     /// This creates a DO block that applies the migration to each tenant schema.
+    #[allow(dead_code)]
     pub fn migrate_all_schemas_sql(&self, migration_sql: &str) -> String {
         format!(
             r#"

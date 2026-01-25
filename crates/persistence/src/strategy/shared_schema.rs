@@ -267,6 +267,7 @@ impl TenantResolver for SharedSchemaStrategy {
 
 /// Builder for creating table DDL with tenant support.
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct TenantAwareTableBuilder {
     table_name: String,
     tenant_column: String,
@@ -276,6 +277,7 @@ pub struct TenantAwareTableBuilder {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 struct ColumnDef {
     name: String,
     data_type: String,
@@ -283,12 +285,14 @@ struct ColumnDef {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 struct IndexDef {
     name: String,
     columns: Vec<String>,
     unique: bool,
 }
 
+#[allow(dead_code)]
 impl TenantAwareTableBuilder {
     /// Creates a new table builder.
     pub fn new(table_name: impl Into<String>, config: &SharedSchemaConfig) -> Self {

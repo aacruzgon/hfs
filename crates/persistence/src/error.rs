@@ -4,6 +4,9 @@
 //! following a hierarchy that separates storage errors, tenant errors, search errors,
 //! and transaction errors.
 
+// Error enum variant fields are self-documenting via their #[error(...)] messages
+#![allow(missing_docs)]
+
 use std::fmt;
 
 use thiserror::Error;
@@ -374,7 +377,7 @@ impl From<rusqlite::Error> for StorageError {
 
 #[cfg(feature = "sqlite")]
 impl From<r2d2::Error> for StorageError {
-    fn from(err: r2d2::Error) -> Self {
+    fn from(_err: r2d2::Error) -> Self {
         StorageError::Backend(BackendError::PoolExhausted {
             backend_name: "sqlite".to_string(),
         })

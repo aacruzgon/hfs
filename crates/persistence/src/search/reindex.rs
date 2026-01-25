@@ -325,7 +325,9 @@ impl<S: ReindexableStorage + 'static> ReindexOperation<S> {
 
         // Create cancellation channel
         let (cancel_tx, cancel_rx) = mpsc::channel::<()>(1);
-        self.cancel_channels.write().insert(job_id.clone(), cancel_tx);
+        self.cancel_channels
+            .write()
+            .insert(job_id.clone(), cancel_tx);
 
         // Clone references for the background task
         let storage = self.storage.clone();
@@ -372,15 +374,17 @@ impl<S: ReindexableStorage + 'static> ReindexOperation<S> {
         // Determine resource types to process
         let resource_types = match request.resource_types {
             Some(types) => types,
-            None => {
-                match storage.list_resource_types(&tenant).await {
-                    Ok(types) => types,
-                    Err(e) => {
-                        Self::mark_failed(&jobs, &job_id, format!("Failed to list resource types: {}", e));
-                        return;
-                    }
+            None => match storage.list_resource_types(&tenant).await {
+                Ok(types) => types,
+                Err(e) => {
+                    Self::mark_failed(
+                        &jobs,
+                        &job_id,
+                        format!("Failed to list resource types: {}", e),
+                    );
+                    return;
                 }
-            }
+            },
         };
 
         // Count total resources
@@ -389,7 +393,11 @@ impl<S: ReindexableStorage + 'static> ReindexOperation<S> {
             match storage.count_resources(&tenant, resource_type).await {
                 Ok(count) => total_resources += count,
                 Err(e) => {
-                    Self::mark_failed(&jobs, &job_id, format!("Failed to count {}: {}", resource_type, e));
+                    Self::mark_failed(
+                        &jobs,
+                        &job_id,
+                        format!("Failed to count {}: {}", resource_type, e),
+                    );
                     return;
                 }
             }
@@ -406,7 +414,11 @@ impl<S: ReindexableStorage + 'static> ReindexOperation<S> {
         // Clear existing indexes if requested
         if request.clear_existing {
             if let Err(e) = storage.clear_search_index(&tenant).await {
-                Self::mark_failed(&jobs, &job_id, format!("Failed to clear search index: {}", e));
+                Self::mark_failed(
+                    &jobs,
+                    &job_id,
+                    format!("Failed to clear search index: {}", e),
+                );
                 return;
             }
         }
@@ -438,12 +450,21 @@ impl<S: ReindexableStorage + 'static> ReindexOperation<S> {
 
                 // Fetch a page of resources
                 let page = match storage
-                    .fetch_resources_page(&tenant, resource_type, cursor.as_deref(), request.batch_size)
+                    .fetch_resources_page(
+                        &tenant,
+                        resource_type,
+                        cursor.as_deref(),
+                        request.batch_size,
+                    )
                     .await
                 {
                     Ok(page) => page,
                     Err(e) => {
-                        Self::mark_failed(&jobs, &job_id, format!("Failed to fetch resources: {}", e));
+                        Self::mark_failed(
+                            &jobs,
+                            &job_id,
+                            format!("Failed to fetch resources: {}", e),
+                        );
                         return;
                     }
                 };
@@ -474,7 +495,12 @@ impl<S: ReindexableStorage + 'static> ReindexOperation<S> {
 
                             // Write new index entries
                             match storage
-                                .write_search_entries(&tenant, resource_type, resource.id(), resource.content())
+                                .write_search_entries(
+                                    &tenant,
+                                    resource_type,
+                                    resource.id(),
+                                    resource.content(),
+                                )
                                 .await
                             {
                                 Ok(_written) => {
@@ -573,7 +599,8 @@ impl<S: ReindexableStorage + 'static> ReindexOperation<S> {
         }
 
         // Send cancellation signal
-        if let Some(tx) = self.cancel_channels.read().get(job_id) {
+        let tx = self.cancel_channels.read().get(job_id).cloned();
+        if let Some(tx) = tx {
             let _ = tx.send(()).await;
         }
 

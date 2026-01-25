@@ -1,6 +1,6 @@
 //! SQLite search index writer implementation.
 
-use crate::search::{converters::IndexValue, extractor::ExtractedValue, writer::SearchIndexWriter};
+use crate::search::{converters::IndexValue, extractor::ExtractedValue};
 
 /// SQLite implementation of SearchIndexWriter.
 pub struct SqliteSearchIndexWriter;
@@ -94,7 +94,9 @@ impl SqliteSearchIndexWriter {
                 params.push(SqlValue::Null); // value_quantity_system
                 params.push(SqlValue::Null); // value_reference
                 params.push(SqlValue::Null); // value_uri
-                params.push(SqlValue::OptInt(extracted.composite_group.map(|g| g as i64))); // composite_group
+                params.push(SqlValue::OptInt(
+                    extracted.composite_group.map(|g| g as i64),
+                )); // composite_group
                 params.push(SqlValue::OptString(identifier_type_system.clone())); // value_identifier_type_system
                 params.push(SqlValue::OptString(identifier_type_code.clone())); // value_identifier_type_code
                 return params;
@@ -181,7 +183,9 @@ impl SqliteSearchIndexWriter {
         }
 
         // Add remaining columns for non-Token types
-        params.push(SqlValue::OptInt(extracted.composite_group.map(|g| g as i64))); // composite_group
+        params.push(SqlValue::OptInt(
+            extracted.composite_group.map(|g| g as i64),
+        )); // composite_group
         params.push(SqlValue::Null); // value_identifier_type_system
         params.push(SqlValue::Null); // value_identifier_type_code
 
@@ -249,7 +253,8 @@ mod tests {
             composite_group: None,
         };
 
-        let params = SqliteSearchIndexWriter::to_sql_params("tenant1", "Patient", "123", &extracted);
+        let params =
+            SqliteSearchIndexWriter::to_sql_params("tenant1", "Patient", "123", &extracted);
 
         assert_eq!(params.len(), 20); // Updated for new columns
         assert!(matches!(&params[0], SqlValue::String(s) if s == "tenant1"));
@@ -272,7 +277,8 @@ mod tests {
             composite_group: None,
         };
 
-        let params = SqliteSearchIndexWriter::to_sql_params("tenant1", "Patient", "123", &extracted);
+        let params =
+            SqliteSearchIndexWriter::to_sql_params("tenant1", "Patient", "123", &extracted);
 
         assert_eq!(params.len(), 20); // Updated for new columns
         assert!(matches!(&params[6], SqlValue::OptString(Some(s)) if s == "http://example.org"));
@@ -295,7 +301,8 @@ mod tests {
             composite_group: None,
         };
 
-        let params = SqliteSearchIndexWriter::to_sql_params("tenant1", "Observation", "123", &extracted);
+        let params =
+            SqliteSearchIndexWriter::to_sql_params("tenant1", "Observation", "123", &extracted);
 
         assert_eq!(params.len(), 20);
         assert!(matches!(&params[8], SqlValue::OptString(Some(s)) if s == "Test Display")); // value_token_display
@@ -311,17 +318,22 @@ mod tests {
                 system: Some("http://hospital.org/mrn".to_string()),
                 code: "MRN12345".to_string(),
                 display: None,
-                identifier_type_system: Some("http://terminology.hl7.org/CodeSystem/v2-0203".to_string()),
+                identifier_type_system: Some(
+                    "http://terminology.hl7.org/CodeSystem/v2-0203".to_string(),
+                ),
                 identifier_type_code: Some("MR".to_string()),
             },
             composite_group: None,
         };
 
-        let params = SqliteSearchIndexWriter::to_sql_params("tenant1", "Patient", "123", &extracted);
+        let params =
+            SqliteSearchIndexWriter::to_sql_params("tenant1", "Patient", "123", &extracted);
 
         assert_eq!(params.len(), 20);
         // value_identifier_type_system is at index 18
-        assert!(matches!(&params[18], SqlValue::OptString(Some(s)) if s == "http://terminology.hl7.org/CodeSystem/v2-0203"));
+        assert!(
+            matches!(&params[18], SqlValue::OptString(Some(s)) if s == "http://terminology.hl7.org/CodeSystem/v2-0203")
+        );
         // value_identifier_type_code is at index 19
         assert!(matches!(&params[19], SqlValue::OptString(Some(s)) if s == "MR"));
     }
@@ -339,7 +351,8 @@ mod tests {
             composite_group: None,
         };
 
-        let params = SqliteSearchIndexWriter::to_sql_params("tenant1", "Patient", "123", &extracted);
+        let params =
+            SqliteSearchIndexWriter::to_sql_params("tenant1", "Patient", "123", &extracted);
 
         assert!(matches!(&params[9], SqlValue::String(s) if s == "2024-01-15")); // Updated index for new column
     }
@@ -359,7 +372,8 @@ mod tests {
             composite_group: None,
         };
 
-        let params = SqliteSearchIndexWriter::to_sql_params("tenant1", "Observation", "456", &extracted);
+        let params =
+            SqliteSearchIndexWriter::to_sql_params("tenant1", "Observation", "456", &extracted);
 
         assert!(matches!(&params[12], SqlValue::Float(f) if (*f - 5.4).abs() < 0.001)); // Updated index
         assert!(matches!(&params[13], SqlValue::OptString(Some(s)) if s == "mg")); // Updated index

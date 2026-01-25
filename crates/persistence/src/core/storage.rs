@@ -467,10 +467,12 @@ pub trait ConditionalStorage: ResourceStorage {
     ) -> StorageResult<ConditionalPatchResult> {
         // Default implementation returns NotSupported
         let _ = (tenant, resource_type, search_params, patch);
-        Err(StorageError::Backend(crate::error::BackendError::UnsupportedCapability {
-            backend_name: "unknown".to_string(),
-            capability: "conditional_patch".to_string(),
-        }))
+        Err(StorageError::Backend(
+            crate::error::BackendError::UnsupportedCapability {
+                backend_name: "unknown".to_string(),
+                capability: "conditional_patch".to_string(),
+            },
+        ))
     }
 }
 

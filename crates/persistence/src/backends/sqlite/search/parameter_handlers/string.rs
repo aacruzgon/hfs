@@ -29,22 +29,28 @@ impl StringHandler {
             Some(SearchModifier::Contains) => {
                 // Contains (case-insensitive)
                 SqlFragment::with_params(
-                    format!("value_string COLLATE NOCASE LIKE '%' || ?{} || '%'", param_num),
-                    vec![SqlParam::string(&value.value.to_lowercase())],
+                    format!(
+                        "value_string COLLATE NOCASE LIKE '%' || ?{} || '%'",
+                        param_num
+                    ),
+                    vec![SqlParam::string(value.value.to_lowercase())],
                 )
             }
             Some(SearchModifier::Text) => {
                 // Full-text search - use FTS5 if available, otherwise contains
                 SqlFragment::with_params(
-                    format!("value_string COLLATE NOCASE LIKE '%' || ?{} || '%'", param_num),
-                    vec![SqlParam::string(&value.value.to_lowercase())],
+                    format!(
+                        "value_string COLLATE NOCASE LIKE '%' || ?{} || '%'",
+                        param_num
+                    ),
+                    vec![SqlParam::string(value.value.to_lowercase())],
                 )
             }
             _ => {
                 // Default: case-insensitive prefix match
                 SqlFragment::with_params(
                     format!("value_string COLLATE NOCASE LIKE ?{} || '%'", param_num),
-                    vec![SqlParam::string(&value.value.to_lowercase())],
+                    vec![SqlParam::string(value.value.to_lowercase())],
                 )
             }
         }

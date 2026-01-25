@@ -268,7 +268,10 @@ impl ValueConverter {
     }
 
     /// Converts a value to string type.
-    fn convert_to_string(value: &Value, _param_name: &str) -> Result<Vec<IndexValue>, ExtractionError> {
+    fn convert_to_string(
+        value: &Value,
+        _param_name: &str,
+    ) -> Result<Vec<IndexValue>, ExtractionError> {
         let mut results = Vec::new();
 
         match value {
@@ -319,7 +322,10 @@ impl ValueConverter {
     }
 
     /// Converts a value to token type.
-    fn convert_to_token(value: &Value, _param_name: &str) -> Result<Vec<IndexValue>, ExtractionError> {
+    fn convert_to_token(
+        value: &Value,
+        _param_name: &str,
+    ) -> Result<Vec<IndexValue>, ExtractionError> {
         let mut results = Vec::new();
 
         match value {
@@ -335,7 +341,10 @@ impl ValueConverter {
                 if obj.contains_key("code") && !obj.contains_key("coding") {
                     let system = obj.get("system").and_then(|v| v.as_str()).map(String::from);
                     let code = obj.get("code").and_then(|v| v.as_str()).unwrap_or_default();
-                    let display = obj.get("display").and_then(|v| v.as_str()).map(String::from);
+                    let display = obj
+                        .get("display")
+                        .and_then(|v| v.as_str())
+                        .map(String::from);
                     if !code.is_empty() {
                         results.push(IndexValue::token_with_display(system, code, display));
                     }
@@ -346,7 +355,8 @@ impl ValueConverter {
                     for c in coding {
                         if let Some(code) = c.get("code").and_then(|v| v.as_str()) {
                             let system = c.get("system").and_then(|v| v.as_str()).map(String::from);
-                            let display = c.get("display").and_then(|v| v.as_str()).map(String::from);
+                            let display =
+                                c.get("display").and_then(|v| v.as_str()).map(String::from);
                             results.push(IndexValue::token_with_display(system, code, display));
                         }
                     }
@@ -359,9 +369,15 @@ impl ValueConverter {
                 }
 
                 // Identifier (has value, may have system and type)
-                if obj.contains_key("value") && !obj.contains_key("code") && !obj.contains_key("coding") {
+                if obj.contains_key("value")
+                    && !obj.contains_key("code")
+                    && !obj.contains_key("coding")
+                {
                     let system = obj.get("system").and_then(|v| v.as_str()).map(String::from);
-                    let value = obj.get("value").and_then(|v| v.as_str()).unwrap_or_default();
+                    let value = obj
+                        .get("value")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or_default();
 
                     // Extract Identifier.type.coding for :of-type modifier
                     let (type_system, type_code) = obj
@@ -371,23 +387,39 @@ impl ValueConverter {
                         .and_then(|arr| arr.first())
                         .map(|coding| {
                             (
-                                coding.get("system").and_then(|v| v.as_str()).map(String::from),
-                                coding.get("code").and_then(|v| v.as_str()).map(String::from),
+                                coding
+                                    .get("system")
+                                    .and_then(|v| v.as_str())
+                                    .map(String::from),
+                                coding
+                                    .get("code")
+                                    .and_then(|v| v.as_str())
+                                    .map(String::from),
                             )
                         })
                         .unwrap_or((None, None));
 
                     if !value.is_empty() {
                         results.push(IndexValue::identifier_with_type(
-                            system, value, type_system, type_code,
+                            system,
+                            value,
+                            type_system,
+                            type_code,
                         ));
                     }
                 }
 
                 // ContactPoint (for email/phone searches)
                 if let Some(val) = obj.get("value").and_then(|v| v.as_str()) {
-                    if obj.contains_key("system") && obj.get("system").and_then(|v| v.as_str()).map(|s| s == "phone" || s == "email").unwrap_or(false) {
-                        let system_type = obj.get("system").and_then(|v| v.as_str()).map(String::from);
+                    if obj.contains_key("system")
+                        && obj
+                            .get("system")
+                            .and_then(|v| v.as_str())
+                            .map(|s| s == "phone" || s == "email")
+                            .unwrap_or(false)
+                    {
+                        let system_type =
+                            obj.get("system").and_then(|v| v.as_str()).map(String::from);
                         results.push(IndexValue::token(system_type, val));
                     }
                 }
@@ -399,7 +431,10 @@ impl ValueConverter {
     }
 
     /// Converts a value to date type.
-    fn convert_to_date(value: &Value, _param_name: &str) -> Result<Vec<IndexValue>, ExtractionError> {
+    fn convert_to_date(
+        value: &Value,
+        _param_name: &str,
+    ) -> Result<Vec<IndexValue>, ExtractionError> {
         let mut results = Vec::new();
 
         match value {
@@ -418,7 +453,9 @@ impl ValueConverter {
 
                 // Timing (complex - just extract bounds for now)
                 if let Some(repeat) = obj.get("repeat").and_then(|v| v.as_object()) {
-                    if let Some(bounds_period) = repeat.get("boundsPeriod").and_then(|v| v.as_object()) {
+                    if let Some(bounds_period) =
+                        repeat.get("boundsPeriod").and_then(|v| v.as_object())
+                    {
                         if let Some(start) = bounds_period.get("start").and_then(|v| v.as_str()) {
                             results.push(IndexValue::date(start));
                         }
@@ -432,14 +469,19 @@ impl ValueConverter {
     }
 
     /// Converts a value to number type.
-    fn convert_to_number(value: &Value, param_name: &str) -> Result<Vec<IndexValue>, ExtractionError> {
+    fn convert_to_number(
+        value: &Value,
+        param_name: &str,
+    ) -> Result<Vec<IndexValue>, ExtractionError> {
         match value {
             Value::Number(n) => {
-                let f = n.as_f64().ok_or_else(|| ExtractionError::ConversionFailed {
-                    param_name: param_name.to_string(),
-                    expected_type: "number".to_string(),
-                    actual_value: n.to_string(),
-                })?;
+                let f = n
+                    .as_f64()
+                    .ok_or_else(|| ExtractionError::ConversionFailed {
+                        param_name: param_name.to_string(),
+                        expected_type: "number".to_string(),
+                        actual_value: n.to_string(),
+                    })?;
                 Ok(vec![IndexValue::number(f)])
             }
             Value::String(s) => {
@@ -455,7 +497,10 @@ impl ValueConverter {
     }
 
     /// Converts a value to quantity type.
-    fn convert_to_quantity(value: &Value, _param_name: &str) -> Result<Vec<IndexValue>, ExtractionError> {
+    fn convert_to_quantity(
+        value: &Value,
+        _param_name: &str,
+    ) -> Result<Vec<IndexValue>, ExtractionError> {
         let mut results = Vec::new();
 
         if let Value::Object(obj) = value {
@@ -477,7 +522,10 @@ impl ValueConverter {
     }
 
     /// Converts a value to reference type.
-    fn convert_to_reference(value: &Value, _param_name: &str) -> Result<Vec<IndexValue>, ExtractionError> {
+    fn convert_to_reference(
+        value: &Value,
+        _param_name: &str,
+    ) -> Result<Vec<IndexValue>, ExtractionError> {
         let mut results = Vec::new();
 
         match value {
@@ -496,7 +544,10 @@ impl ValueConverter {
     }
 
     /// Converts a value to URI type.
-    fn convert_to_uri(value: &Value, _param_name: &str) -> Result<Vec<IndexValue>, ExtractionError> {
+    fn convert_to_uri(
+        value: &Value,
+        _param_name: &str,
+    ) -> Result<Vec<IndexValue>, ExtractionError> {
         match value {
             Value::String(s) => Ok(vec![IndexValue::uri(s.clone())]),
             _ => Ok(Vec::new()),
@@ -504,7 +555,10 @@ impl ValueConverter {
     }
 
     /// Handles special parameter types.
-    fn convert_special(value: &Value, param_name: &str) -> Result<Vec<IndexValue>, ExtractionError> {
+    fn convert_special(
+        value: &Value,
+        param_name: &str,
+    ) -> Result<Vec<IndexValue>, ExtractionError> {
         // For now, treat special parameters like their base type
         match param_name {
             "_id" => {
@@ -542,7 +596,12 @@ mod tests {
         }
 
         let r = IndexValue::reference("Patient/123");
-        if let IndexValue::Reference { resource_type, resource_id, .. } = r {
+        if let IndexValue::Reference {
+            resource_type,
+            resource_id,
+            ..
+        } = r
+        {
             assert_eq!(resource_type, Some("Patient".to_string()));
             assert_eq!(resource_id, Some("123".to_string()));
         }
@@ -612,7 +671,8 @@ mod tests {
             "system": "http://hospital.org/mrn",
             "value": "12345"
         });
-        let results = ValueConverter::convert(&value, SearchParamType::Token, "identifier").unwrap();
+        let results =
+            ValueConverter::convert(&value, SearchParamType::Token, "identifier").unwrap();
         assert_eq!(results.len(), 1);
 
         if let IndexValue::Token { system, code, .. } = &results[0] {
@@ -651,10 +711,17 @@ mod tests {
             "system": "http://unitsofmeasure.org",
             "code": "mm[Hg]"
         });
-        let results = ValueConverter::convert(&value, SearchParamType::Quantity, "value-quantity").unwrap();
+        let results =
+            ValueConverter::convert(&value, SearchParamType::Quantity, "value-quantity").unwrap();
         assert_eq!(results.len(), 1);
 
-        if let IndexValue::Quantity { value, unit, system, code } = &results[0] {
+        if let IndexValue::Quantity {
+            value,
+            unit,
+            system,
+            code,
+        } = &results[0]
+        {
             assert!((value - 120.5).abs() < f64::EPSILON);
             assert_eq!(unit.as_ref().unwrap(), "mmHg");
             assert_eq!(system.as_ref().unwrap(), "http://unitsofmeasure.org");
@@ -667,10 +734,16 @@ mod tests {
         let value = json!({
             "reference": "Patient/123"
         });
-        let results = ValueConverter::convert(&value, SearchParamType::Reference, "subject").unwrap();
+        let results =
+            ValueConverter::convert(&value, SearchParamType::Reference, "subject").unwrap();
         assert_eq!(results.len(), 1);
 
-        if let IndexValue::Reference { reference, resource_type, resource_id } = &results[0] {
+        if let IndexValue::Reference {
+            reference,
+            resource_type,
+            resource_id,
+        } = &results[0]
+        {
             assert_eq!(reference, "Patient/123");
             assert_eq!(resource_type.as_ref().unwrap(), "Patient");
             assert_eq!(resource_id.as_ref().unwrap(), "123");
@@ -708,10 +781,20 @@ mod tests {
         assert!(heart_rate.is_some(), "Should have token with code 8867-4");
 
         // Verify display is populated
-        if let Some(IndexValue::Token { system, code, display, .. }) = heart_rate {
+        if let Some(IndexValue::Token {
+            system,
+            code,
+            display,
+            ..
+        }) = heart_rate
+        {
             assert_eq!(system.as_ref().unwrap(), "http://loinc.org");
             assert_eq!(code, "8867-4");
-            assert_eq!(display.as_ref().unwrap(), "Heart rate", "Display text should be populated");
+            assert_eq!(
+                display.as_ref().unwrap(),
+                "Heart rate",
+                "Display text should be populated"
+            );
         }
     }
 
@@ -730,7 +813,8 @@ mod tests {
             "system": "http://hospital.org/mrn",
             "value": "MRN12345"
         });
-        let results = ValueConverter::convert(&value, SearchParamType::Token, "identifier").unwrap();
+        let results =
+            ValueConverter::convert(&value, SearchParamType::Token, "identifier").unwrap();
 
         assert_eq!(results.len(), 1);
 

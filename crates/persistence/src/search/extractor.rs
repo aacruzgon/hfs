@@ -82,9 +82,11 @@ impl SearchParameterExtractor {
         resource_type: &str,
     ) -> Result<Vec<ExtractedValue>, ExtractionError> {
         // Validate resource
-        let obj = resource.as_object().ok_or_else(|| ExtractionError::InvalidResource {
-            message: "Resource must be a JSON object".to_string(),
-        })?;
+        let obj = resource
+            .as_object()
+            .ok_or_else(|| ExtractionError::InvalidResource {
+                message: "Resource must be a JSON object".to_string(),
+            })?;
 
         // Verify resource type
         if let Some(rt) = obj.get("resourceType").and_then(|v| v.as_str()) {
@@ -187,11 +189,12 @@ impl SearchParameterExtractor {
         context.set_this(eval_result);
 
         // Evaluate the FHIRPath expression
-        let result = helios_fhirpath::evaluate_expression(expression, &context)
-            .map_err(|e| ExtractionError::FhirPathError {
+        let result = helios_fhirpath::evaluate_expression(expression, &context).map_err(|e| {
+            ExtractionError::FhirPathError {
                 expression: expression.to_string(),
                 message: e,
-            })?;
+            }
+        })?;
 
         // Convert EvaluationResult back to JSON values
         evaluation_result_to_json_values(&result)
@@ -207,11 +210,11 @@ fn json_to_evaluation_result(value: &Value) -> Result<EvaluationResult, Extracti
             if let Some(i) = n.as_i64() {
                 Ok(EvaluationResult::integer(i))
             } else if let Some(f) = n.as_f64() {
-                Ok(EvaluationResult::decimal(
-                    Decimal::try_from(f).map_err(|e| ExtractionError::ConversionError {
+                Ok(EvaluationResult::decimal(Decimal::try_from(f).map_err(
+                    |e| ExtractionError::ConversionError {
                         message: format!("Invalid decimal: {}", e),
-                    })?,
-                ))
+                    },
+                )?))
             } else {
                 Err(ExtractionError::ConversionError {
                     message: "Invalid number".to_string(),
@@ -238,7 +241,9 @@ fn json_to_evaluation_result(value: &Value) -> Result<EvaluationResult, Extracti
 }
 
 /// Converts an EvaluationResult back to JSON values for the converter.
-fn evaluation_result_to_json_values(result: &EvaluationResult) -> Result<Vec<Value>, ExtractionError> {
+fn evaluation_result_to_json_values(
+    result: &EvaluationResult,
+) -> Result<Vec<Value>, ExtractionError> {
     match result {
         EvaluationResult::Empty => Ok(Vec::new()),
         EvaluationResult::Boolean(b, _) => Ok(vec![Value::Bool(*b)]),
@@ -307,9 +312,9 @@ mod tests {
     fn create_test_extractor() -> SearchParameterExtractor {
         let loader = SearchParameterLoader::new(FhirVersion::R4);
         let mut registry = SearchParameterRegistry::new();
-        let _ = tokio::runtime::Runtime::new().unwrap().block_on(async {
-            registry.load_all(&loader).await
-        });
+        let _ = tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(async { registry.load_all(&loader).await });
 
         SearchParameterExtractor::new(Arc::new(RwLock::new(registry)))
     }
@@ -357,7 +362,10 @@ mod tests {
 
         let values = extractor.extract(&patient, "Patient").unwrap();
 
-        let id_values: Vec<_> = values.iter().filter(|v| v.param_name == "identifier").collect();
+        let id_values: Vec<_> = values
+            .iter()
+            .filter(|v| v.param_name == "identifier")
+            .collect();
         assert!(!id_values.is_empty(), "Should extract 'identifier' values");
 
         if let IndexValue::Token { system, code, .. } = &id_values[0].value {
@@ -397,8 +405,14 @@ mod tests {
         assert!(!code_values.is_empty(), "Should extract 'code' values");
 
         // Should have subject
-        let subject_values: Vec<_> = values.iter().filter(|v| v.param_name == "subject").collect();
-        assert!(!subject_values.is_empty(), "Should extract 'subject' values");
+        let subject_values: Vec<_> = values
+            .iter()
+            .filter(|v| v.param_name == "subject")
+            .collect();
+        assert!(
+            !subject_values.is_empty(),
+            "Should extract 'subject' values"
+        );
     }
 
     #[test]
@@ -448,7 +462,10 @@ mod tests {
 
         // Should extract all names (both official and nickname)
         let name_values: Vec<_> = values.iter().filter(|v| v.param_name == "name").collect();
-        assert!(name_values.len() >= 2, "Should extract multiple name values");
+        assert!(
+            name_values.len() >= 2,
+            "Should extract multiple name values"
+        );
     }
 
     #[test]
@@ -480,7 +497,11 @@ mod tests {
         // Check that display is populated
         if let Some(first_code) = code_values.first() {
             if let IndexValue::Token { display, .. } = &first_code.value {
-                assert_eq!(display.as_deref(), Some("Heart rate"), "Display should be populated");
+                assert_eq!(
+                    display.as_deref(),
+                    Some("Heart rate"),
+                    "Display should be populated"
+                );
             }
         }
     }

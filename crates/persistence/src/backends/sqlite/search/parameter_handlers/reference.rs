@@ -46,7 +46,10 @@ impl ReferenceHandler {
                 // Value is just an ID - prepend the type
                 SqlFragment::with_params(
                     format!("value_reference = ?{}", param_num),
-                    vec![SqlParam::string(format!("{}{}", expected_prefix, ref_value))],
+                    vec![SqlParam::string(format!(
+                        "{}{}",
+                        expected_prefix, ref_value
+                    ))],
                 )
             }
         } else {

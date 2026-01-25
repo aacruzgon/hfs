@@ -134,7 +134,10 @@ impl DateHandler {
         match precision {
             DatePrecision::Year => {
                 let year = &date[..4];
-                (format!("{}-01-01T00:00:00", year), format!("{}-01-01T00:00:00", year.parse::<i32>().unwrap_or(0) + 1))
+                (
+                    format!("{}-01-01T00:00:00", year),
+                    format!("{}-01-01T00:00:00", year.parse::<i32>().unwrap_or(0) + 1),
+                )
             }
             DatePrecision::Month => {
                 let (year, month) = (&date[..4], &date[5..7]);
@@ -152,9 +155,10 @@ impl DateHandler {
                     format!("{}-{:02}-01T00:00:00", next_year, next_month),
                 )
             }
-            DatePrecision::Day => {
-                (format!("{}T00:00:00", date), format!("{}T00:00:00", Self::add_day(date)))
-            }
+            DatePrecision::Day => (
+                format!("{}T00:00:00", date),
+                format!("{}T00:00:00", Self::add_day(date)),
+            ),
             _ => {
                 // For finer precisions, use the exact value
                 (date.to_string(), date.to_string())

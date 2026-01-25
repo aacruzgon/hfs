@@ -9,13 +9,14 @@ use serde::{Deserialize, Serialize};
 ///
 /// This enum defines how resources are associated with tenants and whether
 /// they can be shared across tenant boundaries.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum TenancyModel {
     /// Resources are strictly scoped to a single tenant.
     ///
     /// Each resource belongs to exactly one tenant and cannot be accessed
     /// by other tenants. This is the default for clinical data.
+    #[default]
     TenantScoped,
 
     /// Resources are shared across all tenants.
@@ -33,12 +34,6 @@ pub enum TenancyModel {
     /// be shared if it represents a well-known entity, or tenant-scoped
     /// if it's a local organization.
     Configurable,
-}
-
-impl Default for TenancyModel {
-    fn default() -> Self {
-        TenancyModel::TenantScoped
-    }
 }
 
 /// Trait for determining the tenancy model of a resource type.

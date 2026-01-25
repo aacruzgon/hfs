@@ -142,10 +142,7 @@ fn strip_html_tags(html: &str) -> String {
     }
 
     // Normalize whitespace
-    result
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
+    result.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 /// Decodes an HTML entity to its character equivalent.
@@ -395,11 +392,11 @@ impl Fts5Search {
     /// Tokenizes an advanced query, preserving quoted phrases and operators.
     fn tokenize_advanced_query(query: &str) -> Vec<String> {
         let mut tokens = Vec::new();
-        let mut chars = query.chars().peekable();
+        let chars = query.chars().peekable();
         let mut current = String::new();
         let mut in_quote = false;
 
-        while let Some(c) = chars.next() {
+        for c in chars {
             match c {
                 '"' => {
                     if in_quote {
@@ -610,10 +607,7 @@ mod tests {
     #[test]
     fn test_parse_advanced_query_not_minus() {
         // -term should become NOT term
-        assert_eq!(
-            Fts5Search::parse_advanced_query("-surgery"),
-            "NOT surgery"
-        );
+        assert_eq!(Fts5Search::parse_advanced_query("-surgery"), "NOT surgery");
     }
 
     #[test]
@@ -707,7 +701,10 @@ mod tests {
         // Named entities
         assert_eq!(strip_html_tags("&lt;tag&gt;"), "<tag>");
         assert_eq!(strip_html_tags("Tom &amp; Jerry"), "Tom & Jerry");
-        assert_eq!(strip_html_tags("He said &quot;hello&quot;"), "He said \"hello\"");
+        assert_eq!(
+            strip_html_tags("He said &quot;hello&quot;"),
+            "He said \"hello\""
+        );
         assert_eq!(strip_html_tags("It&apos;s fine"), "It's fine");
         assert_eq!(strip_html_tags("Non&nbsp;breaking"), "Non breaking");
 

@@ -27,8 +27,10 @@
 //! _filter=(status eq active or status eq pending) and category eq urgent
 //! ```
 
+// Error enum variant and struct fields are self-documenting
+#![allow(missing_docs)]
+
 use super::query_builder::{SqlFragment, SqlParam};
-use crate::types::SearchParamType;
 
 /// Comparison operators supported by _filter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -129,7 +131,11 @@ pub struct FilterParseError {
 
 impl std::fmt::Display for FilterParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Filter parse error at position {}: {}", self.position, self.message)
+        write!(
+            f,
+            "Filter parse error at position {}: {}",
+            self.position, self.message
+        )
     }
 }
 
@@ -154,7 +160,10 @@ impl<'a> FilterParser<'a> {
         parser.skip_whitespace();
         if parser.pos < parser.input.len() {
             return Err(FilterParseError {
-                message: format!("Unexpected characters after expression: '{}'", &parser.input[parser.pos..]),
+                message: format!(
+                    "Unexpected characters after expression: '{}'",
+                    &parser.input[parser.pos..]
+                ),
                 position: parser.pos,
             });
         }
@@ -187,7 +196,9 @@ impl<'a> FilterParser<'a> {
 
     /// Checks if the input starts with the given string (case-insensitive).
     fn starts_with_ci(&self, s: &str) -> bool {
-        self.input[self.pos..].to_lowercase().starts_with(&s.to_lowercase())
+        self.input[self.pos..]
+            .to_lowercase()
+            .starts_with(&s.to_lowercase())
     }
 
     /// Parses an OR expression (lowest precedence).
@@ -454,10 +465,7 @@ impl FilterSqlGenerator {
             }
             FilterExpr::Not(inner) => {
                 let inner_sql = self.generate(inner);
-                SqlFragment::with_params(
-                    format!("NOT ({})", inner_sql.sql),
-                    inner_sql.params,
-                )
+                SqlFragment::with_params(format!("NOT ({})", inner_sql.sql), inner_sql.params)
             }
         }
     }
@@ -468,7 +476,7 @@ impl FilterSqlGenerator {
         let param_num = self.param_offset;
 
         // Determine the column and condition based on parameter and operator
-        let (column, condition, sql_value) = self.build_condition(param, op, value, param_num);
+        let (_column, condition, sql_value) = self.build_condition(param, op, value, param_num);
 
         SqlFragment::with_params(
             format!(
@@ -491,16 +499,36 @@ impl FilterSqlGenerator {
         let column = self.infer_column(param);
 
         match op {
-            FilterOp::Eq => (column, format!("{} = ?{}", column, param_num), value.to_string()),
-            FilterOp::Ne => (column, format!("{} != ?{}", column, param_num), value.to_string()),
-            FilterOp::Gt | FilterOp::Sa => {
-                (column, format!("{} > ?{}", column, param_num), value.to_string())
-            }
-            FilterOp::Lt | FilterOp::Eb => {
-                (column, format!("{} < ?{}", column, param_num), value.to_string())
-            }
-            FilterOp::Ge => (column, format!("{} >= ?{}", column, param_num), value.to_string()),
-            FilterOp::Le => (column, format!("{} <= ?{}", column, param_num), value.to_string()),
+            FilterOp::Eq => (
+                column,
+                format!("{} = ?{}", column, param_num),
+                value.to_string(),
+            ),
+            FilterOp::Ne => (
+                column,
+                format!("{} != ?{}", column, param_num),
+                value.to_string(),
+            ),
+            FilterOp::Gt | FilterOp::Sa => (
+                column,
+                format!("{} > ?{}", column, param_num),
+                value.to_string(),
+            ),
+            FilterOp::Lt | FilterOp::Eb => (
+                column,
+                format!("{} < ?{}", column, param_num),
+                value.to_string(),
+            ),
+            FilterOp::Ge => (
+                column,
+                format!("{} >= ?{}", column, param_num),
+                value.to_string(),
+            ),
+            FilterOp::Le => (
+                column,
+                format!("{} <= ?{}", column, param_num),
+                value.to_string(),
+            ),
             FilterOp::Co => {
                 // Contains - use LIKE with wildcards on both sides
                 (
@@ -669,7 +697,9 @@ mod tests {
 
     #[test]
     fn test_parse_all_operators() {
-        let operators = ["eq", "ne", "co", "sw", "ew", "gt", "lt", "ge", "le", "sa", "eb", "ap"];
+        let operators = [
+            "eq", "ne", "co", "sw", "ew", "gt", "lt", "ge", "le", "sa", "eb", "ap",
+        ];
         for op_str in operators {
             let input = format!("field {} value", op_str);
             let expr = FilterParser::parse(&input).unwrap();

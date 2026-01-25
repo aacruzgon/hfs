@@ -233,10 +233,7 @@ pub trait TransactionProvider: ResourceStorage {
         R: Send,
     {
         let tx = self.begin_transaction(tenant, options).await?;
-        match f(tx).await {
-            Ok(result) => Ok(result),
-            Err(e) => Err(e),
-        }
+        f(tx).await
     }
 }
 

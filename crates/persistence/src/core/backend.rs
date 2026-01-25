@@ -167,7 +167,7 @@ impl Default for BackendConfig {
             min_connections: 1,
             connect_timeout_ms: 5000,
             idle_timeout_ms: Some(600_000),  // 10 minutes
-            max_lifetime_ms: Some(1800_000), // 30 minutes
+            max_lifetime_ms: Some(1_800_000), // 30 minutes
         }
     }
 }

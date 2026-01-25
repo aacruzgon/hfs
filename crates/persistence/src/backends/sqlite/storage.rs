@@ -2,7 +2,7 @@
 
 use async_trait::async_trait;
 use chrono::Utc;
-use rusqlite::{params, ToSql};
+use rusqlite::{ToSql, params};
 use serde_json::Value;
 
 use crate::core::history::{
@@ -16,19 +16,19 @@ use crate::core::{
     ConditionalCreateResult, ConditionalDeleteResult, ConditionalStorage, ConditionalUpdateResult,
     PurgableStorage, ResourceStorage, SearchProvider, VersionedStorage,
 };
-use crate::types::{SearchParameter, SearchParamType, SearchQuery, SearchValue};
 use crate::error::TransactionError;
-use crate::types::Pagination;
 use crate::error::{BackendError, ConcurrencyError, ResourceError, StorageError, StorageResult};
 use crate::search::extractor::ExtractedValue;
 use crate::search::loader::{FhirVersion, SearchParameterLoader};
 use crate::search::registry::SearchParameterStatus;
 use crate::search::reindex::{ReindexableStorage, ResourcePage};
 use crate::tenant::TenantContext;
+use crate::types::Pagination;
 use crate::types::{CursorValue, Page, PageCursor, PageInfo, StoredResource};
+use crate::types::{SearchParamType, SearchParameter, SearchQuery, SearchValue};
 
-use super::search::writer::SqliteSearchIndexWriter;
 use super::SqliteBackend;
+use super::search::writer::SqliteSearchIndexWriter;
 
 fn internal_error(message: String) -> StorageError {
     StorageError::Backend(BackendError::Internal {
@@ -567,7 +567,10 @@ impl SqliteBackend {
 
         // For date values, normalize the date format for consistent SQLite comparisons
         let normalized_value = match &value.value {
-            IndexValue::Date { value: date_str, precision } => {
+            IndexValue::Date {
+                value: date_str,
+                precision,
+            } => {
                 let normalized_date = Self::normalize_date_for_sqlite(date_str);
                 let mut normalized = value.clone();
                 normalized.value = IndexValue::Date {
@@ -734,14 +737,7 @@ impl SqliteBackend {
 
         // Index code/coding (token) - common in many resources
         if let Some(code) = resource.get("code") {
-            self.index_codeable_concept(
-                conn,
-                tenant_id,
-                resource_type,
-                resource_id,
-                "code",
-                code,
-            )?;
+            self.index_codeable_concept(conn, tenant_id, resource_type, resource_id, "code", code)?;
         }
 
         // Index status (token)
@@ -817,6 +813,7 @@ impl SqliteBackend {
     }
 
     /// Insert a token index entry.
+    #[allow(clippy::too_many_arguments)]
     fn insert_token_index(
         &self,
         conn: &rusqlite::Connection,
@@ -1660,7 +1657,7 @@ impl TypeHistoryProvider for SqliteBackend {
         }
 
         // Check if there are more results by seeing if we got more than count
-        let total_fetched = entries.len();
+        let _total_fetched = entries.len();
         let has_more = {
             // Re-run query to check if there are more
             let check_sql = sql.replace(
@@ -1678,8 +1675,7 @@ impl TypeHistoryProvider for SqliteBackend {
         };
 
         // Build page info
-        let page_info = if has_more && last_entry.is_some() {
-            let (timestamp, id) = last_entry.unwrap();
+        let page_info = if let (true, Some((timestamp, id))) = (has_more, last_entry) {
             let cursor = PageCursor::new(
                 vec![CursorValue::String(timestamp), CursorValue::String(id)],
                 resource_type.to_string(),
@@ -1864,8 +1860,8 @@ impl SystemHistoryProvider for SqliteBackend {
         };
 
         // Build page info
-        let page_info = if has_more && last_entry.is_some() {
-            let (timestamp, resource_type, id) = last_entry.unwrap();
+        let page_info = if let (true, Some((timestamp, resource_type, id))) = (has_more, last_entry)
+        {
             let cursor = PageCursor::new(
                 vec![
                     CursorValue::String(timestamp),
@@ -2015,7 +2011,7 @@ impl DifferentialHistoryProvider for SqliteBackend {
         let mut sql = String::from(
             "SELECT resource_type, id, version_id, data, last_updated
              FROM resources
-             WHERE tenant_id = ?1 AND last_updated > ?2 AND is_deleted = 0"
+             WHERE tenant_id = ?1 AND last_updated > ?2 AND is_deleted = 0",
         );
 
         // Filter by resource type if specified
@@ -2027,10 +2023,8 @@ impl DifferentialHistoryProvider for SqliteBackend {
         if let Some(cursor) = pagination.cursor_value() {
             let sort_values = cursor.sort_values();
             if sort_values.len() >= 2 {
-                if let (
-                    Some(CursorValue::String(timestamp)),
-                    Some(CursorValue::String(res_id)),
-                ) = (sort_values.first(), sort_values.get(1))
+                if let (Some(CursorValue::String(timestamp)), Some(CursorValue::String(res_id))) =
+                    (sort_values.first(), sort_values.get(1))
                 {
                     sql.push_str(&format!(
                         " AND (last_updated > '{}' OR (last_updated = '{}' AND id > '{}'))",
@@ -2044,9 +2038,9 @@ impl DifferentialHistoryProvider for SqliteBackend {
         sql.push_str(" ORDER BY last_updated ASC, id ASC");
         sql.push_str(&format!(" LIMIT {}", pagination.count + 1));
 
-        let mut stmt = conn
-            .prepare(&sql)
-            .map_err(|e| internal_error(format!("Failed to prepare modified_since query: {}", e)))?;
+        let mut stmt = conn.prepare(&sql).map_err(|e| {
+            internal_error(format!("Failed to prepare modified_since query: {}", e))
+        })?;
 
         let rows = stmt
             .query_map(params![tenant_id, since_str], |row| {
@@ -2071,8 +2065,9 @@ impl DifferentialHistoryProvider for SqliteBackend {
                 break;
             }
 
-            let json_data: serde_json::Value = serde_json::from_slice(&data)
-                .map_err(|e| serialization_error(format!("Failed to deserialize resource: {}", e)))?;
+            let json_data: serde_json::Value = serde_json::from_slice(&data).map_err(|e| {
+                serialization_error(format!("Failed to deserialize resource: {}", e))
+            })?;
 
             let last_updated = chrono::DateTime::parse_from_rfc3339(&last_updated_str)
                 .map_err(|e| internal_error(format!("Failed to parse last_updated: {}", e)))?
@@ -2110,13 +2105,9 @@ impl DifferentialHistoryProvider for SqliteBackend {
         };
 
         // Build page info
-        let page_info = if has_more && last_entry.is_some() {
-            let (timestamp, id) = last_entry.unwrap();
+        let page_info = if let (true, Some((timestamp, id))) = (has_more, last_entry) {
             let cursor = PageCursor::new(
-                vec![
-                    CursorValue::String(timestamp),
-                    CursorValue::String(id),
-                ],
+                vec![CursorValue::String(timestamp), CursorValue::String(id)],
                 "modified_since".to_string(),
             );
             PageInfo::with_next(cursor)
@@ -2166,7 +2157,9 @@ impl ConditionalStorage for SqliteBackend {
             }
             1 => {
                 // Exactly one match - return the existing resource
-                Ok(ConditionalCreateResult::Exists(matches.into_iter().next().unwrap()))
+                Ok(ConditionalCreateResult::Exists(
+                    matches.into_iter().next().unwrap(),
+                ))
             }
             n => {
                 // Multiple matches - error condition
@@ -2347,7 +2340,7 @@ impl SqliteBackend {
             // Look up the parameter definition to get its type
             let param_type = self
                 .lookup_param_type(&registry, resource_type, name)
-                .unwrap_or_else(|| {
+                .unwrap_or({
                     // Fallback for common parameters when not in registry
                     match name.as_str() {
                         "_id" => SearchParamType::Token,
@@ -2364,7 +2357,7 @@ impl SqliteBackend {
                 modifier: None,
                 values: vec![SearchValue::parse(value)],
                 chain: vec![],
-            components: vec![],
+                components: vec![],
             });
         }
 
@@ -2410,13 +2403,12 @@ impl SqliteBackend {
         use crate::error::ValidationError;
 
         // Parse the patch document as an array of operations
-        let patch: json_patch::Patch =
-            serde_json::from_value(patch_doc.clone()).map_err(|e| {
-                StorageError::Validation(ValidationError::InvalidResource {
-                    message: format!("Invalid JSON Patch document: {}", e),
-                    details: vec![],
-                })
-            })?;
+        let patch: json_patch::Patch = serde_json::from_value(patch_doc.clone()).map_err(|e| {
+            StorageError::Validation(ValidationError::InvalidResource {
+                message: format!("Invalid JSON Patch document: {}", e),
+                details: vec![],
+            })
+        })?;
 
         // Apply the patch to a mutable copy
         let mut patched = resource.clone();
@@ -2555,7 +2547,12 @@ impl SqliteBackend {
     ) -> StorageResult<()> {
         // Simple implementation for adding to root or nested object
         let parts: Vec<&str> = path.split('.').collect();
-        if parts.len() == 1 && parts[0] == resource.get("resourceType").and_then(|r| r.as_str()).unwrap_or("")
+        if parts.len() == 1
+            && parts[0]
+                == resource
+                    .get("resourceType")
+                    .and_then(|r| r.as_str())
+                    .unwrap_or("")
         {
             // Adding to root level
             if let Some(obj) = resource.as_object_mut() {
@@ -2955,36 +2952,35 @@ impl ReindexableStorage for SqliteBackend {
         };
 
         // Build query based on whether we have a cursor
-        let (sql, params): (String, Vec<Box<dyn ToSql>>) = if let (Some(ts), Some(id)) =
-            (&cursor_ts, &cursor_id)
-        {
-            (
-                "SELECT id, version_id, data, last_updated FROM resources \
+        let (sql, params): (String, Vec<Box<dyn ToSql>>) =
+            if let (Some(ts), Some(id)) = (&cursor_ts, &cursor_id) {
+                (
+                    "SELECT id, version_id, data, last_updated FROM resources \
                  WHERE tenant_id = ?1 AND resource_type = ?2 AND is_deleted = 0 \
                  AND (last_updated > ?3 OR (last_updated = ?3 AND id > ?4)) \
                  ORDER BY last_updated ASC, id ASC LIMIT ?5"
-                    .to_string(),
-                vec![
-                    Box::new(tenant_id.clone()) as Box<dyn ToSql>,
-                    Box::new(resource_type.to_string()),
-                    Box::new(ts.clone()),
-                    Box::new(id.clone()),
-                    Box::new(limit as i64),
-                ],
-            )
-        } else {
-            (
-                "SELECT id, version_id, data, last_updated FROM resources \
+                        .to_string(),
+                    vec![
+                        Box::new(tenant_id.clone()) as Box<dyn ToSql>,
+                        Box::new(resource_type.to_string()),
+                        Box::new(ts.clone()),
+                        Box::new(id.clone()),
+                        Box::new(limit as i64),
+                    ],
+                )
+            } else {
+                (
+                    "SELECT id, version_id, data, last_updated FROM resources \
                  WHERE tenant_id = ?1 AND resource_type = ?2 AND is_deleted = 0 \
                  ORDER BY last_updated ASC, id ASC LIMIT ?3"
-                    .to_string(),
-                vec![
-                    Box::new(tenant_id.clone()) as Box<dyn ToSql>,
-                    Box::new(resource_type.to_string()),
-                    Box::new(limit as i64),
-                ],
-            )
-        };
+                        .to_string(),
+                    vec![
+                        Box::new(tenant_id.clone()) as Box<dyn ToSql>,
+                        Box::new(resource_type.to_string()),
+                        Box::new(limit as i64),
+                    ],
+                )
+            };
 
         let mut stmt = conn
             .prepare(&sql)
@@ -3023,13 +3019,9 @@ impl ReindexableStorage for SqliteBackend {
 
         // Determine next cursor
         let next_cursor = if resources.len() == limit as usize {
-            resources.last().map(|r| {
-                format!(
-                    "{}|{}",
-                    r.last_modified().to_rfc3339(),
-                    r.id()
-                )
-            })
+            resources
+                .last()
+                .map(|r| format!("{}|{}", r.last_modified().to_rfc3339(), r.id()))
         } else {
             None
         };
@@ -3047,7 +3039,12 @@ impl ReindexableStorage for SqliteBackend {
         resource_id: &str,
     ) -> StorageResult<()> {
         let conn = self.get_connection()?;
-        self.delete_search_index(&conn, tenant.tenant_id().as_str(), resource_type, resource_id)
+        self.delete_search_index(
+            &conn,
+            tenant.tenant_id().as_str(),
+            resource_type,
+            resource_id,
+        )
     }
 
     async fn write_search_entries(
@@ -3546,7 +3543,7 @@ mod tests {
             .create(&tenant, "Patient", json!({"id": "p1"}))
             .await
             .unwrap();
-        let p2 = backend
+        let _p2 = backend
             .create(&tenant, "Patient", json!({"id": "p2"}))
             .await
             .unwrap();
@@ -3643,7 +3640,7 @@ mod tests {
         let tenant = create_test_tenant();
 
         // Create and delete a patient
-        let p1 = backend
+        let _p1 = backend
             .create(&tenant, "Patient", json!({"id": "del-p1"}))
             .await
             .unwrap();
@@ -3985,15 +3982,27 @@ mod tests {
 
         // Create a resource and update it twice
         let p1 = backend
-            .create(&tenant, "Patient", json!({"id": "p1", "name": [{"family": "Smith"}]}))
+            .create(
+                &tenant,
+                "Patient",
+                json!({"id": "p1", "name": [{"family": "Smith"}]}),
+            )
             .await
             .unwrap();
         let p1_v2 = backend
-            .update(&tenant, &p1, json!({"id": "p1", "name": [{"family": "Jones"}]}))
+            .update(
+                &tenant,
+                &p1,
+                json!({"id": "p1", "name": [{"family": "Jones"}]}),
+            )
             .await
             .unwrap();
         let _p1_v3 = backend
-            .update(&tenant, &p1_v2, json!({"id": "p1", "name": [{"family": "Brown"}]}))
+            .update(
+                &tenant,
+                &p1_v2,
+                json!({"id": "p1", "name": [{"family": "Brown"}]}),
+            )
             .await
             .unwrap();
 
@@ -4048,15 +4057,27 @@ mod tests {
 
         // Create a resource and update it twice
         let p1 = backend
-            .create(&tenant, "Patient", json!({"id": "p1", "name": [{"family": "Smith"}]}))
+            .create(
+                &tenant,
+                "Patient",
+                json!({"id": "p1", "name": [{"family": "Smith"}]}),
+            )
             .await
             .unwrap();
         let p1_v2 = backend
-            .update(&tenant, &p1, json!({"id": "p1", "name": [{"family": "Jones"}]}))
+            .update(
+                &tenant,
+                &p1,
+                json!({"id": "p1", "name": [{"family": "Jones"}]}),
+            )
             .await
             .unwrap();
         let _p1_v3 = backend
-            .update(&tenant, &p1_v2, json!({"id": "p1", "name": [{"family": "Brown"}]}))
+            .update(
+                &tenant,
+                &p1_v2,
+                json!({"id": "p1", "name": [{"family": "Brown"}]}),
+            )
             .await
             .unwrap();
 
@@ -4122,7 +4143,9 @@ mod tests {
 
         assert!(matches!(
             result,
-            Err(StorageError::Resource(ResourceError::VersionNotFound { .. }))
+            Err(StorageError::Resource(
+                ResourceError::VersionNotFound { .. }
+            ))
         ));
     }
 
@@ -4241,11 +4264,17 @@ mod tests {
             .unwrap();
 
         // Tenant 2's resource should still exist
-        let t2_read = backend.read(&tenant2, "Patient", "shared-id").await.unwrap();
+        let t2_read = backend
+            .read(&tenant2, "Patient", "shared-id")
+            .await
+            .unwrap();
         assert!(t2_read.is_some());
 
         // Tenant 1's resource should be gone
-        let t1_read = backend.read(&tenant1, "Patient", "shared-id").await.unwrap();
+        let t1_read = backend
+            .read(&tenant1, "Patient", "shared-id")
+            .await
+            .unwrap();
         assert!(t1_read.is_none());
     }
 
@@ -4771,7 +4800,7 @@ mod tests {
                 // Verify resource is deleted (read returns Gone error or None)
                 let read_result = backend.read(&tenant, "Patient", "p1").await;
                 match read_result {
-                    Ok(None) => {} // Resource not found
+                    Ok(None) => {}                                                // Resource not found
                     Err(StorageError::Resource(ResourceError::Gone { .. })) => {} // Soft deleted
                     other => panic!("Expected None or Gone, got {:?}", other),
                 }
@@ -5039,7 +5068,7 @@ mod tests {
         // Verify deletion (read returns Gone error or None)
         let read_result = backend.read(&tenant, "Patient", "to-delete").await;
         match read_result {
-            Ok(None) => {} // Resource not found
+            Ok(None) => {}                                                // Resource not found
             Err(StorageError::Resource(ResourceError::Gone { .. })) => {} // Soft deleted
             other => panic!("Expected None or Gone, got {:?}", other),
         }
@@ -5115,26 +5144,27 @@ mod tests {
             },
         ];
 
-        let result = backend
-            .process_transaction(&tenant, entries)
-            .await
-            .unwrap();
+        let result = backend.process_transaction(&tenant, entries).await.unwrap();
 
         assert_eq!(result.entries.len(), 2);
         assert_eq!(result.entries[0].status, 201);
         assert_eq!(result.entries[1].status, 201);
 
         // Both resources should exist
-        assert!(backend
-            .read(&tenant, "Patient", "tx-success-1")
-            .await
-            .unwrap()
-            .is_some());
-        assert!(backend
-            .read(&tenant, "Observation", "tx-success-2")
-            .await
-            .unwrap()
-            .is_some());
+        assert!(
+            backend
+                .read(&tenant, "Patient", "tx-success-1")
+                .await
+                .unwrap()
+                .is_some()
+        );
+        assert!(
+            backend
+                .read(&tenant, "Observation", "tx-success-2")
+                .await
+                .unwrap()
+                .is_some()
+        );
     }
 
     #[tokio::test]
@@ -5210,6 +5240,7 @@ mod tests {
             )
             .unwrap();
 
+        #[allow(clippy::type_complexity)]
         let rows: Vec<(String, Option<String>, Option<String>, Option<String>)> = stmt
             .query_map([], |row| {
                 Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
@@ -5283,6 +5314,7 @@ mod tests {
             )
             .unwrap();
 
+        #[allow(clippy::type_complexity)]
         let rows: Vec<(String, Option<String>, Option<String>, Option<String>)> = stmt
             .query_map([], |row| {
                 Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))

@@ -24,4 +24,4 @@ pub use filter_parser::{FilterExpr, FilterOp, FilterParseError, FilterParser, Fi
 pub use parameter_handlers::CompositeComponentDef;
 pub use query_builder::{QueryBuilder, SqlFragment, SqlParam};
 pub use strategy::{SearchStrategyCapability, SqliteSearchStrategy};
-pub use writer::{SqliteSearchIndexWriter, SqlValue};
+pub use writer::{SqlValue, SqliteSearchIndexWriter};

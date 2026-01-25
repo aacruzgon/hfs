@@ -17,9 +17,10 @@ use super::registry::{
 };
 
 /// FHIR version for loading appropriate search parameters.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum FhirVersion {
     /// FHIR R4 (4.0.1)
+    #[default]
     R4,
     /// FHIR R4B (4.3.0)
     R4B,
@@ -27,12 +28,6 @@ pub enum FhirVersion {
     R5,
     /// FHIR R6 (6.0.0-ballot1)
     R6,
-}
-
-impl Default for FhirVersion {
-    fn default() -> Self {
-        FhirVersion::R4
-    }
 }
 
 impl FhirVersion {
@@ -73,14 +68,18 @@ impl SearchParameterLoader {
     }
 
     /// Loads SearchParameter resources from a JSON bundle or array.
-    pub fn load_from_json(&self, json: &Value) -> Result<Vec<SearchParameterDefinition>, LoaderError> {
+    pub fn load_from_json(
+        &self,
+        json: &Value,
+    ) -> Result<Vec<SearchParameterDefinition>, LoaderError> {
         let mut params = Vec::new();
 
         // Handle Bundle
         if let Some(entries) = json.get("entry").and_then(|e| e.as_array()) {
             for entry in entries {
                 if let Some(resource) = entry.get("resource") {
-                    if resource.get("resourceType").and_then(|t| t.as_str()) == Some("SearchParameter")
+                    if resource.get("resourceType").and_then(|t| t.as_str())
+                        == Some("SearchParameter")
                     {
                         params.push(self.parse_resource(resource)?);
                     }
@@ -104,20 +103,21 @@ impl SearchParameterLoader {
     }
 
     /// Loads parameters from a configuration file.
-    pub fn load_config(&self, config_path: &Path) -> Result<Vec<SearchParameterDefinition>, LoaderError> {
-        let content = std::fs::read_to_string(config_path).map_err(|e| {
-            LoaderError::ConfigLoadFailed {
+    pub fn load_config(
+        &self,
+        config_path: &Path,
+    ) -> Result<Vec<SearchParameterDefinition>, LoaderError> {
+        let content =
+            std::fs::read_to_string(config_path).map_err(|e| LoaderError::ConfigLoadFailed {
                 path: config_path.display().to_string(),
                 message: e.to_string(),
-            }
-        })?;
+            })?;
 
-        let json: Value = serde_json::from_str(&content).map_err(|e| {
-            LoaderError::ConfigLoadFailed {
+        let json: Value =
+            serde_json::from_str(&content).map_err(|e| LoaderError::ConfigLoadFailed {
                 path: config_path.display().to_string(),
                 message: format!("Invalid JSON: {}", e),
-            }
-        })?;
+            })?;
 
         let mut params = self.load_from_json(&json)?;
 
@@ -130,7 +130,10 @@ impl SearchParameterLoader {
     }
 
     /// Parses a SearchParameter FHIR resource into a definition.
-    pub fn parse_resource(&self, resource: &Value) -> Result<SearchParameterDefinition, LoaderError> {
+    pub fn parse_resource(
+        &self,
+        resource: &Value,
+    ) -> Result<SearchParameterDefinition, LoaderError> {
         let url = resource
             .get("url")
             .and_then(|v| v.as_str())
@@ -157,12 +160,13 @@ impl SearchParameterLoader {
                 url: Some(url.clone()),
             })?;
 
-        let param_type = type_str.parse::<SearchParamType>().map_err(|_| {
-            LoaderError::InvalidResource {
-                message: format!("Unknown search parameter type: {}", type_str),
-                url: Some(url.clone()),
-            }
-        })?;
+        let param_type =
+            type_str
+                .parse::<SearchParamType>()
+                .map_err(|_| LoaderError::InvalidResource {
+                    message: format!("Unknown search parameter type: {}", type_str),
+                    url: Some(url.clone()),
+                })?;
 
         let expression = resource
             .get("expression")
@@ -191,11 +195,15 @@ impl SearchParameterLoader {
             })
             .unwrap_or_default();
 
-        let target: Option<Vec<String>> = resource.get("target").and_then(|v| v.as_array()).map(|arr| {
-            arr.iter()
-                .filter_map(|v| v.as_str().map(String::from))
-                .collect()
-        });
+        let target: Option<Vec<String>> =
+            resource
+                .get("target")
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(String::from))
+                        .collect()
+                });
 
         let status = resource
             .get("status")
@@ -205,23 +213,35 @@ impl SearchParameterLoader {
 
         let component = self.parse_components(resource)?;
 
-        let modifier: Option<Vec<String>> = resource.get("modifier").and_then(|v| v.as_array()).map(|arr| {
-            arr.iter()
-                .filter_map(|v| v.as_str().map(String::from))
-                .collect()
-        });
+        let modifier: Option<Vec<String>> = resource
+            .get("modifier")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(String::from))
+                    .collect()
+            });
 
-        let comparator: Option<Vec<String>> = resource.get("comparator").and_then(|v| v.as_array()).map(|arr| {
-            arr.iter()
-                .filter_map(|v| v.as_str().map(String::from))
-                .collect()
-        });
+        let comparator: Option<Vec<String>> = resource
+            .get("comparator")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(String::from))
+                    .collect()
+            });
 
         Ok(SearchParameterDefinition {
             url,
             code,
-            name: resource.get("name").and_then(|v| v.as_str()).map(String::from),
-            description: resource.get("description").and_then(|v| v.as_str()).map(String::from),
+            name: resource
+                .get("name")
+                .and_then(|v| v.as_str())
+                .map(String::from),
+            description: resource
+                .get("description")
+                .and_then(|v| v.as_str())
+                .map(String::from),
             param_type,
             expression,
             base,
@@ -233,12 +253,18 @@ impl SearchParameterLoader {
             multiple_or: resource.get("multipleOr").and_then(|v| v.as_bool()),
             multiple_and: resource.get("multipleAnd").and_then(|v| v.as_bool()),
             comparator,
-            xpath: resource.get("xpath").and_then(|v| v.as_str()).map(String::from),
+            xpath: resource
+                .get("xpath")
+                .and_then(|v| v.as_str())
+                .map(String::from),
         })
     }
 
     /// Parses composite components from a SearchParameter resource.
-    fn parse_components(&self, resource: &Value) -> Result<Option<Vec<CompositeComponentDef>>, LoaderError> {
+    fn parse_components(
+        &self,
+        resource: &Value,
+    ) -> Result<Option<Vec<CompositeComponentDef>>, LoaderError> {
         let components = match resource.get("component").and_then(|v| v.as_array()) {
             Some(arr) => arr,
             None => return Ok(None),
@@ -251,7 +277,10 @@ impl SearchParameterLoader {
                 .and_then(|v| v.as_str())
                 .ok_or_else(|| LoaderError::InvalidResource {
                     message: "Composite component missing definition".to_string(),
-                    url: resource.get("url").and_then(|v| v.as_str()).map(String::from),
+                    url: resource
+                        .get("url")
+                        .and_then(|v| v.as_str())
+                        .map(String::from),
                 })?
                 .to_string();
 
@@ -267,10 +296,15 @@ impl SearchParameterLoader {
             });
         }
 
-        Ok(if result.is_empty() { None } else { Some(result) })
+        Ok(if result.is_empty() {
+            None
+        } else {
+            Some(result)
+        })
     }
 
     /// Returns core search parameters for the FHIR version.
+    #[allow(clippy::vec_init_then_push)]
     fn get_core_search_parameters(&self) -> Vec<SearchParameterDefinition> {
         let mut params = Vec::new();
 
@@ -604,7 +638,9 @@ mod tests {
         assert!(!params.is_empty());
 
         // Check for common parameters
-        let has_patient_name = params.iter().any(|p| p.code == "name" && p.base.contains(&"Patient".to_string()));
+        let has_patient_name = params
+            .iter()
+            .any(|p| p.code == "name" && p.base.contains(&"Patient".to_string()));
         assert!(has_patient_name);
 
         let has_id = params.iter().any(|p| p.code == "_id");

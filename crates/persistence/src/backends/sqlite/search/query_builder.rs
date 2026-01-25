@@ -5,13 +5,11 @@
 
 use std::collections::HashSet;
 
-use crate::types::{
-    SearchModifier, SearchParamType, SearchParameter, SearchPrefix, SearchQuery, SearchValue,
-};
+use crate::types::{SearchModifier, SearchParamType, SearchParameter, SearchQuery, SearchValue};
 
 use super::parameter_handlers::{
-    CompositeHandler, DateHandler, NumberHandler, QuantityHandler, ReferenceHandler,
-    StringHandler, TokenHandler, UriHandler,
+    CompositeHandler, DateHandler, NumberHandler, QuantityHandler, ReferenceHandler, StringHandler,
+    TokenHandler, UriHandler,
 };
 
 /// A fragment of SQL with bound parameters.
@@ -213,7 +211,8 @@ impl QueryBuilder {
         let mut or_conditions = Vec::new();
 
         for value in &param.values {
-            let condition = self.build_value_condition(param, value, param_offset + or_conditions.len());
+            let condition =
+                self.build_value_condition(param, value, param_offset + or_conditions.len());
             if let Some(cond) = condition {
                 or_conditions.push(cond);
             }
@@ -410,7 +409,11 @@ impl QueryBuilder {
                 }
                 Err(e) => {
                     // Log parse error but continue with other filters
-                    tracing::warn!("Failed to parse _filter expression '{}': {}", value.value, e);
+                    tracing::warn!(
+                        "Failed to parse _filter expression '{}': {}",
+                        value.value,
+                        e
+                    );
                 }
             }
         }
@@ -658,7 +661,7 @@ mod tests {
 
     #[test]
     fn test_order_by_multiple_fields() {
-        use crate::types::{SortDirective, SortDirection};
+        use crate::types::{SortDirection, SortDirective};
 
         let builder = QueryBuilder::new("tenant1", "Patient");
         let mut query = SearchQuery::new("Patient");
@@ -679,7 +682,7 @@ mod tests {
 
     #[test]
     fn test_order_by_adds_tiebreaker() {
-        use crate::types::{SortDirective, SortDirection};
+        use crate::types::{SortDirection, SortDirective};
 
         let builder = QueryBuilder::new("tenant1", "Patient");
         let mut query = SearchQuery::new("Patient");

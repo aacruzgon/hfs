@@ -73,7 +73,11 @@ impl fmt::Display for LoaderError {
             }
             LoaderError::MissingField { field, url } => {
                 if let Some(url) = url {
-                    write!(f, "SearchParameter '{}' missing required field '{}'", url, field)
+                    write!(
+                        f,
+                        "SearchParameter '{}' missing required field '{}'",
+                        url, field
+                    )
                 } else {
                     write!(f, "SearchParameter missing required field '{}'", field)
                 }
@@ -82,7 +86,11 @@ impl fmt::Display for LoaderError {
                 write!(f, "Invalid FHIRPath expression '{}': {}", expression, error)
             }
             LoaderError::EmbeddedLoadFailed { version, message } => {
-                write!(f, "Failed to load embedded {} parameters: {}", version, message)
+                write!(
+                    f,
+                    "Failed to load embedded {} parameters: {}",
+                    version, message
+                )
             }
             LoaderError::ConfigLoadFailed { path, message } => {
                 write!(f, "Failed to load config from '{}': {}", path, message)
@@ -200,21 +208,32 @@ pub enum ExtractionError {
 impl fmt::Display for ExtractionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ExtractionError::EvaluationFailed { param_name, expression, error } => {
+            ExtractionError::EvaluationFailed {
+                param_name,
+                expression,
+                error,
+            } => {
                 write!(
                     f,
                     "Failed to evaluate '{}' for parameter '{}': {}",
                     expression, param_name, error
                 )
             }
-            ExtractionError::ConversionFailed { param_name, expected_type, actual_value } => {
+            ExtractionError::ConversionFailed {
+                param_name,
+                expected_type,
+                actual_value,
+            } => {
                 write!(
                     f,
                     "Cannot convert '{}' to {} for parameter '{}'",
                     actual_value, expected_type, param_name
                 )
             }
-            ExtractionError::UnsupportedType { param_name, value_type } => {
+            ExtractionError::UnsupportedType {
+                param_name,
+                value_type,
+            } => {
                 write!(
                     f,
                     "Unsupported value type '{}' for parameter '{}'",
@@ -224,7 +243,10 @@ impl fmt::Display for ExtractionError {
             ExtractionError::InvalidResource { message } => {
                 write!(f, "Invalid resource: {}", message)
             }
-            ExtractionError::FhirPathError { expression, message } => {
+            ExtractionError::FhirPathError {
+                expression,
+                message,
+            } => {
                 write!(f, "FHIRPath error evaluating '{}': {}", expression, message)
             }
             ExtractionError::ConversionError { message } => {
@@ -281,9 +303,17 @@ impl fmt::Display for ReindexError {
                 write!(f, "Reindex job '{}' not found", job_id)
             }
             ReindexError::AlreadyRunning { existing_job_id } => {
-                write!(f, "Reindex already running with job ID '{}'", existing_job_id)
+                write!(
+                    f,
+                    "Reindex already running with job ID '{}'",
+                    existing_job_id
+                )
             }
-            ReindexError::ProcessingFailed { resource_type, resource_id, error } => {
+            ReindexError::ProcessingFailed {
+                resource_type,
+                resource_id,
+                error,
+            } => {
                 write!(
                     f,
                     "Failed to reindex {}/{}: {}",

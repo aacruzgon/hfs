@@ -711,12 +711,8 @@ impl ChainedSearchProvider for SqliteBackend {
         }
 
         // Create the chain query builder with registry access
-        let builder = ChainQueryBuilder::new(
-            tenant_id,
-            base_type,
-            self.get_search_registry(),
-        )
-        .with_param_offset(2); // After ?1 (tenant) and ?2 (resource_type)
+        let builder = ChainQueryBuilder::new(tenant_id, base_type, self.get_search_registry())
+            .with_param_offset(2); // After ?1 (tenant) and ?2 (resource_type)
 
         // Parse the chain
         let parsed = match builder.parse_chain(chain) {
@@ -762,7 +758,8 @@ impl ChainedSearchProvider for SqliteBackend {
             }
         }
 
-        let params_ref: Vec<&dyn rusqlite::ToSql> = bound_params.iter().map(|p| p.as_ref()).collect();
+        let params_ref: Vec<&dyn rusqlite::ToSql> =
+            bound_params.iter().map(|p| p.as_ref()).collect();
 
         let rows = stmt
             .query_map(params_ref.as_slice(), |row| row.get::<_, String>(0))
@@ -788,12 +785,8 @@ impl ChainedSearchProvider for SqliteBackend {
         let tenant_id = tenant.tenant_id().as_str();
 
         // Create the chain query builder with registry access
-        let builder = ChainQueryBuilder::new(
-            tenant_id,
-            base_type,
-            self.get_search_registry(),
-        )
-        .with_param_offset(2); // After ?1 (tenant) and ?2 (resource_type)
+        let builder = ChainQueryBuilder::new(tenant_id, base_type, self.get_search_registry())
+            .with_param_offset(2); // After ?1 (tenant) and ?2 (resource_type)
 
         // Build the SQL fragment for reverse chain
         let fragment = match builder.build_reverse_chain_sql(reverse_chain) {
@@ -831,7 +824,8 @@ impl ChainedSearchProvider for SqliteBackend {
             }
         }
 
-        let params_ref: Vec<&dyn rusqlite::ToSql> = bound_params.iter().map(|p| p.as_ref()).collect();
+        let params_ref: Vec<&dyn rusqlite::ToSql> =
+            bound_params.iter().map(|p| p.as_ref()).collect();
 
         let rows = stmt
             .query_map(params_ref.as_slice(), |row| row.get::<_, String>(0))
@@ -879,6 +873,7 @@ impl SqliteBackend {
     }
 
     /// Recursively collect reference strings from a JSON value.
+    #[allow(clippy::only_used_in_recursion)]
     fn collect_references_from_value(&self, value: &serde_json::Value, refs: &mut Vec<String>) {
         match value {
             serde_json::Value::Object(obj) => {
@@ -992,6 +987,7 @@ impl SqliteBackend {
     }
 
     /// Infer the target resource type for a reference parameter.
+    #[allow(dead_code)]
     fn infer_target_type(&self, _base_type: &str, reference_param: &str) -> String {
         // This is a simplified mapping - a real implementation would use
         // search parameter definitions from the FHIR specification
@@ -1014,6 +1010,7 @@ impl SqliteBackend {
     }
 
     /// Find resources matching a simple field value search using the search index.
+    #[allow(dead_code)]
     fn find_resources_by_value(
         &self,
         conn: &rusqlite::Connection,
@@ -1086,6 +1083,7 @@ impl SqliteBackend {
     }
 
     /// Get all resources of a type for a tenant.
+    #[allow(dead_code)]
     fn get_all_resources(
         &self,
         conn: &rusqlite::Connection,
@@ -1433,7 +1431,7 @@ mod tests {
         let tenant = create_test_tenant();
 
         // Create a patient
-        let patient = backend
+        let _patient = backend
             .create(
                 &tenant,
                 "Patient",
@@ -1927,7 +1925,11 @@ mod tests {
 
         // Create organization
         backend
-            .create(&tenant, "Organization", json!({"id": "org1", "name": "General Hospital"}))
+            .create(
+                &tenant,
+                "Organization",
+                json!({"id": "org1", "name": "General Hospital"}),
+            )
             .await
             .unwrap();
 
@@ -1976,7 +1978,12 @@ mod tests {
 
         // Find observations where patient's organization name contains "Hospital"
         let matching_ids = backend
-            .resolve_chain(&tenant, "Observation", "subject.organization.name", "Hospital")
+            .resolve_chain(
+                &tenant,
+                "Observation",
+                "subject.organization.name",
+                "Hospital",
+            )
             .await
             .unwrap();
 
@@ -1993,7 +2000,11 @@ mod tests {
 
         // Create patient
         backend
-            .create(&tenant, "Patient", json!({"id": "p1", "name": [{"family": "Smith"}]}))
+            .create(
+                &tenant,
+                "Patient",
+                json!({"id": "p1", "name": [{"family": "Smith"}]}),
+            )
             .await
             .unwrap();
 

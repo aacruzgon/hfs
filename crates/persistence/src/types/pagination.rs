@@ -151,18 +151,13 @@ pub enum CursorValue {
 }
 
 /// Direction of cursor pagination.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum CursorDirection {
     /// Fetching the next page (forward).
+    #[default]
     Next,
     /// Fetching the previous page (backward).
     Previous,
-}
-
-impl Default for CursorDirection {
-    fn default() -> Self {
-        CursorDirection::Next
-    }
 }
 
 impl PageCursor {

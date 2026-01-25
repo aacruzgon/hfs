@@ -15,21 +15,16 @@ use super::errors::RegistryError;
 use super::loader::SearchParameterLoader;
 
 /// Status of a SearchParameter.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum SearchParameterStatus {
     /// Active - can be used in searches.
+    #[default]
     Active,
     /// Draft - informational, not yet active.
     Draft,
     /// Retired - disabled, not usable.
     Retired,
-}
-
-impl Default for SearchParameterStatus {
-    fn default() -> Self {
-        SearchParameterStatus::Active
-    }
 }
 
 impl SearchParameterStatus {
@@ -59,21 +54,16 @@ impl SearchParameterStatus {
 }
 
 /// Source of a SearchParameter definition.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum SearchParameterSource {
     /// Built-in standard parameters (bundled at compile time).
+    #[default]
     Embedded,
     /// POSTed SearchParameter resources (persisted in database).
     Stored,
     /// Runtime configuration file.
     Config,
-}
-
-impl Default for SearchParameterSource {
-    fn default() -> Self {
-        SearchParameterSource::Embedded
-    }
 }
 
 /// Component of a composite search parameter.
@@ -199,12 +189,18 @@ impl SearchParameterDefinition {
     /// Returns whether this is a composite parameter.
     pub fn is_composite(&self) -> bool {
         self.param_type == SearchParamType::Composite
-            && self.component.as_ref().map(|c| !c.is_empty()).unwrap_or(false)
+            && self
+                .component
+                .as_ref()
+                .map(|c| !c.is_empty())
+                .unwrap_or(false)
     }
 
     /// Returns whether this parameter applies to the given resource type.
     pub fn applies_to(&self, resource_type: &str) -> bool {
-        self.base.iter().any(|b| b == resource_type || b == "Resource" || b == "DomainResource")
+        self.base
+            .iter()
+            .any(|b| b == resource_type || b == "Resource" || b == "DomainResource")
     }
 }
 
@@ -258,7 +254,10 @@ impl SearchParameterRegistry {
     }
 
     /// Loads all parameters from a loader.
-    pub async fn load_all(&mut self, loader: &SearchParameterLoader) -> Result<usize, super::errors::LoaderError> {
+    pub async fn load_all(
+        &mut self,
+        loader: &SearchParameterLoader,
+    ) -> Result<usize, super::errors::LoaderError> {
         let params = loader.load_embedded()?;
         let count = params.len();
 
@@ -296,7 +295,11 @@ impl SearchParameterRegistry {
     }
 
     /// Gets a specific parameter by resource type and code.
-    pub fn get_param(&self, resource_type: &str, code: &str) -> Option<Arc<SearchParameterDefinition>> {
+    pub fn get_param(
+        &self,
+        resource_type: &str,
+        code: &str,
+    ) -> Option<Arc<SearchParameterDefinition>> {
         self.params_by_type
             .get(resource_type)
             .and_then(|params| params.get(code))
@@ -326,7 +329,8 @@ impl SearchParameterRegistry {
         let param = Arc::new(param);
 
         // Index by URL
-        self.params_by_url.insert(param.url.clone(), Arc::clone(&param));
+        self.params_by_url
+            .insert(param.url.clone(), Arc::clone(&param));
 
         // Index by (resource_type, code) for each base type
         for base in &param.base {
@@ -338,7 +342,11 @@ impl SearchParameterRegistry {
     }
 
     /// Updates a parameter's status.
-    pub fn update_status(&mut self, url: &str, status: SearchParameterStatus) -> Result<(), RegistryError> {
+    pub fn update_status(
+        &mut self,
+        url: &str,
+        status: SearchParameterStatus,
+    ) -> Result<(), RegistryError> {
         // We need to create a new Arc with the updated status
         let old_param = self
             .params_by_url
@@ -353,7 +361,8 @@ impl SearchParameterRegistry {
         let new_param = Arc::new(new_def);
 
         // Update URL index
-        self.params_by_url.insert(url.to_string(), Arc::clone(&new_param));
+        self.params_by_url
+            .insert(url.to_string(), Arc::clone(&new_param));
 
         // Update type indexes
         for base in &new_param.base {
@@ -362,7 +371,9 @@ impl SearchParameterRegistry {
             }
         }
 
-        let _ = self.update_tx.send(RegistryUpdate::StatusChanged(url.to_string(), status));
+        let _ = self
+            .update_tx
+            .send(RegistryUpdate::StatusChanged(url.to_string(), status));
 
         Ok(())
     }
@@ -386,7 +397,9 @@ impl SearchParameterRegistry {
             }
         }
 
-        let _ = self.update_tx.send(RegistryUpdate::Removed(url.to_string()));
+        let _ = self
+            .update_tx
+            .send(RegistryUpdate::Removed(url.to_string()));
 
         Ok(())
     }
@@ -417,7 +430,10 @@ impl std::fmt::Debug for SearchParameterRegistry {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SearchParameterRegistry")
             .field("params_count", &self.params_by_url.len())
-            .field("resource_types", &self.params_by_type.keys().collect::<Vec<_>>())
+            .field(
+                "resource_types",
+                &self.params_by_type.keys().collect::<Vec<_>>(),
+            )
             .finish()
     }
 }

@@ -391,13 +391,13 @@ async fn test_count_by_tenant() {
     let tenant_b = create_tenant("tenant-b");
 
     // Create 3 in tenant A
-    for i in 0..3 {
+    for _ in 0..3 {
         let patient = json!({"resourceType": "Patient"});
         backend.create(&tenant_a, "Patient", patient).await.unwrap();
     }
 
     // Create 2 in tenant B
-    for i in 0..2 {
+    for _ in 0..2 {
         let patient = json!({"resourceType": "Patient"});
         backend.create(&tenant_b, "Patient", patient).await.unwrap();
     }
@@ -418,7 +418,6 @@ async fn test_read_batch() {
     // Create resources
     let ids: Vec<String> = (0..3)
         .map(|i| {
-            let patient = json!({"resourceType": "Patient", "id": format!("batch-{}", i)});
             format!("batch-{}", i)
         })
         .collect();
@@ -1062,7 +1061,10 @@ async fn test_search_index_on_update() {
         "name": [{"family": "UpdatedFamily", "given": ["Updated"]}]
     });
 
-    let updated = backend.update(&tenant, &created, updated_patient).await.unwrap();
+    let updated = backend
+        .update(&tenant, &created, updated_patient)
+        .await
+        .unwrap();
 
     // Verify the update worked
     assert_eq!(updated.id(), "search-update-1");
@@ -1102,11 +1104,18 @@ async fn test_search_index_on_delete() {
     assert_eq!(result_before.resources.items.len(), 1);
 
     // Delete the resource
-    backend.delete(&tenant, "Patient", "search-delete-1").await.unwrap();
+    backend
+        .delete(&tenant, "Patient", "search-delete-1")
+        .await
+        .unwrap();
 
     // Verify patient is no longer searchable
     let result_after = backend.search(&tenant, &query).await.unwrap();
-    assert_eq!(result_after.resources.items.len(), 0, "Deleted resource should not be searchable");
+    assert_eq!(
+        result_after.resources.items.len(),
+        0,
+        "Deleted resource should not be searchable"
+    );
 }
 
 #[tokio::test]
@@ -1115,23 +1124,44 @@ async fn test_search_index_string_name() {
     let tenant = create_tenant("test-tenant");
 
     // Create patients with different names - verifies indexing works for multiple resources
-    let p1 = backend.create(&tenant, "Patient", json!({
-        "resourceType": "Patient",
-        "id": "name-1",
-        "name": [{"family": "Smith", "given": ["John"]}]
-    })).await.unwrap();
+    let p1 = backend
+        .create(
+            &tenant,
+            "Patient",
+            json!({
+                "resourceType": "Patient",
+                "id": "name-1",
+                "name": [{"family": "Smith", "given": ["John"]}]
+            }),
+        )
+        .await
+        .unwrap();
 
-    let p2 = backend.create(&tenant, "Patient", json!({
-        "resourceType": "Patient",
-        "id": "name-2",
-        "name": [{"family": "Smithson", "given": ["Jane"]}]
-    })).await.unwrap();
+    let p2 = backend
+        .create(
+            &tenant,
+            "Patient",
+            json!({
+                "resourceType": "Patient",
+                "id": "name-2",
+                "name": [{"family": "Smithson", "given": ["Jane"]}]
+            }),
+        )
+        .await
+        .unwrap();
 
-    let p3 = backend.create(&tenant, "Patient", json!({
-        "resourceType": "Patient",
-        "id": "name-3",
-        "name": [{"family": "Johnson", "given": ["Bob"]}]
-    })).await.unwrap();
+    let p3 = backend
+        .create(
+            &tenant,
+            "Patient",
+            json!({
+                "resourceType": "Patient",
+                "id": "name-3",
+                "name": [{"family": "Johnson", "given": ["Bob"]}]
+            }),
+        )
+        .await
+        .unwrap();
 
     // Verify all patients were created with their correct IDs
     assert_eq!(p1.id(), "name-1");
@@ -1149,7 +1179,11 @@ async fn test_search_index_string_name() {
     });
 
     let result = backend.search(&tenant, &query).await.unwrap();
-    assert_eq!(result.resources.items.len(), 2, "Should find 2 patients with name starting with Smith");
+    assert_eq!(
+        result.resources.items.len(),
+        2,
+        "Should find 2 patients with name starting with Smith"
+    );
 
     // Verify the correct patients were returned
     let ids: Vec<&str> = result.resources.items.iter().map(|r| r.id()).collect();
@@ -1165,11 +1199,18 @@ async fn test_search_index_tenant_isolation() {
     let tenant_b = create_tenant("tenant-b");
 
     // Create patient in tenant A
-    backend.create(&tenant_a, "Patient", json!({
-        "resourceType": "Patient",
-        "id": "tenant-iso-1",
-        "identifier": [{"system": "http://example.org", "value": "UNIQUE123"}]
-    })).await.unwrap();
+    backend
+        .create(
+            &tenant_a,
+            "Patient",
+            json!({
+                "resourceType": "Patient",
+                "id": "tenant-iso-1",
+                "identifier": [{"system": "http://example.org", "value": "UNIQUE123"}]
+            }),
+        )
+        .await
+        .unwrap();
 
     // Search in tenant A - should find the patient
     let query = SearchQuery::new("Patient").with_parameter(SearchParameter {
@@ -1186,7 +1227,11 @@ async fn test_search_index_tenant_isolation() {
 
     // Search in tenant B - should NOT find the patient
     let result_b = backend.search(&tenant_b, &query).await.unwrap();
-    assert_eq!(result_b.resources.items.len(), 0, "Tenant B should not see tenant A's resources");
+    assert_eq!(
+        result_b.resources.items.len(),
+        0,
+        "Tenant B should not see tenant A's resources"
+    );
 }
 
 #[tokio::test]
@@ -1195,23 +1240,44 @@ async fn test_search_token_with_system() {
     let tenant = create_tenant("test-tenant");
 
     // Create patients with identifiers using different systems
-    backend.create(&tenant, "Patient", json!({
-        "resourceType": "Patient",
-        "id": "token-sys-1",
-        "identifier": [{"system": "http://hospital.org/mrn", "value": "12345"}]
-    })).await.unwrap();
+    backend
+        .create(
+            &tenant,
+            "Patient",
+            json!({
+                "resourceType": "Patient",
+                "id": "token-sys-1",
+                "identifier": [{"system": "http://hospital.org/mrn", "value": "12345"}]
+            }),
+        )
+        .await
+        .unwrap();
 
-    backend.create(&tenant, "Patient", json!({
-        "resourceType": "Patient",
-        "id": "token-sys-2",
-        "identifier": [{"system": "http://other.org/id", "value": "12345"}]
-    })).await.unwrap();
+    backend
+        .create(
+            &tenant,
+            "Patient",
+            json!({
+                "resourceType": "Patient",
+                "id": "token-sys-2",
+                "identifier": [{"system": "http://other.org/id", "value": "12345"}]
+            }),
+        )
+        .await
+        .unwrap();
 
-    backend.create(&tenant, "Patient", json!({
-        "resourceType": "Patient",
-        "id": "token-sys-3",
-        "identifier": [{"system": "http://hospital.org/mrn", "value": "67890"}]
-    })).await.unwrap();
+    backend
+        .create(
+            &tenant,
+            "Patient",
+            json!({
+                "resourceType": "Patient",
+                "id": "token-sys-3",
+                "identifier": [{"system": "http://hospital.org/mrn", "value": "67890"}]
+            }),
+        )
+        .await
+        .unwrap();
 
     // Search by code only (should find both with value 12345)
     let query = SearchQuery::new("Patient").with_parameter(SearchParameter {
@@ -1224,7 +1290,11 @@ async fn test_search_token_with_system() {
     });
 
     let result = backend.search(&tenant, &query).await.unwrap();
-    assert_eq!(result.resources.items.len(), 2, "Should find 2 patients with code 12345");
+    assert_eq!(
+        result.resources.items.len(),
+        2,
+        "Should find 2 patients with code 12345"
+    );
 
     // Search by system|code (should find only the hospital patient)
     let query = SearchQuery::new("Patient").with_parameter(SearchParameter {
@@ -1237,7 +1307,11 @@ async fn test_search_token_with_system() {
     });
 
     let result = backend.search(&tenant, &query).await.unwrap();
-    assert_eq!(result.resources.items.len(), 1, "Should find 1 patient with system|code match");
+    assert_eq!(
+        result.resources.items.len(),
+        1,
+        "Should find 1 patient with system|code match"
+    );
     assert_eq!(result.resources.items[0].id(), "token-sys-1");
 }
 
@@ -1247,23 +1321,44 @@ async fn test_search_date_birthdate() {
     let tenant = create_tenant("test-tenant");
 
     // Create patients with different birthdates
-    backend.create(&tenant, "Patient", json!({
-        "resourceType": "Patient",
-        "id": "date-1",
-        "birthDate": "1990-01-15"
-    })).await.unwrap();
+    backend
+        .create(
+            &tenant,
+            "Patient",
+            json!({
+                "resourceType": "Patient",
+                "id": "date-1",
+                "birthDate": "1990-01-15"
+            }),
+        )
+        .await
+        .unwrap();
 
-    backend.create(&tenant, "Patient", json!({
-        "resourceType": "Patient",
-        "id": "date-2",
-        "birthDate": "1985-06-20"
-    })).await.unwrap();
+    backend
+        .create(
+            &tenant,
+            "Patient",
+            json!({
+                "resourceType": "Patient",
+                "id": "date-2",
+                "birthDate": "1985-06-20"
+            }),
+        )
+        .await
+        .unwrap();
 
-    backend.create(&tenant, "Patient", json!({
-        "resourceType": "Patient",
-        "id": "date-3",
-        "birthDate": "2000-12-01"
-    })).await.unwrap();
+    backend
+        .create(
+            &tenant,
+            "Patient",
+            json!({
+                "resourceType": "Patient",
+                "id": "date-3",
+                "birthDate": "2000-12-01"
+            }),
+        )
+        .await
+        .unwrap();
 
     // Search for patients born in 1990
     // Note: The storage layer indexes birthDate as "birthdate" (lowercase)
@@ -1277,7 +1372,11 @@ async fn test_search_date_birthdate() {
     });
 
     let result = backend.search(&tenant, &query).await.unwrap();
-    assert_eq!(result.resources.items.len(), 1, "Should find 1 patient born on 1990-01-15");
+    assert_eq!(
+        result.resources.items.len(),
+        1,
+        "Should find 1 patient born on 1990-01-15"
+    );
     assert_eq!(result.resources.items[0].id(), "date-1");
 }
 
@@ -1287,37 +1386,72 @@ async fn test_search_reference_subject() {
     let tenant = create_tenant("test-tenant");
 
     // Create patients
-    backend.create(&tenant, "Patient", json!({
-        "resourceType": "Patient",
-        "id": "patient-1"
-    })).await.unwrap();
+    backend
+        .create(
+            &tenant,
+            "Patient",
+            json!({
+                "resourceType": "Patient",
+                "id": "patient-1"
+            }),
+        )
+        .await
+        .unwrap();
 
-    backend.create(&tenant, "Patient", json!({
-        "resourceType": "Patient",
-        "id": "patient-2"
-    })).await.unwrap();
+    backend
+        .create(
+            &tenant,
+            "Patient",
+            json!({
+                "resourceType": "Patient",
+                "id": "patient-2"
+            }),
+        )
+        .await
+        .unwrap();
 
     // Create observations referencing patients
-    backend.create(&tenant, "Observation", json!({
-        "resourceType": "Observation",
-        "id": "obs-1",
-        "subject": {"reference": "Patient/patient-1"},
-        "code": {"coding": [{"code": "8867-4"}]}
-    })).await.unwrap();
+    backend
+        .create(
+            &tenant,
+            "Observation",
+            json!({
+                "resourceType": "Observation",
+                "id": "obs-1",
+                "subject": {"reference": "Patient/patient-1"},
+                "code": {"coding": [{"code": "8867-4"}]}
+            }),
+        )
+        .await
+        .unwrap();
 
-    backend.create(&tenant, "Observation", json!({
-        "resourceType": "Observation",
-        "id": "obs-2",
-        "subject": {"reference": "Patient/patient-1"},
-        "code": {"coding": [{"code": "9279-1"}]}
-    })).await.unwrap();
+    backend
+        .create(
+            &tenant,
+            "Observation",
+            json!({
+                "resourceType": "Observation",
+                "id": "obs-2",
+                "subject": {"reference": "Patient/patient-1"},
+                "code": {"coding": [{"code": "9279-1"}]}
+            }),
+        )
+        .await
+        .unwrap();
 
-    backend.create(&tenant, "Observation", json!({
-        "resourceType": "Observation",
-        "id": "obs-3",
-        "subject": {"reference": "Patient/patient-2"},
-        "code": {"coding": [{"code": "8867-4"}]}
-    })).await.unwrap();
+    backend
+        .create(
+            &tenant,
+            "Observation",
+            json!({
+                "resourceType": "Observation",
+                "id": "obs-3",
+                "subject": {"reference": "Patient/patient-2"},
+                "code": {"coding": [{"code": "8867-4"}]}
+            }),
+        )
+        .await
+        .unwrap();
 
     // Search for observations for patient-1
     let query = SearchQuery::new("Observation").with_parameter(SearchParameter {
@@ -1330,7 +1464,11 @@ async fn test_search_reference_subject() {
     });
 
     let result = backend.search(&tenant, &query).await.unwrap();
-    assert_eq!(result.resources.items.len(), 2, "Should find 2 observations for patient-1");
+    assert_eq!(
+        result.resources.items.len(),
+        2,
+        "Should find 2 observations for patient-1"
+    );
 
     let ids: Vec<&str> = result.resources.items.iter().map(|r| r.id()).collect();
     assert!(ids.contains(&"obs-1"));
@@ -1343,26 +1481,47 @@ async fn test_search_multiple_parameters() {
     let tenant = create_tenant("test-tenant");
 
     // Create patients with different combinations of identifiers and status
-    backend.create(&tenant, "Patient", json!({
-        "resourceType": "Patient",
-        "id": "multi-1",
-        "identifier": [{"system": "http://example.org", "value": "ABC123"}],
-        "active": true
-    })).await.unwrap();
+    backend
+        .create(
+            &tenant,
+            "Patient",
+            json!({
+                "resourceType": "Patient",
+                "id": "multi-1",
+                "identifier": [{"system": "http://example.org", "value": "ABC123"}],
+                "active": true
+            }),
+        )
+        .await
+        .unwrap();
 
-    backend.create(&tenant, "Patient", json!({
-        "resourceType": "Patient",
-        "id": "multi-2",
-        "identifier": [{"system": "http://example.org", "value": "ABC123"}],
-        "active": false
-    })).await.unwrap();
+    backend
+        .create(
+            &tenant,
+            "Patient",
+            json!({
+                "resourceType": "Patient",
+                "id": "multi-2",
+                "identifier": [{"system": "http://example.org", "value": "ABC123"}],
+                "active": false
+            }),
+        )
+        .await
+        .unwrap();
 
-    backend.create(&tenant, "Patient", json!({
-        "resourceType": "Patient",
-        "id": "multi-3",
-        "identifier": [{"system": "http://example.org", "value": "XYZ789"}],
-        "active": true
-    })).await.unwrap();
+    backend
+        .create(
+            &tenant,
+            "Patient",
+            json!({
+                "resourceType": "Patient",
+                "id": "multi-3",
+                "identifier": [{"system": "http://example.org", "value": "XYZ789"}],
+                "active": true
+            }),
+        )
+        .await
+        .unwrap();
 
     // Search with both identifier AND status (both must match)
     let mut query = SearchQuery::new("Patient");
@@ -1387,17 +1546,20 @@ async fn test_search_multiple_parameters() {
     // Both have identifier ABC123, but only multi-1 has active=true indexed as status
     // Note: The storage layer may not index 'active' as 'status', so this test
     // verifies AND logic works even if one param doesn't match
-    assert!(result.resources.items.len() <= 2, "Multiple params should use AND logic");
+    assert!(
+        result.resources.items.len() <= 2,
+        "Multiple params should use AND logic"
+    );
 }
 
 // ============================================================================
 // Reindex Tests
 // ============================================================================
 
-use std::sync::Arc;
 use helios_persistence::search::{
-    ReindexableStorage, ReindexOperation, ReindexRequest, ReindexStatus,
+    ReindexOperation, ReindexRequest, ReindexStatus, ReindexableStorage,
 };
+use std::sync::Arc;
 
 #[tokio::test]
 async fn test_reindex_list_resource_types() {
@@ -1405,21 +1567,42 @@ async fn test_reindex_list_resource_types() {
     let tenant = create_tenant("test-tenant");
 
     // Create resources of different types
-    backend.create(&tenant, "Patient", json!({
-        "resourceType": "Patient",
-        "id": "p1"
-    })).await.unwrap();
+    backend
+        .create(
+            &tenant,
+            "Patient",
+            json!({
+                "resourceType": "Patient",
+                "id": "p1"
+            }),
+        )
+        .await
+        .unwrap();
 
-    backend.create(&tenant, "Observation", json!({
-        "resourceType": "Observation",
-        "id": "o1",
-        "status": "final"
-    })).await.unwrap();
+    backend
+        .create(
+            &tenant,
+            "Observation",
+            json!({
+                "resourceType": "Observation",
+                "id": "o1",
+                "status": "final"
+            }),
+        )
+        .await
+        .unwrap();
 
-    backend.create(&tenant, "Patient", json!({
-        "resourceType": "Patient",
-        "id": "p2"
-    })).await.unwrap();
+    backend
+        .create(
+            &tenant,
+            "Patient",
+            json!({
+                "resourceType": "Patient",
+                "id": "p2"
+            }),
+        )
+        .await
+        .unwrap();
 
     // List resource types
     let types = backend.list_resource_types(&tenant).await.unwrap();
@@ -1435,10 +1618,17 @@ async fn test_reindex_count_resources() {
 
     // Create some patients
     for i in 1..=5 {
-        backend.create(&tenant, "Patient", json!({
-            "resourceType": "Patient",
-            "id": format!("patient-{}", i)
-        })).await.unwrap();
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({
+                    "resourceType": "Patient",
+                    "id": format!("patient-{}", i)
+                }),
+            )
+            .await
+            .unwrap();
     }
 
     // Count patients
@@ -1446,7 +1636,10 @@ async fn test_reindex_count_resources() {
     assert_eq!(count, 5);
 
     // Count observations (should be 0)
-    let count = backend.count_resources(&tenant, "Observation").await.unwrap();
+    let count = backend
+        .count_resources(&tenant, "Observation")
+        .await
+        .unwrap();
     assert_eq!(count, 0);
 }
 
@@ -1457,19 +1650,32 @@ async fn test_reindex_fetch_resources_page() {
 
     // Create patients
     for i in 1..=10 {
-        backend.create(&tenant, "Patient", json!({
-            "resourceType": "Patient",
-            "id": format!("patient-{:02}", i)
-        })).await.unwrap();
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({
+                    "resourceType": "Patient",
+                    "id": format!("patient-{:02}", i)
+                }),
+            )
+            .await
+            .unwrap();
     }
 
     // Fetch first page (5 resources)
-    let page1 = backend.fetch_resources_page(&tenant, "Patient", None, 5).await.unwrap();
+    let page1 = backend
+        .fetch_resources_page(&tenant, "Patient", None, 5)
+        .await
+        .unwrap();
     assert_eq!(page1.resources.len(), 5);
     assert!(page1.next_cursor.is_some());
 
     // Fetch second page using cursor
-    let page2 = backend.fetch_resources_page(&tenant, "Patient", page1.next_cursor.as_deref(), 5).await.unwrap();
+    let page2 = backend
+        .fetch_resources_page(&tenant, "Patient", page1.next_cursor.as_deref(), 5)
+        .await
+        .unwrap();
     assert_eq!(page2.resources.len(), 5);
 
     // Ensure no duplicates between pages
@@ -1480,7 +1686,10 @@ async fn test_reindex_fetch_resources_page() {
     }
 
     // Fetch third page (should be empty or have no more cursor)
-    let page3 = backend.fetch_resources_page(&tenant, "Patient", page2.next_cursor.as_deref(), 5).await.unwrap();
+    let page3 = backend
+        .fetch_resources_page(&tenant, "Patient", page2.next_cursor.as_deref(), 5)
+        .await
+        .unwrap();
     assert!(page3.resources.is_empty() || page3.next_cursor.is_none());
 }
 
@@ -1490,18 +1699,32 @@ async fn test_reindex_clear_search_index() {
     let tenant = create_tenant("test-tenant");
 
     // Create some resources (which will be indexed)
-    backend.create(&tenant, "Patient", json!({
-        "resourceType": "Patient",
-        "id": "p1",
-        "name": [{"family": "Smith"}],
-        "identifier": [{"system": "http://example.org", "value": "12345"}]
-    })).await.unwrap();
+    backend
+        .create(
+            &tenant,
+            "Patient",
+            json!({
+                "resourceType": "Patient",
+                "id": "p1",
+                "name": [{"family": "Smith"}],
+                "identifier": [{"system": "http://example.org", "value": "12345"}]
+            }),
+        )
+        .await
+        .unwrap();
 
-    backend.create(&tenant, "Observation", json!({
-        "resourceType": "Observation",
-        "id": "o1",
-        "code": {"coding": [{"system": "http://loinc.org", "code": "1234-5"}]}
-    })).await.unwrap();
+    backend
+        .create(
+            &tenant,
+            "Observation",
+            json!({
+                "resourceType": "Observation",
+                "id": "o1",
+                "code": {"coding": [{"system": "http://loinc.org", "code": "1234-5"}]}
+            }),
+        )
+        .await
+        .unwrap();
 
     // Verify search works (search index has entries)
     let query = SearchQuery::new("Patient").with_parameter(SearchParameter {
@@ -1513,7 +1736,11 @@ async fn test_reindex_clear_search_index() {
         components: vec![],
     });
     let result = backend.search(&tenant, &query).await.unwrap();
-    assert_eq!(result.resources.items.len(), 1, "Should find patient before clearing index");
+    assert_eq!(
+        result.resources.items.len(),
+        1,
+        "Should find patient before clearing index"
+    );
 
     // Clear the search index
     let deleted = backend.clear_search_index(&tenant).await.unwrap();
@@ -1521,7 +1748,11 @@ async fn test_reindex_clear_search_index() {
 
     // Verify search no longer finds the patient
     let result = backend.search(&tenant, &query).await.unwrap();
-    assert_eq!(result.resources.items.len(), 0, "Should not find patient after clearing index");
+    assert_eq!(
+        result.resources.items.len(),
+        0,
+        "Should not find patient after clearing index"
+    );
 }
 
 #[tokio::test]
@@ -1530,19 +1761,33 @@ async fn test_reindex_operation_full() {
     let tenant = create_tenant("test-tenant");
 
     // Create some resources
-    backend.create(&tenant, "Patient", json!({
-        "resourceType": "Patient",
-        "id": "p1",
-        "name": [{"family": "Smith"}],
-        "identifier": [{"system": "http://example.org", "value": "A001"}]
-    })).await.unwrap();
+    backend
+        .create(
+            &tenant,
+            "Patient",
+            json!({
+                "resourceType": "Patient",
+                "id": "p1",
+                "name": [{"family": "Smith"}],
+                "identifier": [{"system": "http://example.org", "value": "A001"}]
+            }),
+        )
+        .await
+        .unwrap();
 
-    backend.create(&tenant, "Patient", json!({
-        "resourceType": "Patient",
-        "id": "p2",
-        "name": [{"family": "Jones"}],
-        "identifier": [{"system": "http://example.org", "value": "A002"}]
-    })).await.unwrap();
+    backend
+        .create(
+            &tenant,
+            "Patient",
+            json!({
+                "resourceType": "Patient",
+                "id": "p2",
+                "name": [{"family": "Jones"}],
+                "identifier": [{"system": "http://example.org", "value": "A002"}]
+            }),
+        )
+        .await
+        .unwrap();
 
     // Clear the search index to simulate needing a reindex
     backend.clear_search_index(&tenant).await.unwrap();
@@ -1557,16 +1802,20 @@ async fn test_reindex_operation_full() {
         components: vec![],
     });
     let result = backend.search(&tenant, &query).await.unwrap();
-    assert_eq!(result.resources.items.len(), 0, "Should not find patient before reindex");
-
-    // Create reindex operation
-    let reindex = ReindexOperation::new(
-        backend.clone(),
-        backend.search_extractor().clone(),
+    assert_eq!(
+        result.resources.items.len(),
+        0,
+        "Should not find patient before reindex"
     );
 
+    // Create reindex operation
+    let reindex = ReindexOperation::new(backend.clone(), backend.search_extractor().clone());
+
     // Start reindex
-    let job_id = reindex.start(tenant.clone(), ReindexRequest::for_types(vec!["Patient"])).await.unwrap();
+    let job_id = reindex
+        .start(tenant.clone(), ReindexRequest::for_types(vec!["Patient"]))
+        .await
+        .unwrap();
 
     // Wait for completion (with timeout)
     let mut attempts = 0;
@@ -1575,8 +1824,14 @@ async fn test_reindex_operation_full() {
         let progress = reindex.get_progress(&job_id).await.unwrap();
 
         if progress.status == ReindexStatus::Completed {
-            assert_eq!(progress.processed_resources, 2, "Should have processed 2 patients");
-            assert!(progress.entries_created > 0, "Should have created index entries");
+            assert_eq!(
+                progress.processed_resources, 2,
+                "Should have processed 2 patients"
+            );
+            assert!(
+                progress.entries_created > 0,
+                "Should have created index entries"
+            );
             break;
         }
 
@@ -1592,7 +1847,11 @@ async fn test_reindex_operation_full() {
 
     // Verify search works again
     let result = backend.search(&tenant, &query).await.unwrap();
-    assert_eq!(result.resources.items.len(), 1, "Should find patient after reindex");
+    assert_eq!(
+        result.resources.items.len(),
+        1,
+        "Should find patient after reindex"
+    );
     assert_eq!(result.resources.items[0].id(), "p1");
 }
 
@@ -1603,21 +1862,25 @@ async fn test_reindex_operation_cancel() {
 
     // Create many resources to make reindex take longer
     for i in 1..=100 {
-        backend.create(&tenant, "Patient", json!({
-            "resourceType": "Patient",
-            "id": format!("patient-{}", i),
-            "name": [{"family": format!("Patient{}", i)}]
-        })).await.unwrap();
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({
+                    "resourceType": "Patient",
+                    "id": format!("patient-{}", i),
+                    "name": [{"family": format!("Patient{}", i)}]
+                }),
+            )
+            .await
+            .unwrap();
     }
 
     // Clear the search index
     backend.clear_search_index(&tenant).await.unwrap();
 
     // Create reindex operation with small batch size to make it slower
-    let reindex = ReindexOperation::new(
-        backend.clone(),
-        backend.search_extractor().clone(),
-    );
+    let reindex = ReindexOperation::new(backend.clone(), backend.search_extractor().clone());
 
     // Start reindex
     let request = ReindexRequest::all().with_batch_size(5);
@@ -1642,7 +1905,7 @@ async fn test_reindex_operation_cancel() {
 // ============================================================================
 
 use helios_persistence::core::{
-    ConditionalStorage, ConditionalCreateResult, ConditionalUpdateResult, ConditionalDeleteResult,
+    ConditionalCreateResult, ConditionalDeleteResult, ConditionalStorage, ConditionalUpdateResult,
 };
 
 #[tokio::test]
@@ -1658,12 +1921,15 @@ async fn test_conditional_create_with_identifier() {
     });
 
     // First conditional create - should create since no match
-    let result = backend.conditional_create(
-        &tenant,
-        "Patient",
-        patient.clone(),
-        "identifier=http://hospital.org/mrn|MRN-12345",
-    ).await.unwrap();
+    let result = backend
+        .conditional_create(
+            &tenant,
+            "Patient",
+            patient.clone(),
+            "identifier=http://hospital.org/mrn|MRN-12345",
+        )
+        .await
+        .unwrap();
 
     assert!(
         matches!(result, ConditionalCreateResult::Created(_)),
@@ -1684,12 +1950,15 @@ async fn test_conditional_create_with_identifier() {
         "name": [{"family": "Duplicate"}]
     });
 
-    let result2 = backend.conditional_create(
-        &tenant,
-        "Patient",
-        patient2,
-        "identifier=http://hospital.org/mrn|MRN-12345",
-    ).await.unwrap();
+    let result2 = backend
+        .conditional_create(
+            &tenant,
+            "Patient",
+            patient2,
+            "identifier=http://hospital.org/mrn|MRN-12345",
+        )
+        .await
+        .unwrap();
 
     assert!(
         matches!(result2, ConditionalCreateResult::Exists(_)),
@@ -1713,7 +1982,10 @@ async fn test_conditional_create_with_id() {
         "id": "test-patient-cond",
         "name": [{"family": "TestPatient"}]
     });
-    backend.create(&tenant, "Patient", patient.clone()).await.unwrap();
+    backend
+        .create(&tenant, "Patient", patient.clone())
+        .await
+        .unwrap();
 
     // Conditional create with _id search - should find existing
     let patient2 = json!({
@@ -1721,12 +1993,10 @@ async fn test_conditional_create_with_id() {
         "name": [{"family": "Duplicate"}]
     });
 
-    let result = backend.conditional_create(
-        &tenant,
-        "Patient",
-        patient2,
-        "_id=test-patient-cond",
-    ).await.unwrap();
+    let result = backend
+        .conditional_create(&tenant, "Patient", patient2, "_id=test-patient-cond")
+        .await
+        .unwrap();
 
     assert!(
         matches!(result, ConditionalCreateResult::Exists(_)),
@@ -1758,13 +2028,16 @@ async fn test_conditional_update_with_identifier() {
         "name": [{"family": "Updated"}]
     });
 
-    let result = backend.conditional_update(
-        &tenant,
-        "Patient",
-        updated_patient,
-        "identifier=http://hospital.org/mrn|MRN-UPDATE-1",
-        false,
-    ).await.unwrap();
+    let result = backend
+        .conditional_update(
+            &tenant,
+            "Patient",
+            updated_patient,
+            "identifier=http://hospital.org/mrn|MRN-UPDATE-1",
+            false,
+        )
+        .await
+        .unwrap();
 
     assert!(
         matches!(result, ConditionalUpdateResult::Updated(_)),
@@ -1791,13 +2064,16 @@ async fn test_conditional_update_with_upsert() {
         "name": [{"family": "NewPatient"}]
     });
 
-    let result = backend.conditional_update(
-        &tenant,
-        "Patient",
-        patient,
-        "identifier=http://hospital.org/mrn|MRN-UPSERT-1",
-        true, // upsert=true
-    ).await.unwrap();
+    let result = backend
+        .conditional_update(
+            &tenant,
+            "Patient",
+            patient,
+            "identifier=http://hospital.org/mrn|MRN-UPSERT-1",
+            true, // upsert=true
+        )
+        .await
+        .unwrap();
 
     assert!(
         matches!(result, ConditionalUpdateResult::Created(_)),
@@ -1819,11 +2095,14 @@ async fn test_conditional_delete_with_identifier() {
     backend.create(&tenant, "Patient", patient).await.unwrap();
 
     // Conditional delete - should find and delete
-    let result = backend.conditional_delete(
-        &tenant,
-        "Patient",
-        "identifier=http://hospital.org/mrn|MRN-DELETE-1",
-    ).await.unwrap();
+    let result = backend
+        .conditional_delete(
+            &tenant,
+            "Patient",
+            "identifier=http://hospital.org/mrn|MRN-DELETE-1",
+        )
+        .await
+        .unwrap();
 
     assert!(
         matches!(result, ConditionalDeleteResult::Deleted),
@@ -1841,7 +2120,10 @@ async fn test_conditional_delete_with_identifier() {
     });
 
     let search_result = backend.search(&tenant, &query).await.unwrap();
-    assert!(search_result.resources.items.is_empty(), "Resource should be deleted");
+    assert!(
+        search_result.resources.items.is_empty(),
+        "Resource should be deleted"
+    );
 }
 
 #[tokio::test]
@@ -1865,12 +2147,15 @@ async fn test_conditional_operations_tenant_isolation() {
         "name": [{"family": "TenantB"}]
     });
 
-    let result = backend.conditional_create(
-        &tenant_b,
-        "Patient",
-        patient_b,
-        "identifier=http://hospital.org/mrn|MRN-SHARED",
-    ).await.unwrap();
+    let result = backend
+        .conditional_create(
+            &tenant_b,
+            "Patient",
+            patient_b,
+            "identifier=http://hospital.org/mrn|MRN-SHARED",
+        )
+        .await
+        .unwrap();
 
     assert!(
         matches!(result, ConditionalCreateResult::Created(_)),
@@ -1906,12 +2191,10 @@ async fn test_conditional_create_multiple_matches() {
         "name": [{"family": "Patient3"}]
     });
 
-    let result = backend.conditional_create(
-        &tenant,
-        "Patient",
-        patient3,
-        "identifier=SHARED-VALUE",
-    ).await.unwrap();
+    let result = backend
+        .conditional_create(&tenant, "Patient", patient3, "identifier=SHARED-VALUE")
+        .await
+        .unwrap();
 
     assert!(
         matches!(result, ConditionalCreateResult::MultipleMatches(_)),
@@ -1945,16 +2228,25 @@ async fn test_search_parameter_create_registers_in_registry() {
         "expression": "Patient.name.where(use='nickname').given"
     });
 
-    backend.create(&tenant, "SearchParameter", search_param).await.unwrap();
+    backend
+        .create(&tenant, "SearchParameter", search_param)
+        .await
+        .unwrap();
 
     // Verify the parameter is registered
     let registry = backend.search_registry().read();
     let param = registry.get_param("Patient", "nickname");
-    assert!(param.is_some(), "Custom SearchParameter should be registered");
+    assert!(
+        param.is_some(),
+        "Custom SearchParameter should be registered"
+    );
 
     let param = param.unwrap();
     assert_eq!(param.code, "nickname");
-    assert_eq!(param.url, "http://example.org/fhir/SearchParameter/patient-nickname");
+    assert_eq!(
+        param.url,
+        "http://example.org/fhir/SearchParameter/patient-nickname"
+    );
 }
 
 #[tokio::test]
@@ -1975,12 +2267,18 @@ async fn test_search_parameter_create_draft_not_registered() {
         "expression": "Patient.extension('draft')"
     });
 
-    backend.create(&tenant, "SearchParameter", search_param).await.unwrap();
+    backend
+        .create(&tenant, "SearchParameter", search_param)
+        .await
+        .unwrap();
 
     // Verify the parameter is NOT registered (draft status)
     let registry = backend.search_registry().read();
     let param = registry.get_param("Patient", "draft");
-    assert!(param.is_none(), "Draft SearchParameter should not be registered");
+    assert!(
+        param.is_none(),
+        "Draft SearchParameter should not be registered"
+    );
 }
 
 #[tokio::test]
@@ -2001,7 +2299,10 @@ async fn test_search_parameter_delete_unregisters() {
         "expression": "Observation.code"
     });
 
-    backend.create(&tenant, "SearchParameter", search_param).await.unwrap();
+    backend
+        .create(&tenant, "SearchParameter", search_param)
+        .await
+        .unwrap();
 
     // Verify it's registered
     {
@@ -2010,7 +2311,10 @@ async fn test_search_parameter_delete_unregisters() {
     }
 
     // Delete the SearchParameter
-    backend.delete(&tenant, "SearchParameter", "to-delete").await.unwrap();
+    backend
+        .delete(&tenant, "SearchParameter", "to-delete")
+        .await
+        .unwrap();
 
     // Verify it's unregistered
     let registry = backend.search_registry().read();
@@ -2038,14 +2342,20 @@ async fn test_search_parameter_update_status_change() {
         "expression": "Condition.code"
     });
 
-    let created = backend.create(&tenant, "SearchParameter", search_param).await.unwrap();
+    let created = backend
+        .create(&tenant, "SearchParameter", search_param)
+        .await
+        .unwrap();
 
     // Verify it's registered and active
     {
         let registry = backend.search_registry().read();
         let param = registry.get_param("Condition", "statuschange");
         assert!(param.is_some());
-        assert_eq!(param.unwrap().status, helios_persistence::search::SearchParameterStatus::Active);
+        assert_eq!(
+            param.unwrap().status,
+            helios_persistence::search::SearchParameterStatus::Active
+        );
     }
 
     // Update to retired status
@@ -2061,7 +2371,10 @@ async fn test_search_parameter_update_status_change() {
         "expression": "Condition.code"
     });
 
-    backend.update(&tenant, &created, retired_param).await.unwrap();
+    backend
+        .update(&tenant, &created, retired_param)
+        .await
+        .unwrap();
 
     // Verify status is updated in registry
     let registry = backend.search_registry().read();
@@ -2101,10 +2414,16 @@ async fn test_fts_indexing_does_not_fail() {
 
     // This should succeed regardless of FTS5 availability
     let result = backend.create(&tenant, "Patient", patient).await;
-    assert!(result.is_ok(), "Creating resource with narrative should succeed");
+    assert!(
+        result.is_ok(),
+        "Creating resource with narrative should succeed"
+    );
 
     // Read it back to verify
-    let read = backend.read(&tenant, "Patient", "fts-test-1").await.unwrap();
+    let read = backend
+        .read(&tenant, "Patient", "fts-test-1")
+        .await
+        .unwrap();
     assert!(read.is_some());
 }
 
@@ -2136,7 +2455,10 @@ async fn test_fts_update_does_not_fail() {
     });
 
     let result = backend.update(&tenant, &created, updated_patient).await;
-    assert!(result.is_ok(), "Updating resource with narrative should succeed");
+    assert!(
+        result.is_ok(),
+        "Updating resource with narrative should succeed"
+    );
 }
 
 #[tokio::test]
@@ -2165,7 +2487,7 @@ async fn test_fts_delete_does_not_fail() {
 // _content Parameter Tests (Full Content Search)
 // ============================================================================
 
-use helios_persistence::types::{SearchModifier, CompositeSearchComponent};
+use helios_persistence::types::{CompositeSearchComponent, SearchModifier};
 
 #[tokio::test]
 async fn test_content_search_basic() {
@@ -2173,19 +2495,33 @@ async fn test_content_search_basic() {
     let tenant = create_tenant("test-tenant");
 
     // Create patients with various content
-    backend.create(&tenant, "Patient", json!({
-        "resourceType": "Patient",
-        "id": "content-1",
-        "name": [{"family": "Smithson", "given": ["Alexander"]}],
-        "address": [{"city": "Springfield", "state": "Illinois"}]
-    })).await.unwrap();
+    backend
+        .create(
+            &tenant,
+            "Patient",
+            json!({
+                "resourceType": "Patient",
+                "id": "content-1",
+                "name": [{"family": "Smithson", "given": ["Alexander"]}],
+                "address": [{"city": "Springfield", "state": "Illinois"}]
+            }),
+        )
+        .await
+        .unwrap();
 
-    backend.create(&tenant, "Patient", json!({
-        "resourceType": "Patient",
-        "id": "content-2",
-        "name": [{"family": "Johnson", "given": ["Robert"]}],
-        "address": [{"city": "Chicago", "state": "Illinois"}]
-    })).await.unwrap();
+    backend
+        .create(
+            &tenant,
+            "Patient",
+            json!({
+                "resourceType": "Patient",
+                "id": "content-2",
+                "name": [{"family": "Johnson", "given": ["Robert"]}],
+                "address": [{"city": "Chicago", "state": "Illinois"}]
+            }),
+        )
+        .await
+        .unwrap();
 
     // Search for patients containing "Illinois" anywhere in content
     let query = SearchQuery::new("Patient").with_parameter(SearchParameter {
@@ -2202,8 +2538,11 @@ async fn test_content_search_basic() {
     // Should find patients from Illinois (FTS5 must be available)
     // If FTS5 is not available, no results will be returned
     let count = result.resources.items.len();
-    assert!(count == 0 || count == 2,
-        "Should find 0 (FTS unavailable) or 2 (FTS available) patients, found {}", count);
+    assert!(
+        count == 0 || count == 2,
+        "Should find 0 (FTS unavailable) or 2 (FTS available) patients, found {}",
+        count
+    );
 }
 
 // ============================================================================
@@ -2250,7 +2589,10 @@ async fn test_text_search_narrative() {
 
     // FTS5 dependent - either finds 1 or 0
     let count = result.resources.items.len();
-    assert!(count <= 1, "Should find at most 1 patient with diabetes in narrative");
+    assert!(
+        count <= 1,
+        "Should find at most 1 patient with diabetes in narrative"
+    );
 
     if count == 1 {
         assert_eq!(result.resources.items[0].id(), "text-1");
@@ -2267,17 +2609,24 @@ async fn test_composite_search_basic() {
     let tenant = create_tenant("test-tenant");
 
     // Create observations with component values
-    backend.create(&tenant, "Observation", json!({
-        "resourceType": "Observation",
-        "id": "obs-comp-1",
-        "code": {"coding": [{"system": "http://loinc.org", "code": "85354-9"}]},
-        "component": [
-            {
-                "code": {"coding": [{"system": "http://loinc.org", "code": "8480-6"}]},
-                "valueQuantity": {"value": 120, "unit": "mmHg"}
-            }
-        ]
-    })).await.unwrap();
+    backend
+        .create(
+            &tenant,
+            "Observation",
+            json!({
+                "resourceType": "Observation",
+                "id": "obs-comp-1",
+                "code": {"coding": [{"system": "http://loinc.org", "code": "85354-9"}]},
+                "component": [
+                    {
+                        "code": {"coding": [{"system": "http://loinc.org", "code": "8480-6"}]},
+                        "valueQuantity": {"value": 120, "unit": "mmHg"}
+                    }
+                ]
+            }),
+        )
+        .await
+        .unwrap();
 
     // Search using composite format: code$value-quantity
     let query = SearchQuery::new("Observation").with_parameter(SearchParameter {
@@ -2313,35 +2662,49 @@ async fn test_token_text_modifier_coding_display() {
     let tenant = create_tenant("test-tenant");
 
     // Create observations with display text in code
-    backend.create(&tenant, "Observation", json!({
-        "resourceType": "Observation",
-        "id": "obs-text-1",
-        "code": {
-            "coding": [
-                {
-                    "system": "http://loinc.org",
-                    "code": "8867-4",
-                    "display": "Heart rate"
-                }
-            ]
-        },
-        "status": "final"
-    })).await.unwrap();
+    backend
+        .create(
+            &tenant,
+            "Observation",
+            json!({
+                "resourceType": "Observation",
+                "id": "obs-text-1",
+                "code": {
+                    "coding": [
+                        {
+                            "system": "http://loinc.org",
+                            "code": "8867-4",
+                            "display": "Heart rate"
+                        }
+                    ]
+                },
+                "status": "final"
+            }),
+        )
+        .await
+        .unwrap();
 
-    backend.create(&tenant, "Observation", json!({
-        "resourceType": "Observation",
-        "id": "obs-text-2",
-        "code": {
-            "coding": [
-                {
-                    "system": "http://loinc.org",
-                    "code": "9279-1",
-                    "display": "Respiratory rate"
-                }
-            ]
-        },
-        "status": "final"
-    })).await.unwrap();
+    backend
+        .create(
+            &tenant,
+            "Observation",
+            json!({
+                "resourceType": "Observation",
+                "id": "obs-text-2",
+                "code": {
+                    "coding": [
+                        {
+                            "system": "http://loinc.org",
+                            "code": "9279-1",
+                            "display": "Respiratory rate"
+                        }
+                    ]
+                },
+                "status": "final"
+            }),
+        )
+        .await
+        .unwrap();
 
     // Search using :text modifier for "heart"
     let query = SearchQuery::new("Observation").with_parameter(SearchParameter {
@@ -2370,50 +2733,66 @@ async fn test_identifier_of_type_modifier() {
     let tenant = create_tenant("test-tenant");
 
     // Create patients with typed identifiers
-    backend.create(&tenant, "Patient", json!({
-        "resourceType": "Patient",
-        "id": "patient-oftype-1",
-        "identifier": [
-            {
-                "type": {
-                    "coding": [
-                        {
-                            "system": "http://terminology.hl7.org/CodeSystem/v2-0203",
-                            "code": "MR"
-                        }
-                    ]
-                },
-                "system": "http://hospital.org/mrn",
-                "value": "MRN12345"
-            }
-        ]
-    })).await.unwrap();
+    backend
+        .create(
+            &tenant,
+            "Patient",
+            json!({
+                "resourceType": "Patient",
+                "id": "patient-oftype-1",
+                "identifier": [
+                    {
+                        "type": {
+                            "coding": [
+                                {
+                                    "system": "http://terminology.hl7.org/CodeSystem/v2-0203",
+                                    "code": "MR"
+                                }
+                            ]
+                        },
+                        "system": "http://hospital.org/mrn",
+                        "value": "MRN12345"
+                    }
+                ]
+            }),
+        )
+        .await
+        .unwrap();
 
-    backend.create(&tenant, "Patient", json!({
-        "resourceType": "Patient",
-        "id": "patient-oftype-2",
-        "identifier": [
-            {
-                "type": {
-                    "coding": [
-                        {
-                            "system": "http://terminology.hl7.org/CodeSystem/v2-0203",
-                            "code": "SS"
-                        }
-                    ]
-                },
-                "system": "http://hl7.org/fhir/sid/us-ssn",
-                "value": "123-45-6789"
-            }
-        ]
-    })).await.unwrap();
+    backend
+        .create(
+            &tenant,
+            "Patient",
+            json!({
+                "resourceType": "Patient",
+                "id": "patient-oftype-2",
+                "identifier": [
+                    {
+                        "type": {
+                            "coding": [
+                                {
+                                    "system": "http://terminology.hl7.org/CodeSystem/v2-0203",
+                                    "code": "SS"
+                                }
+                            ]
+                        },
+                        "system": "http://hl7.org/fhir/sid/us-ssn",
+                        "value": "123-45-6789"
+                    }
+                ]
+            }),
+        )
+        .await
+        .unwrap();
 
     // Search using :of-type modifier for MR type
     let query = SearchQuery::new("Patient").with_parameter(SearchParameter {
         name: "identifier".to_string(),
         param_type: SearchParamType::Token,
         modifier: Some(SearchModifier::OfType),
-        values: vec![SearchValue::eq("http://terminology.hl7.org/CodeSystem/v2-0203|MR|MRN12345")],
+        values: vec![SearchValue::eq(
+            "http://terminology.hl7.org/CodeSystem/v2-0203|MR|MRN12345",
+        )],
         chain: vec![],
         components: vec![],
     });
@@ -2435,31 +2814,45 @@ async fn test_text_advanced_simple_term() {
     let tenant = create_tenant("test-tenant");
 
     // Create observations with different display text
-    backend.create(&tenant, "Observation", json!({
-        "resourceType": "Observation",
-        "id": "obs-headache",
-        "status": "final",
-        "code": {
-            "coding": [{
-                "system": "http://snomed.info/sct",
-                "code": "25064002",
-                "display": "Headache disorder"
-            }]
-        }
-    })).await.unwrap();
+    backend
+        .create(
+            &tenant,
+            "Observation",
+            json!({
+                "resourceType": "Observation",
+                "id": "obs-headache",
+                "status": "final",
+                "code": {
+                    "coding": [{
+                        "system": "http://snomed.info/sct",
+                        "code": "25064002",
+                        "display": "Headache disorder"
+                    }]
+                }
+            }),
+        )
+        .await
+        .unwrap();
 
-    backend.create(&tenant, "Observation", json!({
-        "resourceType": "Observation",
-        "id": "obs-migraine",
-        "status": "final",
-        "code": {
-            "coding": [{
-                "system": "http://snomed.info/sct",
-                "code": "37796009",
-                "display": "Migraine with aura"
-            }]
-        }
-    })).await.unwrap();
+    backend
+        .create(
+            &tenant,
+            "Observation",
+            json!({
+                "resourceType": "Observation",
+                "id": "obs-migraine",
+                "status": "final",
+                "code": {
+                    "coding": [{
+                        "system": "http://snomed.info/sct",
+                        "code": "37796009",
+                        "display": "Migraine with aura"
+                    }]
+                }
+            }),
+        )
+        .await
+        .unwrap();
 
     // Search for "headache" using :text-advanced
     let query = SearchQuery::new("Observation").with_parameter(SearchParameter {
@@ -2490,44 +2883,65 @@ async fn test_text_advanced_or_operator() {
     let tenant = create_tenant("test-tenant");
 
     // Create observations
-    backend.create(&tenant, "Observation", json!({
-        "resourceType": "Observation",
-        "id": "obs-headache",
-        "status": "final",
-        "code": {
-            "coding": [{
-                "system": "http://snomed.info/sct",
-                "code": "25064002",
-                "display": "Headache disorder"
-            }]
-        }
-    })).await.unwrap();
+    backend
+        .create(
+            &tenant,
+            "Observation",
+            json!({
+                "resourceType": "Observation",
+                "id": "obs-headache",
+                "status": "final",
+                "code": {
+                    "coding": [{
+                        "system": "http://snomed.info/sct",
+                        "code": "25064002",
+                        "display": "Headache disorder"
+                    }]
+                }
+            }),
+        )
+        .await
+        .unwrap();
 
-    backend.create(&tenant, "Observation", json!({
-        "resourceType": "Observation",
-        "id": "obs-migraine",
-        "status": "final",
-        "code": {
-            "coding": [{
-                "system": "http://snomed.info/sct",
-                "code": "37796009",
-                "display": "Migraine syndrome"
-            }]
-        }
-    })).await.unwrap();
+    backend
+        .create(
+            &tenant,
+            "Observation",
+            json!({
+                "resourceType": "Observation",
+                "id": "obs-migraine",
+                "status": "final",
+                "code": {
+                    "coding": [{
+                        "system": "http://snomed.info/sct",
+                        "code": "37796009",
+                        "display": "Migraine syndrome"
+                    }]
+                }
+            }),
+        )
+        .await
+        .unwrap();
 
-    backend.create(&tenant, "Observation", json!({
-        "resourceType": "Observation",
-        "id": "obs-fracture",
-        "status": "final",
-        "code": {
-            "coding": [{
-                "system": "http://snomed.info/sct",
-                "code": "12345",
-                "display": "Fracture of leg"
-            }]
-        }
-    })).await.unwrap();
+    backend
+        .create(
+            &tenant,
+            "Observation",
+            json!({
+                "resourceType": "Observation",
+                "id": "obs-fracture",
+                "status": "final",
+                "code": {
+                    "coding": [{
+                        "system": "http://snomed.info/sct",
+                        "code": "12345",
+                        "display": "Fracture of leg"
+                    }]
+                }
+            }),
+        )
+        .await
+        .unwrap();
 
     // Search for "headache OR migraine" using :text-advanced
     let query = SearchQuery::new("Observation").with_parameter(SearchParameter {
@@ -2544,7 +2958,11 @@ async fn test_text_advanced_or_operator() {
     // If FTS5 is available, should find both headache and migraine
     if let Ok(result) = result {
         if !result.resources.items.is_empty() {
-            assert_eq!(result.resources.items.len(), 2, "Should find both headache and migraine");
+            assert_eq!(
+                result.resources.items.len(),
+                2,
+                "Should find both headache and migraine"
+            );
         }
     }
 }
@@ -2555,31 +2973,45 @@ async fn test_text_advanced_phrase_match() {
     let tenant = create_tenant("test-tenant");
 
     // Create observations with similar but different display text
-    backend.create(&tenant, "Observation", json!({
-        "resourceType": "Observation",
-        "id": "obs-heart-failure",
-        "status": "final",
-        "code": {
-            "coding": [{
-                "system": "http://snomed.info/sct",
-                "code": "84114007",
-                "display": "Chronic heart failure"
-            }]
-        }
-    })).await.unwrap();
+    backend
+        .create(
+            &tenant,
+            "Observation",
+            json!({
+                "resourceType": "Observation",
+                "id": "obs-heart-failure",
+                "status": "final",
+                "code": {
+                    "coding": [{
+                        "system": "http://snomed.info/sct",
+                        "code": "84114007",
+                        "display": "Chronic heart failure"
+                    }]
+                }
+            }),
+        )
+        .await
+        .unwrap();
 
-    backend.create(&tenant, "Observation", json!({
-        "resourceType": "Observation",
-        "id": "obs-heart-rate",
-        "status": "final",
-        "code": {
-            "coding": [{
-                "system": "http://loinc.org",
-                "code": "8867-4",
-                "display": "Heart rate"
-            }]
-        }
-    })).await.unwrap();
+    backend
+        .create(
+            &tenant,
+            "Observation",
+            json!({
+                "resourceType": "Observation",
+                "id": "obs-heart-rate",
+                "status": "final",
+                "code": {
+                    "coding": [{
+                        "system": "http://loinc.org",
+                        "code": "8867-4",
+                        "display": "Heart rate"
+                    }]
+                }
+            }),
+        )
+        .await
+        .unwrap();
 
     // Search for exact phrase "heart failure"
     let query = SearchQuery::new("Observation").with_parameter(SearchParameter {
@@ -2596,7 +3028,11 @@ async fn test_text_advanced_phrase_match() {
     // If FTS5 is available, should only match exact phrase
     if let Ok(result) = result {
         if !result.resources.items.is_empty() {
-            assert_eq!(result.resources.items.len(), 1, "Should only find heart failure, not heart rate");
+            assert_eq!(
+                result.resources.items.len(),
+                1,
+                "Should only find heart failure, not heart rate"
+            );
             assert_eq!(result.resources.items[0].id(), "obs-heart-failure");
         }
     }
@@ -2608,44 +3044,65 @@ async fn test_text_advanced_prefix_match() {
     let tenant = create_tenant("test-tenant");
 
     // Create observations with related terms
-    backend.create(&tenant, "Observation", json!({
-        "resourceType": "Observation",
-        "id": "obs-cardio",
-        "status": "final",
-        "code": {
-            "coding": [{
-                "system": "http://snomed.info/sct",
-                "code": "49601007",
-                "display": "Cardiovascular disease"
-            }]
-        }
-    })).await.unwrap();
+    backend
+        .create(
+            &tenant,
+            "Observation",
+            json!({
+                "resourceType": "Observation",
+                "id": "obs-cardio",
+                "status": "final",
+                "code": {
+                    "coding": [{
+                        "system": "http://snomed.info/sct",
+                        "code": "49601007",
+                        "display": "Cardiovascular disease"
+                    }]
+                }
+            }),
+        )
+        .await
+        .unwrap();
 
-    backend.create(&tenant, "Observation", json!({
-        "resourceType": "Observation",
-        "id": "obs-cardiac",
-        "status": "final",
-        "code": {
-            "coding": [{
-                "system": "http://snomed.info/sct",
-                "code": "56265001",
-                "display": "Cardiac arrest"
-            }]
-        }
-    })).await.unwrap();
+    backend
+        .create(
+            &tenant,
+            "Observation",
+            json!({
+                "resourceType": "Observation",
+                "id": "obs-cardiac",
+                "status": "final",
+                "code": {
+                    "coding": [{
+                        "system": "http://snomed.info/sct",
+                        "code": "56265001",
+                        "display": "Cardiac arrest"
+                    }]
+                }
+            }),
+        )
+        .await
+        .unwrap();
 
-    backend.create(&tenant, "Observation", json!({
-        "resourceType": "Observation",
-        "id": "obs-fracture",
-        "status": "final",
-        "code": {
-            "coding": [{
-                "system": "http://snomed.info/sct",
-                "code": "125605004",
-                "display": "Fracture of bone"
-            }]
-        }
-    })).await.unwrap();
+    backend
+        .create(
+            &tenant,
+            "Observation",
+            json!({
+                "resourceType": "Observation",
+                "id": "obs-fracture",
+                "status": "final",
+                "code": {
+                    "coding": [{
+                        "system": "http://snomed.info/sct",
+                        "code": "125605004",
+                        "display": "Fracture of bone"
+                    }]
+                }
+            }),
+        )
+        .await
+        .unwrap();
 
     // Search for prefix "cardi*" (matches cardiac, cardiovascular)
     let query = SearchQuery::new("Observation").with_parameter(SearchParameter {
@@ -2662,7 +3119,11 @@ async fn test_text_advanced_prefix_match() {
     // If FTS5 is available, should match both cardi* terms
     if let Ok(result) = result {
         if !result.resources.items.is_empty() {
-            assert_eq!(result.resources.items.len(), 2, "Should find cardiovascular and cardiac");
+            assert_eq!(
+                result.resources.items.len(),
+                2,
+                "Should find cardiovascular and cardiac"
+            );
         }
     }
 }
@@ -2673,18 +3134,25 @@ async fn test_text_advanced_porter_stemming() {
     let tenant = create_tenant("test-tenant");
 
     // Create observation with plural/conjugated term
-    backend.create(&tenant, "Observation", json!({
-        "resourceType": "Observation",
-        "id": "obs-running",
-        "status": "final",
-        "code": {
-            "coding": [{
-                "system": "http://snomed.info/sct",
-                "code": "282239000",
-                "display": "Running injury"
-            }]
-        }
-    })).await.unwrap();
+    backend
+        .create(
+            &tenant,
+            "Observation",
+            json!({
+                "resourceType": "Observation",
+                "id": "obs-running",
+                "status": "final",
+                "code": {
+                    "coding": [{
+                        "system": "http://snomed.info/sct",
+                        "code": "282239000",
+                        "display": "Running injury"
+                    }]
+                }
+            }),
+        )
+        .await
+        .unwrap();
 
     // Search for "run" - should match "running" via porter stemming
     let query = SearchQuery::new("Observation").with_parameter(SearchParameter {
@@ -2701,7 +3169,11 @@ async fn test_text_advanced_porter_stemming() {
     // If FTS5 is available with porter stemmer, should match "running"
     if let Ok(result) = result {
         if !result.resources.items.is_empty() {
-            assert_eq!(result.resources.items.len(), 1, "Should find 'running' when searching for 'run'");
+            assert_eq!(
+                result.resources.items.len(),
+                1,
+                "Should find 'running' when searching for 'run'"
+            );
         }
     }
 }

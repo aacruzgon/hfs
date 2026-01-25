@@ -12,10 +12,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::core::{Backend, BackendCapability, BackendKind};
 use crate::error::{BackendError, StorageResult};
-use crate::search::{
-    SearchParameterExtractor, SearchParameterLoader, SearchParameterRegistry,
-};
 use crate::search::loader::FhirVersion;
+use crate::search::{SearchParameterExtractor, SearchParameterLoader, SearchParameterRegistry};
 
 use super::schema;
 
@@ -146,10 +144,7 @@ impl SqliteBackend {
                     // Ignore duplicate errors during initial load
                     let _ = registry.register(param);
                 }
-                tracing::info!(
-                    "Loaded {} search parameters into registry",
-                    registry.len()
-                );
+                tracing::info!("Loaded {} search parameters into registry", registry.len());
             }
         }
         let search_extractor = Arc::new(SearchParameterExtractor::new(search_registry.clone()));
@@ -251,6 +246,7 @@ impl SqliteBackend {
 }
 
 /// Connection wrapper for SQLite.
+#[allow(dead_code)]
 pub struct SqliteConnection(pub(crate) PooledConnection<SqliteConnectionManager>);
 
 impl Debug for SqliteConnection {
@@ -374,7 +370,10 @@ use crate::types::{
 };
 
 impl SearchCapabilityProvider for SqliteBackend {
-    fn resource_search_capabilities(&self, resource_type: &str) -> Option<ResourceSearchCapabilities> {
+    fn resource_search_capabilities(
+        &self,
+        resource_type: &str,
+    ) -> Option<ResourceSearchCapabilities> {
         // Get active parameters for this resource type from the registry
         let params = {
             let registry = self.search_registry.read();
@@ -555,7 +554,10 @@ mod tests {
 
         // Should have search parameters from the registry
         // The exact set depends on what's loaded from R4 parameters
-        assert!(!caps.search_params.is_empty(), "Should have search parameters");
+        assert!(
+            !caps.search_params.is_empty(),
+            "Should have search parameters"
+        );
     }
 
     #[test]
@@ -565,8 +567,16 @@ mod tests {
         let global = backend.global_search_capabilities();
 
         // Should have common special parameters
-        assert!(global.common_special_params.contains(&SpecialSearchParam::Id));
-        assert!(global.common_special_params.contains(&SpecialSearchParam::LastUpdated));
+        assert!(
+            global
+                .common_special_params
+                .contains(&SpecialSearchParam::Id)
+        );
+        assert!(
+            global
+                .common_special_params
+                .contains(&SpecialSearchParam::LastUpdated)
+        );
 
         // Should support system search
         assert!(global.supports_system_search);

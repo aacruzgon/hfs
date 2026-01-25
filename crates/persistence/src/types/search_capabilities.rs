@@ -467,13 +467,14 @@ impl std::fmt::Display for DatePrecision {
 }
 
 /// Search strategy - determines HOW searches are executed.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub enum SearchStrategy {
     /// Pre-computed indexes.
     /// - Values extracted at write time, stored in search_index table.
     /// - Fast queries, slower writes.
     /// - Requires reindexing for new SearchParameters.
+    #[default]
     PrecomputedIndex,
 
     /// Query-time JSONB/JSON evaluation.
@@ -491,19 +492,14 @@ pub enum SearchStrategy {
     },
 }
 
-impl Default for SearchStrategy {
-    fn default() -> Self {
-        SearchStrategy::PrecomputedIndex
-    }
-}
-
 /// Indexing mode - determines WHEN indexes are updated (for PrecomputedIndex strategy).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub enum IndexingMode {
     /// Synchronous indexing during create/update (default).
     /// - Resources are searchable immediately.
     /// - Slightly slower write operations.
+    #[default]
     Inline,
 
     /// Asynchronous indexing via event stream (future).
@@ -517,12 +513,6 @@ pub enum IndexingMode {
         /// Parameter codes to index inline.
         inline_params: Vec<String>,
     },
-}
-
-impl Default for IndexingMode {
-    fn default() -> Self {
-        IndexingMode::Inline
-    }
 }
 
 /// JSONB query capabilities for a backend.

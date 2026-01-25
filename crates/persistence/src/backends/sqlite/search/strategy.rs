@@ -64,7 +64,9 @@ impl SqliteSearchStrategy {
         match &self.strategy {
             SearchStrategy::PrecomputedIndex => true,
             SearchStrategy::QueryTimeEvaluation => false,
-            SearchStrategy::Hybrid { indexed_params } => indexed_params.contains(&param_name.to_string()),
+            SearchStrategy::Hybrid { indexed_params } => {
+                indexed_params.contains(&param_name.to_string())
+            }
         }
     }
 
@@ -131,10 +133,8 @@ mod tests {
 
     #[test]
     fn test_hybrid_strategy() {
-        let strategy = SqliteSearchStrategy::hybrid(vec![
-            "identifier".to_string(),
-            "name".to_string(),
-        ]);
+        let strategy =
+            SqliteSearchStrategy::hybrid(vec!["identifier".to_string(), "name".to_string()]);
 
         assert!(strategy.has_precomputed_index("Patient", "identifier"));
         assert!(strategy.has_precomputed_index("Patient", "name"));
