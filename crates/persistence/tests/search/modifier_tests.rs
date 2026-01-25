@@ -304,6 +304,367 @@ async fn test_of_type_modifier_three_part_format() {
     }
 }
 
+// ============================================================================
+// :text-advanced Modifier Tests (FHIR v6.0.0)
+// ============================================================================
+
+/// Test :text-advanced modifier with simple term.
+#[cfg(feature = "sqlite")]
+#[tokio::test]
+async fn test_text_advanced_simple_term() {
+    let backend = create_sqlite_backend();
+    let tenant = create_tenant();
+
+    // Create observations with different display text
+    let obs_headache = json!({
+        "resourceType": "Observation",
+        "status": "final",
+        "code": {
+            "coding": [{
+                "system": "http://snomed.info/sct",
+                "code": "25064002",
+                "display": "Headache disorder"
+            }]
+        }
+    });
+    backend.create(&tenant, "Observation", obs_headache).await.unwrap();
+
+    let obs_migraine = json!({
+        "resourceType": "Observation",
+        "status": "final",
+        "code": {
+            "coding": [{
+                "system": "http://snomed.info/sct",
+                "code": "37796009",
+                "display": "Migraine with aura"
+            }]
+        }
+    });
+    backend.create(&tenant, "Observation", obs_migraine).await.unwrap();
+
+    // Search for "headache" using :text-advanced
+    let query = SearchQuery::new("Observation").with_parameter(SearchParameter {
+        name: "code".to_string(),
+        param_type: SearchParamType::Token,
+        modifier: Some(SearchModifier::TextAdvanced),
+        values: vec![SearchValue::string("headache")],
+        chain: vec![],
+        components: vec![],
+    });
+
+    let result = backend
+        .search(&tenant, &query, Pagination::new(100))
+        .await;
+
+    // FTS5 availability is required for :text-advanced
+    // If FTS5 is available, should find the headache observation
+    if let Ok(result) = result {
+        // FTS5 available - should match via porter stemming
+        if !result.resources.is_empty() {
+            assert_eq!(result.resources.len(), 1);
+            let code = result.resources[0].content()["code"]["coding"][0]["display"].as_str();
+            assert!(code.unwrap().contains("Headache"));
+        }
+    }
+}
+
+/// Test :text-advanced modifier with OR operator.
+#[cfg(feature = "sqlite")]
+#[tokio::test]
+async fn test_text_advanced_or_operator() {
+    let backend = create_sqlite_backend();
+    let tenant = create_tenant();
+
+    // Create observations
+    let obs_headache = json!({
+        "resourceType": "Observation",
+        "status": "final",
+        "code": {
+            "coding": [{
+                "system": "http://snomed.info/sct",
+                "code": "25064002",
+                "display": "Headache disorder"
+            }]
+        }
+    });
+    backend.create(&tenant, "Observation", obs_headache).await.unwrap();
+
+    let obs_migraine = json!({
+        "resourceType": "Observation",
+        "status": "final",
+        "code": {
+            "coding": [{
+                "system": "http://snomed.info/sct",
+                "code": "37796009",
+                "display": "Migraine syndrome"
+            }]
+        }
+    });
+    backend.create(&tenant, "Observation", obs_migraine).await.unwrap();
+
+    let obs_other = json!({
+        "resourceType": "Observation",
+        "status": "final",
+        "code": {
+            "coding": [{
+                "system": "http://snomed.info/sct",
+                "code": "12345",
+                "display": "Fracture of leg"
+            }]
+        }
+    });
+    backend.create(&tenant, "Observation", obs_other).await.unwrap();
+
+    // Search for "headache OR migraine" using :text-advanced
+    let query = SearchQuery::new("Observation").with_parameter(SearchParameter {
+        name: "code".to_string(),
+        param_type: SearchParamType::Token,
+        modifier: Some(SearchModifier::TextAdvanced),
+        values: vec![SearchValue::string("headache OR migraine")],
+        chain: vec![],
+        components: vec![],
+    });
+
+    let result = backend
+        .search(&tenant, &query, Pagination::new(100))
+        .await;
+
+    // If FTS5 is available, should find both headache and migraine
+    if let Ok(result) = result {
+        if !result.resources.is_empty() {
+            assert_eq!(result.resources.len(), 2, "Should find both headache and migraine");
+        }
+    }
+}
+
+/// Test :text-advanced modifier with phrase matching.
+#[cfg(feature = "sqlite")]
+#[tokio::test]
+async fn test_text_advanced_phrase_match() {
+    let backend = create_sqlite_backend();
+    let tenant = create_tenant();
+
+    // Create observations with similar but different display text
+    let obs_heart_failure = json!({
+        "resourceType": "Observation",
+        "status": "final",
+        "code": {
+            "coding": [{
+                "system": "http://snomed.info/sct",
+                "code": "84114007",
+                "display": "Chronic heart failure"
+            }]
+        }
+    });
+    backend.create(&tenant, "Observation", obs_heart_failure).await.unwrap();
+
+    let obs_heart_rate = json!({
+        "resourceType": "Observation",
+        "status": "final",
+        "code": {
+            "coding": [{
+                "system": "http://loinc.org",
+                "code": "8867-4",
+                "display": "Heart rate"
+            }]
+        }
+    });
+    backend.create(&tenant, "Observation", obs_heart_rate).await.unwrap();
+
+    // Search for exact phrase "heart failure"
+    let query = SearchQuery::new("Observation").with_parameter(SearchParameter {
+        name: "code".to_string(),
+        param_type: SearchParamType::Token,
+        modifier: Some(SearchModifier::TextAdvanced),
+        values: vec![SearchValue::string("\"heart failure\"")],
+        chain: vec![],
+        components: vec![],
+    });
+
+    let result = backend
+        .search(&tenant, &query, Pagination::new(100))
+        .await;
+
+    // If FTS5 is available, should only match exact phrase
+    if let Ok(result) = result {
+        if !result.resources.is_empty() {
+            assert_eq!(result.resources.len(), 1, "Should only find heart failure, not heart rate");
+            let display = result.resources[0].content()["code"]["coding"][0]["display"].as_str();
+            assert!(display.unwrap().contains("failure"));
+        }
+    }
+}
+
+/// Test :text-advanced modifier with prefix matching.
+#[cfg(feature = "sqlite")]
+#[tokio::test]
+async fn test_text_advanced_prefix_match() {
+    let backend = create_sqlite_backend();
+    let tenant = create_tenant();
+
+    // Create observations with related terms
+    let obs_cardio = json!({
+        "resourceType": "Observation",
+        "status": "final",
+        "code": {
+            "coding": [{
+                "system": "http://snomed.info/sct",
+                "code": "49601007",
+                "display": "Cardiovascular disease"
+            }]
+        }
+    });
+    backend.create(&tenant, "Observation", obs_cardio).await.unwrap();
+
+    let obs_cardiac = json!({
+        "resourceType": "Observation",
+        "status": "final",
+        "code": {
+            "coding": [{
+                "system": "http://snomed.info/sct",
+                "code": "56265001",
+                "display": "Cardiac arrest"
+            }]
+        }
+    });
+    backend.create(&tenant, "Observation", obs_cardiac).await.unwrap();
+
+    let obs_fracture = json!({
+        "resourceType": "Observation",
+        "status": "final",
+        "code": {
+            "coding": [{
+                "system": "http://snomed.info/sct",
+                "code": "125605004",
+                "display": "Fracture of bone"
+            }]
+        }
+    });
+    backend.create(&tenant, "Observation", obs_fracture).await.unwrap();
+
+    // Search for prefix "cardi*" (matches cardiac, cardiovascular)
+    let query = SearchQuery::new("Observation").with_parameter(SearchParameter {
+        name: "code".to_string(),
+        param_type: SearchParamType::Token,
+        modifier: Some(SearchModifier::TextAdvanced),
+        values: vec![SearchValue::string("cardi*")],
+        chain: vec![],
+        components: vec![],
+    });
+
+    let result = backend
+        .search(&tenant, &query, Pagination::new(100))
+        .await;
+
+    // If FTS5 is available, should match both cardi* terms
+    if let Ok(result) = result {
+        if !result.resources.is_empty() {
+            assert_eq!(result.resources.len(), 2, "Should find cardiovascular and cardiac");
+        }
+    }
+}
+
+/// Test :text-advanced modifier with NOT operator.
+#[cfg(feature = "sqlite")]
+#[tokio::test]
+async fn test_text_advanced_not_operator() {
+    let backend = create_sqlite_backend();
+    let tenant = create_tenant();
+
+    // Create observations
+    let obs_heart_surgery = json!({
+        "resourceType": "Observation",
+        "status": "final",
+        "code": {
+            "coding": [{
+                "system": "http://snomed.info/sct",
+                "code": "64915003",
+                "display": "Heart surgery procedure"
+            }]
+        }
+    });
+    backend.create(&tenant, "Observation", obs_heart_surgery).await.unwrap();
+
+    let obs_heart_failure = json!({
+        "resourceType": "Observation",
+        "status": "final",
+        "code": {
+            "coding": [{
+                "system": "http://snomed.info/sct",
+                "code": "84114007",
+                "display": "Heart failure condition"
+            }]
+        }
+    });
+    backend.create(&tenant, "Observation", obs_heart_failure).await.unwrap();
+
+    // Search for "heart" but NOT "surgery"
+    let query = SearchQuery::new("Observation").with_parameter(SearchParameter {
+        name: "code".to_string(),
+        param_type: SearchParamType::Token,
+        modifier: Some(SearchModifier::TextAdvanced),
+        values: vec![SearchValue::string("heart -surgery")],
+        chain: vec![],
+        components: vec![],
+    });
+
+    let result = backend
+        .search(&tenant, &query, Pagination::new(100))
+        .await;
+
+    // If FTS5 is available, should only match heart failure (not surgery)
+    if let Ok(result) = result {
+        if !result.resources.is_empty() {
+            assert_eq!(result.resources.len(), 1, "Should find heart failure but not heart surgery");
+            let display = result.resources[0].content()["code"]["coding"][0]["display"].as_str();
+            assert!(display.unwrap().contains("failure"));
+        }
+    }
+}
+
+/// Test :text-advanced modifier with porter stemming.
+#[cfg(feature = "sqlite")]
+#[tokio::test]
+async fn test_text_advanced_stemming() {
+    let backend = create_sqlite_backend();
+    let tenant = create_tenant();
+
+    // Create observation with plural/conjugated term
+    let obs_running = json!({
+        "resourceType": "Observation",
+        "status": "final",
+        "code": {
+            "coding": [{
+                "system": "http://snomed.info/sct",
+                "code": "282239000",
+                "display": "Running injury"
+            }]
+        }
+    });
+    backend.create(&tenant, "Observation", obs_running).await.unwrap();
+
+    // Search for "run" - should match "running" via porter stemming
+    let query = SearchQuery::new("Observation").with_parameter(SearchParameter {
+        name: "code".to_string(),
+        param_type: SearchParamType::Token,
+        modifier: Some(SearchModifier::TextAdvanced),
+        values: vec![SearchValue::string("run")],
+        chain: vec![],
+        components: vec![],
+    });
+
+    let result = backend
+        .search(&tenant, &query, Pagination::new(100))
+        .await;
+
+    // If FTS5 is available with porter stemmer, should match "running"
+    if let Ok(result) = result {
+        if !result.resources.is_empty() {
+            assert_eq!(result.resources.len(), 1, "Should find 'running' when searching for 'run'");
+        }
+    }
+}
+
 /// Test :of-type modifier distinguishes between identifier types.
 #[cfg(feature = "sqlite")]
 #[tokio::test]

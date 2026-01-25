@@ -231,28 +231,37 @@ impl Fts5Search {
     }
 
     /// Generates triggers to keep FTS5 table in sync with search_index.
+    ///
+    /// Indexes both `value_string` and `value_token_display` columns
+    /// to support both regular string search and :text-advanced modifier
+    /// on token display text.
     pub fn create_triggers_sql() -> &'static str {
         r#"
-        -- Trigger for INSERT
+        -- Trigger for INSERT (indexes value_string and value_token_display)
         CREATE TRIGGER IF NOT EXISTS search_index_fts_insert AFTER INSERT ON search_index
-        WHEN new.value_string IS NOT NULL
+        WHEN new.value_string IS NOT NULL OR new.value_token_display IS NOT NULL
         BEGIN
-            INSERT INTO search_index_fts(rowid, text_content) VALUES (new.rowid, new.value_string);
+            INSERT INTO search_index_fts(rowid, text_content)
+            VALUES (new.rowid, COALESCE(new.value_string, '') || ' ' || COALESCE(new.value_token_display, ''));
         END;
 
         -- Trigger for DELETE
         CREATE TRIGGER IF NOT EXISTS search_index_fts_delete AFTER DELETE ON search_index
-        WHEN old.value_string IS NOT NULL
+        WHEN old.value_string IS NOT NULL OR old.value_token_display IS NOT NULL
         BEGIN
-            INSERT INTO search_index_fts(search_index_fts, rowid, text_content) VALUES ('delete', old.rowid, old.value_string);
+            INSERT INTO search_index_fts(search_index_fts, rowid, text_content)
+            VALUES ('delete', old.rowid, COALESCE(old.value_string, '') || ' ' || COALESCE(old.value_token_display, ''));
         END;
 
         -- Trigger for UPDATE
         CREATE TRIGGER IF NOT EXISTS search_index_fts_update AFTER UPDATE ON search_index
         WHEN old.value_string IS NOT NULL OR new.value_string IS NOT NULL
+             OR old.value_token_display IS NOT NULL OR new.value_token_display IS NOT NULL
         BEGIN
-            INSERT INTO search_index_fts(search_index_fts, rowid, text_content) VALUES ('delete', old.rowid, old.value_string);
-            INSERT INTO search_index_fts(rowid, text_content) VALUES (new.rowid, new.value_string);
+            INSERT INTO search_index_fts(search_index_fts, rowid, text_content)
+            VALUES ('delete', old.rowid, COALESCE(old.value_string, '') || ' ' || COALESCE(old.value_token_display, ''));
+            INSERT INTO search_index_fts(rowid, text_content)
+            VALUES (new.rowid, COALESCE(new.value_string, '') || ' ' || COALESCE(new.value_token_display, ''));
         END;
         "#
     }
@@ -342,6 +351,181 @@ impl Fts5Search {
             Self::FTS_TABLE_NAME
         )
     }
+
+    /// Builds an advanced FTS5 query with boolean operator support.
+    ///
+    /// This supports the `:text-advanced` modifier from FHIR v6.0.0.
+    ///
+    /// Query syntax:
+    /// - `term1 term2` → implicit AND
+    /// - `term1 OR term2` → either term
+    /// - `"exact phrase"` → phrase match
+    /// - `term*` → prefix match
+    /// - `-term` or `NOT term` → exclude term
+    /// - `term1 NEAR term2` → proximity match (within 10 words)
+    /// - `term1 NEAR/5 term2` → proximity match within 5 words
+    pub fn build_advanced_query(query: &str, param_num: usize) -> SqlFragment {
+        let fts_query = Self::parse_advanced_query(query);
+        SqlFragment::with_params(
+            format!(
+                "rowid IN (SELECT rowid FROM {} WHERE {} MATCH ?{})",
+                Self::FTS_TABLE_NAME,
+                Self::FTS_TABLE_NAME,
+                param_num
+            ),
+            vec![SqlParam::string(fts_query)],
+        )
+    }
+
+    /// Parses a user-friendly query into FTS5 syntax.
+    ///
+    /// Transforms user input into valid FTS5 query syntax:
+    /// - Preserves quoted phrases
+    /// - Handles OR operator (passed through to FTS5)
+    /// - Handles NOT / - prefix (converts to NOT)
+    /// - Handles NEAR operator (passed through to FTS5)
+    /// - Handles prefix wildcard (term* stays as-is)
+    /// - Escapes special characters in regular terms
+    /// - Joins remaining terms with implicit AND
+    pub fn parse_advanced_query(query: &str) -> String {
+        let tokens = Self::tokenize_advanced_query(query);
+        Self::tokens_to_fts5(&tokens)
+    }
+
+    /// Tokenizes an advanced query, preserving quoted phrases and operators.
+    fn tokenize_advanced_query(query: &str) -> Vec<String> {
+        let mut tokens = Vec::new();
+        let mut chars = query.chars().peekable();
+        let mut current = String::new();
+        let mut in_quote = false;
+
+        while let Some(c) = chars.next() {
+            match c {
+                '"' => {
+                    if in_quote {
+                        // End of quoted phrase
+                        if !current.is_empty() {
+                            tokens.push(format!("\"{}\"", current));
+                            current.clear();
+                        }
+                        in_quote = false;
+                    } else {
+                        // Start of quoted phrase - save current token first
+                        if !current.is_empty() {
+                            tokens.push(current.clone());
+                            current.clear();
+                        }
+                        in_quote = true;
+                    }
+                }
+                ' ' | '\t' | '\n' if !in_quote => {
+                    if !current.is_empty() {
+                        tokens.push(current.clone());
+                        current.clear();
+                    }
+                }
+                _ => {
+                    current.push(c);
+                }
+            }
+        }
+
+        // Handle any remaining content
+        if !current.is_empty() {
+            if in_quote {
+                // Unclosed quote - treat as phrase anyway
+                tokens.push(format!("\"{}\"", current));
+            } else {
+                tokens.push(current);
+            }
+        }
+
+        tokens
+    }
+
+    /// Converts parsed tokens to FTS5 query syntax.
+    fn tokens_to_fts5(tokens: &[String]) -> String {
+        let mut result = Vec::new();
+        let mut i = 0;
+
+        while i < tokens.len() {
+            let token = &tokens[i];
+            let upper = token.to_uppercase();
+
+            // Check for operators
+            if upper == "OR" || upper == "AND" {
+                // Keep operators as-is
+                result.push(upper);
+            } else if upper == "NOT" {
+                // NOT operator
+                result.push("NOT".to_string());
+            } else if upper == "NEAR" || upper.starts_with("NEAR/") {
+                // NEAR operator (with optional distance)
+                result.push(upper);
+            } else if token.starts_with('-') && token.len() > 1 {
+                // -term becomes NOT term
+                result.push("NOT".to_string());
+                let term = &token[1..];
+                result.push(Self::escape_term_for_fts5(term));
+            } else if token.starts_with('"') {
+                // Quoted phrase - already formatted, just escape inner content
+                let inner = token.trim_matches('"');
+                result.push(format!("\"{}\"", Self::escape_fts_query(inner)));
+            } else if token.ends_with('*') {
+                // Prefix search - escape the base term and add *
+                let base = &token[..token.len() - 1];
+                if !base.is_empty() {
+                    result.push(format!("{}*", Self::escape_term_for_fts5(base)));
+                }
+            } else {
+                // Regular term
+                result.push(Self::escape_term_for_fts5(token));
+            }
+            i += 1;
+        }
+
+        // Join tokens with implicit AND between adjacent non-operator terms
+        Self::join_with_implicit_and(&result)
+    }
+
+    /// Escapes a single term for FTS5 query.
+    fn escape_term_for_fts5(term: &str) -> String {
+        Self::escape_fts_query(term)
+    }
+
+    /// Joins terms with implicit AND between adjacent non-operator terms.
+    ///
+    /// FTS5 requires explicit AND between terms for conjunction.
+    /// This inserts AND between adjacent terms that are not already
+    /// separated by an operator (OR, AND, NOT, NEAR).
+    fn join_with_implicit_and(terms: &[String]) -> String {
+        if terms.is_empty() {
+            return String::new();
+        }
+
+        let mut result = Vec::new();
+        let operators = ["OR", "AND", "NOT"];
+
+        for (i, term) in terms.iter().enumerate() {
+            result.push(term.clone());
+
+            // Check if we need to insert AND before the next term
+            if i < terms.len() - 1 {
+                let next = &terms[i + 1];
+                let current_is_op = operators.contains(&term.to_uppercase().as_str())
+                    || term.to_uppercase().starts_with("NEAR");
+                let next_is_op = operators.contains(&next.to_uppercase().as_str())
+                    || next.to_uppercase().starts_with("NEAR");
+
+                // Insert AND if current is not an operator and next is not an operator or NOT
+                if !current_is_op && !next_is_op && next.to_uppercase() != "NOT" {
+                    result.push("AND".to_string());
+                }
+            }
+        }
+
+        result.join(" ")
+    }
 }
 
 #[cfg(test)]
@@ -382,6 +566,125 @@ mod tests {
         let frag = Fts5Search::build_prefix_query("smi", 1);
 
         assert!(frag.sql.contains("MATCH"));
+    }
+
+    // ============================================================================
+    // Advanced Query Parser Tests (:text-advanced modifier)
+    // ============================================================================
+
+    #[test]
+    fn test_parse_advanced_query_simple() {
+        assert_eq!(Fts5Search::parse_advanced_query("headache"), "headache");
+    }
+
+    #[test]
+    fn test_parse_advanced_query_multiple_terms() {
+        // Multiple terms should be joined with AND
+        assert_eq!(
+            Fts5Search::parse_advanced_query("heart attack"),
+            "heart AND attack"
+        );
+    }
+
+    #[test]
+    fn test_parse_advanced_query_phrase() {
+        assert_eq!(
+            Fts5Search::parse_advanced_query("\"heart attack\""),
+            "\"heart attack\""
+        );
+    }
+
+    #[test]
+    fn test_parse_advanced_query_or() {
+        assert_eq!(
+            Fts5Search::parse_advanced_query("headache OR migraine"),
+            "headache OR migraine"
+        );
+    }
+
+    #[test]
+    fn test_parse_advanced_query_prefix() {
+        assert_eq!(Fts5Search::parse_advanced_query("cardio*"), "cardio*");
+    }
+
+    #[test]
+    fn test_parse_advanced_query_not_minus() {
+        // -term should become NOT term
+        assert_eq!(
+            Fts5Search::parse_advanced_query("-surgery"),
+            "NOT surgery"
+        );
+    }
+
+    #[test]
+    fn test_parse_advanced_query_not_keyword() {
+        // NOT term should stay as NOT term
+        assert_eq!(
+            Fts5Search::parse_advanced_query("NOT surgery"),
+            "NOT surgery"
+        );
+    }
+
+    #[test]
+    fn test_parse_advanced_query_near() {
+        assert_eq!(
+            Fts5Search::parse_advanced_query("heart NEAR attack"),
+            "heart NEAR attack"
+        );
+    }
+
+    #[test]
+    fn test_parse_advanced_query_near_with_distance() {
+        assert_eq!(
+            Fts5Search::parse_advanced_query("heart NEAR/5 attack"),
+            "heart NEAR/5 attack"
+        );
+    }
+
+    #[test]
+    fn test_parse_advanced_query_complex() {
+        // Complex query: heart OR cardiac with exclusion
+        assert_eq!(
+            Fts5Search::parse_advanced_query("heart OR cardiac -surgery"),
+            "heart OR cardiac NOT surgery"
+        );
+    }
+
+    #[test]
+    fn test_parse_advanced_query_mixed() {
+        // Mix of phrase, prefix, and boolean
+        assert_eq!(
+            Fts5Search::parse_advanced_query("\"chest pain\" cardio* OR thoracic"),
+            "\"chest pain\" AND cardio* OR thoracic"
+        );
+    }
+
+    #[test]
+    fn test_parse_advanced_query_case_insensitive_operators() {
+        // Operators should work case-insensitively
+        assert_eq!(
+            Fts5Search::parse_advanced_query("heart or cardiac"),
+            "heart OR cardiac"
+        );
+        assert_eq!(
+            Fts5Search::parse_advanced_query("pain not chronic"),
+            "pain NOT chronic"
+        );
+    }
+
+    #[test]
+    fn test_build_advanced_query() {
+        let frag = Fts5Search::build_advanced_query("heart OR cardiac -surgery", 1);
+
+        assert!(frag.sql.contains("search_index_fts"));
+        assert!(frag.sql.contains("MATCH"));
+        assert_eq!(frag.params.len(), 1);
+
+        // The query should be properly formatted
+        if let SqlParam::String(s) = &frag.params[0] {
+            assert!(s.contains("OR"));
+            assert!(s.contains("NOT"));
+        }
     }
 
     #[test]

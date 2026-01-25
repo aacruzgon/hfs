@@ -5,7 +5,7 @@ use rusqlite::Connection;
 use crate::error::StorageResult;
 
 /// Current schema version.
-pub const SCHEMA_VERSION: i32 = 4;
+pub const SCHEMA_VERSION: i32 = 5;
 
 /// Initialize the database schema.
 pub fn initialize_schema(conn: &Connection) -> StorageResult<()> {
@@ -258,6 +258,7 @@ fn migrate_schema(conn: &Connection, from_version: i32) -> StorageResult<()> {
             1 => migrate_v1_to_v2(conn)?,
             2 => migrate_v2_to_v3(conn)?,
             3 => migrate_v3_to_v4(conn)?,
+            4 => migrate_v4_to_v5(conn)?,
             _ => {
                 return Err(crate::error::StorageError::Backend(
                     crate::error::BackendError::Internal {
@@ -399,6 +400,134 @@ fn migrate_v3_to_v4(conn: &Connection) -> StorageResult<()> {
             })
         })?;
     }
+
+    Ok(())
+}
+
+/// Migrate from schema version 4 to version 5.
+///
+/// This migration updates FTS5 triggers to also index token display text
+/// (value_token_display), enabling the :text-advanced modifier to search
+/// on Coding.display and CodeableConcept.text fields.
+fn migrate_v4_to_v5(conn: &Connection) -> StorageResult<()> {
+    // Check if FTS5 is available
+    let fts5_available: i32 = conn
+        .query_row(
+            "SELECT sqlite_compileoption_used('ENABLE_FTS5')",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+
+    if fts5_available == 0 {
+        // FTS5 not available - skip
+        tracing::warn!("FTS5 not available - :text-advanced modifier will not work");
+        return Ok(());
+    }
+
+    // Check if search_index_fts table exists
+    let fts_exists: i32 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='search_index_fts'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+
+    if fts_exists == 0 {
+        // FTS table doesn't exist - create it with updated schema
+        conn.execute(
+            r#"
+            CREATE VIRTUAL TABLE IF NOT EXISTS search_index_fts USING fts5(
+                text_content,
+                content='search_index',
+                content_rowid='rowid',
+                tokenize='porter unicode61'
+            )
+            "#,
+            [],
+        )
+        .map_err(|e| {
+            crate::error::StorageError::Backend(crate::error::BackendError::Internal {
+                backend_name: "sqlite".to_string(),
+                message: format!("Failed to create search_index_fts table: {}", e),
+                source: None,
+            })
+        })?;
+    }
+
+    // Drop existing triggers
+    let _ = conn.execute("DROP TRIGGER IF EXISTS search_index_fts_insert", []);
+    let _ = conn.execute("DROP TRIGGER IF EXISTS search_index_fts_delete", []);
+    let _ = conn.execute("DROP TRIGGER IF EXISTS search_index_fts_update", []);
+
+    // Create updated triggers that index both value_string and value_token_display
+    conn.execute(
+        r#"
+        CREATE TRIGGER search_index_fts_insert AFTER INSERT ON search_index
+        WHEN new.value_string IS NOT NULL OR new.value_token_display IS NOT NULL
+        BEGIN
+            INSERT INTO search_index_fts(rowid, text_content)
+            VALUES (new.rowid, COALESCE(new.value_string, '') || ' ' || COALESCE(new.value_token_display, ''));
+        END
+        "#,
+        [],
+    )
+    .map_err(|e| {
+        crate::error::StorageError::Backend(crate::error::BackendError::Internal {
+            backend_name: "sqlite".to_string(),
+            message: format!("Failed to create FTS insert trigger: {}", e),
+            source: None,
+        })
+    })?;
+
+    conn.execute(
+        r#"
+        CREATE TRIGGER search_index_fts_delete AFTER DELETE ON search_index
+        WHEN old.value_string IS NOT NULL OR old.value_token_display IS NOT NULL
+        BEGIN
+            INSERT INTO search_index_fts(search_index_fts, rowid, text_content)
+            VALUES ('delete', old.rowid, COALESCE(old.value_string, '') || ' ' || COALESCE(old.value_token_display, ''));
+        END
+        "#,
+        [],
+    )
+    .map_err(|e| {
+        crate::error::StorageError::Backend(crate::error::BackendError::Internal {
+            backend_name: "sqlite".to_string(),
+            message: format!("Failed to create FTS delete trigger: {}", e),
+            source: None,
+        })
+    })?;
+
+    conn.execute(
+        r#"
+        CREATE TRIGGER search_index_fts_update AFTER UPDATE ON search_index
+        WHEN old.value_string IS NOT NULL OR new.value_string IS NOT NULL
+             OR old.value_token_display IS NOT NULL OR new.value_token_display IS NOT NULL
+        BEGIN
+            INSERT INTO search_index_fts(search_index_fts, rowid, text_content)
+            VALUES ('delete', old.rowid, COALESCE(old.value_string, '') || ' ' || COALESCE(old.value_token_display, ''));
+            INSERT INTO search_index_fts(rowid, text_content)
+            VALUES (new.rowid, COALESCE(new.value_string, '') || ' ' || COALESCE(new.value_token_display, ''));
+        END
+        "#,
+        [],
+    )
+    .map_err(|e| {
+        crate::error::StorageError::Backend(crate::error::BackendError::Internal {
+            backend_name: "sqlite".to_string(),
+            message: format!("Failed to create FTS update trigger: {}", e),
+            source: None,
+        })
+    })?;
+
+    // Rebuild the FTS index to include existing token display values
+    // This is a one-time operation during migration
+    let _ = conn.execute(
+        "INSERT INTO search_index_fts(search_index_fts) VALUES ('rebuild')",
+        [],
+    );
 
     Ok(())
 }

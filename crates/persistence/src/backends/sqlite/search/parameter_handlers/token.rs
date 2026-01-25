@@ -43,6 +43,12 @@ impl TokenHandler {
             );
         }
 
+        // Handle :text-advanced modifier - FTS5-based advanced text search
+        // Supports boolean operators (AND, OR, NOT), phrase matching, prefix search, and NEAR
+        if matches!(modifier, Some(SearchModifier::TextAdvanced)) {
+            return Self::build_text_advanced_sql(&value.value, param_offset);
+        }
+
         // Handle :code-only modifier
         if matches!(modifier, Some(SearchModifier::CodeOnly)) {
             return SqlFragment::with_params(
@@ -96,6 +102,26 @@ impl TokenHandler {
                 vec![SqlParam::string(token_value)],
             )
         }
+    }
+
+    /// Builds SQL for the `:text-advanced` modifier using FTS5.
+    ///
+    /// The `:text-advanced` modifier (FHIR v6.0.0) provides advanced full-text
+    /// search capabilities including:
+    /// - Porter stemming (e.g., "running" matches "run")
+    /// - Boolean operators (AND, OR, NOT)
+    /// - Phrase matching ("heart attack")
+    /// - Prefix matching (cardio*)
+    /// - Proximity search (NEAR operator)
+    ///
+    /// This searches on the token display text (Coding.display, CodeableConcept.text)
+    /// that has been indexed in the FTS5 virtual table.
+    fn build_text_advanced_sql(query: &str, param_offset: usize) -> SqlFragment {
+        use super::super::fts::Fts5Search;
+
+        // Use FTS5 for advanced matching on token display text
+        // The search_index_fts now includes value_token_display
+        Fts5Search::build_advanced_query(query, param_offset + 1)
     }
 
     /// Builds SQL for the `:of-type` modifier used with identifier parameters.
@@ -290,6 +316,69 @@ mod tests {
             assert_eq!(s, "MR");
         } else {
             panic!("Expected string parameter for type code");
+        }
+    }
+
+    // ============================================================================
+    // :text-advanced Modifier Tests
+    // ============================================================================
+
+    #[test]
+    fn test_text_advanced_simple() {
+        let value = SearchValue::new(SearchPrefix::Eq, "headache");
+        let frag = TokenHandler::build_sql(&value, Some(&SearchModifier::TextAdvanced), 0);
+
+        // Should use FTS5 MATCH
+        assert!(frag.sql.contains("search_index_fts"));
+        assert!(frag.sql.contains("MATCH"));
+        assert_eq!(frag.params.len(), 1);
+    }
+
+    #[test]
+    fn test_text_advanced_boolean_or() {
+        let value = SearchValue::new(SearchPrefix::Eq, "headache OR migraine");
+        let frag = TokenHandler::build_sql(&value, Some(&SearchModifier::TextAdvanced), 0);
+
+        assert!(frag.sql.contains("MATCH"));
+        // The query param should contain OR
+        if let SqlParam::String(s) = &frag.params[0] {
+            assert!(s.contains("OR"), "Query should contain OR: {}", s);
+        }
+    }
+
+    #[test]
+    fn test_text_advanced_phrase() {
+        let value = SearchValue::new(SearchPrefix::Eq, "\"heart failure\"");
+        let frag = TokenHandler::build_sql(&value, Some(&SearchModifier::TextAdvanced), 0);
+
+        assert!(frag.sql.contains("MATCH"));
+        // The query param should be a quoted phrase
+        if let SqlParam::String(s) = &frag.params[0] {
+            assert!(s.contains("\"heart failure\""), "Query should contain phrase: {}", s);
+        }
+    }
+
+    #[test]
+    fn test_text_advanced_prefix() {
+        let value = SearchValue::new(SearchPrefix::Eq, "cardio*");
+        let frag = TokenHandler::build_sql(&value, Some(&SearchModifier::TextAdvanced), 0);
+
+        assert!(frag.sql.contains("MATCH"));
+        // The query param should contain prefix wildcard
+        if let SqlParam::String(s) = &frag.params[0] {
+            assert!(s.contains("cardio*"), "Query should contain prefix: {}", s);
+        }
+    }
+
+    #[test]
+    fn test_text_advanced_not() {
+        let value = SearchValue::new(SearchPrefix::Eq, "-surgery");
+        let frag = TokenHandler::build_sql(&value, Some(&SearchModifier::TextAdvanced), 0);
+
+        assert!(frag.sql.contains("MATCH"));
+        // The query param should contain NOT
+        if let SqlParam::String(s) = &frag.params[0] {
+            assert!(s.contains("NOT"), "Query should contain NOT: {}", s);
         }
     }
 }

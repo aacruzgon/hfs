@@ -243,7 +243,7 @@ The matrix below shows which FHIR operations each backend supports. This reflect
 | [:above / :below](https://build.fhir.org/search.html#modifiers) | ✗ | †○ | †○ | ✗ | ○ | †○ | ✗ |
 | [:in / :not-in](https://build.fhir.org/search.html#modifiers) | ✗ | †○ | †○ | ✗ | ○ | †○ | ✗ |
 | [:of-type](https://build.fhir.org/search.html#modifiers) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
-| [:text-advanced](https://build.fhir.org/search.html#modifiertextadvanced) | ○ | †○ | †○ | ✗ | ✗ | †○ | ✗ |
+| [:text-advanced](https://build.fhir.org/search.html#modifiertextadvanced) | ✓ | †○ | †○ | ✗ | ✗ | †○ | ✗ |
 | **[Special Parameters](https://build.fhir.org/search.html#all)** |
 | [_text](https://build.fhir.org/search.html#_text) (narrative search) | ✓ | ○ | ○ | ✗ | ✗ | ○ | ✗ |
 | [_content](https://build.fhir.org/search.html#_content) (full content) | ✓ | ○ | ○ | ✗ | ✗ | ○ | ✗ |
@@ -344,6 +344,12 @@ The SQLite backend includes a complete FHIR search implementation using pre-comp
 - [x] Full content extraction from all resource string values
 - [x] `_text` parameter - searches narrative content
 - [x] `_content` parameter - searches all resource text
+- [x] `:text-advanced` modifier (FHIR v6.0.0) - advanced FTS5-based search with:
+  - Porter stemming (e.g., "run" matches "running")
+  - Boolean operators (AND, OR, NOT)
+  - Phrase matching ("heart failure")
+  - Prefix search (cardio*)
+  - Proximity matching (NEAR operator)
 - [x] Porter stemmer tokenization for improved search quality
 - [x] Automatic FTS indexing on resource create/update/delete
 
