@@ -219,7 +219,7 @@ The matrix below shows which FHIR operations each backend supports. This reflect
 | [Transactions](https://build.fhir.org/http.html#transaction) | ✓ | ○ | ○ | ✗ | ○ | ✗ | ✗ |
 | [Conditional Operations](https://build.fhir.org/http.html#cond-update) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
 | [Conditional Patch](https://build.fhir.org/http.html#patch) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
-| [Delete History](https://build.fhir.org/http.html#delete) (v6.0.0) | ✓ | ○ | ○ | ✗ | ○ | ✗ | ✗ |
+| [Delete History](https://build.fhir.org/http.html#delete) | ✓ | ○ | ○ | ✗ | ○ | ✗ | ✗ |
 | **Multitenancy** |
 | Shared Schema | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
 | Schema-per-Tenant | ✗ | ○ | ○ | ✗ | ✗ | ○ | ✗ |
@@ -344,7 +344,7 @@ The SQLite backend includes a complete FHIR search implementation using pre-comp
 - [x] Full content extraction from all resource string values
 - [x] `_text` parameter - searches narrative content
 - [x] `_content` parameter - searches all resource text
-- [x] `:text-advanced` modifier (FHIR v6.0.0) - advanced FTS5-based search with:
+- [x] `:text-advanced` modifier - advanced FTS5-based search with:
   - Porter stemming (e.g., "run" matches "running")
   - Boolean operators (AND, OR, NOT)
   - Phrase matching ("heart failure")
