@@ -136,7 +136,9 @@
 #![warn(missing_docs)]
 #![warn(rustdoc::missing_crate_level_docs)]
 
+pub mod advisor;
 pub mod backends;
+pub mod composite;
 pub mod core;
 pub mod error;
 pub mod search;

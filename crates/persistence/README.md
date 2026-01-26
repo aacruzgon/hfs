@@ -379,10 +379,292 @@ The SQLite backend includes a complete FHIR search implementation using pre-comp
 - [ ] Elasticsearch backend (full-text, analyzers)
 - [ ] S3 backend (bulk export, object storage)
 
-### Phase 6: Composite Storage (Planned)
-- [ ] Query analysis and routing
-- [ ] Multi-backend coordination
-- [ ] Cost-based optimization
+### Phase 6: Composite Storage ✓
+- [x] Query analysis and feature detection
+- [x] Multi-backend coordination with primary-secondary model
+- [x] Cost-based query routing
+- [x] Result merging strategies
+- [x] Secondary backend synchronization
+- [x] Health monitoring
+- [x] Configuration Advisor HTTP API
+
+## Composite Storage
+
+The composite storage layer enables polyglot persistence by coordinating multiple database backends for optimal FHIR resource storage and querying.
+
+### Design Principles
+
+1. **Single Source of Truth**: One primary backend handles all FHIR resource CRUD operations, versioning, and history. This is the authoritative store.
+
+2. **Feature-Based Routing**: Queries are automatically routed based on detected features (chained search, full-text, terminology) to appropriate backends.
+
+3. **Eventual Consistency**: Secondary backends may lag behind primary (configurable sync/async modes with documented consistency guarantees).
+
+4. **Graceful Degradation**: If a secondary backend is unavailable, the system falls back to primary with potentially degraded performance.
+
+### Valid Backend Configurations
+
+| Configuration | Primary | Secondary(s) | Use Case |
+|---------------|---------|--------------|----------|
+| SQLite-only | SQLite | None | Development, small deployments |
+| SQLite + ES | SQLite | Elasticsearch | Production with robust text search |
+| S3 + ES | S3 | Elasticsearch | Large-scale, cheap storage |
+| PostgreSQL + Neo4j | PostgreSQL | Neo4j | Graph-heavy queries |
+
+### Quick Start
+
+```rust
+use helios_persistence::composite::{
+    CompositeConfigBuilder, BackendRole, SyncMode,
+};
+use helios_persistence::core::BackendKind;
+
+// Development configuration (SQLite-only)
+let dev_config = CompositeConfigBuilder::new()
+    .primary("sqlite", BackendKind::Sqlite)
+    .build()?;
+
+// Production configuration (PostgreSQL + Elasticsearch)
+let prod_config = CompositeConfigBuilder::new()
+    .primary("pg", BackendKind::Postgres)
+    .search_backend("es", BackendKind::Elasticsearch)
+    .sync_mode(SyncMode::Asynchronous)
+    .build()?;
+```
+
+### Query Routing
+
+Queries are automatically analyzed and routed to optimal backends:
+
+| Feature | Detection | Routed To |
+|---------|-----------|-----------|
+| Basic search | Standard parameters | Primary |
+| Chained parameters | `patient.name=Smith` | Graph backend |
+| Full-text | `_text`, `_content` | Search backend |
+| Terminology | `:above`, `:below`, `:in` | Terminology backend |
+| Writes | All mutations | Primary only |
+| _include/_revinclude | Include directives | Primary |
+
+```rust
+use helios_persistence::composite::{QueryAnalyzer, QueryFeature};
+use helios_persistence::types::SearchQuery;
+
+let analyzer = QueryAnalyzer::new();
+
+// Analyze a complex query
+let query = SearchQuery::new("Observation")
+    .with_parameter(/* _text=cardiac */);
+
+let analysis = analyzer.analyze(&query);
+println!("Features: {:?}", analysis.features);
+println!("Complexity: {}", analysis.complexity_score);
+```
+
+### Result Merging Strategies
+
+When queries span multiple backends, results are merged using configurable strategies:
+
+| Strategy | Behavior | Use Case |
+|----------|----------|----------|
+| **Intersection** | Results must match all backends (AND) | Restrictive queries |
+| **Union** | Results from any backend (OR) | Inclusive queries |
+| **PrimaryEnriched** | Primary results with metadata from secondaries | Standard search |
+| **SecondaryFiltered** | Filter secondary results through primary | Search-heavy queries |
+
+### Synchronization Modes
+
+| Mode | Latency | Consistency | Use Case |
+|------|---------|-------------|----------|
+| **Synchronous** | Higher | Strong | Critical data requiring consistency |
+| **Asynchronous** | Lower | Eventual | Read-heavy workloads |
+| **Hybrid** | Balanced | Configurable | Search indexes sync, others async |
+
+```rust
+use helios_persistence::composite::SyncMode;
+
+// Synchronous: All secondaries updated in same transaction
+let sync = SyncMode::Synchronous;
+
+// Asynchronous: Update via event stream
+let async_mode = SyncMode::Asynchronous;
+
+// Hybrid: Sync for search indexes, async for others
+let hybrid = SyncMode::Hybrid { sync_for_search: true };
+```
+
+### Cost-Based Optimization
+
+The cost estimator uses benchmark-derived costs to make routing decisions:
+
+```rust
+use helios_persistence::composite::{CostEstimator, QueryCost};
+use helios_persistence::types::SearchQuery;
+
+let estimator = CostEstimator::with_defaults();
+let query = SearchQuery::new("Patient");
+
+// Estimate cost for each backend
+let costs = estimator.estimate_all(&query, &config);
+for (backend_id, cost) in costs {
+    println!("{}: total={}, latency={}ms",
+        backend_id, cost.total, cost.estimated_latency_ms);
+}
+
+// Get cheapest backend
+let best = estimator.cheapest_backend(&query, &config.backends);
+```
+
+### Health Monitoring
+
+The health monitor tracks backend availability and triggers failover:
+
+```rust
+use helios_persistence::composite::{HealthMonitor, HealthConfig};
+use std::time::Duration;
+
+let config = HealthConfig {
+    check_interval: Duration::from_secs(30),
+    timeout: Duration::from_secs(5),
+    failure_threshold: 3,  // Mark unhealthy after 3 failures
+    success_threshold: 2,  // Mark healthy after 2 successes
+};
+
+let monitor = HealthMonitor::new(config);
+
+// Check backend health
+if monitor.is_healthy("primary") {
+    // Use backend
+}
+
+// Get aggregate status
+let status = monitor.all_status();
+println!("Healthy: {}/{}", status.healthy_count(), status.backends.len());
+```
+
+### Configuration Advisor
+
+The configuration advisor is an HTTP API for analyzing and optimizing composite storage configurations.
+
+#### Running the Advisor
+
+```bash
+# Build with advisor feature
+cargo build -p helios-persistence --features advisor --bin config-advisor
+
+# Run the advisor
+./target/debug/config-advisor
+
+# With custom settings
+ADVISOR_HOST=0.0.0.0 ADVISOR_PORT=9000 ./target/debug/config-advisor
+```
+
+#### API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/health` | GET | Health check |
+| `/backends` | GET | List available backend types |
+| `/backends/{kind}` | GET | Get capabilities for a backend type |
+| `/analyze` | POST | Analyze a configuration |
+| `/validate` | POST | Validate a configuration |
+| `/suggest` | POST | Get optimization suggestions |
+| `/simulate` | POST | Simulate query routing |
+
+#### Example: Analyze Configuration
+
+```bash
+curl -X POST http://localhost:8081/analyze \
+  -H "Content-Type: application/json" \
+  -d '{
+    "config": {
+      "backends": [
+        {"id": "primary", "role": "Primary", "kind": "Sqlite"}
+      ]
+    }
+  }'
+```
+
+#### Example: Get Suggestions
+
+```bash
+curl -X POST http://localhost:8081/suggest \
+  -H "Content-Type: application/json" \
+  -d '{
+    "config": {
+      "backends": [
+        {"id": "primary", "role": "Primary", "kind": "Sqlite"}
+      ]
+    },
+    "workload": {
+      "read_ratio": 0.8,
+      "write_ratio": 0.2,
+      "fulltext_search_ratio": 0.3,
+      "queries_per_day": 10000
+    }
+  }'
+```
+
+### Example Configurations
+
+#### Development (SQLite-only)
+
+```rust
+let config = CompositeConfigBuilder::new()
+    .primary("sqlite", BackendKind::Sqlite)
+    .build()?;
+```
+
+#### Production with Full-Text Search
+
+```rust
+let config = CompositeConfigBuilder::new()
+    .primary("pg", BackendKind::Postgres)
+    .search_backend("es", BackendKind::Elasticsearch)
+    .sync_mode(SyncMode::Asynchronous)
+    .build()?;
+```
+
+#### Graph-Heavy Workloads
+
+```rust
+let config = CompositeConfigBuilder::new()
+    .primary("pg", BackendKind::Postgres)
+    .graph_backend("neo4j", BackendKind::Neo4j)
+    .sync_mode(SyncMode::Hybrid { sync_for_search: false })
+    .build()?;
+```
+
+#### Large-Scale Archival
+
+```rust
+let config = CompositeConfigBuilder::new()
+    .primary("s3", BackendKind::S3)
+    .search_backend("es", BackendKind::Elasticsearch)
+    .sync_mode(SyncMode::Synchronous)
+    .build()?;
+```
+
+### Troubleshooting
+
+**Query not routing to expected backend:**
+- Enable debug logging: `RUST_LOG=helios_persistence::composite=debug`
+- Use the analyzer to inspect detected features: `analyzer.analyze(&query)`
+- Check backend capabilities match required features
+
+**High sync lag:**
+- Reduce batch size in SyncConfig
+- Increase sync workers
+- Consider synchronous mode for critical data
+
+**Failover not triggering:**
+- Check health check interval isn't too long
+- Verify failure threshold is appropriate
+- Ensure failover_to targets are configured
+
+**Cost estimates seem wrong:**
+- Run Criterion benchmarks to calibrate costs
+- Use `with_benchmarks()` on CostEstimator
+- Check feature multipliers in CostConfig
 
 ## License
 

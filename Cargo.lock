@@ -2534,6 +2534,7 @@ dependencies = [
  "async-trait",
  "aws-config",
  "aws-credential-types",
+ "axum",
  "base64 0.22.1",
  "cdrs-tokio",
  "cdrs-tokio-helpers-derive",
@@ -2544,6 +2545,7 @@ dependencies = [
  "helios-fhir",
  "helios-fhirpath",
  "helios-fhirpath-support",
+ "humantime",
  "json-patch",
  "mongodb",
  "neo4rs",
@@ -2565,7 +2567,9 @@ dependencies = [
  "tokio",
  "tokio-postgres",
  "tokio-test",
+ "tower-http 0.6.8",
  "tracing",
+ "tracing-subscriber",
  "uuid",
 ]
 

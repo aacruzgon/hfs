@@ -22,6 +22,9 @@ neo4j = ["dep:neo4rs"]
 elasticsearch = ["dep:elasticsearch"]
 s3 = ["dep:object_store", "dep:aws-config", "dep:aws-credential-types"]
 
+# Configuration advisor binary
+advisor = ["dep:axum", "dep:tower-http", "dep:tracing-subscriber"]
+
 # FHIR version features (pass through to helios-fhir)
 R4 = ["helios-fhir/R4"]
 R4B = ["helios-fhir/R4B"]
@@ -46,6 +49,7 @@ base64 = "0.22"
 regex = "1"
 parking_lot = "0.12"
 json-patch = "3"
+humantime = "2"
 
 # SQLite backend
 rusqlite = { version = "0.33", features = ["bundled", "serde_json"], optional = true }
@@ -75,6 +79,11 @@ object_store = { version = "0.11", features = ["aws"], optional = true }
 aws-config = { version = "1", optional = true }
 aws-credential-types = { version = "1", optional = true }
 
+# Configuration advisor HTTP server
+axum = { version = "0.8", optional = true }
+tower-http = { version = "0.6", features = ["cors"], optional = true }
+tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
+
 [dev-dependencies]
 tokio = { version = "1", features = ["full", "test-util"] }
 tokio-test = "0.4"
@@ -83,6 +92,12 @@ criterion = { version = "0.5", features = ["async_tokio"] }
 testcontainers = "0.26"
 testcontainers-modules = { version = "0.14", features = ["postgres", "mongo", "elastic_search", "neo4j"] }
 paste = "1.0"
+
+# Configuration advisor binary
+[[bin]]
+name = "config-advisor"
+path = "src/advisor/main.rs"
+required-features = ["advisor"]
 
 # Benchmarks will be added later
 # [[bench]]
