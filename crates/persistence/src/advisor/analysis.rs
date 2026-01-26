@@ -213,7 +213,11 @@ impl ConfigurationAnalyzer {
     }
 
     /// Analyzes gaps in the configuration.
-    fn analyze_gaps(&self, _config: &CompositeConfig, coverage: &CapabilityCoverage) -> GapAnalysis {
+    fn analyze_gaps(
+        &self,
+        _config: &CompositeConfig,
+        coverage: &CapabilityCoverage,
+    ) -> GapAnalysis {
         let mut feature_gaps = Vec::new();
 
         // Check for missing critical capabilities

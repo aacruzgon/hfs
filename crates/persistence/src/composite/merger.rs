@@ -111,14 +111,7 @@ impl ResultMerger {
         // Build set of IDs from each auxiliary source
         let aux_id_sets: Vec<HashSet<String>> = auxiliary
             .iter()
-            .map(|(_, result)| {
-                result
-                    .resources
-                    .items
-                    .iter()
-                    .map(resource_key)
-                    .collect()
-            })
+            .map(|(_, result)| result.resources.items.iter().map(resource_key).collect())
             .collect();
 
         // Filter primary to only include resources that appear in ALL auxiliary sets

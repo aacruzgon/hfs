@@ -193,8 +193,8 @@ impl AdvisorServer {
     #[cfg(feature = "advisor")]
     fn create_router(&self) -> axum::Router {
         use axum::{
-            routing::{get, post},
             Router,
+            routing::{get, post},
         };
 
         Router::new()
