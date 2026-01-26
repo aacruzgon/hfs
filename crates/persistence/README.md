@@ -261,7 +261,7 @@ The matrix below shows which FHIR operations each backend supports. This reflect
 | Multiple fields | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
 | **[Bulk Operations](https://hl7.org/fhir/uv/bulkdata/)** |
 | [Bulk Export](https://hl7.org/fhir/uv/bulkdata/export.html) | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
-| Bulk Import | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
+| [Bulk Submit](https://hackmd.io/@argonaut/rJoqHZrPle) | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
 
 ### Backend Selection Guide
 
