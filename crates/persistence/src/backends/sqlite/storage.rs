@@ -1356,11 +1356,8 @@ impl InstanceHistoryProvider for SqliteBackend {
             > params.pagination.count as usize;
 
         // Build page info
-        let page_info = if has_more && last_version.is_some() {
-            let cursor = PageCursor::new(
-                vec![CursorValue::String(last_version.unwrap())],
-                id.to_string(),
-            );
+        let page_info = if let (true, Some(version)) = (has_more, last_version) {
+            let cursor = PageCursor::new(vec![CursorValue::String(version)], id.to_string());
             PageInfo::with_next(cursor)
         } else {
             PageInfo::end()
