@@ -416,11 +416,7 @@ async fn test_read_batch() {
     let tenant = create_tenant("test-tenant");
 
     // Create resources
-    let ids: Vec<String> = (0..3)
-        .map(|i| {
-            format!("batch-{}", i)
-        })
-        .collect();
+    let ids: Vec<String> = (0..3).map(|i| format!("batch-{}", i)).collect();
 
     for id in &ids {
         let patient = json!({"resourceType": "Patient"});
