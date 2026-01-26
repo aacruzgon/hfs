@@ -535,8 +535,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Standard processing for all other cases
-    let result =
-        run_view_definition_with_options(view_definition, bundle, content_type, options)?;
+    let result = run_view_definition_with_options(view_definition, bundle, content_type, options)?;
 
     // Output result
     match args.output {

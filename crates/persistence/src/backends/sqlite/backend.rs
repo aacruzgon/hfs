@@ -2,8 +2,8 @@
 
 use std::fmt::Debug;
 use std::path::Path;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use async_trait::async_trait;
 use parking_lot::RwLock;
