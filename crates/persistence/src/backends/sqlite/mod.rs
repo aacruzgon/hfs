@@ -68,6 +68,8 @@
 //! ```
 
 mod backend;
+mod bulk_export;
+mod bulk_submit;
 mod schema;
 pub mod search;
 mod search_impl;

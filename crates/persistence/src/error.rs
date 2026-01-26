@@ -46,6 +46,14 @@ pub enum StorageError {
     /// Backend-specific errors
     #[error(transparent)]
     Backend(#[from] BackendError),
+
+    /// Bulk export errors
+    #[error(transparent)]
+    BulkExport(#[from] BulkExportError),
+
+    /// Bulk submit errors
+    #[error(transparent)]
+    BulkSubmit(#[from] BulkSubmitError),
 }
 
 /// Errors related to resource state.
@@ -335,6 +343,130 @@ pub enum BackendError {
     SerializationError { message: String },
 }
 
+/// Errors related to bulk export operations.
+#[derive(Error, Debug)]
+pub enum BulkExportError {
+    /// The export job was not found.
+    #[error("export job not found: {job_id}")]
+    JobNotFound { job_id: String },
+
+    /// The job is in an invalid state for the requested operation.
+    #[error("invalid job state: job {job_id} is {actual}, expected {expected}")]
+    InvalidJobState {
+        job_id: String,
+        expected: String,
+        actual: String,
+    },
+
+    /// The resource type cannot be exported.
+    #[error("resource type '{resource_type}' is not exportable")]
+    TypeNotExportable { resource_type: String },
+
+    /// Invalid export request.
+    #[error("invalid export request: {message}")]
+    InvalidRequest { message: String },
+
+    /// The specified group was not found.
+    #[error("group not found: {group_id}")]
+    GroupNotFound { group_id: String },
+
+    /// The output format is not supported.
+    #[error("unsupported export format: {format}")]
+    UnsupportedFormat { format: String },
+
+    /// Invalid type filter.
+    #[error("invalid type filter for {resource_type}: {message}")]
+    InvalidTypeFilter {
+        resource_type: String,
+        message: String,
+    },
+
+    /// The export was cancelled.
+    #[error("export job {job_id} was cancelled")]
+    Cancelled { job_id: String },
+
+    /// Error writing export output.
+    #[error("export write error: {message}")]
+    WriteError { message: String },
+
+    /// Too many concurrent exports.
+    #[error("too many concurrent exports (maximum: {max_concurrent})")]
+    TooManyConcurrentExports { max_concurrent: u32 },
+}
+
+/// Errors related to bulk submit operations.
+#[derive(Error, Debug)]
+pub enum BulkSubmitError {
+    /// The submission was not found.
+    #[error("submission not found: {submitter}/{submission_id}")]
+    SubmissionNotFound {
+        submitter: String,
+        submission_id: String,
+    },
+
+    /// The manifest was not found.
+    #[error("manifest not found: {submission_id}/{manifest_id}")]
+    ManifestNotFound {
+        submission_id: String,
+        manifest_id: String,
+    },
+
+    /// The submission is in an invalid state for the requested operation.
+    #[error("invalid submission state: {submission_id} is {actual}, expected {expected}")]
+    InvalidState {
+        submission_id: String,
+        expected: String,
+        actual: String,
+    },
+
+    /// The submission is already complete.
+    #[error("submission {submission_id} is already complete")]
+    AlreadyComplete { submission_id: String },
+
+    /// The submission was aborted.
+    #[error("submission {submission_id} was aborted: {reason}")]
+    Aborted {
+        submission_id: String,
+        reason: String,
+    },
+
+    /// Maximum errors exceeded.
+    #[error("submission {submission_id} exceeded maximum errors ({max_errors})")]
+    MaxErrorsExceeded {
+        submission_id: String,
+        max_errors: u32,
+    },
+
+    /// Error parsing NDJSON entry.
+    #[error("parse error at line {line}: {message}")]
+    ParseError { line: u64, message: String },
+
+    /// Invalid resource in submission.
+    #[error("invalid resource at line {line}: {message}")]
+    InvalidResource { line: u64, message: String },
+
+    /// Duplicate submission ID.
+    #[error("duplicate submission: {submitter}/{submission_id}")]
+    DuplicateSubmission {
+        submitter: String,
+        submission_id: String,
+    },
+
+    /// Error replacing manifest.
+    #[error("cannot replace manifest {manifest_url}: {reason}")]
+    ManifestReplacementError {
+        manifest_url: String,
+        reason: String,
+    },
+
+    /// Rollback failed.
+    #[error("rollback failed for submission {submission_id}: {message}")]
+    RollbackFailed {
+        submission_id: String,
+        message: String,
+    },
+}
+
 /// Result type alias for storage operations.
 pub type StorageResult<T> = Result<T, StorageError>;
 
@@ -454,5 +586,51 @@ mod tests {
         assert_eq!(ValidationSeverity::Error.to_string(), "error");
         assert_eq!(ValidationSeverity::Warning.to_string(), "warning");
         assert_eq!(ValidationSeverity::Information.to_string(), "information");
+    }
+
+    #[test]
+    fn test_bulk_export_error_display() {
+        let err = BulkExportError::JobNotFound {
+            job_id: "abc-123".to_string(),
+        };
+        assert_eq!(err.to_string(), "export job not found: abc-123");
+
+        let err = BulkExportError::InvalidJobState {
+            job_id: "abc-123".to_string(),
+            expected: "in-progress".to_string(),
+            actual: "complete".to_string(),
+        };
+        assert!(err.to_string().contains("invalid job state"));
+    }
+
+    #[test]
+    fn test_bulk_submit_error_display() {
+        let err = BulkSubmitError::SubmissionNotFound {
+            submitter: "test-system".to_string(),
+            submission_id: "sub-123".to_string(),
+        };
+        assert_eq!(err.to_string(), "submission not found: test-system/sub-123");
+
+        let err = BulkSubmitError::ParseError {
+            line: 42,
+            message: "invalid JSON".to_string(),
+        };
+        assert!(err.to_string().contains("line 42"));
+    }
+
+    #[test]
+    fn test_storage_error_from_bulk_errors() {
+        let export_err = BulkExportError::JobNotFound {
+            job_id: "test".to_string(),
+        };
+        let storage_err: StorageError = export_err.into();
+        assert!(matches!(storage_err, StorageError::BulkExport(_)));
+
+        let submit_err = BulkSubmitError::SubmissionNotFound {
+            submitter: "test".to_string(),
+            submission_id: "123".to_string(),
+        };
+        let storage_err: StorageError = submit_err.into();
+        assert!(matches!(storage_err, StorageError::BulkSubmit(_)));
     }
 }

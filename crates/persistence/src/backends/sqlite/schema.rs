@@ -5,7 +5,7 @@ use rusqlite::Connection;
 use crate::error::StorageResult;
 
 /// Current schema version.
-pub const SCHEMA_VERSION: i32 = 5;
+pub const SCHEMA_VERSION: i32 = 6;
 
 /// Initialize the database schema.
 pub fn initialize_schema(conn: &Connection) -> StorageResult<()> {
@@ -13,9 +13,11 @@ pub fn initialize_schema(conn: &Connection) -> StorageResult<()> {
     let current_version = get_schema_version(conn)?;
 
     if current_version == 0 {
-        // Fresh database - create schema
+        // Fresh database - create base schema then run all migrations
         create_schema_v1(conn)?;
-        set_schema_version(conn, SCHEMA_VERSION)?;
+        set_schema_version(conn, 1)?;
+        // Run migrations from v1 to latest
+        migrate_schema(conn, 1)?;
     } else if current_version < SCHEMA_VERSION {
         // Run migrations
         migrate_schema(conn, current_version)?;
@@ -259,6 +261,7 @@ fn migrate_schema(conn: &Connection, from_version: i32) -> StorageResult<()> {
             2 => migrate_v2_to_v3(conn)?,
             3 => migrate_v3_to_v4(conn)?,
             4 => migrate_v4_to_v5(conn)?,
+            5 => migrate_v5_to_v6(conn)?,
             _ => {
                 return Err(crate::error::StorageError::Backend(
                     crate::error::BackendError::Internal {
@@ -532,12 +535,279 @@ fn migrate_v4_to_v5(conn: &Connection) -> StorageResult<()> {
     Ok(())
 }
 
+/// Migrate from schema version 5 to version 6.
+///
+/// This migration adds tables for bulk data export and bulk submit operations:
+///
+/// Bulk Export tables:
+/// - bulk_export_jobs: Export job metadata and status
+/// - bulk_export_progress: Per-type progress tracking
+/// - bulk_export_files: Output file information
+///
+/// Bulk Submit tables:
+/// - bulk_submissions: Submission metadata and status
+/// - bulk_manifests: Manifest metadata within submissions
+/// - bulk_entry_results: Per-entry processing results
+/// - bulk_submission_changes: Change tracking for rollback
+fn migrate_v5_to_v6(conn: &Connection) -> StorageResult<()> {
+    // Bulk Export tables
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS bulk_export_jobs (
+            id TEXT PRIMARY KEY,
+            tenant_id TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'accepted',
+            level TEXT NOT NULL,
+            group_id TEXT,
+            request_json TEXT NOT NULL,
+            transaction_time TEXT NOT NULL,
+            started_at TEXT,
+            completed_at TEXT,
+            error_message TEXT,
+            current_type TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )",
+        [],
+    )
+    .map_err(|e| {
+        crate::error::StorageError::Backend(crate::error::BackendError::Internal {
+            backend_name: "sqlite".to_string(),
+            message: format!("Failed to create bulk_export_jobs table: {}", e),
+            source: None,
+        })
+    })?;
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_export_jobs_tenant
+         ON bulk_export_jobs(tenant_id, status)",
+        [],
+    )
+    .map_err(|e| {
+        crate::error::StorageError::Backend(crate::error::BackendError::Internal {
+            backend_name: "sqlite".to_string(),
+            message: format!("Failed to create idx_export_jobs_tenant: {}", e),
+            source: None,
+        })
+    })?;
+
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS bulk_export_progress (
+            job_id TEXT NOT NULL,
+            resource_type TEXT NOT NULL,
+            total_count INTEGER,
+            exported_count INTEGER DEFAULT 0,
+            error_count INTEGER DEFAULT 0,
+            cursor_state TEXT,
+            PRIMARY KEY (job_id, resource_type),
+            FOREIGN KEY (job_id) REFERENCES bulk_export_jobs(id) ON DELETE CASCADE
+        )",
+        [],
+    )
+    .map_err(|e| {
+        crate::error::StorageError::Backend(crate::error::BackendError::Internal {
+            backend_name: "sqlite".to_string(),
+            message: format!("Failed to create bulk_export_progress table: {}", e),
+            source: None,
+        })
+    })?;
+
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS bulk_export_files (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            job_id TEXT NOT NULL,
+            resource_type TEXT NOT NULL,
+            file_type TEXT NOT NULL DEFAULT 'output',
+            file_path TEXT NOT NULL,
+            resource_count INTEGER DEFAULT 0,
+            byte_count INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (job_id) REFERENCES bulk_export_jobs(id) ON DELETE CASCADE
+        )",
+        [],
+    )
+    .map_err(|e| {
+        crate::error::StorageError::Backend(crate::error::BackendError::Internal {
+            backend_name: "sqlite".to_string(),
+            message: format!("Failed to create bulk_export_files table: {}", e),
+            source: None,
+        })
+    })?;
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_export_files_job
+         ON bulk_export_files(job_id)",
+        [],
+    )
+    .map_err(|e| {
+        crate::error::StorageError::Backend(crate::error::BackendError::Internal {
+            backend_name: "sqlite".to_string(),
+            message: format!("Failed to create idx_export_files_job: {}", e),
+            source: None,
+        })
+    })?;
+
+    // Bulk Submit tables
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS bulk_submissions (
+            tenant_id TEXT NOT NULL,
+            submitter TEXT NOT NULL,
+            submission_id TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'in-progress',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            completed_at TEXT,
+            metadata BLOB,
+            PRIMARY KEY (tenant_id, submitter, submission_id)
+        )",
+        [],
+    )
+    .map_err(|e| {
+        crate::error::StorageError::Backend(crate::error::BackendError::Internal {
+            backend_name: "sqlite".to_string(),
+            message: format!("Failed to create bulk_submissions table: {}", e),
+            source: None,
+        })
+    })?;
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_bulk_submissions_status
+         ON bulk_submissions(tenant_id, status)",
+        [],
+    )
+    .map_err(|e| {
+        crate::error::StorageError::Backend(crate::error::BackendError::Internal {
+            backend_name: "sqlite".to_string(),
+            message: format!("Failed to create idx_bulk_submissions_status: {}", e),
+            source: None,
+        })
+    })?;
+
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS bulk_manifests (
+            tenant_id TEXT NOT NULL,
+            submitter TEXT NOT NULL,
+            submission_id TEXT NOT NULL,
+            manifest_id TEXT NOT NULL,
+            manifest_url TEXT,
+            replaces_manifest_url TEXT,
+            status TEXT NOT NULL DEFAULT 'pending',
+            added_at TEXT NOT NULL,
+            total_entries INTEGER DEFAULT 0,
+            processed_entries INTEGER DEFAULT 0,
+            failed_entries INTEGER DEFAULT 0,
+            PRIMARY KEY (tenant_id, submitter, submission_id, manifest_id),
+            FOREIGN KEY (tenant_id, submitter, submission_id)
+                REFERENCES bulk_submissions(tenant_id, submitter, submission_id) ON DELETE CASCADE
+        )",
+        [],
+    )
+    .map_err(|e| {
+        crate::error::StorageError::Backend(crate::error::BackendError::Internal {
+            backend_name: "sqlite".to_string(),
+            message: format!("Failed to create bulk_manifests table: {}", e),
+            source: None,
+        })
+    })?;
+
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS bulk_entry_results (
+            tenant_id TEXT NOT NULL,
+            submitter TEXT NOT NULL,
+            submission_id TEXT NOT NULL,
+            manifest_id TEXT NOT NULL,
+            line_number INTEGER NOT NULL,
+            resource_type TEXT NOT NULL,
+            resource_id TEXT,
+            created INTEGER,
+            outcome TEXT NOT NULL,
+            operation_outcome BLOB,
+            PRIMARY KEY (tenant_id, submitter, submission_id, manifest_id, line_number),
+            FOREIGN KEY (tenant_id, submitter, submission_id, manifest_id)
+                REFERENCES bulk_manifests(tenant_id, submitter, submission_id, manifest_id) ON DELETE CASCADE
+        )",
+        [],
+    )
+    .map_err(|e| {
+        crate::error::StorageError::Backend(crate::error::BackendError::Internal {
+            backend_name: "sqlite".to_string(),
+            message: format!("Failed to create bulk_entry_results table: {}", e),
+            source: None,
+        })
+    })?;
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_bulk_entry_results_outcome
+         ON bulk_entry_results(tenant_id, submitter, submission_id, manifest_id, outcome)",
+        [],
+    )
+    .map_err(|e| {
+        crate::error::StorageError::Backend(crate::error::BackendError::Internal {
+            backend_name: "sqlite".to_string(),
+            message: format!("Failed to create idx_bulk_entry_results_outcome: {}", e),
+            source: None,
+        })
+    })?;
+
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS bulk_submission_changes (
+            tenant_id TEXT NOT NULL,
+            submitter TEXT NOT NULL,
+            submission_id TEXT NOT NULL,
+            change_id TEXT NOT NULL,
+            manifest_id TEXT NOT NULL,
+            change_type TEXT NOT NULL,
+            resource_type TEXT NOT NULL,
+            resource_id TEXT NOT NULL,
+            previous_version TEXT,
+            new_version TEXT NOT NULL,
+            previous_content BLOB,
+            changed_at TEXT NOT NULL,
+            PRIMARY KEY (tenant_id, submitter, submission_id, change_id),
+            FOREIGN KEY (tenant_id, submitter, submission_id)
+                REFERENCES bulk_submissions(tenant_id, submitter, submission_id) ON DELETE CASCADE
+        )",
+        [],
+    )
+    .map_err(|e| {
+        crate::error::StorageError::Backend(crate::error::BackendError::Internal {
+            backend_name: "sqlite".to_string(),
+            message: format!("Failed to create bulk_submission_changes table: {}", e),
+            source: None,
+        })
+    })?;
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_bulk_changes_resource
+         ON bulk_submission_changes(tenant_id, resource_type, resource_id)",
+        [],
+    )
+    .map_err(|e| {
+        crate::error::StorageError::Backend(crate::error::BackendError::Internal {
+            backend_name: "sqlite".to_string(),
+            message: format!("Failed to create idx_bulk_changes_resource: {}", e),
+            source: None,
+        })
+    })?;
+
+    Ok(())
+}
+
 /// Drop all tables (for testing).
 #[cfg(test)]
 #[allow(dead_code)]
 pub fn drop_all_tables(conn: &Connection) -> StorageResult<()> {
     // Drop FTS5 table first (if exists)
     let _ = conn.execute("DROP TABLE IF EXISTS resource_fts", []);
+    let _ = conn.execute("DROP TABLE IF EXISTS search_index_fts", []);
+
+    // Drop bulk tables (order matters due to foreign keys)
+    let _ = conn.execute("DROP TABLE IF EXISTS bulk_submission_changes", []);
+    let _ = conn.execute("DROP TABLE IF EXISTS bulk_entry_results", []);
+    let _ = conn.execute("DROP TABLE IF EXISTS bulk_manifests", []);
+    let _ = conn.execute("DROP TABLE IF EXISTS bulk_submissions", []);
+    let _ = conn.execute("DROP TABLE IF EXISTS bulk_export_files", []);
+    let _ = conn.execute("DROP TABLE IF EXISTS bulk_export_progress", []);
+    let _ = conn.execute("DROP TABLE IF EXISTS bulk_export_jobs", []);
+
     conn.execute("DROP TABLE IF EXISTS search_index", [])
         .map_err(|e| {
             crate::error::StorageError::Backend(crate::error::BackendError::Internal {
@@ -616,5 +886,69 @@ mod tests {
 
         let version = get_schema_version(&conn).unwrap();
         assert_eq!(version, SCHEMA_VERSION);
+    }
+
+    #[test]
+    fn test_bulk_tables_exist() {
+        let conn = Connection::open_in_memory().unwrap();
+        initialize_schema(&conn).unwrap();
+
+        // Verify bulk export tables exist
+        let tables: Vec<String> = conn
+            .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .filter_map(|r| r.ok())
+            .collect();
+
+        // Bulk export tables
+        assert!(tables.contains(&"bulk_export_jobs".to_string()));
+        assert!(tables.contains(&"bulk_export_progress".to_string()));
+        assert!(tables.contains(&"bulk_export_files".to_string()));
+
+        // Bulk submit tables
+        assert!(tables.contains(&"bulk_submissions".to_string()));
+        assert!(tables.contains(&"bulk_manifests".to_string()));
+        assert!(tables.contains(&"bulk_entry_results".to_string()));
+        assert!(tables.contains(&"bulk_submission_changes".to_string()));
+    }
+
+    #[test]
+    fn test_migration_v5_to_v6() {
+        let conn = Connection::open_in_memory().unwrap();
+
+        // Create schema at version 5 (without bulk tables)
+        create_schema_v1(&conn).unwrap();
+        // Initialize schema_version table via get_schema_version
+        let _ = get_schema_version(&conn).unwrap();
+        migrate_v1_to_v2(&conn).unwrap();
+        migrate_v2_to_v3(&conn).unwrap();
+        migrate_v3_to_v4(&conn).unwrap();
+        migrate_v4_to_v5(&conn).unwrap();
+        set_schema_version(&conn, 5).unwrap();
+
+        // Verify bulk tables don't exist yet
+        let table_count: i32 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name LIKE 'bulk_%'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(table_count, 0);
+
+        // Run migration
+        migrate_v5_to_v6(&conn).unwrap();
+
+        // Verify bulk tables now exist
+        let table_count: i32 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name LIKE 'bulk_%'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(table_count, 7); // 3 export + 4 submit tables
     }
 }

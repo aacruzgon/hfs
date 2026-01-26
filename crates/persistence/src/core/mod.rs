@@ -90,6 +90,8 @@
 //! ```
 
 pub mod backend;
+pub mod bulk_export;
+pub mod bulk_submit;
 pub mod capabilities;
 pub mod history;
 pub mod search;
@@ -99,6 +101,17 @@ pub mod versioned;
 
 // Re-export main types
 pub use backend::{Backend, BackendCapability, BackendConfig, BackendKind, BackendPoolStats};
+pub use bulk_export::{
+    BulkExportStorage, ExportDataProvider, ExportJobId, ExportLevel, ExportManifest,
+    ExportOutputFile, ExportProgress, ExportRequest, ExportStatus, GroupExportProvider,
+    NdjsonBatch, PatientExportProvider, TypeExportProgress, TypeFilter,
+};
+pub use bulk_submit::{
+    BulkEntryOutcome, BulkEntryResult, BulkProcessingOptions, BulkSubmitProvider,
+    BulkSubmitRollbackProvider, ChangeType, EntryCountSummary, ManifestStatus, NdjsonEntry,
+    StreamProcessingResult, StreamingBulkSubmitProvider, SubmissionChange, SubmissionId,
+    SubmissionManifest, SubmissionStatus, SubmissionSummary,
+};
 pub use capabilities::{
     CapabilityProvider, GlobalSearchCapabilities, Interaction, ResourceCapabilities,
     ResourceSearchCapabilities, SearchCapabilityProvider, SearchParamCapability,
