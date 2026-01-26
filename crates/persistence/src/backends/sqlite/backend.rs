@@ -2,6 +2,7 @@
 
 use std::fmt::Debug;
 use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -16,6 +17,9 @@ use crate::search::loader::FhirVersion;
 use crate::search::{SearchParameterExtractor, SearchParameterLoader, SearchParameterRegistry};
 
 use super::schema;
+
+/// Counter for generating unique in-memory database names.
+static MEMORY_DB_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// SQLite backend for FHIR resource storage.
 pub struct SqliteBackend {
@@ -118,7 +122,17 @@ impl SqliteBackend {
         let path_str = path.as_ref().to_string_lossy();
         let is_memory = path_str == ":memory:";
 
-        let manager = SqliteConnectionManager::file(path.as_ref());
+        // For in-memory databases with connection pools, we need to use a shared-cache
+        // URI so all connections access the same database. Otherwise, each connection
+        // gets its own isolated in-memory database. Each backend instance gets a unique
+        // database name to ensure test isolation.
+        let manager = if is_memory {
+            let db_id = MEMORY_DB_COUNTER.fetch_add(1, Ordering::Relaxed);
+            let uri = format!("file:hfs_mem_{}?mode=memory&cache=shared", db_id);
+            SqliteConnectionManager::file(uri)
+        } else {
+            SqliteConnectionManager::file(path.as_ref())
+        };
 
         let pool = Pool::builder()
             .max_size(config.max_connections)
