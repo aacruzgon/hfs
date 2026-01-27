@@ -332,9 +332,9 @@ fn test_complexity_score_reflects_complexity() {
 #[test]
 fn test_merge_results_conceptual() {
     // Simulate results from different backends
-    let primary_results = vec!["Patient/1", "Patient/2", "Patient/3"];
-    let graph_results = vec!["Patient/2", "Patient/3", "Patient/4"];
-    let search_results = vec!["Patient/1", "Patient/3", "Patient/5"];
+    let primary_results = ["Patient/1", "Patient/2", "Patient/3"];
+    let graph_results = ["Patient/2", "Patient/3", "Patient/4"];
+    let search_results = ["Patient/1", "Patient/3", "Patient/5"];
 
     // Intersection strategy: only resources found by all
     let merged_intersection: Vec<_> = primary_results
@@ -376,10 +376,10 @@ fn test_include_resolution_conceptual() {
     // Scenario: Search returns IDs, then _include resolves references
 
     // Step 1: Get base resource IDs from search
-    let _search_result_ids = vec!["Observation/1", "Observation/2"];
+    let _search_result_ids = ["Observation/1", "Observation/2"];
 
     // Step 2: Load full resources from primary
-    let observations = vec![
+    let observations = [
         json!({
             "resourceType": "Observation",
             "id": "1",
@@ -432,7 +432,7 @@ fn test_eventual_consistency_conceptual() {
         consistency: &'static str,
     }
 
-    let expectations = vec![
+    let expectations = [
         ConsistencyExpectation {
             backend: "Primary",
             consistency: "Strong",

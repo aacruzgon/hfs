@@ -549,10 +549,7 @@ pub fn decompose_query(query: &SearchQuery) -> Vec<QueryPart> {
 mod tests {
     use super::*;
     use crate::core::BackendKind;
-    use crate::types::{
-        ChainedParameter, IncludeDirective, IncludeType, SearchModifier, SearchParamType,
-        SearchValue,
-    };
+    use crate::types::{ChainedParameter, SearchModifier, SearchParamType, SearchValue};
 
     fn test_config() -> CompositeConfig {
         CompositeConfig::builder()
