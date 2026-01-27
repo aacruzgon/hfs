@@ -1,6 +1,6 @@
 # helios-persistence
 
-Polyglot persistence layer for the Helios FHIR Server.
+[Polyglot persistence layer](https://github.com/HeliosSoftware/hfs/discussions/28) for the Helios FHIR Server.
 
 ## Overview
 
@@ -16,8 +16,6 @@ Traditional FHIR server implementations force all resources into a single databa
 | Full-text search | Elasticsearch | Optimized inverted indexes |
 | Semantic search | Vector databases | Embedding similarity for clinical matching |
 | Bulk analytics & ML | Object Storage | Cost-effective columnar storage |
-
-This crate implements the polyglot persistence layer described in [Discussion #28: Polyglot Persistence Architecture](https://github.com/HeliosSoftware/hfs/discussions/28).
 
 ## Polyglot Query Example
 
@@ -260,8 +258,8 @@ The matrix below shows which FHIR operations each backend supports. This reflect
 | Single field | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
 | Multiple fields | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
 | **[Bulk Operations](https://hl7.org/fhir/uv/bulkdata/)** |
-| [Bulk Export](https://hl7.org/fhir/uv/bulkdata/export.html) | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
-| [Bulk Submit](https://hackmd.io/@argonaut/rJoqHZrPle) | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
+| [Bulk Export](https://hl7.org/fhir/uv/bulkdata/export.html) | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
+| [Bulk Submit](https://hackmd.io/@argonaut/rJoqHZrPle) | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
 
 ### Backend Selection Guide
 
@@ -370,6 +368,21 @@ The SQLite backend includes a complete FHIR search implementation using pre-comp
 **Capability Reporting:**
 - [x] `SearchCapabilityProvider` implementation
 - [x] Runtime capability discovery from registry
+
+**Bulk Operations:**
+- [x] `BulkExportStorage` trait implementation (FHIR Bulk Data Access IG)
+  - System-level export (`/$export`)
+  - Patient-level export (`/Patient/$export`)
+  - Group-level export (`/Group/[id]/$export`)
+  - Job lifecycle management (pending, in-progress, completed, failed, cancelled)
+  - Streaming NDJSON batch generation
+  - Type filtering and _since parameter support
+- [x] `BulkSubmitProvider` trait implementation (Argonaut Bulk Submit)
+  - Submission lifecycle management
+  - Manifest creation and management
+  - Entry processing with validation
+  - Rollback support for failed submissions
+- [x] Schema migration v5 to v6 with 7 new tables for bulk operations
 
 ### Phase 5+: Additional Backends (Planned)
 - [ ] PostgreSQL backend (JSONB, GIN indexes, RLS)
