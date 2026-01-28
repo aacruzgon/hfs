@@ -71,9 +71,10 @@ helios-persistence/
 │   │   ├── permissions.rs # Fine-grained TenantPermissions
 │   │   └── tenancy.rs   # TenancyModel configuration
 │   ├── types/           # Core domain types
-│   │   ├── stored_resource.rs  # Resource with persistence metadata
-│   │   ├── search_params.rs    # Full FHIR search parameter model
-│   │   └── pagination.rs       # Cursor and offset pagination
+│   │   ├── stored_resource.rs    # Resource with persistence metadata
+│   │   ├── search_params.rs      # Full FHIR search parameter model
+│   │   ├── search_capabilities.rs # Search capability reporting
+│   │   └── pagination.rs         # Cursor and offset pagination
 │   ├── core/            # Storage trait hierarchy
 │   │   ├── backend.rs      # Backend abstraction with capabilities
 │   │   ├── storage.rs      # ResourceStorage (CRUD)
@@ -81,14 +82,56 @@ helios-persistence/
 │   │   ├── history.rs      # History providers (instance/type/system)
 │   │   ├── search.rs       # Search providers (basic, chained, include)
 │   │   ├── transaction.rs  # ACID transactions with bundle support
-│   │   └── capabilities.rs # Runtime capability discovery
+│   │   ├── capabilities.rs # Runtime capability discovery
+│   │   ├── bulk_export.rs  # FHIR Bulk Data Export traits
+│   │   └── bulk_submit.rs  # FHIR Bulk Submit traits
+│   ├── search/          # Search parameter infrastructure
+│   │   ├── registry.rs     # SearchParameterRegistry (in-memory cache)
+│   │   ├── loader.rs       # SearchParameterLoader (R4 standard params)
+│   │   ├── extractor.rs    # FHIRPath-based value extraction
+│   │   ├── converters.rs   # Type conversion utilities
+│   │   ├── writer.rs       # Search index writer
+│   │   ├── reindex.rs      # Reindexing operations
+│   │   └── errors.rs       # Search-specific error types
 │   ├── strategy/        # Tenancy isolation strategies
 │   │   ├── shared_schema.rs       # tenant_id column + optional RLS
 │   │   ├── schema_per_tenant.rs   # PostgreSQL search_path isolation
 │   │   └── database_per_tenant.rs # Complete database isolation
 │   ├── backends/        # Backend implementations
 │   │   └── sqlite/      # Reference implementation (complete)
-│   └── composite/       # Multi-backend routing (planned)
+│   │       ├── backend.rs      # SqliteBackend with connection pooling
+│   │       ├── storage.rs      # ResourceStorage implementation
+│   │       ├── transaction.rs  # TransactionProvider implementation
+│   │       ├── schema.rs       # Schema migrations (v1-v6)
+│   │       ├── search_impl.rs  # SearchProvider implementation
+│   │       ├── bulk_export.rs  # BulkExportStorage implementation
+│   │       ├── bulk_submit.rs  # BulkSubmitProvider implementation
+│   │       └── search/         # Search query building
+│   │           ├── query_builder.rs      # SQL query construction
+│   │           ├── chain_builder.rs      # Chained parameter resolution
+│   │           ├── filter_parser.rs      # _filter parameter parsing
+│   │           ├── fts.rs                # FTS5 full-text search
+│   │           ├── modifier_handlers.rs  # Search modifier logic
+│   │           ├── strategy.rs           # Query strategy selection
+│   │           ├── writer.rs             # Index writing
+│   │           └── parameter_handlers/   # Type-specific handlers
+│   │               ├── string.rs, token.rs, date.rs, number.rs
+│   │               ├── quantity.rs, reference.rs, uri.rs, composite.rs
+│   ├── composite/       # Multi-backend coordination
+│   │   ├── config.rs       # CompositeConfig and builder
+│   │   ├── analyzer.rs     # Query feature detection
+│   │   ├── router.rs       # Query routing logic
+│   │   ├── cost.rs         # Cost-based optimization
+│   │   ├── merger.rs       # Result merging strategies
+│   │   ├── sync.rs         # Backend synchronization
+│   │   ├── health.rs       # Health monitoring
+│   │   └── storage.rs      # CompositeStorage implementation
+│   └── advisor/         # Configuration advisor HTTP API
+│       ├── server.rs       # Axum HTTP server
+│       ├── handlers.rs     # API endpoint handlers
+│       ├── analysis.rs     # Configuration analysis
+│       ├── suggestions.rs  # Optimization suggestions
+│       └── main.rs         # Advisor binary entry point
 ```
 
 ### Trait Hierarchy
@@ -377,7 +420,7 @@ The SQLite backend includes a complete FHIR search implementation using pre-comp
   - Job lifecycle management (pending, in-progress, completed, failed, cancelled)
   - Streaming NDJSON batch generation
   - Type filtering and _since parameter support
-- [x] `BulkSubmitProvider` trait implementation (Argonaut Bulk Submit)
+- [x] `BulkSubmitProvider` trait implementation (FHIR Bulk Submit)
   - Submission lifecycle management
   - Manifest creation and management
   - Entry processing with validation
