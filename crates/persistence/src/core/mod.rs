@@ -5,8 +5,8 @@
 //! - [`Backend`] - Database driver abstraction
 //! - [`ResourceStorage`] - Core CRUD operations
 //! - [`VersionedStorage`] - Version-aware operations
-//! - History providers - Instance, type, and system-level history
-//! - Search providers - Various levels of search capability
+//! - [`InstanceHistoryProvider`], [`TypeHistoryProvider`], [`SystemHistoryProvider`] - History access
+//! - [`SearchProvider`], [`MultiTypeSearchProvider`], [`ChainedSearchProvider`] - Search capability
 //! - [`Transaction`] - ACID transaction support
 //! - [`CapabilityProvider`] - Runtime capability discovery
 //!
