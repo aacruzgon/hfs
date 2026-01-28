@@ -1,0 +1,61 @@
+{
+  "name": "Patient Delete Tests",
+  "description": "Tests for the delete interaction (DELETE /[type]/[id])",
+  "tags": ["crud", "delete"],
+  "backends": {
+    "include": ["sqlite", "postgres"],
+    "exclude": []
+  },
+  "fhir_versions": ["R4"],
+  "setup": {
+    "resources": [
+      {
+        "resourceType": "Patient",
+        "id": "delete-test-1",
+        "name": [{ "family": "ToDelete" }]
+      },
+      {
+        "resourceType": "Patient",
+        "id": "delete-test-2",
+        "name": [{ "family": "AlsoDelete" }]
+      }
+    ]
+  },
+  "tests": [
+    {
+      "name": "delete_existing_patient",
+      "description": "Should delete an existing patient",
+      "tags": ["smoke"],
+      "request": {
+        "method": "DELETE",
+        "path": "/Patient/delete-test-1"
+      },
+      "expect": {
+        "status": 204
+      }
+    },
+    {
+      "name": "delete_nonexistent_patient",
+      "description": "Should return 404 for non-existent resource",
+      "request": {
+        "method": "DELETE",
+        "path": "/Patient/nonexistent"
+      },
+      "expect": {
+        "status": 404
+      }
+    },
+    {
+      "name": "read_after_delete",
+      "description": "Should return 404 or 410 after deletion",
+      "skip": true,
+      "request": {
+        "method": "GET",
+        "path": "/Patient/delete-test-1"
+      },
+      "expect": {
+        "status": 404
+      }
+    }
+  ]
+}

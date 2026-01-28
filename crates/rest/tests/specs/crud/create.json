@@ -1,0 +1,107 @@
+{
+  "name": "Patient Create Tests",
+  "description": "Tests for the create interaction (POST /[type])",
+  "tags": ["crud", "create"],
+  "backends": {
+    "include": ["sqlite", "postgres"],
+    "exclude": []
+  },
+  "fhir_versions": ["R4"],
+  "setup": {
+    "resources": []
+  },
+  "tests": [
+    {
+      "name": "create_patient",
+      "description": "Should create a patient and return 201",
+      "tags": ["smoke"],
+      "request": {
+        "method": "POST",
+        "path": "/Patient",
+        "headers": {
+          "Content-Type": "application/fhir+json",
+          "Prefer": "return=representation"
+        },
+        "body": {
+          "resourceType": "Patient",
+          "name": [{ "family": "NewPatient", "given": ["Test"] }],
+          "birthDate": "2000-01-01"
+        }
+      },
+      "expect": {
+        "status": 201,
+        "headers": {
+          "Location": { "matches": ".*/Patient/.*" },
+          "ETag": { "matches": "W/\"\\d+\"" }
+        },
+        "body": {
+          "resourceType": "Patient",
+          "name": [{ "family": "NewPatient" }]
+        }
+      }
+    },
+    {
+      "name": "create_patient_minimal_response",
+      "description": "Should create a patient with minimal response",
+      "request": {
+        "method": "POST",
+        "path": "/Patient",
+        "headers": {
+          "Content-Type": "application/fhir+json",
+          "Prefer": "return=minimal"
+        },
+        "body": {
+          "resourceType": "Patient",
+          "name": [{ "family": "Minimal" }]
+        }
+      },
+      "expect": {
+        "status": 201,
+        "headers": {
+          "Location": { "matches": ".*/Patient/.*" }
+        }
+      }
+    },
+    {
+      "name": "create_patient_missing_resourceType",
+      "description": "Should reject patient without resourceType",
+      "request": {
+        "method": "POST",
+        "path": "/Patient",
+        "headers": {
+          "Content-Type": "application/fhir+json"
+        },
+        "body": {
+          "name": [{ "family": "NoType" }]
+        }
+      },
+      "expect": {
+        "status": 400,
+        "body": {
+          "resourceType": "OperationOutcome"
+        }
+      }
+    },
+    {
+      "name": "create_patient_wrong_type",
+      "description": "Should reject when resourceType doesn't match URL",
+      "request": {
+        "method": "POST",
+        "path": "/Patient",
+        "headers": {
+          "Content-Type": "application/fhir+json"
+        },
+        "body": {
+          "resourceType": "Observation",
+          "status": "final"
+        }
+      },
+      "expect": {
+        "status": 400,
+        "body": {
+          "resourceType": "OperationOutcome"
+        }
+      }
+    }
+  ]
+}

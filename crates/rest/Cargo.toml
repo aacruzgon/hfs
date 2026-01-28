@@ -1,0 +1,85 @@
+[package]
+name = "helios-rest"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "FHIR RESTful API implementation for Helios FHIR Server"
+keywords = ["fhir", "rest", "api", "healthcare", "hl7"]
+categories = ["web-programming", "database"]
+
+[features]
+default = ["R4", "sqlite"]
+
+# FHIR version features (pass through to helios-fhir and helios-persistence)
+R4 = ["helios-fhir/R4", "helios-persistence/R4"]
+R4B = ["helios-fhir/R4B", "helios-persistence/R4B"]
+R5 = ["helios-fhir/R5", "helios-persistence/R5"]
+R6 = ["helios-fhir/R6", "helios-persistence/R6"]
+
+# Database backends (pass through to helios-persistence)
+sqlite = ["helios-persistence/sqlite"]
+postgres = ["helios-persistence/postgres"]
+mongodb = ["helios-persistence/mongodb"]
+
+[dependencies]
+# Core dependencies
+helios-fhir = { path = "../fhir" }
+helios-persistence = { path = "../persistence", default-features = false }
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+async-trait = "0.1"
+
+# Web framework
+axum = { version = "0.8", features = ["json", "query", "matched-path"] }
+tower = { version = "0.5", features = ["full"] }
+tower-http = { version = "0.6", features = ["cors", "trace", "timeout", "request-id"] }
+http = "1.0"
+mime = "0.3"
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+# Error handling
+thiserror = "2"
+anyhow = "1.0"
+
+# Logging and tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# CLI and configuration
+clap = { version = "4.0", features = ["derive", "env"] }
+
+# Date/time
+chrono.workspace = true
+
+# Utilities
+uuid = { version = "1", features = ["v4", "serde"] }
+url = "2.5"
+json-patch = "3"
+
+[dev-dependencies]
+# HTTP testing
+axum-test = "18.0"
+
+# Temp files
+tempfile = "3"
+
+# Async test utilities
+tokio = { version = "1", features = ["full", "test-util"] }
+tokio-test = "0.4"
+
+# JSON path for test assertions
+jsonpath-rust = "0.7"
+
+# Regex for pattern matching in tests
+regex = "1"
+
+[package.metadata.docs.rs]
+features = ["R4", "sqlite"]
+rustdoc-args = ["--cfg", "docsrs"]

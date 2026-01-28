@@ -226,13 +226,15 @@ impl SqliteBackend {
         }
 
         if self.config.enable_wal && !self.is_memory {
-            conn.execute("PRAGMA journal_mode = WAL", []).map_err(|e| {
-                crate::error::StorageError::Backend(BackendError::Internal {
-                    backend_name: "sqlite".to_string(),
-                    message: format!("Failed to enable WAL mode: {}", e),
-                    source: None,
-                })
-            })?;
+            // PRAGMA journal_mode returns a result, so we use query_row instead of execute
+            conn.query_row("PRAGMA journal_mode = WAL", [], |_row| Ok(()))
+                .map_err(|e| {
+                    crate::error::StorageError::Backend(BackendError::Internal {
+                        backend_name: "sqlite".to_string(),
+                        message: format!("Failed to enable WAL mode: {}", e),
+                        source: None,
+                    })
+                })?;
         }
 
         Ok(())

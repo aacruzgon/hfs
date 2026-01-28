@@ -31,6 +31,7 @@
 
 use std::net::SocketAddr;
 
+#[cfg(feature = "advisor")]
 use super::handlers::{
     AnalyzeRequest, SimulateRequest, SuggestRequest, ValidateRequest, handle_analyze,
     handle_backend_capabilities, handle_backends, handle_simulate, handle_suggest, handle_validate,
@@ -205,12 +206,6 @@ impl AdvisorServer {
             .route("/validate", post(validate_handler))
             .route("/suggest", post(suggest_handler))
             .route("/simulate", post(simulate_handler))
-    }
-
-    /// Creates the router without the advisor feature (for library use).
-    #[cfg(not(feature = "advisor"))]
-    fn create_router(&self) {
-        // No-op without the advisor feature
     }
 }
 
