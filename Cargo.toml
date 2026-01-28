@@ -13,6 +13,7 @@ default-members = [
 	"crates/fhirpath-support",
 	"crates/hfs",
 	"crates/persistence",
+	"crates/rest",
 	"crates/sof",
 ]
 resolver = "2"

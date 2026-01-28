@@ -2,20 +2,46 @@
 name = "helios-hfs"
 version.workspace = true
 edition.workspace = true
-description = "The hfs crate is the main server executable for the Helios FHIR Server."
+description = "Helios FHIR Server - A high-performance FHIR R4/R4B/R5/R6 server"
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
-homepage = "https://github.com/HeliosSoftware/hfs/tree/main/crates/hfs"
 readme = "README.md"
 
+[[bin]]
+name = "hfs"
+path = "src/main.rs"
+
 [features]
-default = ["R4"]
-R4 = ["helios-fhir/R4"]
-R4B = ["helios-fhir/R4B"]
-R5 = ["helios-fhir/R5"]
-R6 = ["helios-fhir/R6"]
+default = ["R4", "sqlite"]
+
+# FHIR version features
+R4 = ["helios-fhir/R4", "helios-rest/R4"]
+R4B = ["helios-fhir/R4B", "helios-rest/R4B"]
+R5 = ["helios-fhir/R5", "helios-rest/R5"]
+R6 = ["helios-fhir/R6", "helios-rest/R6"]
+
+# Database backends
+sqlite = ["helios-rest/sqlite"]
+postgres = ["helios-rest/postgres"]
+mongodb = ["helios-rest/mongodb"]
 
 [dependencies]
-clap = { version = "4.0", features = ["derive"] }
-helios-fhir = { path = "../fhir", version = "0.1.32" }
+helios-fhir = { path = "../fhir" }
+helios-rest = { path = "../rest", default-features = false }
+helios-persistence = { path = "../persistence", default-features = false }
+
+# Web framework
+axum = "0.8"
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# CLI and configuration
+clap = { version = "4.0", features = ["derive", "env"] }
+
+# Logging
+tracing = "0.1"
+
+# Error handling
+anyhow = "1.0"

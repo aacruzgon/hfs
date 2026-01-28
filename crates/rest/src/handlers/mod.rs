@@ -1,0 +1,40 @@
+//! HTTP request handlers for FHIR interactions.
+//!
+//! This module contains handlers for all FHIR REST API interactions:
+//!
+//! - [`read`] - Read a resource by ID
+//! - [`vread`] - Read a specific version of a resource
+//! - [`create`] - Create a new resource
+//! - [`update`] - Update an existing resource
+//! - [`patch`] - Patch a resource
+//! - [`delete`] - Delete a resource
+//! - [`search`] - Search for resources
+//! - [`history`] - Get resource history
+//! - [`batch`] - Process a batch/transaction bundle
+//! - [`capabilities`] - Get server capabilities (CapabilityStatement)
+//! - [`health`] - Health check endpoint
+
+pub mod batch;
+pub mod capabilities;
+pub mod create;
+pub mod delete;
+pub mod health;
+pub mod history;
+pub mod patch;
+pub mod read;
+pub mod search;
+pub mod update;
+pub mod vread;
+
+// Re-export handlers for convenience
+pub use batch::batch_handler;
+pub use capabilities::capabilities_handler;
+pub use create::create_handler;
+pub use delete::delete_handler;
+pub use health::health_handler;
+pub use history::{history_instance_handler, history_system_handler, history_type_handler};
+pub use patch::patch_handler;
+pub use read::read_handler;
+pub use search::{search_get_handler, search_post_handler};
+pub use update::update_handler;
+pub use vread::vread_handler;

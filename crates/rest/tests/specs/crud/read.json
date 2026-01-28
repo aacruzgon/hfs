@@ -1,0 +1,104 @@
+{
+  "name": "Patient Read Tests",
+  "description": "Tests for the read interaction (GET /[type]/[id])",
+  "tags": ["crud", "read"],
+  "backends": {
+    "include": ["sqlite", "postgres"],
+    "exclude": []
+  },
+  "fhir_versions": ["R4"],
+  "setup": {
+    "resources": [
+      {
+        "resourceType": "Patient",
+        "id": "test-1",
+        "name": [{ "family": "Smith", "given": ["John"] }],
+        "birthDate": "1980-01-15",
+        "gender": "male"
+      },
+      {
+        "resourceType": "Patient",
+        "id": "test-2",
+        "name": [{ "family": "Jones", "given": ["Jane"] }],
+        "birthDate": "1990-05-20",
+        "gender": "female"
+      }
+    ]
+  },
+  "tests": [
+    {
+      "name": "read_existing_patient",
+      "description": "Should return 200 with patient resource",
+      "tags": ["smoke"],
+      "request": {
+        "method": "GET",
+        "path": "/Patient/test-1",
+        "headers": {
+          "Accept": "application/fhir+json"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "headers": {
+          "ETag": { "matches": "W/\"\\d+\"" },
+          "Content-Type": { "contains": "fhir+json" }
+        },
+        "body": {
+          "resourceType": "Patient",
+          "id": "test-1",
+          "name": [{ "family": "Smith" }]
+        }
+      }
+    },
+    {
+      "name": "read_nonexistent_patient",
+      "description": "Should return 404 for non-existent resource",
+      "request": {
+        "method": "GET",
+        "path": "/Patient/nonexistent"
+      },
+      "expect": {
+        "status": 404,
+        "body": {
+          "resourceType": "OperationOutcome",
+          "issue": [
+            {
+              "severity": "error",
+              "code": "not-found"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "read_with_if_none_match_different",
+      "description": "Should return 200 when ETag doesn't match",
+      "request": {
+        "method": "GET",
+        "path": "/Patient/test-1",
+        "headers": {
+          "If-None-Match": "W/\"99\""
+        }
+      },
+      "expect": {
+        "status": 200
+      }
+    },
+    {
+      "name": "read_second_patient",
+      "description": "Should return second patient correctly",
+      "request": {
+        "method": "GET",
+        "path": "/Patient/test-2"
+      },
+      "expect": {
+        "status": 200,
+        "body": {
+          "resourceType": "Patient",
+          "id": "test-2",
+          "gender": "female"
+        }
+      }
+    }
+  ]
+}
