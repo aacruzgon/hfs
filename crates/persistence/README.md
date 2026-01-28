@@ -132,6 +132,30 @@ helios-persistence/
 │       ├── analysis.rs     # Configuration analysis
 │       ├── suggestions.rs  # Optimization suggestions
 │       └── main.rs         # Advisor binary entry point
+└── tests/               # Integration tests
+    ├── common/          # Shared test utilities
+    │   ├── harness.rs      # Test harness setup
+    │   ├── fixtures.rs     # FHIR resource fixtures
+    │   ├── assertions.rs   # Custom test assertions
+    │   └── capabilities.rs # Capability test helpers
+    ├── crud/            # CRUD operation tests
+    │   ├── create_tests.rs, read_tests.rs, update_tests.rs
+    │   ├── delete_tests.rs, conditional_tests.rs
+    ├── search/          # Search parameter tests
+    │   ├── string_tests.rs, token_tests.rs, date_tests.rs
+    │   ├── number_tests.rs, quantity_tests.rs, reference_tests.rs
+    │   ├── chained_tests.rs, include_tests.rs
+    │   ├── modifier_tests.rs, pagination_tests.rs
+    ├── versioning/      # Version history tests
+    │   ├── vread_tests.rs, history_tests.rs
+    │   └── optimistic_locking_tests.rs
+    ├── transactions/    # Transaction tests
+    │   ├── basic_tests.rs, bundle_tests.rs, rollback_tests.rs
+    ├── multitenancy/    # Tenant isolation tests
+    │   ├── isolation_tests.rs, cross_tenant_tests.rs
+    ├── composite_routing_tests.rs   # Query routing tests
+    ├── composite_polyglot_tests.rs  # Multi-backend tests
+    └── sqlite_tests.rs              # SQLite backend tests
 ```
 
 ### Trait Hierarchy
