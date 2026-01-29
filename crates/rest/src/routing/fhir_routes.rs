@@ -1,17 +1,32 @@
 //! FHIR route configuration.
 //!
-//! Defines all routes for the FHIR RESTful API.
+//! Defines all routes for the FHIR RESTful API, supporting multiple
+//! tenant routing modes.
 
 use axum::{
     Router,
+    body::Body,
+    extract::Request,
     routing::{delete, get, patch, post, put},
 };
+use helios_fhir::FhirVersion;
 use helios_persistence::core::{ConditionalStorage, ResourceStorage};
+use tower::ServiceExt;
 
+use crate::config::TenantRoutingMode;
 use crate::handlers;
+use crate::middleware::tenant_prefix::{
+    ExtractedTenantFromUrl, OriginalPath, extract_tenant_from_path,
+};
 use crate::state::AppState;
 
-/// Creates all FHIR REST API routes.
+/// Creates all FHIR REST API routes based on tenant routing configuration.
+///
+/// # Routing Modes
+///
+/// - `HeaderOnly` (default): Standard routes, tenant from X-Tenant-ID header
+/// - `UrlPath`: Routes accept `/{tenant}/...` prefix, tenant extracted from URL
+/// - `Both`: Both URL prefix and header supported; URL takes precedence
 ///
 /// # Routes
 ///
@@ -36,6 +51,100 @@ use crate::state::AppState;
 /// - `GET /{type}/{id}/_history` - Instance history
 /// - `GET /{type}/{id}/_history/{vid}` - Version read
 pub fn create_routes<S>(state: AppState<S>) -> Router
+where
+    S: ResourceStorage + ConditionalStorage + Send + Sync + 'static,
+{
+    match state.config().multitenancy.routing_mode {
+        TenantRoutingMode::HeaderOnly => create_standard_routes(state),
+        TenantRoutingMode::UrlPath => create_url_tenant_routes(state),
+        TenantRoutingMode::Both => create_combined_routes(state),
+    }
+}
+
+/// Creates standard routes (header-only tenant identification).
+fn create_standard_routes<S>(state: AppState<S>) -> Router
+where
+    S: ResourceStorage + ConditionalStorage + Send + Sync + 'static,
+{
+    create_fhir_router().with_state(state)
+}
+
+/// Creates routes with URL-based tenant identification.
+///
+/// Uses a request mapping layer to strip tenant prefix from URL paths BEFORE
+/// route matching. The tenant is stored in request extensions.
+fn create_url_tenant_routes<S>(state: AppState<S>) -> Router
+where
+    S: ResourceStorage + ConditionalStorage + Send + Sync + 'static,
+{
+    let router = create_fhir_router().with_state(state);
+
+    // Use tower's map_request to modify the request BEFORE routing
+    let service = router.map_request(strip_tenant_prefix);
+
+    Router::new().fallback_service(service)
+}
+
+/// Creates combined routes supporting both header and URL-based tenants.
+///
+/// URL-based routes take precedence. Uses request mapping to optionally strip
+/// tenant prefix from URL paths.
+fn create_combined_routes<S>(state: AppState<S>) -> Router
+where
+    S: ResourceStorage + ConditionalStorage + Send + Sync + 'static,
+{
+    let router = create_fhir_router().with_state(state);
+
+    // Use tower's map_request to modify the request BEFORE routing
+    let service = router.map_request(strip_tenant_prefix);
+
+    Router::new().fallback_service(service)
+}
+
+/// Strips tenant prefix from request URL and stores it in extensions.
+fn strip_tenant_prefix(mut request: Request<Body>) -> Request<Body> {
+    let path = request.uri().path().to_string();
+
+    // Use the default FHIR version for resource type checking
+    let fhir_version = FhirVersion::default();
+
+    if let Some((tenant, remaining_path)) = extract_tenant_from_path(&path, &fhir_version) {
+        // Store original path and extracted tenant in extensions
+        request.extensions_mut().insert(OriginalPath(path));
+        request
+            .extensions_mut()
+            .insert(ExtractedTenantFromUrl(tenant));
+
+        // Build new URI with remaining path
+        let new_uri = build_uri_with_new_path(request.uri(), &remaining_path);
+        *request.uri_mut() = new_uri;
+    }
+
+    request
+}
+
+/// Builds a new URI with a different path but same query/fragment.
+fn build_uri_with_new_path(original: &axum::http::Uri, new_path: &str) -> axum::http::Uri {
+    let mut parts = original.clone().into_parts();
+
+    // Build path-and-query
+    let path_and_query = if let Some(query) = original.query() {
+        format!("{}?{}", new_path, query)
+    } else {
+        new_path.to_string()
+    };
+
+    parts.path_and_query = Some(
+        path_and_query
+            .parse()
+            .unwrap_or_else(|_| new_path.parse().unwrap()),
+    );
+
+    axum::http::Uri::from_parts(parts).unwrap_or_else(|_| original.clone())
+}
+
+/// Creates the core FHIR router with all endpoints.
+fn create_fhir_router<S>() -> Router<AppState<S>>
 where
     S: ResourceStorage + ConditionalStorage + Send + Sync + 'static,
 {
@@ -75,8 +184,6 @@ where
             "/{resource_type}/{id}/_history/{version_id}",
             get(handlers::vread_handler::<S>),
         )
-        // State
-        .with_state(state)
 }
 
 /// Creates a minimal set of routes for testing.

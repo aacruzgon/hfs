@@ -82,27 +82,31 @@ pub fn assert_operation_outcome(body: &Value) {
 /// Asserts that the OperationOutcome has an issue with the expected severity.
 pub fn assert_issue_severity(body: &Value, expected: &str) {
     let issues = body.get("issue").and_then(|v| v.as_array());
-    assert!(issues.is_some(), "Expected issues array in OperationOutcome");
-
-    let has_severity = issues.unwrap().iter().any(|issue| {
-        issue.get("severity").and_then(|v| v.as_str()) == Some(expected)
-    });
-
     assert!(
-        has_severity,
-        "Expected issue with severity {}",
-        expected
+        issues.is_some(),
+        "Expected issues array in OperationOutcome"
     );
+
+    let has_severity = issues
+        .unwrap()
+        .iter()
+        .any(|issue| issue.get("severity").and_then(|v| v.as_str()) == Some(expected));
+
+    assert!(has_severity, "Expected issue with severity {}", expected);
 }
 
 /// Asserts that the OperationOutcome has an issue with the expected code.
 pub fn assert_issue_code(body: &Value, expected: &str) {
     let issues = body.get("issue").and_then(|v| v.as_array());
-    assert!(issues.is_some(), "Expected issues array in OperationOutcome");
+    assert!(
+        issues.is_some(),
+        "Expected issues array in OperationOutcome"
+    );
 
-    let has_code = issues.unwrap().iter().any(|issue| {
-        issue.get("code").and_then(|v| v.as_str()) == Some(expected)
-    });
+    let has_code = issues
+        .unwrap()
+        .iter()
+        .any(|issue| issue.get("code").and_then(|v| v.as_str()) == Some(expected));
 
     assert!(has_code, "Expected issue with code {}", expected);
 }
@@ -145,7 +149,9 @@ pub fn assert_json_path(body: &Value, path: &str, expected: &Value) {
         actual,
         Some(expected),
         "JSON path {} expected {:?}, got {:?}",
-        path, expected, actual
+        path,
+        expected,
+        actual
     );
 }
 
@@ -205,9 +211,6 @@ mod tests {
     #[test]
     fn test_json_path_nested_array() {
         let value = json!({"data": {"items": [{"id": 1}, {"id": 2}]}});
-        assert_eq!(
-            json_path_get(&value, "data.items[0].id"),
-            Some(&json!(1))
-        );
+        assert_eq!(json_path_get(&value, "data.items[0].id"), Some(&json!(1)));
     }
 }

@@ -6,6 +6,13 @@
 //! Per FHIR spec, the CapabilityStatement.fhirVersion is 1..1 (single value).
 //! Multi-version servers return a version-specific CapabilityStatement based on the
 //! `fhirVersion` parameter in the Accept header.
+//!
+//! # Tenant-Aware Base URL
+//!
+//! When using URL-based tenant routing, the CapabilityStatement's implementation.url
+//! includes the tenant prefix. For example:
+//! - Header-based: `http://fhir.example.com/`
+//! - URL-based: `http://fhir.example.com/acme/`
 
 use axum::{
     Json,
@@ -18,7 +25,7 @@ use helios_persistence::core::ResourceStorage;
 use tracing::debug;
 
 use crate::error::RestResult;
-use crate::extractors::FhirVersionExtractor;
+use crate::extractors::{FhirVersionExtractor, TenantExtractor};
 use crate::fhir_types::get_resource_type_names_for_version;
 use crate::middleware::content_type::{FhirContentType, FhirFormat};
 use crate::state::AppState;
@@ -31,6 +38,12 @@ use crate::state::AppState;
 /// If the Accept header includes a `fhirVersion` parameter, the server returns
 /// a CapabilityStatement for that specific version. Otherwise, the default
 /// FHIR version is used.
+///
+/// # Tenant-Aware Base URL
+///
+/// When the tenant is resolved from a URL path (e.g., `/acme/metadata`), the
+/// CapabilityStatement's `implementation.url` includes the tenant prefix to
+/// ensure clients use the correct base URL for subsequent requests.
 ///
 /// # HTTP Request
 ///
@@ -47,6 +60,7 @@ use crate::state::AppState;
 /// the fhirVersion parameter.
 pub async fn capabilities_handler<S>(
     State(state): State<AppState<S>>,
+    tenant: TenantExtractor,
     version: FhirVersionExtractor,
 ) -> RestResult<Response>
 where
@@ -57,10 +71,23 @@ where
 
     debug!(
         fhir_version = %fhir_version,
+        tenant = %tenant.tenant_id(),
+        tenant_source = %tenant.source(),
         "Processing capabilities request"
     );
 
-    let capability_statement = build_capability_statement(&state, fhir_version);
+    // Build tenant-aware base URL
+    let base_url = if tenant.is_url_based() {
+        format!(
+            "{}/{}",
+            state.base_url().trim_end_matches('/'),
+            tenant.tenant_id()
+        )
+    } else {
+        state.base_url().to_string()
+    };
+
+    let capability_statement = build_capability_statement(&state, fhir_version, &base_url);
 
     // Build response with fhirVersion in Content-Type
     let content_type = FhirContentType::with_version(FhirFormat::Json, fhir_version);
@@ -74,11 +101,14 @@ where
 }
 
 /// Builds a CapabilityStatement describing server capabilities for a specific FHIR version.
-fn build_capability_statement<S>(state: &AppState<S>, version: FhirVersion) -> serde_json::Value
+fn build_capability_statement<S>(
+    state: &AppState<S>,
+    version: FhirVersion,
+    base_url: &str,
+) -> serde_json::Value
 where
     S: ResourceStorage,
 {
-    let base_url = state.base_url();
     let backend_name = state.storage().backend_name();
 
     // Get resource types for the requested FHIR version

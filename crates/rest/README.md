@@ -84,6 +84,66 @@ The server is configured via environment variables:
 | `REST_ENABLE_CORS` | true | Enable CORS |
 | `REST_DEFAULT_TENANT` | default | Default tenant ID |
 | `REST_DATABASE_URL` | - | Database connection string |
+| `REST_TENANT_ROUTING_MODE` | header_only | Tenant routing mode |
+| `REST_TENANT_STRICT_VALIDATION` | false | Error on tenant mismatch |
+| `REST_JWT_TENANT_CLAIM` | tenant_id | JWT claim name (future) |
+
+## Multi-Tenancy
+
+The server supports multiple methods for tenant identification, configurable via the `REST_TENANT_ROUTING_MODE` environment variable.
+
+### Tenant Routing Modes
+
+| Mode | Description |
+|------|-------------|
+| `header_only` | Tenant from X-Tenant-ID header (default, backward compatible) |
+| `url_path` | Tenant from URL path prefix: `/{tenant}/Patient/123` |
+| `both` | Both supported; URL takes precedence over header |
+
+### Resolution Priority
+
+When multiple sources provide tenant information, they are resolved in this priority order:
+
+1. **URL path prefix** (highest) - `/{tenant}/...`
+2. **X-Tenant-ID header**
+3. **JWT token claim** (future)
+4. **Default tenant** (lowest) - from configuration
+
+### Strict Validation
+
+When `REST_TENANT_STRICT_VALIDATION=true`, the server returns an error if the URL path and X-Tenant-ID header specify different tenants. This helps catch configuration issues early.
+
+### Examples
+
+```bash
+# Header-based (default mode)
+curl -H "X-Tenant-ID: acme" http://localhost:8080/Patient/123
+
+# URL-based (requires REST_TENANT_ROUTING_MODE=url_path or both)
+curl http://localhost:8080/acme/Patient/123
+
+# With URL routing, the CapabilityStatement includes the tenant in the base URL
+curl http://localhost:8080/acme/metadata
+# Returns implementation.url: "http://localhost:8080/acme"
+```
+
+### URL-Based Routing Setup
+
+To enable URL-based tenant routing:
+
+```bash
+# URL paths only (header ignored)
+REST_TENANT_ROUTING_MODE=url_path cargo run --bin hfs
+
+# Both URL and header (URL takes precedence)
+REST_TENANT_ROUTING_MODE=both cargo run --bin hfs
+```
+
+When using `url_path` or `both` mode, routes are structured as:
+- `/{tenant}/Patient/123` - Read patient in tenant
+- `/{tenant}/metadata` - Tenant-specific CapabilityStatement
+- `/health` - Health check (not tenant-scoped)
+- `/_liveness` - Liveness probe (not tenant-scoped)
 
 ## Features
 
@@ -187,7 +247,12 @@ src/
 ├── middleware/     # Axum middleware
 ├── extractors/     # Axum extractors
 ├── responses/      # Response formatting
-└── routing/        # Route configuration
+├── routing/        # Route configuration
+└── tenant/         # Multi-source tenant resolution
+    ├── mod.rs      # Module exports
+    ├── source.rs   # TenantSource enum
+    ├── resolver.rs # TenantResolver and extractors
+    └── validation.rs # Strict mode validation
 ```
 
 ## License

@@ -143,9 +143,7 @@ pub enum HeaderMatcher {
         pattern: String,
     },
     /// Contains match.
-    Contains {
-        contains: String,
-    },
+    Contains { contains: String },
 }
 
 impl HeaderMatcher {
@@ -153,11 +151,9 @@ impl HeaderMatcher {
     pub fn matches(&self, value: &str) -> bool {
         match self {
             HeaderMatcher::Exact(expected) => value == expected,
-            HeaderMatcher::Pattern { pattern } => {
-                regex::Regex::new(pattern)
-                    .map(|re| re.is_match(value))
-                    .unwrap_or(false)
-            }
+            HeaderMatcher::Pattern { pattern } => regex::Regex::new(pattern)
+                .map(|re| re.is_match(value))
+                .unwrap_or(false),
             HeaderMatcher::Contains { contains } => value.contains(contains),
         }
     }
@@ -165,11 +161,10 @@ impl HeaderMatcher {
 
 /// Loads a test spec from a file.
 pub fn load_spec(path: &Path) -> Result<TestSpec, SpecLoadError> {
-    let content = std::fs::read_to_string(path)
-        .map_err(|e| SpecLoadError::IoError(e.to_string()))?;
+    let content =
+        std::fs::read_to_string(path).map_err(|e| SpecLoadError::IoError(e.to_string()))?;
 
-    serde_json::from_str(&content)
-        .map_err(|e| SpecLoadError::ParseError(e.to_string()))
+    serde_json::from_str(&content).map_err(|e| SpecLoadError::ParseError(e.to_string()))
 }
 
 /// Discovers all spec files in a directory.

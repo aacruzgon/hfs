@@ -2,7 +2,7 @@
 //!
 //! Provides predefined FHIR resources for use in tests.
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// Collection of test fixtures.
 #[derive(Debug, Clone, Default)]
@@ -24,16 +24,12 @@ impl TestFixtures {
     /// Creates a minimal set of fixtures.
     pub fn minimal() -> Self {
         Self {
-            patients: vec![
-                PatientFixture::new("patient-1", "Smith").with_given(vec!["John"]),
-            ],
+            patients: vec![PatientFixture::new("patient-1", "Smith").with_given(vec!["John"])],
             observations: vec![
                 ObservationFixture::new("obs-1", "8867-4", "Patient/patient-1")
                     .with_value(72.0, "bpm"),
             ],
-            organizations: vec![
-                OrganizationFixture::new("org-1", "Test Hospital"),
-            ],
+            organizations: vec![OrganizationFixture::new("org-1", "Test Hospital")],
         }
     }
 
@@ -174,7 +170,11 @@ pub struct ObservationFixture {
 
 impl ObservationFixture {
     /// Creates a new observation fixture.
-    pub fn new(id: impl Into<String>, code: impl Into<String>, patient_ref: impl Into<String>) -> Self {
+    pub fn new(
+        id: impl Into<String>,
+        code: impl Into<String>,
+        patient_ref: impl Into<String>,
+    ) -> Self {
         Self {
             id: id.into(),
             code: code.into(),
@@ -283,8 +283,7 @@ mod tests {
 
     #[test]
     fn test_observation_to_json() {
-        let obs = ObservationFixture::new("obs-1", "8867-4", "Patient/123")
-            .with_value(72.0, "bpm");
+        let obs = ObservationFixture::new("obs-1", "8867-4", "Patient/123").with_value(72.0, "bpm");
 
         let json = obs.to_json();
 

@@ -8,6 +8,9 @@
 //! - [`spec_loader`] - JSON test specification loader
 //! - [`backend_config`] - Backend configuration for tests
 
+// Allow dead code in test utilities - they may be used by future tests
+#![allow(dead_code)]
+
 pub mod assertions;
 pub mod backend_config;
 pub mod fixtures;

@@ -85,9 +85,7 @@ impl TestBackendConfig {
     /// Returns true if this is an in-memory configuration.
     pub fn is_memory(&self) -> bool {
         match self {
-            TestBackendConfig::Single(s) => {
-                s.connection.as_deref() == Some(":memory:")
-            }
+            TestBackendConfig::Single(s) => s.connection.as_deref() == Some(":memory:"),
             TestBackendConfig::Composite(_) => false,
         }
     }
@@ -121,11 +119,14 @@ pub fn default_test_config() -> TestBackendConfig {
 /// Gets all available test backend configurations.
 ///
 /// This returns configurations for backends that are enabled via features.
+#[allow(clippy::vec_init_then_push)]
 pub fn available_configs() -> Vec<TestBackendConfig> {
     let mut configs = Vec::new();
 
     #[cfg(feature = "sqlite")]
-    configs.push(TestBackendConfig::Single(SingleBackendConfig::sqlite_memory()));
+    configs.push(TestBackendConfig::Single(
+        SingleBackendConfig::sqlite_memory(),
+    ));
 
     // Add more configurations as backends are enabled
     // #[cfg(feature = "postgres")]

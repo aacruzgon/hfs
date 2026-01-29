@@ -147,11 +147,13 @@ pub mod middleware;
 pub mod responses;
 pub mod routing;
 pub mod state;
+pub mod tenant;
 
 // Re-export commonly used types
-pub use config::ServerConfig;
+pub use config::{MultitenancyConfig, ServerConfig, TenantRoutingMode};
 pub use error::{RestError, RestResult};
 pub use state::AppState;
+pub use tenant::{ResolvedTenant, TenantResolver, TenantSource};
 
 use std::sync::Arc;
 

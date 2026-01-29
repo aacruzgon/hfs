@@ -1,20 +1,36 @@
 //! Tenant context extractor.
 //!
-//! Extracts tenant information from request headers and creates
+//! Extracts tenant information from multiple sources and creates
 //! a TenantContext for use in handlers.
+//!
+//! # Sources
+//!
+//! Tenant can be identified from (in priority order):
+//! 1. URL path prefix: `/{tenant}/Patient/123`
+//! 2. X-Tenant-ID header
+//! 3. JWT token claim (future)
+//! 4. Default tenant from configuration
+//!
+//! # Configuration
+//!
+//! The routing mode is controlled by [`TenantRoutingMode`]:
+//! - `HeaderOnly`: Only use header (default, backward compatible)
+//! - `UrlPath`: Only use URL path prefix
+//! - `Both`: Support both, URL takes precedence
 
 use axum::{
     extract::FromRequestParts,
-    http::{HeaderMap, StatusCode, request::Parts},
+    http::{StatusCode, request::Parts},
 };
 use helios_persistence::tenant::{TenantContext, TenantId, TenantPermissions};
 
-use crate::middleware::tenant::X_TENANT_ID;
+use crate::state::AppState;
+use crate::tenant::{ResolvedTenant, TenantResolver, TenantSource, TenantValidator};
 
 /// Axum extractor for tenant context.
 ///
-/// Extracts the tenant ID from the X-Tenant-ID header and creates
-/// a TenantContext with appropriate permissions.
+/// Extracts tenant information from multiple sources based on configuration
+/// and creates a TenantContext with appropriate permissions.
 ///
 /// # Example
 ///
@@ -23,24 +39,49 @@ use crate::middleware::tenant::X_TENANT_ID;
 ///
 /// async fn handler(tenant: TenantExtractor) {
 ///     println!("Tenant ID: {}", tenant.tenant_id());
+///     println!("Source: {}", tenant.source());
+///     if tenant.is_url_based() {
+///         println!("Tenant was extracted from URL path");
+///     }
 /// }
 /// ```
 #[derive(Debug, Clone)]
 pub struct TenantExtractor {
     context: TenantContext,
+    source: TenantSource,
+    resolved: ResolvedTenant,
 }
 
 impl TenantExtractor {
-    /// Creates a new TenantExtractor with the given tenant ID.
-    pub fn new(tenant_id: &str) -> Self {
+    /// Creates a new TenantExtractor with the given tenant ID and source.
+    pub fn new(tenant_id: &str, source: TenantSource) -> Self {
+        let tenant_id_obj = TenantId::new(tenant_id);
         Self {
-            context: TenantContext::new(TenantId::new(tenant_id), TenantPermissions::full_access()),
+            context: TenantContext::new(tenant_id_obj.clone(), TenantPermissions::full_access()),
+            source,
+            resolved: ResolvedTenant {
+                tenant_id: tenant_id_obj.clone(),
+                source,
+                all_sources: vec![(source, tenant_id_obj)],
+            },
+        }
+    }
+
+    /// Creates a TenantExtractor from a resolved tenant.
+    pub fn from_resolved(resolved: ResolvedTenant) -> Self {
+        Self {
+            context: TenantContext::new(
+                resolved.tenant_id.clone(),
+                TenantPermissions::full_access(),
+            ),
+            source: resolved.source,
+            resolved,
         }
     }
 
     /// Creates a TenantExtractor with the default tenant.
     pub fn default_tenant() -> Self {
-        Self::new("default")
+        Self::new("default", TenantSource::Default)
     }
 
     /// Returns a reference to the tenant context.
@@ -51,6 +92,26 @@ impl TenantExtractor {
     /// Returns the tenant ID as a string.
     pub fn tenant_id(&self) -> &str {
         self.context.tenant_id().as_str()
+    }
+
+    /// Returns the source from which the tenant was resolved.
+    pub fn source(&self) -> TenantSource {
+        self.source
+    }
+
+    /// Returns true if the tenant was resolved from a URL path.
+    pub fn is_url_based(&self) -> bool {
+        self.source.is_url_based()
+    }
+
+    /// Returns true if the tenant is the default fallback.
+    pub fn is_default(&self) -> bool {
+        self.source.is_default()
+    }
+
+    /// Returns a reference to the full resolution information.
+    pub fn resolved(&self) -> &ResolvedTenant {
+        &self.resolved
     }
 
     /// Consumes the extractor and returns the tenant context.
@@ -65,67 +126,71 @@ impl std::fmt::Display for TenantExtractor {
     }
 }
 
-/// Extracts tenant ID from headers.
-fn extract_tenant_id_from_headers(headers: &HeaderMap, default: &str) -> String {
-    headers
-        .get(&X_TENANT_ID)
-        .and_then(|v| v.to_str().ok())
-        .map(String::from)
-        .unwrap_or_else(|| default.to_string())
-}
-
-impl<S> FromRequestParts<S> for TenantExtractor
+impl<S> FromRequestParts<AppState<S>> for TenantExtractor
 where
-    S: Send + Sync,
+    S: helios_persistence::core::ResourceStorage + Send + Sync,
 {
-    type Rejection = (StatusCode, &'static str);
+    type Rejection = (StatusCode, String);
 
-    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
-        // Try to extract from X-Tenant-ID header, default to "default"
-        let tenant_id = extract_tenant_id_from_headers(&parts.headers, "default");
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState<S>,
+    ) -> Result<Self, Self::Rejection> {
+        let config = state.config();
 
-        // Validate tenant ID (basic validation)
-        if tenant_id.is_empty() {
-            return Err((StatusCode::BAD_REQUEST, "Invalid tenant ID"));
+        // Create resolver based on configuration
+        let resolver = TenantResolver::new(&config.multitenancy);
+
+        // Resolve tenant from request
+        let resolved = resolver.resolve(parts, &config.multitenancy, &config.default_tenant);
+
+        // Validate consistency if strict mode is enabled
+        if config.multitenancy.strict_validation {
+            TenantValidator::validate_consistency(&resolved).map_err(|e| {
+                (
+                    StatusCode::BAD_REQUEST,
+                    format!("Tenant validation error: {}", e),
+                )
+            })?;
         }
 
-        // In a production system, we might validate the tenant exists
-        // and load its permissions from a database
+        // Validate tenant ID format
+        if resolved.tenant_id_str().is_empty() {
+            return Err((StatusCode::BAD_REQUEST, "Invalid tenant ID".to_string()));
+        }
 
-        Ok(TenantExtractor::new(&tenant_id))
+        Ok(TenantExtractor::from_resolved(resolved))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::http::HeaderValue;
 
     #[test]
     fn test_new() {
-        let extractor = TenantExtractor::new("test-tenant");
+        let extractor = TenantExtractor::new("test-tenant", TenantSource::Header);
         assert_eq!(extractor.tenant_id(), "test-tenant");
+        assert_eq!(extractor.source(), TenantSource::Header);
+        assert!(!extractor.is_url_based());
+    }
+
+    #[test]
+    fn test_url_based() {
+        let extractor = TenantExtractor::new("test-tenant", TenantSource::UrlPath);
+        assert!(extractor.is_url_based());
     }
 
     #[test]
     fn test_default_tenant() {
         let extractor = TenantExtractor::default_tenant();
         assert_eq!(extractor.tenant_id(), "default");
+        assert!(extractor.is_default());
     }
 
     #[test]
-    fn test_extract_from_headers() {
-        let mut headers = HeaderMap::new();
-        headers.insert(&X_TENANT_ID, HeaderValue::from_static("my-tenant"));
-
-        let tenant_id = extract_tenant_id_from_headers(&headers, "default");
-        assert_eq!(tenant_id, "my-tenant");
-    }
-
-    #[test]
-    fn test_extract_missing_uses_default() {
-        let headers = HeaderMap::new();
-        let tenant_id = extract_tenant_id_from_headers(&headers, "default");
-        assert_eq!(tenant_id, "default");
+    fn test_display() {
+        let extractor = TenantExtractor::new("my-tenant", TenantSource::Header);
+        assert_eq!(format!("{}", extractor), "my-tenant");
     }
 }

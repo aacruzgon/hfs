@@ -18,6 +18,10 @@
 //! | `REST_CORS_HEADERS` | Content-Type,Authorization,Accept,If-Match,If-None-Match,Prefer | Allowed headers |
 //! | `REST_DEFAULT_TENANT` | default | Default tenant ID |
 //! | `REST_BASE_URL` | http://localhost:8080 | Server base URL |
+//! | `REST_DEFAULT_FHIR_VERSION` | R4 | Default FHIR version (R4, R4B, R5, R6) |
+//! | `REST_TENANT_ROUTING_MODE` | header_only | Tenant routing mode (header_only, url_path, both) |
+//! | `REST_TENANT_STRICT_VALIDATION` | false | Error if URL and header tenant disagree |
+//! | `REST_JWT_TENANT_CLAIM` | tenant_id | JWT claim name for tenant (future use) |
 //!
 //! # Example
 //!
@@ -36,7 +40,110 @@
 //! };
 //! ```
 
+use std::fmt;
+use std::str::FromStr;
+
 use clap::Parser;
+use helios_fhir::FhirVersion;
+
+/// Tenant routing mode for multi-tenant deployments.
+///
+/// Determines how the server identifies tenants from incoming requests.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TenantRoutingMode {
+    /// Tenant identified only from X-Tenant-ID header (default, backward compatible).
+    #[default]
+    HeaderOnly,
+    /// Tenant identified from URL path prefix: `/{tenant}/Patient/123`.
+    UrlPath,
+    /// Both URL and header supported; URL takes precedence over header.
+    Both,
+}
+
+impl TenantRoutingMode {
+    /// Returns true if URL-based tenant routing is enabled.
+    pub fn supports_url_path(&self) -> bool {
+        matches!(self, TenantRoutingMode::UrlPath | TenantRoutingMode::Both)
+    }
+
+    /// Returns true if header-based tenant routing is enabled.
+    pub fn supports_header(&self) -> bool {
+        matches!(
+            self,
+            TenantRoutingMode::HeaderOnly | TenantRoutingMode::Both
+        )
+    }
+}
+
+impl fmt::Display for TenantRoutingMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TenantRoutingMode::HeaderOnly => write!(f, "header_only"),
+            TenantRoutingMode::UrlPath => write!(f, "url_path"),
+            TenantRoutingMode::Both => write!(f, "both"),
+        }
+    }
+}
+
+impl FromStr for TenantRoutingMode {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "header_only" | "headeronly" | "header" => Ok(TenantRoutingMode::HeaderOnly),
+            "url_path" | "urlpath" | "url" | "path" => Ok(TenantRoutingMode::UrlPath),
+            "both" | "combined" => Ok(TenantRoutingMode::Both),
+            _ => Err(format!(
+                "Invalid tenant routing mode '{}'. Valid values: header_only, url_path, both",
+                s
+            )),
+        }
+    }
+}
+
+/// Configuration for multi-tenant behavior.
+#[derive(Debug, Clone)]
+pub struct MultitenancyConfig {
+    /// How tenants are identified from requests.
+    pub routing_mode: TenantRoutingMode,
+    /// If true, error when URL path and header specify different tenants.
+    pub strict_validation: bool,
+    /// JWT claim name containing tenant ID (for future JWT-based tenant resolution).
+    pub jwt_tenant_claim: String,
+}
+
+impl Default for MultitenancyConfig {
+    fn default() -> Self {
+        Self {
+            routing_mode: TenantRoutingMode::HeaderOnly,
+            strict_validation: false,
+            jwt_tenant_claim: "tenant_id".to_string(),
+        }
+    }
+}
+
+impl MultitenancyConfig {
+    /// Creates a new MultitenancyConfig from environment variables.
+    pub fn from_env() -> Self {
+        let routing_mode = std::env::var("REST_TENANT_ROUTING_MODE")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or_default();
+
+        let strict_validation = std::env::var("REST_TENANT_STRICT_VALIDATION")
+            .map(|s| s.to_lowercase() == "true" || s == "1")
+            .unwrap_or(false);
+
+        let jwt_tenant_claim =
+            std::env::var("REST_JWT_TENANT_CLAIM").unwrap_or_else(|_| "tenant_id".to_string());
+
+        Self {
+            routing_mode,
+            strict_validation,
+            jwt_tenant_claim,
+        }
+    }
+}
 
 /// Server configuration for the FHIR REST API.
 ///
@@ -118,6 +225,16 @@ pub struct ServerConfig {
     #[arg(long, env = "REST_REQUIRE_IF_MATCH", default_value = "false")]
     pub require_if_match: bool,
 
+    /// Default FHIR version for operations that need it before request parsing
+    /// (e.g., tenant resolution, resource type detection).
+    #[arg(
+        long,
+        env = "REST_DEFAULT_FHIR_VERSION",
+        value_enum,
+        default_value = "R4"
+    )]
+    pub default_fhir_version: FhirVersion,
+
     /// Default page size for search results.
     #[arg(long, env = "REST_DEFAULT_PAGE_SIZE", default_value = "20")]
     pub default_page_size: usize,
@@ -125,6 +242,10 @@ pub struct ServerConfig {
     /// Maximum page size for search results.
     #[arg(long, env = "REST_MAX_PAGE_SIZE", default_value = "1000")]
     pub max_page_size: usize,
+
+    /// Multitenancy configuration (loaded from environment variables).
+    #[arg(skip)]
+    pub multitenancy: MultitenancyConfig,
 }
 
 impl Default for ServerConfig {
@@ -146,8 +267,10 @@ impl Default for ServerConfig {
             return_gone: true,
             enable_versioning: true,
             require_if_match: false,
+            default_fhir_version: FhirVersion::default(),
             default_page_size: 20,
             max_page_size: 1000,
+            multitenancy: MultitenancyConfig::default(),
         }
     }
 }
@@ -159,7 +282,10 @@ impl ServerConfig {
     /// requiring command line arguments.
     pub fn from_env() -> Self {
         // Try to parse from environment, falling back to defaults
-        Self::try_parse().unwrap_or_default()
+        let mut config = Self::try_parse().unwrap_or_default();
+        // Load multitenancy config from environment
+        config.multitenancy = MultitenancyConfig::from_env();
+        config
     }
 
     /// Returns the socket address to bind to.
@@ -225,9 +351,16 @@ impl ServerConfig {
             return_gone: true,
             enable_versioning: true,
             require_if_match: false,
+            default_fhir_version: FhirVersion::default(),
             default_page_size: 10,
             max_page_size: 100,
+            multitenancy: MultitenancyConfig::default(),
         }
+    }
+
+    /// Returns the multitenancy configuration.
+    pub fn multitenancy(&self) -> &MultitenancyConfig {
+        &self.multitenancy
     }
 }
 
@@ -287,5 +420,53 @@ mod tests {
         assert_eq!(config.port, 0);
         assert!(!config.enable_cors);
         assert_eq!(config.default_tenant, "test-tenant");
+    }
+
+    #[test]
+    fn test_tenant_routing_mode_parse() {
+        assert_eq!(
+            "header_only".parse::<TenantRoutingMode>().unwrap(),
+            TenantRoutingMode::HeaderOnly
+        );
+        assert_eq!(
+            "url_path".parse::<TenantRoutingMode>().unwrap(),
+            TenantRoutingMode::UrlPath
+        );
+        assert_eq!(
+            "both".parse::<TenantRoutingMode>().unwrap(),
+            TenantRoutingMode::Both
+        );
+        assert_eq!(
+            "HEADER".parse::<TenantRoutingMode>().unwrap(),
+            TenantRoutingMode::HeaderOnly
+        );
+        assert!("invalid".parse::<TenantRoutingMode>().is_err());
+    }
+
+    #[test]
+    fn test_tenant_routing_mode_display() {
+        assert_eq!(TenantRoutingMode::HeaderOnly.to_string(), "header_only");
+        assert_eq!(TenantRoutingMode::UrlPath.to_string(), "url_path");
+        assert_eq!(TenantRoutingMode::Both.to_string(), "both");
+    }
+
+    #[test]
+    fn test_tenant_routing_mode_supports() {
+        assert!(TenantRoutingMode::HeaderOnly.supports_header());
+        assert!(!TenantRoutingMode::HeaderOnly.supports_url_path());
+
+        assert!(!TenantRoutingMode::UrlPath.supports_header());
+        assert!(TenantRoutingMode::UrlPath.supports_url_path());
+
+        assert!(TenantRoutingMode::Both.supports_header());
+        assert!(TenantRoutingMode::Both.supports_url_path());
+    }
+
+    #[test]
+    fn test_multitenancy_config_default() {
+        let config = MultitenancyConfig::default();
+        assert_eq!(config.routing_mode, TenantRoutingMode::HeaderOnly);
+        assert!(!config.strict_validation);
+        assert_eq!(config.jwt_tenant_claim, "tenant_id");
     }
 }

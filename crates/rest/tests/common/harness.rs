@@ -6,12 +6,18 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use axum::Router;
+use axum::http::{HeaderName, HeaderValue};
 use axum_test::TestServer;
+use helios_fhir::FhirVersion;
 use helios_persistence::core::ResourceStorage;
 use helios_persistence::tenant::{TenantContext, TenantId, TenantPermissions};
 use serde_json::Value;
 
-use helios_rest::{create_app_with_config, AppState, ServerConfig};
+use helios_rest::{AppState, ServerConfig};
+
+const X_TENANT_ID: HeaderName = HeaderName::from_static("x-tenant-id");
+const CONTENT_TYPE: HeaderName = HeaderName::from_static("content-type");
+const CONTENT_TYPE_JSON_PATCH: HeaderName = HeaderName::from_static("content-type");
 
 use super::fixtures::TestFixtures;
 
@@ -111,7 +117,7 @@ where
         });
 
         self.backend
-            .create(&self.tenant, "Patient", patient.clone())
+            .create(&self.tenant, "Patient", patient.clone(), FhirVersion::R4)
             .await
             .expect("Failed to seed patient");
 
@@ -123,10 +129,16 @@ where
     pub async fn seed_fixtures(&mut self) {
         for (resource_type, id, resource) in self.fixtures.clone().all_resources() {
             self.backend
-                .create(&self.tenant, resource_type, resource.clone())
+                .create(
+                    &self.tenant,
+                    resource_type,
+                    resource.clone(),
+                    FhirVersion::R4,
+                )
                 .await
                 .expect("Failed to seed fixture");
-            self.saved.insert(format!("{}/{}", resource_type, id), resource);
+            self.saved
+                .insert(format!("{}/{}", resource_type, id), resource);
         }
     }
 
@@ -134,7 +146,10 @@ where
     pub async fn get(&self, path: &str) -> axum_test::TestResponse {
         self.server
             .get(path)
-            .add_header("X-Tenant-ID".parse().unwrap(), self.tenant.tenant_id().as_str().parse().unwrap())
+            .add_header(
+                X_TENANT_ID,
+                HeaderValue::from_str(self.tenant.tenant_id().as_str()).unwrap(),
+            )
             .await
     }
 
@@ -142,8 +157,14 @@ where
     pub async fn post(&self, path: &str, body: Value) -> axum_test::TestResponse {
         self.server
             .post(path)
-            .add_header("X-Tenant-ID".parse().unwrap(), self.tenant.tenant_id().as_str().parse().unwrap())
-            .add_header("Content-Type".parse().unwrap(), "application/fhir+json".parse().unwrap())
+            .add_header(
+                X_TENANT_ID,
+                HeaderValue::from_str(self.tenant.tenant_id().as_str()).unwrap(),
+            )
+            .add_header(
+                CONTENT_TYPE,
+                HeaderValue::from_static("application/fhir+json"),
+            )
             .json(&body)
             .await
     }
@@ -152,8 +173,14 @@ where
     pub async fn put(&self, path: &str, body: Value) -> axum_test::TestResponse {
         self.server
             .put(path)
-            .add_header("X-Tenant-ID".parse().unwrap(), self.tenant.tenant_id().as_str().parse().unwrap())
-            .add_header("Content-Type".parse().unwrap(), "application/fhir+json".parse().unwrap())
+            .add_header(
+                X_TENANT_ID,
+                HeaderValue::from_str(self.tenant.tenant_id().as_str()).unwrap(),
+            )
+            .add_header(
+                CONTENT_TYPE,
+                HeaderValue::from_static("application/fhir+json"),
+            )
             .json(&body)
             .await
     }
@@ -162,7 +189,10 @@ where
     pub async fn delete(&self, path: &str) -> axum_test::TestResponse {
         self.server
             .delete(path)
-            .add_header("X-Tenant-ID".parse().unwrap(), self.tenant.tenant_id().as_str().parse().unwrap())
+            .add_header(
+                X_TENANT_ID,
+                HeaderValue::from_str(self.tenant.tenant_id().as_str()).unwrap(),
+            )
             .await
     }
 
@@ -170,8 +200,14 @@ where
     pub async fn patch(&self, path: &str, body: Value) -> axum_test::TestResponse {
         self.server
             .patch(path)
-            .add_header("X-Tenant-ID".parse().unwrap(), self.tenant.tenant_id().as_str().parse().unwrap())
-            .add_header("Content-Type".parse().unwrap(), "application/json-patch+json".parse().unwrap())
+            .add_header(
+                X_TENANT_ID,
+                HeaderValue::from_str(self.tenant.tenant_id().as_str()).unwrap(),
+            )
+            .add_header(
+                CONTENT_TYPE_JSON_PATCH,
+                HeaderValue::from_static("application/json-patch+json"),
+            )
             .json(&body)
             .await
     }
