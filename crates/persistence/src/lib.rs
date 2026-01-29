@@ -49,6 +49,7 @@
 //! ```no_run
 //! use helios_persistence::tenant::{TenantContext, TenantId, TenantPermissions};
 //! use helios_persistence::types::StoredResource;
+//! use helios_fhir::FhirVersion;
 //! use serde_json::json;
 //!
 //! // Create a tenant context (required for all operations)
@@ -67,6 +68,7 @@
 //!         "id": "patient-123",
 //!         "name": [{"family": "Smith", "given": ["John"]}]
 //!     }),
+//!     FhirVersion::default(),
 //! );
 //!
 //! // The resource includes persistence metadata

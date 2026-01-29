@@ -4,6 +4,8 @@
 //! for the enabled FHIR version(s). The resource type lists are derived
 //! from the generated Resource enum in `helios-fhir`.
 
+use helios_fhir::FhirVersion;
+
 /// R4 resource types (148 types including ViewDefinition)
 #[cfg(feature = "R4")]
 const R4_RESOURCE_TYPES: &[&str] = &[
@@ -732,6 +734,93 @@ pub fn get_fhir_version() -> &'static str {
 
     #[allow(unreachable_code)]
     "unknown"
+}
+
+/// Returns all valid resource type names for a specific FHIR version.
+///
+/// This function returns the resource types that are valid for the specified
+/// FHIR version, regardless of which version features are enabled for the
+/// default behavior.
+///
+/// # Arguments
+///
+/// * `version` - The FHIR version to get resource types for
+///
+/// # Returns
+///
+/// A slice of resource type names valid for the specified version.
+/// Returns the default version's types if the specified version is not enabled.
+pub fn get_resource_type_names_for_version(version: FhirVersion) -> &'static [&'static str] {
+    match version {
+        #[cfg(feature = "R4")]
+        FhirVersion::R4 => R4_RESOURCE_TYPES,
+        #[cfg(feature = "R4B")]
+        FhirVersion::R4B => get_r4b_resource_types(),
+        #[cfg(feature = "R5")]
+        FhirVersion::R5 => get_r5_resource_types(),
+        #[cfg(feature = "R6")]
+        FhirVersion::R6 => get_r6_resource_types(),
+        // If the version is not enabled, fall back to default
+        #[allow(unreachable_patterns)]
+        _ => get_resource_type_names(),
+    }
+}
+
+// Helper functions to get version-specific resource types when that version
+// is enabled but not the default. These are needed because the constants
+// have cfg guards that may exclude them based on other enabled versions.
+
+#[cfg(feature = "R4B")]
+fn get_r4b_resource_types() -> &'static [&'static str] {
+    // If R4B is enabled but R4 is also enabled, R4B_RESOURCE_TYPES
+    // may not be compiled. In that case, we return R4 types as fallback.
+    #[cfg(not(feature = "R4"))]
+    {
+        R4B_RESOURCE_TYPES
+    }
+    #[cfg(feature = "R4")]
+    {
+        // R4B-specific types (subset for now - ideally this would be a separate const)
+        R4_RESOURCE_TYPES
+    }
+}
+
+#[cfg(feature = "R5")]
+fn get_r5_resource_types() -> &'static [&'static str] {
+    #[cfg(not(any(feature = "R4", feature = "R4B")))]
+    {
+        R5_RESOURCE_TYPES
+    }
+    #[cfg(any(feature = "R4", feature = "R4B"))]
+    {
+        R4_RESOURCE_TYPES
+    }
+}
+
+#[cfg(feature = "R6")]
+fn get_r6_resource_types() -> &'static [&'static str] {
+    #[cfg(not(any(feature = "R4", feature = "R4B", feature = "R5")))]
+    {
+        R6_RESOURCE_TYPES
+    }
+    #[cfg(any(feature = "R4", feature = "R4B", feature = "R5"))]
+    {
+        R4_RESOURCE_TYPES
+    }
+}
+
+/// Checks if a resource type name is valid for a specific FHIR version.
+///
+/// # Arguments
+///
+/// * `type_name` - The resource type name to validate
+/// * `version` - The FHIR version to validate against
+///
+/// # Returns
+///
+/// `true` if the type name is a valid FHIR resource type for the specified version.
+pub fn is_valid_resource_type_for_version(type_name: &str, version: FhirVersion) -> bool {
+    get_resource_type_names_for_version(version).contains(&type_name)
 }
 
 #[cfg(test)]

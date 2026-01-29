@@ -14,7 +14,7 @@ use serde_json::Value;
 use tracing::debug;
 
 use crate::error::{RestError, RestResult};
-use crate::extractors::TenantExtractor;
+use crate::extractors::{FhirVersionExtractor, TenantExtractor};
 use crate::middleware::conditional::ConditionalHeaders;
 use crate::middleware::prefer::PreferHeader;
 use crate::responses::headers::ResourceHeaders;
@@ -56,6 +56,7 @@ pub async fn update_handler<S>(
     State(state): State<AppState<S>>,
     Path((resource_type, id)): Path<(String, String)>,
     tenant: TenantExtractor,
+    version: FhirVersionExtractor,
     conditional: ConditionalHeaders,
     prefer: PreferHeader,
     Json(resource): Json<Value>,
@@ -63,10 +64,14 @@ pub async fn update_handler<S>(
 where
     S: ResourceStorage + ConditionalStorage + Send + Sync,
 {
+    // Determine FHIR version from header or use server default
+    let fhir_version = version.storage_version();
+
     debug!(
         resource_type = %resource_type,
         id = %id,
         tenant = %tenant.tenant_id(),
+        fhir_version = %fhir_version,
         if_match = ?conditional.if_match(),
         "Processing update request"
     );
@@ -141,7 +146,13 @@ where
     // Perform the update (or create)
     let (stored, created) = state
         .storage()
-        .create_or_update(tenant.context(), &resource_type, &id, resource)
+        .create_or_update(
+            tenant.context(),
+            &resource_type,
+            &id,
+            resource,
+            fhir_version,
+        )
         .await?;
 
     let headers = ResourceHeaders::from_stored(&stored, &state);
@@ -173,6 +184,7 @@ pub async fn conditional_update_handler<S>(
     State(state): State<AppState<S>>,
     Path(resource_type): Path<String>,
     tenant: TenantExtractor,
+    version: FhirVersionExtractor,
     query: axum::extract::Query<std::collections::HashMap<String, String>>,
     prefer: PreferHeader,
     Json(resource): Json<Value>,
@@ -180,6 +192,9 @@ pub async fn conditional_update_handler<S>(
 where
     S: ResourceStorage + ConditionalStorage + Send + Sync,
 {
+    // Determine FHIR version from header or use server default
+    let fhir_version = version.storage_version();
+
     // Build search params string
     let search_params: String = query
         .iter()
@@ -191,6 +206,7 @@ where
         resource_type = %resource_type,
         search_params = %search_params,
         tenant = %tenant.tenant_id(),
+        fhir_version = %fhir_version,
         "Processing conditional update request"
     );
 
@@ -214,6 +230,7 @@ where
             resource,
             &search_params,
             true, // upsert
+            fhir_version,
         )
         .await?;
 

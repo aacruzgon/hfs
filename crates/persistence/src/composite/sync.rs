@@ -31,6 +31,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
+use helios_fhir::FhirVersion;
 use parking_lot::RwLock;
 use serde_json::Value;
 use tokio::sync::mpsc;
@@ -57,6 +58,8 @@ pub enum SyncEvent {
         content: Value,
         /// Tenant ID.
         tenant_id: TenantId,
+        /// FHIR version.
+        fhir_version: FhirVersion,
     },
 
     /// Resource was updated.
@@ -71,6 +74,8 @@ pub enum SyncEvent {
         tenant_id: TenantId,
         /// New version.
         version: String,
+        /// FHIR version.
+        fhir_version: FhirVersion,
     },
 
     /// Resource was deleted.
@@ -439,12 +444,13 @@ impl SyncManager {
                     resource_type,
                     content,
                     tenant_id,
+                    fhir_version,
                     ..
                 } => {
                     let tenant =
                         TenantContext::new(tenant_id.clone(), TenantPermissions::full_access());
                     backend
-                        .create(&tenant, resource_type, content.clone())
+                        .create(&tenant, resource_type, content.clone(), *fhir_version)
                         .await
                         .map(|_| ())
                 }
@@ -453,6 +459,7 @@ impl SyncManager {
                     resource_id,
                     content,
                     tenant_id,
+                    fhir_version,
                     ..
                 } => {
                     let tenant =
@@ -461,7 +468,13 @@ impl SyncManager {
                     // For secondary backends, we do a create_or_update
                     // since we don't track versions in secondaries
                     backend
-                        .create_or_update(&tenant, resource_type, resource_id, content.clone())
+                        .create_or_update(
+                            &tenant,
+                            resource_type,
+                            resource_id,
+                            content.clone(),
+                            *fhir_version,
+                        )
                         .await
                         .map(|_| ())
                 }
@@ -488,6 +501,7 @@ impl SyncManager {
                                 resource.resource_type(),
                                 resource.id(),
                                 resource.content().clone(),
+                                resource.fhir_version(),
                             )
                             .await?;
                     }
@@ -648,6 +662,7 @@ pub struct ReconciliationResult {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use helios_fhir::FhirVersion;
 
     #[test]
     fn test_sync_event_accessors() {
@@ -656,6 +671,7 @@ mod tests {
             resource_id: "123".to_string(),
             content: serde_json::json!({}),
             tenant_id: TenantId::new("test"),
+            fhir_version: FhirVersion::default(),
         };
 
         assert_eq!(event.resource_type(), "Patient");

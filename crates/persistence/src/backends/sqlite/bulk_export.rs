@@ -849,6 +849,7 @@ mod tests {
     use super::*;
     use crate::core::ResourceStorage;
     use crate::tenant::{TenantId, TenantPermissions};
+    use helios_fhir::FhirVersion;
     use serde_json::json;
 
     fn create_test_backend() -> SqliteBackend {
@@ -941,6 +942,7 @@ mod tests {
                 &tenant,
                 "Patient",
                 json!({"resourceType": "Patient", "name": [{"family": "Test"}]}),
+                FhirVersion::default(),
             )
             .await
             .unwrap();
@@ -950,6 +952,7 @@ mod tests {
                 &tenant,
                 "Observation",
                 json!({"resourceType": "Observation", "status": "final"}),
+                FhirVersion::default(),
             )
             .await
             .unwrap();
@@ -973,6 +976,7 @@ mod tests {
                     &tenant,
                     "Patient",
                     json!({"resourceType": "Patient", "name": [{"family": format!("Patient{}", i)}]}),
+                    FhirVersion::default(),
                 )
                 .await
                 .unwrap();

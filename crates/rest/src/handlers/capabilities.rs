@@ -2,52 +2,87 @@
 //!
 //! Implements the FHIR [capabilities interaction](https://hl7.org/fhir/http.html#capabilities):
 //! `GET [base]/metadata`
+//!
+//! Per FHIR spec, the CapabilityStatement.fhirVersion is 1..1 (single value).
+//! Multi-version servers return a version-specific CapabilityStatement based on the
+//! `fhirVersion` parameter in the Accept header.
 
 use axum::{
     Json,
     extract::State,
-    http::StatusCode,
+    http::{StatusCode, header},
     response::{IntoResponse, Response},
 };
+use helios_fhir::FhirVersion;
 use helios_persistence::core::ResourceStorage;
 use tracing::debug;
 
 use crate::error::RestResult;
-use crate::fhir_types::{get_fhir_version, get_resource_type_names};
+use crate::extractors::FhirVersionExtractor;
+use crate::fhir_types::get_resource_type_names_for_version;
+use crate::middleware::content_type::{FhirContentType, FhirFormat};
 use crate::state::AppState;
 
 /// Handler for the capabilities interaction.
 ///
 /// Returns a CapabilityStatement describing the server's capabilities.
 ///
+/// Per FHIR spec, the CapabilityStatement.fhirVersion is a single value.
+/// If the Accept header includes a `fhirVersion` parameter, the server returns
+/// a CapabilityStatement for that specific version. Otherwise, the default
+/// FHIR version is used.
+///
 /// # HTTP Request
 ///
 /// `GET [base]/metadata`
 ///
+/// # Headers
+///
+/// - `Accept: application/fhir+json; fhirVersion=4.0` - Request R4 capabilities
+/// - `Accept: application/fhir+json; fhirVersion=5.0` - Request R5 capabilities
+///
 /// # Response
 ///
-/// Returns a CapabilityStatement resource (200 OK).
-pub async fn capabilities_handler<S>(State(state): State<AppState<S>>) -> RestResult<Response>
+/// Returns a CapabilityStatement resource (200 OK) with Content-Type including
+/// the fhirVersion parameter.
+pub async fn capabilities_handler<S>(
+    State(state): State<AppState<S>>,
+    version: FhirVersionExtractor,
+) -> RestResult<Response>
 where
     S: ResourceStorage + Send + Sync,
 {
-    debug!("Processing capabilities request");
+    // Determine which version to describe (from Accept header or default)
+    let fhir_version = version.accept_version().unwrap_or_default();
 
-    let capability_statement = build_capability_statement(&state);
+    debug!(
+        fhir_version = %fhir_version,
+        "Processing capabilities request"
+    );
 
-    Ok((StatusCode::OK, Json(capability_statement)).into_response())
+    let capability_statement = build_capability_statement(&state, fhir_version);
+
+    // Build response with fhirVersion in Content-Type
+    let content_type = FhirContentType::with_version(FhirFormat::Json, fhir_version);
+    let mut headers = axum::http::HeaderMap::new();
+    headers.insert(
+        header::CONTENT_TYPE,
+        content_type.to_header_value().parse().unwrap(),
+    );
+
+    Ok((StatusCode::OK, headers, Json(capability_statement)).into_response())
 }
 
-/// Builds a CapabilityStatement describing server capabilities.
-fn build_capability_statement<S>(state: &AppState<S>) -> serde_json::Value
+/// Builds a CapabilityStatement describing server capabilities for a specific FHIR version.
+fn build_capability_statement<S>(state: &AppState<S>, version: FhirVersion) -> serde_json::Value
 where
     S: ResourceStorage,
 {
     let base_url = state.base_url();
     let backend_name = state.storage().backend_name();
 
-    // Get resource types from generated FHIR models
-    let resource_types = get_resource_type_names();
+    // Get resource types for the requested FHIR version
+    let resource_types = get_resource_type_names_for_version(version);
 
     let resources: Vec<serde_json::Value> = resource_types
         .iter()
@@ -59,7 +94,7 @@ where
         "status": "active",
         "date": chrono::Utc::now().to_rfc3339(),
         "kind": "instance",
-        "fhirVersion": get_fhir_version(),
+        "fhirVersion": version.full_version(),
         "format": ["json", "application/fhir+json"],
         "implementation": {
             "description": format!("Helios FHIR Server ({})", backend_name),
@@ -83,6 +118,10 @@ where
                 {
                     "name": "validate",
                     "definition": "http://hl7.org/fhir/OperationDefinition/Resource-validate"
+                },
+                {
+                    "name": "versions",
+                    "definition": "http://hl7.org/fhir/OperationDefinition/CapabilityStatement-versions"
                 }
             ]
         }]

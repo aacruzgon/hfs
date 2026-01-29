@@ -7,6 +7,7 @@
 
 use std::path::Path;
 
+use helios_fhir::FhirVersion;
 use serde_json::Value;
 
 use crate::types::SearchParamType;
@@ -15,32 +16,6 @@ use super::errors::LoaderError;
 use super::registry::{
     CompositeComponentDef, SearchParameterDefinition, SearchParameterSource, SearchParameterStatus,
 };
-
-/// FHIR version for loading appropriate search parameters.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum FhirVersion {
-    /// FHIR R4 (4.0.1)
-    #[default]
-    R4,
-    /// FHIR R4B (4.3.0)
-    R4B,
-    /// FHIR R5 (5.0.0)
-    R5,
-    /// FHIR R6 (6.0.0-ballot1)
-    R6,
-}
-
-impl FhirVersion {
-    /// Returns the version string.
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            FhirVersion::R4 => "R4",
-            FhirVersion::R4B => "R4B",
-            FhirVersion::R5 => "R5",
-            FhirVersion::R6 => "R6",
-        }
-    }
-}
 
 /// Loader for SearchParameter definitions.
 pub struct SearchParameterLoader {

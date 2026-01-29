@@ -4,6 +4,7 @@
 //! with persistence metadata such as tenant, version, and timestamps.
 
 use chrono::{DateTime, Utc};
+use helios_fhir::FhirVersion;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -17,6 +18,7 @@ use crate::tenant::TenantId;
 /// - **Identity**: Resource type and ID
 /// - **Versioning**: Version ID for optimistic locking
 /// - **Tenancy**: Tenant that owns the resource
+/// - **FHIR Version**: The FHIR specification version (R4, R4B, R5, R6)
 /// - **Timestamps**: Creation, modification, and deletion times
 /// - **ETag**: For HTTP caching and conditional updates
 ///
@@ -25,6 +27,7 @@ use crate::tenant::TenantId;
 /// ```
 /// use helios_persistence::types::StoredResource;
 /// use helios_persistence::tenant::TenantId;
+/// use helios_fhir::FhirVersion;
 /// use serde_json::json;
 ///
 /// let resource = StoredResource::new(
@@ -36,6 +39,7 @@ use crate::tenant::TenantId;
 ///         "id": "123",
 ///         "name": [{"family": "Smith"}]
 ///     }),
+///     FhirVersion::default(),
 /// );
 ///
 /// assert_eq!(resource.resource_type(), "Patient");
@@ -55,6 +59,9 @@ pub struct StoredResource {
 
     /// The tenant that owns this resource.
     tenant_id: TenantId,
+
+    /// The FHIR specification version this resource conforms to.
+    fhir_version: FhirVersion,
 
     /// The resource content as JSON.
     content: Value,
@@ -101,6 +108,7 @@ impl StoredResource {
         id: impl Into<String>,
         tenant_id: TenantId,
         content: Value,
+        fhir_version: FhirVersion,
     ) -> Self {
         let now = Utc::now();
         let version_id = "1".to_string();
@@ -111,6 +119,7 @@ impl StoredResource {
             id: id.into(),
             version_id,
             tenant_id,
+            fhir_version,
             content,
             created_at: now,
             last_modified: now,
@@ -131,6 +140,7 @@ impl StoredResource {
         created_at: DateTime<Utc>,
         last_modified: DateTime<Utc>,
         deleted_at: Option<DateTime<Utc>>,
+        fhir_version: FhirVersion,
     ) -> Self {
         let version_id = version_id.into();
         let etag = format!("W/\"{}\"", version_id);
@@ -140,6 +150,7 @@ impl StoredResource {
             id: id.into(),
             version_id,
             tenant_id,
+            fhir_version,
             content,
             created_at,
             last_modified,
@@ -167,6 +178,11 @@ impl StoredResource {
     /// Returns the tenant that owns this resource.
     pub fn tenant_id(&self) -> &TenantId {
         &self.tenant_id
+    }
+
+    /// Returns the FHIR specification version of this resource.
+    pub fn fhir_version(&self) -> FhirVersion {
+        self.fhir_version
     }
 
     /// Returns the resource content as JSON.
@@ -233,6 +249,7 @@ impl StoredResource {
     /// - Incremented version ID
     /// - Updated last_modified timestamp
     /// - New ETag
+    /// - Same FHIR version as the original
     pub fn new_version(self, content: Value, method: ResourceMethod) -> Self {
         let version: u64 = self.version_id.parse().unwrap_or(0);
         let new_version_id = (version + 1).to_string();
@@ -243,6 +260,7 @@ impl StoredResource {
             id: self.id,
             version_id: new_version_id,
             tenant_id: self.tenant_id,
+            fhir_version: self.fhir_version,
             content,
             created_at: self.created_at,
             last_modified: Utc::now(),
@@ -266,6 +284,7 @@ impl StoredResource {
             id: self.id,
             version_id: new_version_id,
             tenant_id: self.tenant_id,
+            fhir_version: self.fhir_version,
             content: self.content,
             created_at: self.created_at,
             last_modified: now,
@@ -313,6 +332,7 @@ pub struct StoredResourceBuilder {
     id: Option<String>,
     version_id: Option<String>,
     tenant_id: Option<TenantId>,
+    fhir_version: Option<FhirVersion>,
     content: Option<Value>,
     created_at: Option<DateTime<Utc>>,
     last_modified: Option<DateTime<Utc>>,
@@ -347,6 +367,12 @@ impl StoredResourceBuilder {
     /// Sets the tenant ID.
     pub fn tenant_id(mut self, tenant_id: TenantId) -> Self {
         self.tenant_id = Some(tenant_id);
+        self
+    }
+
+    /// Sets the FHIR version.
+    pub fn fhir_version(mut self, fhir_version: FhirVersion) -> Self {
+        self.fhir_version = Some(fhir_version);
         self
     }
 
@@ -385,6 +411,7 @@ impl StoredResourceBuilder {
     /// # Panics
     ///
     /// Panics if required fields (resource_type, id, tenant_id, content) are not set.
+    /// Uses the default FHIR version if not specified.
     pub fn build(self) -> StoredResource {
         let now = Utc::now();
         let version_id = self.version_id.unwrap_or_else(|| "1".to_string());
@@ -395,6 +422,7 @@ impl StoredResourceBuilder {
             id: self.id.expect("id is required"),
             version_id,
             tenant_id: self.tenant_id.expect("tenant_id is required"),
+            fhir_version: self.fhir_version.unwrap_or_default(),
             content: self.content.expect("content is required"),
             created_at: self.created_at.unwrap_or(now),
             last_modified: self.last_modified.unwrap_or(now),
@@ -417,18 +445,26 @@ mod tests {
             "123",
             TenantId::new("tenant-1"),
             json!({"resourceType": "Patient", "id": "123"}),
+            FhirVersion::default(),
         );
 
         assert_eq!(resource.resource_type(), "Patient");
         assert_eq!(resource.id(), "123");
         assert_eq!(resource.version_id(), "1");
         assert_eq!(resource.tenant_id().as_str(), "tenant-1");
+        assert_eq!(resource.fhir_version(), FhirVersion::default());
         assert!(!resource.is_deleted());
     }
 
     #[test]
     fn test_url_generation() {
-        let resource = StoredResource::new("Patient", "123", TenantId::new("t1"), json!({}));
+        let resource = StoredResource::new(
+            "Patient",
+            "123",
+            TenantId::new("t1"),
+            json!({}),
+            FhirVersion::default(),
+        );
 
         assert_eq!(resource.url(), "Patient/123");
         assert_eq!(resource.versioned_url(), "Patient/123/_history/1");
@@ -436,19 +472,31 @@ mod tests {
 
     #[test]
     fn test_new_version() {
-        let resource =
-            StoredResource::new("Patient", "123", TenantId::new("t1"), json!({"name": "v1"}));
+        let resource = StoredResource::new(
+            "Patient",
+            "123",
+            TenantId::new("t1"),
+            json!({"name": "v1"}),
+            FhirVersion::default(),
+        );
 
         let updated = resource.new_version(json!({"name": "v2"}), ResourceMethod::Put);
 
         assert_eq!(updated.version_id(), "2");
         assert_eq!(updated.content()["name"], "v2");
         assert_eq!(updated.method(), Some(ResourceMethod::Put));
+        assert_eq!(updated.fhir_version(), FhirVersion::default());
     }
 
     #[test]
     fn test_mark_deleted() {
-        let resource = StoredResource::new("Patient", "123", TenantId::new("t1"), json!({}));
+        let resource = StoredResource::new(
+            "Patient",
+            "123",
+            TenantId::new("t1"),
+            json!({}),
+            FhirVersion::default(),
+        );
 
         let deleted = resource.mark_deleted();
 
@@ -456,11 +504,18 @@ mod tests {
         assert!(deleted.deleted_at().is_some());
         assert_eq!(deleted.version_id(), "2");
         assert_eq!(deleted.method(), Some(ResourceMethod::Delete));
+        assert_eq!(deleted.fhir_version(), FhirVersion::default());
     }
 
     #[test]
     fn test_etag_matching() {
-        let resource = StoredResource::new("Patient", "123", TenantId::new("t1"), json!({}));
+        let resource = StoredResource::new(
+            "Patient",
+            "123",
+            TenantId::new("t1"),
+            json!({}),
+            FhirVersion::default(),
+        );
 
         assert!(resource.matches_etag("W/\"1\""));
         assert!(resource.matches_etag("\"1\""));
@@ -482,6 +537,7 @@ mod tests {
         assert_eq!(resource.resource_type(), "Observation");
         assert_eq!(resource.version_id(), "5");
         assert_eq!(resource.method(), Some(ResourceMethod::Put));
+        assert_eq!(resource.fhir_version(), FhirVersion::default());
     }
 
     #[test]
@@ -491,6 +547,7 @@ mod tests {
             "123",
             TenantId::new("t1"),
             json!({"resourceType": "Patient"}),
+            FhirVersion::default(),
         );
 
         let json = serde_json::to_string(&resource).unwrap();
@@ -499,5 +556,6 @@ mod tests {
         assert_eq!(parsed.resource_type(), resource.resource_type());
         assert_eq!(parsed.id(), resource.id());
         assert_eq!(parsed.version_id(), resource.version_id());
+        assert_eq!(parsed.fhir_version(), resource.fhir_version());
     }
 }

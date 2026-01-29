@@ -306,7 +306,8 @@ impl std::fmt::Debug for SearchParameterExtractor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::search::loader::{FhirVersion, SearchParameterLoader};
+    use crate::search::loader::SearchParameterLoader;
+    use helios_fhir::FhirVersion;
     use serde_json::json;
 
     fn create_test_extractor() -> SearchParameterExtractor {

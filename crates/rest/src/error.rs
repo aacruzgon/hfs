@@ -130,6 +130,12 @@ pub enum RestError {
         /// Error message.
         message: String,
     },
+
+    /// Not acceptable - requested version not available (HTTP 406).
+    NotAcceptable {
+        /// Error message.
+        message: String,
+    },
 }
 
 impl fmt::Display for RestError {
@@ -188,6 +194,9 @@ impl fmt::Display for RestError {
             }
             RestError::InternalError { message } => {
                 write!(f, "Internal error: {}", message)
+            }
+            RestError::NotAcceptable { message } => {
+                write!(f, "Not acceptable: {}", message)
             }
         }
     }
@@ -268,6 +277,9 @@ impl IntoResponse for RestError {
                 "exception",
                 message.clone(),
             ),
+            RestError::NotAcceptable { message } => {
+                (StatusCode::NOT_ACCEPTABLE, "not-supported", message.clone())
+            }
         };
 
         let operation_outcome = create_operation_outcome("error", code, &details);

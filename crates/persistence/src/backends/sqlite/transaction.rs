@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use chrono::Utc;
+use helios_fhir::FhirVersion;
 use parking_lot::Mutex;
 use r2d2::PooledConnection;
 use r2d2_sqlite::SqliteConnectionManager;
@@ -133,19 +134,23 @@ impl Transaction for SqliteTransaction {
         let last_updated = now.to_rfc3339();
         let version_id = "1";
 
+        // Use default FHIR version for transaction operations
+        let fhir_version = FhirVersion::default();
+        let fhir_version_str = fhir_version.as_mime_param();
+
         // Insert the resource
         conn.execute(
-            "INSERT INTO resources (tenant_id, resource_type, id, version_id, data, last_updated, is_deleted)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0)",
-            params![tenant_id, resource_type, id, version_id, data_bytes, last_updated],
+            "INSERT INTO resources (tenant_id, resource_type, id, version_id, data, last_updated, is_deleted, fhir_version)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, ?7)",
+            params![tenant_id, resource_type, id, version_id, data_bytes, last_updated, fhir_version_str],
         )
         .map_err(|e| internal_error(format!("Failed to insert resource: {}", e)))?;
 
         // Insert into history
         conn.execute(
-            "INSERT INTO resource_history (tenant_id, resource_type, id, version_id, data, last_updated, is_deleted)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0)",
-            params![tenant_id, resource_type, id, version_id, data_bytes, last_updated],
+            "INSERT INTO resource_history (tenant_id, resource_type, id, version_id, data, last_updated, is_deleted, fhir_version)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, ?7)",
+            params![tenant_id, resource_type, id, version_id, data_bytes, last_updated, fhir_version_str],
         )
         .map_err(|e| internal_error(format!("Failed to insert history: {}", e)))?;
 
@@ -158,6 +163,7 @@ impl Transaction for SqliteTransaction {
             now,
             now,
             None,
+            fhir_version,
         ))
     }
 
@@ -176,7 +182,7 @@ impl Transaction for SqliteTransaction {
         let tenant_id = self.tenant.tenant_id().as_str();
 
         let result = conn.query_row(
-            "SELECT version_id, data, last_updated, is_deleted
+            "SELECT version_id, data, last_updated, is_deleted, fhir_version
              FROM resources
              WHERE tenant_id = ?1 AND resource_type = ?2 AND id = ?3",
             params![tenant_id, resource_type, id],
@@ -185,12 +191,13 @@ impl Transaction for SqliteTransaction {
                 let data: Vec<u8> = row.get(1)?;
                 let last_updated: String = row.get(2)?;
                 let is_deleted: i32 = row.get(3)?;
-                Ok((version_id, data, last_updated, is_deleted))
+                let fhir_version: String = row.get(4)?;
+                Ok((version_id, data, last_updated, is_deleted, fhir_version))
             },
         );
 
         match result {
-            Ok((version_id, data, last_updated, is_deleted)) => {
+            Ok((version_id, data, last_updated, is_deleted, fhir_version_str)) => {
                 if is_deleted != 0 {
                     return Ok(None);
                 }
@@ -203,6 +210,8 @@ impl Transaction for SqliteTransaction {
                     .map_err(|e| internal_error(format!("Failed to parse last_updated: {}", e)))?
                     .with_timezone(&Utc);
 
+                let fhir_version = FhirVersion::from_storage(&fhir_version_str).unwrap_or_default();
+
                 Ok(Some(StoredResource::from_storage(
                     resource_type,
                     id,
@@ -212,6 +221,7 @@ impl Transaction for SqliteTransaction {
                     last_updated,
                     last_updated,
                     None,
+                    fhir_version,
                 )))
             }
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
@@ -291,6 +301,10 @@ impl Transaction for SqliteTransaction {
         let now = Utc::now();
         let last_updated = now.to_rfc3339();
 
+        // Preserve FHIR version from the current resource
+        let fhir_version = current.fhir_version();
+        let fhir_version_str = fhir_version.as_mime_param();
+
         // Update the resource
         conn.execute(
             "UPDATE resources SET version_id = ?1, data = ?2, last_updated = ?3
@@ -308,9 +322,9 @@ impl Transaction for SqliteTransaction {
 
         // Insert into history
         conn.execute(
-            "INSERT INTO resource_history (tenant_id, resource_type, id, version_id, data, last_updated, is_deleted)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0)",
-            params![tenant_id, resource_type, id, new_version_str, data_bytes, last_updated],
+            "INSERT INTO resource_history (tenant_id, resource_type, id, version_id, data, last_updated, is_deleted, fhir_version)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, ?7)",
+            params![tenant_id, resource_type, id, new_version_str, data_bytes, last_updated, fhir_version_str],
         )
         .map_err(|e| internal_error(format!("Failed to insert history: {}", e)))?;
 
@@ -323,6 +337,7 @@ impl Transaction for SqliteTransaction {
             now,
             now,
             None,
+            fhir_version,
         ))
     }
 
@@ -337,14 +352,14 @@ impl Transaction for SqliteTransaction {
         let tenant_id = self.tenant.tenant_id().as_str();
 
         // Check if resource exists
-        let result: Result<(String, Vec<u8>), _> = conn.query_row(
-            "SELECT version_id, data FROM resources
+        let result: Result<(String, Vec<u8>, String), _> = conn.query_row(
+            "SELECT version_id, data, fhir_version FROM resources
              WHERE tenant_id = ?1 AND resource_type = ?2 AND id = ?3 AND is_deleted = 0",
             params![tenant_id, resource_type, id],
-            |row| Ok((row.get(0)?, row.get(1)?)),
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
         );
 
-        let (current_version, data) = match result {
+        let (current_version, data, fhir_version_str) = match result {
             Ok(v) => v,
             Err(rusqlite::Error::QueryReturnedNoRows) => {
                 return Err(StorageError::Resource(ResourceError::NotFound {
@@ -372,9 +387,9 @@ impl Transaction for SqliteTransaction {
 
         // Insert deletion record into history
         conn.execute(
-            "INSERT INTO resource_history (tenant_id, resource_type, id, version_id, data, last_updated, is_deleted)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 1)",
-            params![tenant_id, resource_type, id, new_version_str, data, deleted_at],
+            "INSERT INTO resource_history (tenant_id, resource_type, id, version_id, data, last_updated, is_deleted, fhir_version)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 1, ?7)",
+            params![tenant_id, resource_type, id, new_version_str, data, deleted_at, fhir_version_str],
         )
         .map_err(|e| internal_error(format!("Failed to insert deletion history: {}", e)))?;
 
@@ -558,7 +573,10 @@ mod tests {
             "resourceType": "Patient",
             "name": [{"family": "Original"}]
         });
-        let created = backend.create(&tenant, "Patient", resource).await.unwrap();
+        let created = backend
+            .create(&tenant, "Patient", resource, FhirVersion::default())
+            .await
+            .unwrap();
 
         // Start transaction and update
         let mut tx = backend
@@ -594,7 +612,10 @@ mod tests {
             "resourceType": "Patient",
             "id": "patient-1"
         });
-        backend.create(&tenant, "Patient", resource).await.unwrap();
+        backend
+            .create(&tenant, "Patient", resource, FhirVersion::default())
+            .await
+            .unwrap();
 
         // Start transaction and delete
         let mut tx = backend

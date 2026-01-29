@@ -6,15 +6,16 @@
 use axum::{
     Json,
     extract::{Path, State},
-    http::StatusCode,
+    http::{StatusCode, header},
     response::{IntoResponse, Response},
 };
 use helios_persistence::core::ResourceStorage;
 use tracing::debug;
 
 use crate::error::{RestError, RestResult};
-use crate::extractors::TenantExtractor;
+use crate::extractors::{FhirVersionExtractor, TenantExtractor};
 use crate::middleware::conditional::ConditionalHeaders;
+use crate::middleware::content_type::{FhirContentType, FhirFormat};
 use crate::responses::headers::ResourceHeaders;
 use crate::state::AppState;
 
@@ -50,6 +51,7 @@ pub async fn read_handler<S>(
     State(state): State<AppState<S>>,
     Path((resource_type, id)): Path<(String, String)>,
     tenant: TenantExtractor,
+    version: FhirVersionExtractor,
     conditional: ConditionalHeaders,
 ) -> RestResult<Response>
 where
@@ -70,6 +72,19 @@ where
 
     match resource {
         Some(stored) => {
+            // If client requested specific version, verify match
+            if let Some(requested) = version.accept_version() {
+                if stored.fhir_version() != requested {
+                    return Err(RestError::NotAcceptable {
+                        message: format!(
+                            "Resource is FHIR {} but {} was requested",
+                            stored.fhir_version().as_mime_param(),
+                            requested.as_mime_param()
+                        ),
+                    });
+                }
+            }
+
             // Check conditional headers (If-None-Match)
             if let Some(etag) = conditional.if_none_match() {
                 let resource_etag = format!("W/\"{}\"", stored.version_id());
@@ -88,23 +103,27 @@ where
                 }
             }
 
-            // Build response headers
-            let headers = ResourceHeaders::from_stored(&stored, &state);
+            // Build response headers, including fhirVersion in Content-Type
+            let mut headers = ResourceHeaders::from_stored(&stored, &state).to_header_map();
+
+            // Add Content-Type with fhirVersion
+            let content_type =
+                FhirContentType::with_version(FhirFormat::Json, stored.fhir_version());
+            headers.insert(
+                header::CONTENT_TYPE,
+                content_type.to_header_value().parse().unwrap(),
+            );
 
             // Return the resource
             debug!(
                 resource_type = %resource_type,
                 id = %id,
                 version = %stored.version_id(),
+                fhir_version = %stored.fhir_version(),
                 "Returning resource"
             );
 
-            Ok((
-                StatusCode::OK,
-                headers.to_header_map(),
-                Json(stored.content().clone()),
-            )
-                .into_response())
+            Ok((StatusCode::OK, headers, Json(stored.content().clone())).into_response())
         }
         None => {
             debug!(

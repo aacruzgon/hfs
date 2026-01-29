@@ -9,6 +9,7 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
+use helios_fhir::FhirVersion;
 use helios_persistence::core::ResourceStorage;
 use serde_json::Value;
 use tracing::{debug, warn};
@@ -202,9 +203,15 @@ where
                 }
             };
 
+            // Use default FHIR version for batch operations
             match state
                 .storage()
-                .create(tenant.context(), &resource_type, resource)
+                .create(
+                    tenant.context(),
+                    &resource_type,
+                    resource,
+                    FhirVersion::default(),
+                )
                 .await
             {
                 Ok(stored) => {
@@ -229,9 +236,16 @@ where
                 }
             };
 
+            // Use default FHIR version for batch operations
             match state
                 .storage()
-                .create_or_update(tenant.context(), &resource_type, &id, resource)
+                .create_or_update(
+                    tenant.context(),
+                    &resource_type,
+                    &id,
+                    resource,
+                    FhirVersion::default(),
+                )
                 .await
             {
                 Ok((stored, created)) => {

@@ -2,6 +2,7 @@
 
 use async_trait::async_trait;
 use chrono::Utc;
+use helios_fhir::FhirVersion;
 use rusqlite::{ToSql, params};
 use serde_json::Value;
 
@@ -19,7 +20,7 @@ use crate::core::{
 use crate::error::TransactionError;
 use crate::error::{BackendError, ConcurrencyError, ResourceError, StorageError, StorageResult};
 use crate::search::extractor::ExtractedValue;
-use crate::search::loader::{FhirVersion, SearchParameterLoader};
+use crate::search::loader::SearchParameterLoader;
 use crate::search::registry::SearchParameterStatus;
 use crate::search::reindex::{ReindexableStorage, ResourcePage};
 use crate::tenant::TenantContext;
@@ -53,6 +54,7 @@ impl ResourceStorage for SqliteBackend {
         tenant: &TenantContext,
         resource_type: &str,
         resource: Value,
+        fhir_version: FhirVersion,
     ) -> StorageResult<StoredResource> {
         let conn = self.get_connection()?;
         let tenant_id = tenant.tenant_id().as_str();
@@ -97,20 +99,21 @@ impl ResourceStorage for SqliteBackend {
         let now = Utc::now();
         let last_updated = now.to_rfc3339();
         let version_id = "1";
+        let fhir_version_str = fhir_version.as_mime_param();
 
         // Insert the resource
         conn.execute(
-            "INSERT INTO resources (tenant_id, resource_type, id, version_id, data, last_updated, is_deleted)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0)",
-            params![tenant_id, resource_type, id, version_id, data, last_updated],
+            "INSERT INTO resources (tenant_id, resource_type, id, version_id, data, last_updated, is_deleted, fhir_version)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, ?7)",
+            params![tenant_id, resource_type, id, version_id, data, last_updated, fhir_version_str],
         )
         .map_err(|e| internal_error(format!("Failed to insert resource: {}", e)))?;
 
         // Insert into history
         conn.execute(
-            "INSERT INTO resource_history (tenant_id, resource_type, id, version_id, data, last_updated, is_deleted)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0)",
-            params![tenant_id, resource_type, id, version_id, data, last_updated],
+            "INSERT INTO resource_history (tenant_id, resource_type, id, version_id, data, last_updated, is_deleted, fhir_version)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, ?7)",
+            params![tenant_id, resource_type, id, version_id, data, last_updated, fhir_version_str],
         )
         .map_err(|e| internal_error(format!("Failed to insert history: {}", e)))?;
 
@@ -132,6 +135,7 @@ impl ResourceStorage for SqliteBackend {
             now,
             now,
             None,
+            fhir_version,
         ))
     }
 
@@ -141,12 +145,13 @@ impl ResourceStorage for SqliteBackend {
         resource_type: &str,
         id: &str,
         resource: Value,
+        fhir_version: FhirVersion,
     ) -> StorageResult<(StoredResource, bool)> {
         // Check if exists
         let existing = self.read(tenant, resource_type, id).await?;
 
         if let Some(current) = existing {
-            // Update existing
+            // Update existing (preserves original FHIR version)
             let updated = self.update(tenant, &current, resource).await?;
             Ok((updated, false))
         } else {
@@ -155,7 +160,9 @@ impl ResourceStorage for SqliteBackend {
             if let Some(obj) = resource.as_object_mut() {
                 obj.insert("id".to_string(), Value::String(id.to_string()));
             }
-            let created = self.create(tenant, resource_type, resource).await?;
+            let created = self
+                .create(tenant, resource_type, resource, fhir_version)
+                .await?;
             Ok((created, true))
         }
     }
@@ -170,7 +177,7 @@ impl ResourceStorage for SqliteBackend {
         let tenant_id = tenant.tenant_id().as_str();
 
         let result = conn.query_row(
-            "SELECT version_id, data, last_updated, is_deleted, deleted_at
+            "SELECT version_id, data, last_updated, is_deleted, deleted_at, fhir_version
              FROM resources
              WHERE tenant_id = ?1 AND resource_type = ?2 AND id = ?3",
             params![tenant_id, resource_type, id],
@@ -180,12 +187,20 @@ impl ResourceStorage for SqliteBackend {
                 let last_updated: String = row.get(2)?;
                 let is_deleted: i32 = row.get(3)?;
                 let deleted_at: Option<String> = row.get(4)?;
-                Ok((version_id, data, last_updated, is_deleted, deleted_at))
+                let fhir_version: String = row.get(5)?;
+                Ok((
+                    version_id,
+                    data,
+                    last_updated,
+                    is_deleted,
+                    deleted_at,
+                    fhir_version,
+                ))
             },
         );
 
         match result {
-            Ok((version_id, data, last_updated, is_deleted, deleted_at)) => {
+            Ok((version_id, data, last_updated, is_deleted, deleted_at, fhir_version_str)) => {
                 // If deleted, return Gone error
                 if is_deleted != 0 {
                     let deleted_at = deleted_at.and_then(|s| {
@@ -208,6 +223,9 @@ impl ResourceStorage for SqliteBackend {
                     .map_err(|e| internal_error(format!("Failed to parse last_updated: {}", e)))?
                     .with_timezone(&Utc);
 
+                // Parse the FHIR version from storage
+                let fhir_version = FhirVersion::from_storage(&fhir_version_str).unwrap_or_default();
+
                 Ok(Some(StoredResource::from_storage(
                     resource_type,
                     id,
@@ -217,6 +235,7 @@ impl ResourceStorage for SqliteBackend {
                     last_updated,
                     last_updated,
                     None,
+                    fhir_version,
                 )))
             }
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
@@ -307,11 +326,12 @@ impl ResourceStorage for SqliteBackend {
         )
         .map_err(|e| internal_error(format!("Failed to update resource: {}", e)))?;
 
-        // Insert into history
+        // Insert into history (preserve the original FHIR version)
+        let fhir_version_str = current.fhir_version().as_mime_param();
         conn.execute(
-            "INSERT INTO resource_history (tenant_id, resource_type, id, version_id, data, last_updated, is_deleted)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0)",
-            params![tenant_id, resource_type, id, new_version_str, data, last_updated],
+            "INSERT INTO resource_history (tenant_id, resource_type, id, version_id, data, last_updated, is_deleted, fhir_version)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, ?7)",
+            params![tenant_id, resource_type, id, new_version_str, data, last_updated, fhir_version_str],
         )
         .map_err(|e| internal_error(format!("Failed to insert history: {}", e)))?;
 
@@ -333,6 +353,7 @@ impl ResourceStorage for SqliteBackend {
             now,
             now,
             None,
+            current.fhir_version(),
         ))
     }
 
@@ -345,15 +366,15 @@ impl ResourceStorage for SqliteBackend {
         let conn = self.get_connection()?;
         let tenant_id = tenant.tenant_id().as_str();
 
-        // Check if resource exists
-        let result: Result<(String, Vec<u8>), _> = conn.query_row(
-            "SELECT version_id, data FROM resources
+        // Check if resource exists and get its fhir_version
+        let result: Result<(String, Vec<u8>, String), _> = conn.query_row(
+            "SELECT version_id, data, fhir_version FROM resources
              WHERE tenant_id = ?1 AND resource_type = ?2 AND id = ?3 AND is_deleted = 0",
             params![tenant_id, resource_type, id],
-            |row| Ok((row.get(0)?, row.get(1)?)),
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
         );
 
-        let (current_version, data) = match result {
+        let (current_version, data, fhir_version_str) = match result {
             Ok(v) => v,
             Err(rusqlite::Error::QueryReturnedNoRows) => {
                 return Err(StorageError::Resource(ResourceError::NotFound {
@@ -381,11 +402,11 @@ impl ResourceStorage for SqliteBackend {
         )
         .map_err(|e| internal_error(format!("Failed to delete resource: {}", e)))?;
 
-        // Insert deletion record into history
+        // Insert deletion record into history (preserve fhir_version)
         conn.execute(
-            "INSERT INTO resource_history (tenant_id, resource_type, id, version_id, data, last_updated, is_deleted)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 1)",
-            params![tenant_id, resource_type, id, new_version_str, data, deleted_at],
+            "INSERT INTO resource_history (tenant_id, resource_type, id, version_id, data, last_updated, is_deleted, fhir_version)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 1, ?7)",
+            params![tenant_id, resource_type, id, new_version_str, data, deleted_at, fhir_version_str],
         )
         .map_err(|e| internal_error(format!("Failed to insert deletion history: {}", e)))?;
 
@@ -1076,7 +1097,7 @@ impl VersionedStorage for SqliteBackend {
         let tenant_id = tenant.tenant_id().as_str();
 
         let result = conn.query_row(
-            "SELECT data, last_updated, is_deleted
+            "SELECT data, last_updated, is_deleted, fhir_version
              FROM resource_history
              WHERE tenant_id = ?1 AND resource_type = ?2 AND id = ?3 AND version_id = ?4",
             params![tenant_id, resource_type, id, version_id],
@@ -1084,12 +1105,13 @@ impl VersionedStorage for SqliteBackend {
                 let data: Vec<u8> = row.get(0)?;
                 let last_updated: String = row.get(1)?;
                 let is_deleted: i32 = row.get(2)?;
-                Ok((data, last_updated, is_deleted))
+                let fhir_version: String = row.get(3)?;
+                Ok((data, last_updated, is_deleted, fhir_version))
             },
         );
 
         match result {
-            Ok((data, last_updated, is_deleted)) => {
+            Ok((data, last_updated, is_deleted, fhir_version_str)) => {
                 let json_data: serde_json::Value = serde_json::from_slice(&data).map_err(|e| {
                     serialization_error(format!("Failed to deserialize resource: {}", e))
                 })?;
@@ -1105,6 +1127,8 @@ impl VersionedStorage for SqliteBackend {
                     None
                 };
 
+                let fhir_version = FhirVersion::from_storage(&fhir_version_str).unwrap_or_default();
+
                 Ok(Some(StoredResource::from_storage(
                     resource_type,
                     id,
@@ -1114,6 +1138,7 @@ impl VersionedStorage for SqliteBackend {
                     last_updated,
                     last_updated,
                     deleted_at,
+                    fhir_version,
                 )))
             }
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
@@ -1243,7 +1268,7 @@ impl InstanceHistoryProvider for SqliteBackend {
 
         // Build the query with filters
         let mut sql = String::from(
-            "SELECT version_id, data, last_updated, is_deleted
+            "SELECT version_id, data, last_updated, is_deleted, fhir_version
              FROM resource_history
              WHERE tenant_id = ?1 AND resource_type = ?2 AND id = ?3",
         );
@@ -1289,7 +1314,8 @@ impl InstanceHistoryProvider for SqliteBackend {
                 let data: Vec<u8> = row.get(1)?;
                 let last_updated: String = row.get(2)?;
                 let is_deleted: i32 = row.get(3)?;
-                Ok((version_id, data, last_updated, is_deleted))
+                let fhir_version: String = row.get(4)?;
+                Ok((version_id, data, last_updated, is_deleted, fhir_version))
             })
             .map_err(|e| internal_error(format!("Failed to query history: {}", e)))?;
 
@@ -1297,7 +1323,7 @@ impl InstanceHistoryProvider for SqliteBackend {
         let mut last_version: Option<String> = None;
 
         for row in rows {
-            let (version_id, data, last_updated_str, is_deleted) =
+            let (version_id, data, last_updated_str, is_deleted, fhir_version_str) =
                 row.map_err(|e| internal_error(format!("Failed to read history row: {}", e)))?;
 
             // Stop if we've collected enough items (we fetched count+1 to detect more)
@@ -1319,6 +1345,8 @@ impl InstanceHistoryProvider for SqliteBackend {
                 None
             };
 
+            let fhir_version = FhirVersion::from_storage(&fhir_version_str).unwrap_or_default();
+
             let resource = StoredResource::from_storage(
                 resource_type,
                 id,
@@ -1328,6 +1356,7 @@ impl InstanceHistoryProvider for SqliteBackend {
                 last_updated,
                 last_updated,
                 deleted_at,
+                fhir_version,
             );
 
             // Determine the method based on version and deletion status
@@ -1540,7 +1569,7 @@ impl TypeHistoryProvider for SqliteBackend {
 
         // Build the query with filters
         let mut sql = String::from(
-            "SELECT id, version_id, data, last_updated, is_deleted
+            "SELECT id, version_id, data, last_updated, is_deleted, fhir_version
              FROM resource_history
              WHERE tenant_id = ?1 AND resource_type = ?2",
         );
@@ -1594,7 +1623,8 @@ impl TypeHistoryProvider for SqliteBackend {
                 let data: Vec<u8> = row.get(2)?;
                 let last_updated: String = row.get(3)?;
                 let is_deleted: i32 = row.get(4)?;
-                Ok((id, version_id, data, last_updated, is_deleted))
+                let fhir_version: String = row.get(5)?;
+                Ok((id, version_id, data, last_updated, is_deleted, fhir_version))
             })
             .map_err(|e| internal_error(format!("Failed to query type history: {}", e)))?;
 
@@ -1602,7 +1632,7 @@ impl TypeHistoryProvider for SqliteBackend {
         let mut last_entry: Option<(String, String)> = None; // (last_updated, id)
 
         for row in rows {
-            let (id, version_id, data, last_updated_str, is_deleted) =
+            let (id, version_id, data, last_updated_str, is_deleted, fhir_version_str) =
                 row.map_err(|e| internal_error(format!("Failed to read type history row: {}", e)))?;
 
             // Stop if we've collected enough items (we fetched count+1 to detect more)
@@ -1624,6 +1654,8 @@ impl TypeHistoryProvider for SqliteBackend {
                 None
             };
 
+            let fhir_version = FhirVersion::from_storage(&fhir_version_str).unwrap_or_default();
+
             let resource = StoredResource::from_storage(
                 resource_type,
                 &id,
@@ -1633,6 +1665,7 @@ impl TypeHistoryProvider for SqliteBackend {
                 last_updated,
                 last_updated,
                 deleted_at,
+                fhir_version,
             );
 
             // Determine the method based on version and deletion status
@@ -1718,7 +1751,7 @@ impl SystemHistoryProvider for SqliteBackend {
 
         // Build the query with filters
         let mut sql = String::from(
-            "SELECT resource_type, id, version_id, data, last_updated, is_deleted
+            "SELECT resource_type, id, version_id, data, last_updated, is_deleted, fhir_version
              FROM resource_history
              WHERE tenant_id = ?1",
         );
@@ -1774,6 +1807,7 @@ impl SystemHistoryProvider for SqliteBackend {
                 let data: Vec<u8> = row.get(3)?;
                 let last_updated: String = row.get(4)?;
                 let is_deleted: i32 = row.get(5)?;
+                let fhir_version: String = row.get(6)?;
                 Ok((
                     resource_type,
                     id,
@@ -1781,6 +1815,7 @@ impl SystemHistoryProvider for SqliteBackend {
                     data,
                     last_updated,
                     is_deleted,
+                    fhir_version,
                 ))
             })
             .map_err(|e| internal_error(format!("Failed to query system history: {}", e)))?;
@@ -1789,7 +1824,15 @@ impl SystemHistoryProvider for SqliteBackend {
         let mut last_entry: Option<(String, String, String)> = None; // (last_updated, resource_type, id)
 
         for row in rows {
-            let (resource_type, id, version_id, data, last_updated_str, is_deleted) = row
+            let (
+                resource_type,
+                id,
+                version_id,
+                data,
+                last_updated_str,
+                is_deleted,
+                fhir_version_str,
+            ) = row
                 .map_err(|e| internal_error(format!("Failed to read system history row: {}", e)))?;
 
             // Stop if we've collected enough items (we fetched count+1 to detect more)
@@ -1811,6 +1854,8 @@ impl SystemHistoryProvider for SqliteBackend {
                 None
             };
 
+            let fhir_version = FhirVersion::from_storage(&fhir_version_str).unwrap_or_default();
+
             let resource = StoredResource::from_storage(
                 &resource_type,
                 &id,
@@ -1820,6 +1865,7 @@ impl SystemHistoryProvider for SqliteBackend {
                 last_updated,
                 last_updated,
                 deleted_at,
+                fhir_version,
             );
 
             // Determine the method based on version and deletion status
@@ -2006,7 +2052,7 @@ impl DifferentialHistoryProvider for SqliteBackend {
 
         // Build query for current versions of resources modified since timestamp
         let mut sql = String::from(
-            "SELECT resource_type, id, version_id, data, last_updated
+            "SELECT resource_type, id, version_id, data, last_updated, fhir_version
              FROM resources
              WHERE tenant_id = ?1 AND last_updated > ?2 AND is_deleted = 0",
         );
@@ -2046,7 +2092,15 @@ impl DifferentialHistoryProvider for SqliteBackend {
                 let version_id: String = row.get(2)?;
                 let data: Vec<u8> = row.get(3)?;
                 let last_updated: String = row.get(4)?;
-                Ok((resource_type, id, version_id, data, last_updated))
+                let fhir_version: String = row.get(5)?;
+                Ok((
+                    resource_type,
+                    id,
+                    version_id,
+                    data,
+                    last_updated,
+                    fhir_version,
+                ))
             })
             .map_err(|e| internal_error(format!("Failed to query modified resources: {}", e)))?;
 
@@ -2054,7 +2108,7 @@ impl DifferentialHistoryProvider for SqliteBackend {
         let mut last_entry: Option<(String, String)> = None; // (last_updated, id)
 
         for row in rows {
-            let (resource_type, id, version_id, data, last_updated_str) =
+            let (resource_type, id, version_id, data, last_updated_str, fhir_version_str) =
                 row.map_err(|e| internal_error(format!("Failed to read row: {}", e)))?;
 
             // Stop if we've collected enough items
@@ -2070,6 +2124,8 @@ impl DifferentialHistoryProvider for SqliteBackend {
                 .map_err(|e| internal_error(format!("Failed to parse last_updated: {}", e)))?
                 .with_timezone(&Utc);
 
+            let fhir_version = FhirVersion::from_storage(&fhir_version_str).unwrap_or_default();
+
             let resource = StoredResource::from_storage(
                 &resource_type,
                 &id,
@@ -2079,6 +2135,7 @@ impl DifferentialHistoryProvider for SqliteBackend {
                 last_updated,
                 last_updated,
                 None,
+                fhir_version,
             );
 
             last_entry = Some((last_updated_str, id));
@@ -2140,6 +2197,7 @@ impl ConditionalStorage for SqliteBackend {
         resource_type: &str,
         resource: Value,
         search_params: &str,
+        fhir_version: FhirVersion,
     ) -> StorageResult<ConditionalCreateResult> {
         // Find matching resources based on search parameters
         let matches = self
@@ -2149,7 +2207,9 @@ impl ConditionalStorage for SqliteBackend {
         match matches.len() {
             0 => {
                 // No match - create the resource
-                let created = self.create(tenant, resource_type, resource).await?;
+                let created = self
+                    .create(tenant, resource_type, resource, fhir_version)
+                    .await?;
                 Ok(ConditionalCreateResult::Created(created))
             }
             1 => {
@@ -2172,6 +2232,7 @@ impl ConditionalStorage for SqliteBackend {
         resource: Value,
         search_params: &str,
         upsert: bool,
+        fhir_version: FhirVersion,
     ) -> StorageResult<ConditionalUpdateResult> {
         // Find matching resources based on search parameters
         let matches = self
@@ -2182,7 +2243,9 @@ impl ConditionalStorage for SqliteBackend {
             0 => {
                 if upsert {
                     // No match, but upsert is true - create new resource
-                    let created = self.create(tenant, resource_type, resource).await?;
+                    let created = self
+                        .create(tenant, resource_type, resource, fhir_version)
+                        .await?;
                     Ok(ConditionalUpdateResult::Created(created))
                 } else {
                     // No match and no upsert
@@ -2190,7 +2253,7 @@ impl ConditionalStorage for SqliteBackend {
                 }
             }
             1 => {
-                // Exactly one match - update it
+                // Exactly one match - update it (preserves existing FHIR version)
                 let existing = matches.into_iter().next().unwrap();
                 let updated = self.update(tenant, &existing, resource).await?;
                 Ok(ConditionalUpdateResult::Updated(updated))
@@ -2826,7 +2889,10 @@ impl SqliteBackend {
                         )
                     })?;
 
-                let created = self.create(tenant, &resource_type, resource).await?;
+                // Use default FHIR version for bundle operations
+                let created = self
+                    .create(tenant, &resource_type, resource, FhirVersion::default())
+                    .await?;
                 Ok(BundleEntryResult::created(created))
             }
             BundleMethod::Put => {
@@ -2837,8 +2903,15 @@ impl SqliteBackend {
                 })?;
 
                 let (resource_type, id) = self.parse_url(&entry.url)?;
+                // Use default FHIR version for bundle operations
                 let (stored, _created) = self
-                    .create_or_update(tenant, &resource_type, &id, resource)
+                    .create_or_update(
+                        tenant,
+                        &resource_type,
+                        &id,
+                        resource,
+                        FhirVersion::default(),
+                    )
                     .await?;
                 Ok(BundleEntryResult::ok(stored))
             }
@@ -2952,7 +3025,7 @@ impl ReindexableStorage for SqliteBackend {
         let (sql, params): (String, Vec<Box<dyn ToSql>>) =
             if let (Some(ts), Some(id)) = (&cursor_ts, &cursor_id) {
                 (
-                    "SELECT id, version_id, data, last_updated FROM resources \
+                    "SELECT id, version_id, data, last_updated, fhir_version FROM resources \
                  WHERE tenant_id = ?1 AND resource_type = ?2 AND is_deleted = 0 \
                  AND (last_updated > ?3 OR (last_updated = ?3 AND id > ?4)) \
                  ORDER BY last_updated ASC, id ASC LIMIT ?5"
@@ -2967,7 +3040,7 @@ impl ReindexableStorage for SqliteBackend {
                 )
             } else {
                 (
-                    "SELECT id, version_id, data, last_updated FROM resources \
+                    "SELECT id, version_id, data, last_updated, fhir_version FROM resources \
                  WHERE tenant_id = ?1 AND resource_type = ?2 AND is_deleted = 0 \
                  ORDER BY last_updated ASC, id ASC LIMIT ?3"
                         .to_string(),
@@ -2991,16 +3064,18 @@ impl ReindexableStorage for SqliteBackend {
                 let version_id: String = row.get(1)?;
                 let data: Vec<u8> = row.get(2)?;
                 let last_updated: String = row.get(3)?;
+                let fhir_version: String = row.get(4)?;
 
-                Ok((id, version_id, data, last_updated))
+                Ok((id, version_id, data, last_updated, fhir_version))
             })
             .map_err(|e| internal_error(format!("Failed to query resources: {}", e)))?
             .filter_map(|r| r.ok())
-            .filter_map(|(id, version_id, data, last_updated)| {
+            .filter_map(|(id, version_id, data, last_updated, fhir_version_str)| {
                 let content: Value = serde_json::from_slice(&data).ok()?;
                 let last_modified = chrono::DateTime::parse_from_rfc3339(&last_updated)
                     .ok()?
                     .with_timezone(&Utc);
+                let fhir_version = FhirVersion::from_storage(&fhir_version_str).unwrap_or_default();
                 Some(StoredResource::from_storage(
                     resource_type.to_string(),
                     id,
@@ -3010,6 +3085,7 @@ impl ReindexableStorage for SqliteBackend {
                     last_modified, // created_at (use last_modified as approximation)
                     last_modified,
                     None, // not deleted
+                    fhir_version,
                 ))
             })
             .collect();
@@ -3120,7 +3196,10 @@ mod tests {
         });
 
         // Create
-        let created = backend.create(&tenant, "Patient", resource).await.unwrap();
+        let created = backend
+            .create(&tenant, "Patient", resource, FhirVersion::default())
+            .await
+            .unwrap();
         assert_eq!(created.resource_type(), "Patient");
         assert_eq!(created.version_id(), "1");
 
@@ -3145,7 +3224,10 @@ mod tests {
             "name": [{"family": "Test"}]
         });
 
-        let created = backend.create(&tenant, "Patient", resource).await.unwrap();
+        let created = backend
+            .create(&tenant, "Patient", resource, FhirVersion::default())
+            .await
+            .unwrap();
         assert_eq!(created.id(), "patient-123");
     }
 
@@ -3156,11 +3238,13 @@ mod tests {
 
         let resource = json!({"id": "patient-1"});
         backend
-            .create(&tenant, "Patient", resource.clone())
+            .create(&tenant, "Patient", resource.clone(), FhirVersion::default())
             .await
             .unwrap();
 
-        let result = backend.create(&tenant, "Patient", resource).await;
+        let result = backend
+            .create(&tenant, "Patient", resource, FhirVersion::default())
+            .await;
         assert!(matches!(
             result,
             Err(StorageError::Resource(ResourceError::AlreadyExists { .. }))
@@ -3186,7 +3270,10 @@ mod tests {
 
         // Create
         let resource = json!({"name": [{"family": "Original"}]});
-        let created = backend.create(&tenant, "Patient", resource).await.unwrap();
+        let created = backend
+            .create(&tenant, "Patient", resource, FhirVersion::default())
+            .await
+            .unwrap();
 
         // Update
         let updated_content = json!({"name": [{"family": "Updated"}]});
@@ -3212,7 +3299,10 @@ mod tests {
 
         // Create
         let resource = json!({});
-        let created = backend.create(&tenant, "Patient", resource).await.unwrap();
+        let created = backend
+            .create(&tenant, "Patient", resource, FhirVersion::default())
+            .await
+            .unwrap();
 
         // Update once
         let _ = backend.update(&tenant, &created, json!({})).await.unwrap();
@@ -3234,7 +3324,10 @@ mod tests {
 
         // Create
         let resource = json!({});
-        let created = backend.create(&tenant, "Patient", resource).await.unwrap();
+        let created = backend
+            .create(&tenant, "Patient", resource, FhirVersion::default())
+            .await
+            .unwrap();
 
         // Delete
         backend
@@ -3256,7 +3349,13 @@ mod tests {
         let tenant = create_test_tenant();
 
         let (resource, created) = backend
-            .create_or_update(&tenant, "Patient", "new-id", json!({}))
+            .create_or_update(
+                &tenant,
+                "Patient",
+                "new-id",
+                json!({}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
 
@@ -3272,13 +3371,24 @@ mod tests {
 
         // Create first
         backend
-            .create(&tenant, "Patient", json!({"id": "existing-id"}))
+            .create(
+                &tenant,
+                "Patient",
+                json!({"id": "existing-id"}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
 
         // Update via create_or_update
         let (resource, created) = backend
-            .create_or_update(&tenant, "Patient", "existing-id", json!({}))
+            .create_or_update(
+                &tenant,
+                "Patient",
+                "existing-id",
+                json!({}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
 
@@ -3295,10 +3405,16 @@ mod tests {
         assert_eq!(backend.count(&tenant, Some("Patient")).await.unwrap(), 0);
 
         // Create some resources
-        backend.create(&tenant, "Patient", json!({})).await.unwrap();
-        backend.create(&tenant, "Patient", json!({})).await.unwrap();
         backend
-            .create(&tenant, "Observation", json!({}))
+            .create(&tenant, "Patient", json!({}), FhirVersion::default())
+            .await
+            .unwrap();
+        backend
+            .create(&tenant, "Patient", json!({}), FhirVersion::default())
+            .await
+            .unwrap();
+        backend
+            .create(&tenant, "Observation", json!({}), FhirVersion::default())
             .await
             .unwrap();
 
@@ -3321,7 +3437,10 @@ mod tests {
 
         // Create in tenant 1
         let resource = json!({"id": "patient-1"});
-        backend.create(&tenant1, "Patient", resource).await.unwrap();
+        backend
+            .create(&tenant1, "Patient", resource, FhirVersion::default())
+            .await
+            .unwrap();
 
         // Tenant 1 can read
         assert!(
@@ -3353,7 +3472,10 @@ mod tests {
 
         // Create a resource
         let resource = json!({"name": [{"family": "Smith"}]});
-        let created = backend.create(&tenant, "Patient", resource).await.unwrap();
+        let created = backend
+            .create(&tenant, "Patient", resource, FhirVersion::default())
+            .await
+            .unwrap();
 
         // Update it twice
         let v2 = backend
@@ -3391,7 +3513,10 @@ mod tests {
 
         // Create and update
         let resource = json!({});
-        let created = backend.create(&tenant, "Patient", resource).await.unwrap();
+        let created = backend
+            .create(&tenant, "Patient", resource, FhirVersion::default())
+            .await
+            .unwrap();
         let v2 = backend.update(&tenant, &created, json!({})).await.unwrap();
         let _v3 = backend.update(&tenant, &v2, json!({})).await.unwrap();
 
@@ -3409,7 +3534,10 @@ mod tests {
 
         // Create, update, then delete
         let resource = json!({"id": "p1"});
-        let created = backend.create(&tenant, "Patient", resource).await.unwrap();
+        let created = backend
+            .create(&tenant, "Patient", resource, FhirVersion::default())
+            .await
+            .unwrap();
         let _v2 = backend
             .update(&tenant, &created, json!({"id": "p1"}))
             .await
@@ -3435,7 +3563,10 @@ mod tests {
 
         // Create, update, then delete
         let resource = json!({"id": "p2"});
-        let created = backend.create(&tenant, "Patient", resource).await.unwrap();
+        let created = backend
+            .create(&tenant, "Patient", resource, FhirVersion::default())
+            .await
+            .unwrap();
         let _v2 = backend
             .update(&tenant, &created, json!({"id": "p2"}))
             .await
@@ -3462,7 +3593,10 @@ mod tests {
 
         // Create with multiple versions
         let resource = json!({});
-        let mut current = backend.create(&tenant, "Patient", resource).await.unwrap();
+        let mut current = backend
+            .create(&tenant, "Patient", resource, FhirVersion::default())
+            .await
+            .unwrap();
         for _ in 0..4 {
             current = backend.update(&tenant, &current, json!({})).await.unwrap();
         }
@@ -3505,7 +3639,10 @@ mod tests {
 
         // Create in tenant 1
         let resource = json!({"id": "shared-id"});
-        let created = backend.create(&tenant1, "Patient", resource).await.unwrap();
+        let created = backend
+            .create(&tenant1, "Patient", resource, FhirVersion::default())
+            .await
+            .unwrap();
         let _v2 = backend
             .update(&tenant1, &created, json!({"id": "shared-id"}))
             .await
@@ -3537,11 +3674,21 @@ mod tests {
 
         // Create multiple patients
         let p1 = backend
-            .create(&tenant, "Patient", json!({"id": "p1"}))
+            .create(
+                &tenant,
+                "Patient",
+                json!({"id": "p1"}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
         let _p2 = backend
-            .create(&tenant, "Patient", json!({"id": "p2"}))
+            .create(
+                &tenant,
+                "Patient",
+                json!({"id": "p2"}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
 
@@ -3573,13 +3720,19 @@ mod tests {
         let tenant = create_test_tenant();
 
         // Create multiple patients with updates
-        let p1 = backend.create(&tenant, "Patient", json!({})).await.unwrap();
+        let p1 = backend
+            .create(&tenant, "Patient", json!({}), FhirVersion::default())
+            .await
+            .unwrap();
         let _p1_v2 = backend.update(&tenant, &p1, json!({})).await.unwrap();
-        let _p2 = backend.create(&tenant, "Patient", json!({})).await.unwrap();
+        let _p2 = backend
+            .create(&tenant, "Patient", json!({}), FhirVersion::default())
+            .await
+            .unwrap();
 
         // Create an observation (different type)
         backend
-            .create(&tenant, "Observation", json!({}))
+            .create(&tenant, "Observation", json!({}), FhirVersion::default())
             .await
             .unwrap();
 
@@ -3604,13 +3757,16 @@ mod tests {
         let tenant = create_test_tenant();
 
         // Create different resource types
-        backend.create(&tenant, "Patient", json!({})).await.unwrap();
         backend
-            .create(&tenant, "Observation", json!({}))
+            .create(&tenant, "Patient", json!({}), FhirVersion::default())
             .await
             .unwrap();
         backend
-            .create(&tenant, "Encounter", json!({}))
+            .create(&tenant, "Observation", json!({}), FhirVersion::default())
+            .await
+            .unwrap();
+        backend
+            .create(&tenant, "Encounter", json!({}), FhirVersion::default())
             .await
             .unwrap();
 
@@ -3638,14 +3794,24 @@ mod tests {
 
         // Create and delete a patient
         let _p1 = backend
-            .create(&tenant, "Patient", json!({"id": "del-p1"}))
+            .create(
+                &tenant,
+                "Patient",
+                json!({"id": "del-p1"}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
         backend.delete(&tenant, "Patient", "del-p1").await.unwrap();
 
         // Create another patient
         backend
-            .create(&tenant, "Patient", json!({"id": "p2"}))
+            .create(
+                &tenant,
+                "Patient",
+                json!({"id": "p2"}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
 
@@ -3678,17 +3844,17 @@ mod tests {
 
         // Create patients in tenant 1
         backend
-            .create(&tenant1, "Patient", json!({}))
+            .create(&tenant1, "Patient", json!({}), FhirVersion::default())
             .await
             .unwrap();
         backend
-            .create(&tenant1, "Patient", json!({}))
+            .create(&tenant1, "Patient", json!({}), FhirVersion::default())
             .await
             .unwrap();
 
         // Create patient in tenant 2
         backend
-            .create(&tenant2, "Patient", json!({}))
+            .create(&tenant2, "Patient", json!({}), FhirVersion::default())
             .await
             .unwrap();
 
@@ -3715,7 +3881,12 @@ mod tests {
         // Create several patients
         for i in 0..5 {
             backend
-                .create(&tenant, "Patient", json!({"id": format!("p{}", i)}))
+                .create(
+                    &tenant,
+                    "Patient",
+                    json!({"id": format!("p{}", i)}),
+                    FhirVersion::default(),
+                )
                 .await
                 .unwrap();
         }
@@ -3756,15 +3927,30 @@ mod tests {
 
         // Create different resource types
         let p1 = backend
-            .create(&tenant, "Patient", json!({"id": "p1"}))
+            .create(
+                &tenant,
+                "Patient",
+                json!({"id": "p1"}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
         backend
-            .create(&tenant, "Observation", json!({"id": "o1"}))
+            .create(
+                &tenant,
+                "Observation",
+                json!({"id": "o1"}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
         backend
-            .create(&tenant, "Encounter", json!({"id": "e1"}))
+            .create(
+                &tenant,
+                "Encounter",
+                json!({"id": "e1"}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
 
@@ -3800,14 +3986,17 @@ mod tests {
         let tenant = create_test_tenant();
 
         // Create different resource types
-        let p1 = backend.create(&tenant, "Patient", json!({})).await.unwrap();
+        let p1 = backend
+            .create(&tenant, "Patient", json!({}), FhirVersion::default())
+            .await
+            .unwrap();
         let _p1_v2 = backend.update(&tenant, &p1, json!({})).await.unwrap();
         backend
-            .create(&tenant, "Observation", json!({}))
+            .create(&tenant, "Observation", json!({}), FhirVersion::default())
             .await
             .unwrap();
         backend
-            .create(&tenant, "Encounter", json!({}))
+            .create(&tenant, "Encounter", json!({}), FhirVersion::default())
             .await
             .unwrap();
 
@@ -3823,14 +4012,19 @@ mod tests {
 
         // Create and delete a patient
         backend
-            .create(&tenant, "Patient", json!({"id": "del-p1"}))
+            .create(
+                &tenant,
+                "Patient",
+                json!({"id": "del-p1"}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
         backend.delete(&tenant, "Patient", "del-p1").await.unwrap();
 
         // Create another resource
         backend
-            .create(&tenant, "Observation", json!({}))
+            .create(&tenant, "Observation", json!({}), FhirVersion::default())
             .await
             .unwrap();
 
@@ -3859,17 +4053,17 @@ mod tests {
 
         // Create resources in tenant 1
         backend
-            .create(&tenant1, "Patient", json!({}))
+            .create(&tenant1, "Patient", json!({}), FhirVersion::default())
             .await
             .unwrap();
         backend
-            .create(&tenant1, "Observation", json!({}))
+            .create(&tenant1, "Observation", json!({}), FhirVersion::default())
             .await
             .unwrap();
 
         // Create resource in tenant 2
         backend
-            .create(&tenant2, "Encounter", json!({}))
+            .create(&tenant2, "Encounter", json!({}), FhirVersion::default())
             .await
             .unwrap();
 
@@ -3900,13 +4094,23 @@ mod tests {
         // Create several resources of different types
         for i in 0..3 {
             backend
-                .create(&tenant, "Patient", json!({"id": format!("p{}", i)}))
+                .create(
+                    &tenant,
+                    "Patient",
+                    json!({"id": format!("p{}", i)}),
+                    FhirVersion::default(),
+                )
                 .await
                 .unwrap();
         }
         for i in 0..2 {
             backend
-                .create(&tenant, "Observation", json!({"id": format!("o{}", i)}))
+                .create(
+                    &tenant,
+                    "Observation",
+                    json!({"id": format!("o{}", i)}),
+                    FhirVersion::default(),
+                )
                 .await
                 .unwrap();
         }
@@ -3943,15 +4147,30 @@ mod tests {
 
         // Create resources - they should be ordered by last_updated DESC
         backend
-            .create(&tenant, "Patient", json!({"id": "first"}))
+            .create(
+                &tenant,
+                "Patient",
+                json!({"id": "first"}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
         backend
-            .create(&tenant, "Observation", json!({"id": "second"}))
+            .create(
+                &tenant,
+                "Observation",
+                json!({"id": "second"}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
         backend
-            .create(&tenant, "Encounter", json!({"id": "third"}))
+            .create(
+                &tenant,
+                "Encounter",
+                json!({"id": "third"}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
 
@@ -3983,6 +4202,7 @@ mod tests {
                 &tenant,
                 "Patient",
                 json!({"id": "p1", "name": [{"family": "Smith"}]}),
+                FhirVersion::default(),
             )
             .await
             .unwrap();
@@ -4058,6 +4278,7 @@ mod tests {
                 &tenant,
                 "Patient",
                 json!({"id": "p1", "name": [{"family": "Smith"}]}),
+                FhirVersion::default(),
             )
             .await
             .unwrap();
@@ -4107,7 +4328,12 @@ mod tests {
 
         // Create a resource
         let p1 = backend
-            .create(&tenant, "Patient", json!({"id": "p1"}))
+            .create(
+                &tenant,
+                "Patient",
+                json!({"id": "p1"}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
         let _p1_v2 = backend
@@ -4129,7 +4355,12 @@ mod tests {
 
         // Create a resource
         backend
-            .create(&tenant, "Patient", json!({"id": "p1"}))
+            .create(
+                &tenant,
+                "Patient",
+                json!({"id": "p1"}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
 
@@ -4173,7 +4404,12 @@ mod tests {
 
         // Create a resource with multiple versions
         let p1 = backend
-            .create(&tenant, "Patient", json!({"id": "p1"}))
+            .create(
+                &tenant,
+                "Patient",
+                json!({"id": "p1"}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
         let _p1_v2 = backend
@@ -4203,7 +4439,12 @@ mod tests {
 
         // Create and delete a resource
         backend
-            .create(&tenant, "Patient", json!({"id": "del-p1"}))
+            .create(
+                &tenant,
+                "Patient",
+                json!({"id": "del-p1"}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
         backend.delete(&tenant, "Patient", "del-p1").await.unwrap();
@@ -4244,13 +4485,23 @@ mod tests {
 
         // Create resource in tenant 1
         backend
-            .create(&tenant1, "Patient", json!({"id": "shared-id"}))
+            .create(
+                &tenant1,
+                "Patient",
+                json!({"id": "shared-id"}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
 
         // Create resource with same ID in tenant 2
         backend
-            .create(&tenant2, "Patient", json!({"id": "shared-id"}))
+            .create(
+                &tenant2,
+                "Patient",
+                json!({"id": "shared-id"}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
 
@@ -4283,14 +4534,19 @@ mod tests {
         // Create multiple patients
         for i in 0..5 {
             backend
-                .create(&tenant, "Patient", json!({"id": format!("p{}", i)}))
+                .create(
+                    &tenant,
+                    "Patient",
+                    json!({"id": format!("p{}", i)}),
+                    FhirVersion::default(),
+                )
                 .await
                 .unwrap();
         }
 
         // Create some observations too
         backend
-            .create(&tenant, "Observation", json!({}))
+            .create(&tenant, "Observation", json!({}), FhirVersion::default())
             .await
             .unwrap();
 
@@ -4334,13 +4590,23 @@ mod tests {
         // Create patients in both tenants
         for i in 0..3 {
             backend
-                .create(&tenant1, "Patient", json!({"id": format!("t1-p{}", i)}))
+                .create(
+                    &tenant1,
+                    "Patient",
+                    json!({"id": format!("t1-p{}", i)}),
+                    FhirVersion::default(),
+                )
                 .await
                 .unwrap();
         }
         for i in 0..2 {
             backend
-                .create(&tenant2, "Patient", json!({"id": format!("t2-p{}", i)}))
+                .create(
+                    &tenant2,
+                    "Patient",
+                    json!({"id": format!("t2-p{}", i)}),
+                    FhirVersion::default(),
+                )
                 .await
                 .unwrap();
         }
@@ -4371,15 +4637,30 @@ mod tests {
 
         // Create some resources
         backend
-            .create(&tenant, "Patient", json!({"id": "p1"}))
+            .create(
+                &tenant,
+                "Patient",
+                json!({"id": "p1"}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
         backend
-            .create(&tenant, "Patient", json!({"id": "p2"}))
+            .create(
+                &tenant,
+                "Patient",
+                json!({"id": "p2"}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
         backend
-            .create(&tenant, "Observation", json!({"id": "o1"}))
+            .create(
+                &tenant,
+                "Observation",
+                json!({"id": "o1"}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
 
@@ -4403,15 +4684,30 @@ mod tests {
 
         // Create different resource types
         backend
-            .create(&tenant, "Patient", json!({"id": "p1"}))
+            .create(
+                &tenant,
+                "Patient",
+                json!({"id": "p1"}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
         backend
-            .create(&tenant, "Patient", json!({"id": "p2"}))
+            .create(
+                &tenant,
+                "Patient",
+                json!({"id": "p2"}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
         backend
-            .create(&tenant, "Observation", json!({"id": "o1"}))
+            .create(
+                &tenant,
+                "Observation",
+                json!({"id": "o1"}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
 
@@ -4436,7 +4732,12 @@ mod tests {
 
         // Create a resource
         backend
-            .create(&tenant, "Patient", json!({"id": "old"}))
+            .create(
+                &tenant,
+                "Patient",
+                json!({"id": "old"}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
 
@@ -4445,7 +4746,12 @@ mod tests {
 
         // Create another resource
         backend
-            .create(&tenant, "Patient", json!({"id": "new"}))
+            .create(
+                &tenant,
+                "Patient",
+                json!({"id": "new"}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
 
@@ -4473,11 +4779,21 @@ mod tests {
 
         // Create resources in both tenants
         backend
-            .create(&tenant1, "Patient", json!({"id": "t1-p1"}))
+            .create(
+                &tenant1,
+                "Patient",
+                json!({"id": "t1-p1"}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
         backend
-            .create(&tenant2, "Patient", json!({"id": "t2-p1"}))
+            .create(
+                &tenant2,
+                "Patient",
+                json!({"id": "t2-p1"}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
 
@@ -4508,14 +4824,24 @@ mod tests {
 
         // Create and then delete a resource
         backend
-            .create(&tenant, "Patient", json!({"id": "del-p1"}))
+            .create(
+                &tenant,
+                "Patient",
+                json!({"id": "del-p1"}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
         backend.delete(&tenant, "Patient", "del-p1").await.unwrap();
 
         // Create another resource
         backend
-            .create(&tenant, "Patient", json!({"id": "live-p1"}))
+            .create(
+                &tenant,
+                "Patient",
+                json!({"id": "live-p1"}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
 
@@ -4541,7 +4867,12 @@ mod tests {
         // Create multiple resources
         for i in 0..5 {
             backend
-                .create(&tenant, "Patient", json!({"id": format!("p{}", i)}))
+                .create(
+                    &tenant,
+                    "Patient",
+                    json!({"id": format!("p{}", i)}),
+                    FhirVersion::default(),
+                )
                 .await
                 .unwrap();
         }
@@ -4582,7 +4913,12 @@ mod tests {
 
         // Create a resource and update it multiple times
         let p1 = backend
-            .create(&tenant, "Patient", json!({"id": "p1", "name": "v1"}))
+            .create(
+                &tenant,
+                "Patient",
+                json!({"id": "p1", "name": "v1"}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
         let p1_v2 = backend
@@ -4621,6 +4957,7 @@ mod tests {
                 "Patient",
                 json!({"identifier": [{"value": "12345"}]}),
                 "identifier=99999", // No match
+                FhirVersion::default(),
             )
             .await
             .unwrap();
@@ -4644,6 +4981,7 @@ mod tests {
                 &tenant,
                 "Patient",
                 json!({"id": "p1", "identifier": [{"value": "12345"}]}),
+                FhirVersion::default(),
             )
             .await
             .unwrap();
@@ -4655,6 +4993,7 @@ mod tests {
                 "Patient",
                 json!({"identifier": [{"value": "12345"}]}),
                 "identifier=12345",
+                FhirVersion::default(),
             )
             .await
             .unwrap();
@@ -4674,13 +5013,24 @@ mod tests {
 
         // Create an existing resource
         backend
-            .create(&tenant, "Patient", json!({"id": "p1"}))
+            .create(
+                &tenant,
+                "Patient",
+                json!({"id": "p1"}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
 
         // Conditional create with _id parameter
         let result = backend
-            .conditional_create(&tenant, "Patient", json!({}), "_id=p1")
+            .conditional_create(
+                &tenant,
+                "Patient",
+                json!({}),
+                "_id=p1",
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
 
@@ -4703,6 +5053,7 @@ mod tests {
                 &tenant,
                 "Patient",
                 json!({"id": "p1", "identifier": [{"value": "12345"}], "active": false}),
+                FhirVersion::default(),
             )
             .await
             .unwrap();
@@ -4715,6 +5066,7 @@ mod tests {
                 json!({"id": "p1", "identifier": [{"value": "12345"}], "active": true}),
                 "identifier=12345",
                 false,
+                FhirVersion::default(),
             )
             .await
             .unwrap();
@@ -4740,6 +5092,7 @@ mod tests {
                 json!({"identifier": [{"value": "99999"}]}),
                 "identifier=99999",
                 false,
+                FhirVersion::default(),
             )
             .await
             .unwrap();
@@ -4763,6 +5116,7 @@ mod tests {
                 json!({"identifier": [{"value": "new-id"}]}),
                 "identifier=new-id",
                 true,
+                FhirVersion::default(),
             )
             .await
             .unwrap();
@@ -4782,7 +5136,12 @@ mod tests {
 
         // Create a resource
         backend
-            .create(&tenant, "Patient", json!({"id": "p1"}))
+            .create(
+                &tenant,
+                "Patient",
+                json!({"id": "p1"}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
 
@@ -4833,13 +5192,24 @@ mod tests {
 
         // Create resource in tenant 1
         backend
-            .create(&tenant1, "Patient", json!({"id": "shared-id"}))
+            .create(
+                &tenant1,
+                "Patient",
+                json!({"id": "shared-id"}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
 
         // Conditional create in tenant 2 should not find tenant 1's resource
         let result = backend
-            .conditional_create(&tenant2, "Patient", json!({}), "_id=shared-id")
+            .conditional_create(
+                &tenant2,
+                "Patient",
+                json!({}),
+                "_id=shared-id",
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
 
@@ -4866,6 +5236,7 @@ mod tests {
                 &tenant,
                 "Patient",
                 json!({"id": "p1", "active": false, "name": [{"family": "Smith"}]}),
+                FhirVersion::default(),
             )
             .await
             .unwrap();
@@ -4901,6 +5272,7 @@ mod tests {
                 &tenant,
                 "Patient",
                 json!({"id": "p1", "active": false, "gender": "unknown"}),
+                FhirVersion::default(),
             )
             .await
             .unwrap();
@@ -4993,7 +5365,12 @@ mod tests {
 
         // Create a resource first
         backend
-            .create(&tenant, "Patient", json!({"id": "existing"}))
+            .create(
+                &tenant,
+                "Patient",
+                json!({"id": "existing"}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
 
@@ -5044,7 +5421,12 @@ mod tests {
 
         // Create a resource
         backend
-            .create(&tenant, "Patient", json!({"id": "to-delete"}))
+            .create(
+                &tenant,
+                "Patient",
+                json!({"id": "to-delete"}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
 
@@ -5080,7 +5462,12 @@ mod tests {
 
         // Create a resource first
         backend
-            .create(&tenant, "Patient", json!({"id": "existing"}))
+            .create(
+                &tenant,
+                "Patient",
+                json!({"id": "existing"}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
 
@@ -5221,6 +5608,7 @@ mod tests {
                     },
                     "status": "final"
                 }),
+                FhirVersion::default(),
             )
             .await
             .unwrap();
@@ -5295,6 +5683,7 @@ mod tests {
                         }
                     ]
                 }),
+                FhirVersion::default(),
             )
             .await
             .unwrap();

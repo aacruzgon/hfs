@@ -14,6 +14,7 @@
 //! ```
 //! use helios_persistence::types::StoredResource;
 //! use helios_persistence::tenant::TenantId;
+//! use helios_fhir::FhirVersion;
 //! use serde_json::json;
 //!
 //! let resource = StoredResource::new(
@@ -25,6 +26,7 @@
 //!         "id": "patient-123",
 //!         "name": [{"family": "Smith", "given": ["John"]}]
 //!     }),
+//!     FhirVersion::default(),
 //! );
 //!
 //! assert_eq!(resource.url(), "Patient/patient-123");

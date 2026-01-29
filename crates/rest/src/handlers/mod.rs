@@ -12,6 +12,7 @@
 //! - [`history`] - Get resource history
 //! - [`batch`] - Process a batch/transaction bundle
 //! - [`capabilities`] - Get server capabilities (CapabilityStatement)
+//! - [`versions`] - Get supported FHIR versions ($versions operation)
 //! - [`health`] - Health check endpoint
 
 pub mod batch;
@@ -24,6 +25,7 @@ pub mod patch;
 pub mod read;
 pub mod search;
 pub mod update;
+pub mod versions;
 pub mod vread;
 
 // Re-export handlers for convenience
@@ -37,4 +39,5 @@ pub use patch::patch_handler;
 pub use read::read_handler;
 pub use search::{search_get_handler, search_post_handler};
 pub use update::update_handler;
+pub use versions::versions_handler;
 pub use vread::vread_handler;

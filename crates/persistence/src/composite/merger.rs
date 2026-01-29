@@ -389,6 +389,7 @@ impl Default for RelevanceMerger {
 mod tests {
     use super::*;
     use crate::tenant::TenantId;
+    use helios_fhir::FhirVersion;
 
     fn make_resource(resource_type: &str, id: &str) -> StoredResource {
         StoredResource::new(
@@ -396,6 +397,7 @@ mod tests {
             id,
             TenantId::new("test"),
             serde_json::json!({"resourceType": resource_type, "id": id}),
+            FhirVersion::default(),
         )
     }
 

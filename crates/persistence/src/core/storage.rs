@@ -5,6 +5,7 @@
 //! to ensure proper tenant isolation.
 
 use async_trait::async_trait;
+use helios_fhir::FhirVersion;
 use serde_json::Value;
 
 use crate::error::{StorageError, StorageResult};
@@ -37,6 +38,7 @@ use crate::types::StoredResource;
 /// # Example
 ///
 /// ```ignore
+/// use helios_fhir::FhirVersion;
 /// use helios_persistence::core::ResourceStorage;
 /// use helios_persistence::tenant::{TenantContext, TenantId, TenantPermissions};
 ///
@@ -46,12 +48,12 @@ use crate::types::StoredResource;
 ///         TenantPermissions::full_access(),
 ///     );
 ///
-///     // Create a new patient
+///     // Create a new patient with FHIR R4
 ///     let patient = serde_json::json!({
 ///         "resourceType": "Patient",
 ///         "name": [{"family": "Smith"}]
 ///     });
-///     let stored = storage.create(&tenant, "Patient", patient).await?;
+///     let stored = storage.create(&tenant, "Patient", patient, FhirVersion::default()).await?;
 ///     println!("Created: {}", stored.url());
 ///
 ///     // Read it back
@@ -82,6 +84,7 @@ pub trait ResourceStorage: Send + Sync {
     /// * `tenant` - The tenant context for this operation
     /// * `resource_type` - The FHIR resource type (e.g., "Patient")
     /// * `resource` - The resource content as JSON
+    /// * `fhir_version` - The FHIR specification version for this resource
     ///
     /// # Returns
     ///
@@ -97,6 +100,7 @@ pub trait ResourceStorage: Send + Sync {
         tenant: &TenantContext,
         resource_type: &str,
         resource: Value,
+        fhir_version: FhirVersion,
     ) -> StorageResult<StoredResource>;
 
     /// Creates a resource with a specific ID (PUT semantics).
@@ -110,6 +114,7 @@ pub trait ResourceStorage: Send + Sync {
     /// * `resource_type` - The FHIR resource type
     /// * `id` - The desired resource ID
     /// * `resource` - The resource content as JSON
+    /// * `fhir_version` - The FHIR specification version for this resource
     ///
     /// # Returns
     ///
@@ -121,6 +126,7 @@ pub trait ResourceStorage: Send + Sync {
         resource_type: &str,
         id: &str,
         resource: Value,
+        fhir_version: FhirVersion,
     ) -> StorageResult<(StoredResource, bool)>;
 
     /// Reads a resource by type and ID.
@@ -377,6 +383,7 @@ pub trait ConditionalStorage: ResourceStorage {
     /// * `resource_type` - The FHIR resource type
     /// * `resource` - The resource to create
     /// * `search_params` - Search parameters to check for existing match
+    /// * `fhir_version` - The FHIR specification version for this resource
     ///
     /// # Returns
     ///
@@ -389,6 +396,7 @@ pub trait ConditionalStorage: ResourceStorage {
         resource_type: &str,
         resource: Value,
         search_params: &str,
+        fhir_version: FhirVersion,
     ) -> StorageResult<ConditionalCreateResult>;
 
     /// Updates a resource based on search criteria.
@@ -400,6 +408,7 @@ pub trait ConditionalStorage: ResourceStorage {
     /// * `resource` - The new resource content
     /// * `search_params` - Search parameters to find the resource
     /// * `upsert` - If true, create if no match found
+    /// * `fhir_version` - The FHIR specification version for this resource (used if creating)
     ///
     /// # Returns
     ///
@@ -414,6 +423,7 @@ pub trait ConditionalStorage: ResourceStorage {
         resource: Value,
         search_params: &str,
         upsert: bool,
+        fhir_version: FhirVersion,
     ) -> StorageResult<ConditionalUpdateResult>;
 
     /// Deletes a resource based on search criteria.
@@ -495,6 +505,7 @@ mod tests {
             "123",
             crate::tenant::TenantId::new("t1"),
             serde_json::json!({}),
+            FhirVersion::default(),
         ));
         let _no_match = ConditionalUpdateResult::NoMatch;
         let _multiple = ConditionalUpdateResult::MultipleMatches(2);

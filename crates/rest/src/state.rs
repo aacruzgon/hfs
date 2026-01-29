@@ -117,6 +117,7 @@ impl<S: ResourceStorage> AppState<S> {
 mod tests {
     use super::*;
     use async_trait::async_trait;
+    use helios_fhir::FhirVersion;
     use helios_persistence::core::ResourceStorage;
     use helios_persistence::error::StorageResult;
     use helios_persistence::tenant::TenantContext;
@@ -137,6 +138,7 @@ mod tests {
             _tenant: &TenantContext,
             _resource_type: &str,
             _resource: Value,
+            _fhir_version: FhirVersion,
         ) -> StorageResult<StoredResource> {
             unimplemented!()
         }
@@ -147,6 +149,7 @@ mod tests {
             _resource_type: &str,
             _id: &str,
             _resource: Value,
+            _fhir_version: FhirVersion,
         ) -> StorageResult<(StoredResource, bool)> {
             unimplemented!()
         }

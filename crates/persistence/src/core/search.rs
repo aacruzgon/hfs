@@ -431,6 +431,7 @@ impl<T> FullSearchProvider for T where
 mod tests {
     use super::*;
     use crate::types::PageInfo;
+    use helios_fhir::FhirVersion;
 
     #[test]
     fn test_search_result_creation() {
@@ -449,6 +450,7 @@ mod tests {
                 "123",
                 crate::tenant::TenantId::new("t1"),
                 serde_json::json!({}),
+                FhirVersion::default(),
             )])
             .with_total(100);
 
@@ -463,6 +465,7 @@ mod tests {
             "123",
             crate::tenant::TenantId::new("t1"),
             serde_json::json!({"resourceType": "Patient", "id": "123"}),
+            FhirVersion::default(),
         );
 
         let page = Page::new(vec![resource], PageInfo::end());

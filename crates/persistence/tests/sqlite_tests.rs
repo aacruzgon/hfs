@@ -2,6 +2,7 @@
 //!
 //! These tests verify the SQLite backend implementation against the actual API.
 
+use helios_fhir::FhirVersion;
 use serde_json::json;
 
 use helios_persistence::backends::sqlite::SqliteBackend;
@@ -37,7 +38,9 @@ async fn test_create_resource() {
         "name": [{"family": "Smith", "given": ["John"]}]
     });
 
-    let result = backend.create(&tenant, "Patient", patient).await;
+    let result = backend
+        .create(&tenant, "Patient", patient, FhirVersion::default())
+        .await;
     assert!(result.is_ok());
 
     let created = result.unwrap();
@@ -57,7 +60,10 @@ async fn test_create_with_id() {
         "name": [{"family": "Jones"}]
     });
 
-    let created = backend.create(&tenant, "Patient", patient).await.unwrap();
+    let created = backend
+        .create(&tenant, "Patient", patient, FhirVersion::default())
+        .await
+        .unwrap();
     assert_eq!(created.id(), "patient-123");
 }
 
@@ -73,12 +79,14 @@ async fn test_create_duplicate_fails() {
 
     // First create succeeds
     backend
-        .create(&tenant, "Patient", patient.clone())
+        .create(&tenant, "Patient", patient.clone(), FhirVersion::default())
         .await
         .unwrap();
 
     // Second create with same ID fails
-    let result = backend.create(&tenant, "Patient", patient).await;
+    let result = backend
+        .create(&tenant, "Patient", patient, FhirVersion::default())
+        .await;
     assert!(result.is_err());
 }
 
@@ -96,7 +104,10 @@ async fn test_read_resource() {
         "name": [{"family": "ReadTest"}]
     });
 
-    let created = backend.create(&tenant, "Patient", patient).await.unwrap();
+    let created = backend
+        .create(&tenant, "Patient", patient, FhirVersion::default())
+        .await
+        .unwrap();
 
     let read = backend
         .read(&tenant, "Patient", created.id())
@@ -127,7 +138,10 @@ async fn test_exists() {
     let tenant = create_tenant("test-tenant");
 
     let patient = json!({"resourceType": "Patient"});
-    let created = backend.create(&tenant, "Patient", patient).await.unwrap();
+    let created = backend
+        .create(&tenant, "Patient", patient, FhirVersion::default())
+        .await
+        .unwrap();
 
     assert!(
         backend
@@ -157,7 +171,10 @@ async fn test_update_resource() {
         "name": [{"family": "Original"}]
     });
 
-    let created = backend.create(&tenant, "Patient", patient).await.unwrap();
+    let created = backend
+        .create(&tenant, "Patient", patient, FhirVersion::default())
+        .await
+        .unwrap();
 
     let updated_content = json!({
         "resourceType": "Patient",
@@ -181,7 +198,13 @@ async fn test_create_or_update_creates() {
     let patient = json!({"resourceType": "Patient"});
 
     let (resource, was_created) = backend
-        .create_or_update(&tenant, "Patient", "new-id", patient)
+        .create_or_update(
+            &tenant,
+            "Patient",
+            "new-id",
+            patient,
+            FhirVersion::default(),
+        )
         .await
         .unwrap();
 
@@ -197,14 +220,26 @@ async fn test_create_or_update_updates() {
     // Create first
     let patient = json!({"resourceType": "Patient", "name": [{"family": "First"}]});
     backend
-        .create_or_update(&tenant, "Patient", "upsert-id", patient)
+        .create_or_update(
+            &tenant,
+            "Patient",
+            "upsert-id",
+            patient,
+            FhirVersion::default(),
+        )
         .await
         .unwrap();
 
     // Update
     let patient2 = json!({"resourceType": "Patient", "name": [{"family": "Second"}]});
     let (resource, was_created) = backend
-        .create_or_update(&tenant, "Patient", "upsert-id", patient2)
+        .create_or_update(
+            &tenant,
+            "Patient",
+            "upsert-id",
+            patient2,
+            FhirVersion::default(),
+        )
         .await
         .unwrap();
 
@@ -222,7 +257,10 @@ async fn test_delete_resource() {
     let tenant = create_tenant("test-tenant");
 
     let patient = json!({"resourceType": "Patient"});
-    let created = backend.create(&tenant, "Patient", patient).await.unwrap();
+    let created = backend
+        .create(&tenant, "Patient", patient, FhirVersion::default())
+        .await
+        .unwrap();
 
     // Delete
     backend
@@ -265,7 +303,10 @@ async fn test_tenant_isolation_create() {
     let tenant_b = create_tenant("tenant-b");
 
     let patient = json!({"resourceType": "Patient"});
-    let created = backend.create(&tenant_a, "Patient", patient).await.unwrap();
+    let created = backend
+        .create(&tenant_a, "Patient", patient, FhirVersion::default())
+        .await
+        .unwrap();
 
     // Tenant A can see it
     assert!(
@@ -291,7 +332,10 @@ async fn test_tenant_isolation_read() {
     let tenant_b = create_tenant("tenant-b");
 
     let patient = json!({"resourceType": "Patient"});
-    let created = backend.create(&tenant_a, "Patient", patient).await.unwrap();
+    let created = backend
+        .create(&tenant_a, "Patient", patient, FhirVersion::default())
+        .await
+        .unwrap();
 
     // Tenant A can read
     let read_a = backend
@@ -319,11 +363,23 @@ async fn test_same_id_different_tenants() {
 
     // Create same ID in both tenants
     backend
-        .create_or_update(&tenant_a, "Patient", "shared-id", patient_a)
+        .create_or_update(
+            &tenant_a,
+            "Patient",
+            "shared-id",
+            patient_a,
+            FhirVersion::default(),
+        )
         .await
         .unwrap();
     backend
-        .create_or_update(&tenant_b, "Patient", "shared-id", patient_b)
+        .create_or_update(
+            &tenant_b,
+            "Patient",
+            "shared-id",
+            patient_b,
+            FhirVersion::default(),
+        )
         .await
         .unwrap();
 
@@ -350,7 +406,10 @@ async fn test_tenant_isolation_delete() {
     let tenant_b = create_tenant("tenant-b");
 
     let patient = json!({"resourceType": "Patient"});
-    let created = backend.create(&tenant_a, "Patient", patient).await.unwrap();
+    let created = backend
+        .create(&tenant_a, "Patient", patient, FhirVersion::default())
+        .await
+        .unwrap();
 
     // Tenant B cannot delete tenant A's resource
     let result = backend.delete(&tenant_b, "Patient", created.id()).await;
@@ -377,7 +436,10 @@ async fn test_count_resources() {
     // Create several patients
     for i in 0..5 {
         let patient = json!({"resourceType": "Patient", "id": format!("p{}", i)});
-        backend.create(&tenant, "Patient", patient).await.unwrap();
+        backend
+            .create(&tenant, "Patient", patient, FhirVersion::default())
+            .await
+            .unwrap();
     }
 
     let count = backend.count(&tenant, Some("Patient")).await.unwrap();
@@ -393,13 +455,19 @@ async fn test_count_by_tenant() {
     // Create 3 in tenant A
     for _ in 0..3 {
         let patient = json!({"resourceType": "Patient"});
-        backend.create(&tenant_a, "Patient", patient).await.unwrap();
+        backend
+            .create(&tenant_a, "Patient", patient, FhirVersion::default())
+            .await
+            .unwrap();
     }
 
     // Create 2 in tenant B
     for _ in 0..2 {
         let patient = json!({"resourceType": "Patient"});
-        backend.create(&tenant_b, "Patient", patient).await.unwrap();
+        backend
+            .create(&tenant_b, "Patient", patient, FhirVersion::default())
+            .await
+            .unwrap();
     }
 
     assert_eq!(backend.count(&tenant_a, Some("Patient")).await.unwrap(), 3);
@@ -421,7 +489,7 @@ async fn test_read_batch() {
     for id in &ids {
         let patient = json!({"resourceType": "Patient"});
         backend
-            .create_or_update(&tenant, "Patient", id, patient)
+            .create_or_update(&tenant, "Patient", id, patient, FhirVersion::default())
             .await
             .unwrap();
     }
@@ -449,6 +517,7 @@ async fn test_read_batch_ignores_other_tenant() {
             "Patient",
             "a-patient",
             json!({"resourceType": "Patient"}),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -460,6 +529,7 @@ async fn test_read_batch_ignores_other_tenant() {
             "Patient",
             "b-patient",
             json!({"resourceType": "Patient"}),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -486,7 +556,10 @@ async fn test_version_increments() {
     let tenant = create_tenant("test-tenant");
 
     let patient = json!({"resourceType": "Patient"});
-    let v1 = backend.create(&tenant, "Patient", patient).await.unwrap();
+    let v1 = backend
+        .create(&tenant, "Patient", patient, FhirVersion::default())
+        .await
+        .unwrap();
     assert_eq!(v1.version_id(), "1");
 
     let v2 = backend
@@ -520,7 +593,7 @@ async fn test_content_preserved() {
     });
 
     let created = backend
-        .create(&tenant, "Patient", patient.clone())
+        .create(&tenant, "Patient", patient.clone(), FhirVersion::default())
         .await
         .unwrap();
     let read = backend
@@ -547,7 +620,10 @@ async fn test_unicode_content() {
         "name": [{"family": "日本語", "given": ["名前"]}]
     });
 
-    let created = backend.create(&tenant, "Patient", patient).await.unwrap();
+    let created = backend
+        .create(&tenant, "Patient", patient, FhirVersion::default())
+        .await
+        .unwrap();
     let read = backend
         .read(&tenant, "Patient", created.id())
         .await
@@ -569,7 +645,10 @@ async fn test_history_instance() {
 
     // Create a resource
     let patient = json!({"resourceType": "Patient", "name": [{"family": "Smith"}]});
-    let created = backend.create(&tenant, "Patient", patient).await.unwrap();
+    let created = backend
+        .create(&tenant, "Patient", patient, FhirVersion::default())
+        .await
+        .unwrap();
 
     // Update twice
     let v2 = backend
@@ -624,7 +703,10 @@ async fn test_history_instance_count() {
     let tenant = create_tenant("test-tenant");
 
     let patient = json!({"resourceType": "Patient"});
-    let created = backend.create(&tenant, "Patient", patient).await.unwrap();
+    let created = backend
+        .create(&tenant, "Patient", patient, FhirVersion::default())
+        .await
+        .unwrap();
     let v2 = backend
         .update(&tenant, &created, json!({"resourceType": "Patient"}))
         .await
@@ -647,7 +729,10 @@ async fn test_history_with_delete() {
     let tenant = create_tenant("test-tenant");
 
     let patient = json!({"resourceType": "Patient", "id": "hist-patient"});
-    let created = backend.create(&tenant, "Patient", patient).await.unwrap();
+    let created = backend
+        .create(&tenant, "Patient", patient, FhirVersion::default())
+        .await
+        .unwrap();
     let _v2 = backend
         .update(
             &tenant,
@@ -681,7 +766,10 @@ async fn test_history_tenant_isolation() {
 
     // Create in tenant A
     let patient = json!({"resourceType": "Patient", "id": "hist-shared"});
-    let created = backend.create(&tenant_a, "Patient", patient).await.unwrap();
+    let created = backend
+        .create(&tenant_a, "Patient", patient, FhirVersion::default())
+        .await
+        .unwrap();
     let _v2 = backend
         .update(
             &tenant_a,
@@ -721,6 +809,7 @@ async fn test_history_type() {
             &tenant,
             "Patient",
             json!({"resourceType": "Patient", "id": "tp1"}),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -729,6 +818,7 @@ async fn test_history_type() {
             &tenant,
             "Patient",
             json!({"resourceType": "Patient", "id": "tp2"}),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -749,6 +839,7 @@ async fn test_history_type() {
             &tenant,
             "Observation",
             json!({"resourceType": "Observation"}),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -775,7 +866,12 @@ async fn test_history_type_count() {
 
     // Create patients with updates
     let p1 = backend
-        .create(&tenant, "Patient", json!({"resourceType": "Patient"}))
+        .create(
+            &tenant,
+            "Patient",
+            json!({"resourceType": "Patient"}),
+            FhirVersion::default(),
+        )
         .await
         .unwrap();
     let _p1_v2 = backend
@@ -783,7 +879,12 @@ async fn test_history_type_count() {
         .await
         .unwrap();
     let _p2 = backend
-        .create(&tenant, "Patient", json!({"resourceType": "Patient"}))
+        .create(
+            &tenant,
+            "Patient",
+            json!({"resourceType": "Patient"}),
+            FhirVersion::default(),
+        )
         .await
         .unwrap();
 
@@ -793,6 +894,7 @@ async fn test_history_type_count() {
             &tenant,
             "Observation",
             json!({"resourceType": "Observation"}),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -820,17 +922,32 @@ async fn test_history_type_tenant_isolation() {
 
     // Create patients in tenant A
     backend
-        .create(&tenant_a, "Patient", json!({"resourceType": "Patient"}))
+        .create(
+            &tenant_a,
+            "Patient",
+            json!({"resourceType": "Patient"}),
+            FhirVersion::default(),
+        )
         .await
         .unwrap();
     backend
-        .create(&tenant_a, "Patient", json!({"resourceType": "Patient"}))
+        .create(
+            &tenant_a,
+            "Patient",
+            json!({"resourceType": "Patient"}),
+            FhirVersion::default(),
+        )
         .await
         .unwrap();
 
     // Create patient in tenant B
     backend
-        .create(&tenant_b, "Patient", json!({"resourceType": "Patient"}))
+        .create(
+            &tenant_b,
+            "Patient",
+            json!({"resourceType": "Patient"}),
+            FhirVersion::default(),
+        )
         .await
         .unwrap();
 
@@ -864,6 +981,7 @@ async fn test_history_system() {
             &tenant,
             "Patient",
             json!({"resourceType": "Patient", "id": "sp1"}),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -872,6 +990,7 @@ async fn test_history_system() {
             &tenant,
             "Observation",
             json!({"resourceType": "Observation", "id": "so1"}),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -880,6 +999,7 @@ async fn test_history_system() {
             &tenant,
             "Encounter",
             json!({"resourceType": "Encounter", "id": "se1"}),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -921,7 +1041,12 @@ async fn test_history_system_count() {
 
     // Create different resource types with updates
     let p1 = backend
-        .create(&tenant, "Patient", json!({"resourceType": "Patient"}))
+        .create(
+            &tenant,
+            "Patient",
+            json!({"resourceType": "Patient"}),
+            FhirVersion::default(),
+        )
         .await
         .unwrap();
     let _p1_v2 = backend
@@ -933,6 +1058,7 @@ async fn test_history_system_count() {
             &tenant,
             "Observation",
             json!({"resourceType": "Observation"}),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -950,7 +1076,12 @@ async fn test_history_system_tenant_isolation() {
 
     // Create resources in tenant A
     backend
-        .create(&tenant_a, "Patient", json!({"resourceType": "Patient"}))
+        .create(
+            &tenant_a,
+            "Patient",
+            json!({"resourceType": "Patient"}),
+            FhirVersion::default(),
+        )
         .await
         .unwrap();
     backend
@@ -958,13 +1089,19 @@ async fn test_history_system_tenant_isolation() {
             &tenant_a,
             "Observation",
             json!({"resourceType": "Observation"}),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
 
     // Create resource in tenant B
     backend
-        .create(&tenant_b, "Encounter", json!({"resourceType": "Encounter"}))
+        .create(
+            &tenant_b,
+            "Encounter",
+            json!({"resourceType": "Encounter"}),
+            FhirVersion::default(),
+        )
         .await
         .unwrap();
 
@@ -1018,7 +1155,10 @@ async fn test_search_index_on_create() {
         "birthDate": "1990-01-15"
     });
 
-    let created = backend.create(&tenant, "Patient", patient).await.unwrap();
+    let created = backend
+        .create(&tenant, "Patient", patient, FhirVersion::default())
+        .await
+        .unwrap();
     assert_eq!(created.id(), "search-test-1");
 
     // Verify search index works by searching for the identifier
@@ -1048,7 +1188,10 @@ async fn test_search_index_on_update() {
         "name": [{"family": "OriginalFamily", "given": ["Original"]}]
     });
 
-    let created = backend.create(&tenant, "Patient", patient).await.unwrap();
+    let created = backend
+        .create(&tenant, "Patient", patient, FhirVersion::default())
+        .await
+        .unwrap();
 
     // Update the patient with new name
     let updated_patient = json!({
@@ -1084,7 +1227,10 @@ async fn test_search_index_on_delete() {
         "name": [{"family": "DeleteMe"}]
     });
 
-    backend.create(&tenant, "Patient", patient).await.unwrap();
+    backend
+        .create(&tenant, "Patient", patient, FhirVersion::default())
+        .await
+        .unwrap();
 
     // Verify patient is searchable
     let query = SearchQuery::new("Patient").with_parameter(SearchParameter {
@@ -1129,6 +1275,7 @@ async fn test_search_index_string_name() {
                 "id": "name-1",
                 "name": [{"family": "Smith", "given": ["John"]}]
             }),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -1142,6 +1289,7 @@ async fn test_search_index_string_name() {
                 "id": "name-2",
                 "name": [{"family": "Smithson", "given": ["Jane"]}]
             }),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -1155,6 +1303,7 @@ async fn test_search_index_string_name() {
                 "id": "name-3",
                 "name": [{"family": "Johnson", "given": ["Bob"]}]
             }),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -1204,6 +1353,7 @@ async fn test_search_index_tenant_isolation() {
                 "id": "tenant-iso-1",
                 "identifier": [{"system": "http://example.org", "value": "UNIQUE123"}]
             }),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -1245,6 +1395,7 @@ async fn test_search_token_with_system() {
                 "id": "token-sys-1",
                 "identifier": [{"system": "http://hospital.org/mrn", "value": "12345"}]
             }),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -1258,6 +1409,7 @@ async fn test_search_token_with_system() {
                 "id": "token-sys-2",
                 "identifier": [{"system": "http://other.org/id", "value": "12345"}]
             }),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -1271,6 +1423,7 @@ async fn test_search_token_with_system() {
                 "id": "token-sys-3",
                 "identifier": [{"system": "http://hospital.org/mrn", "value": "67890"}]
             }),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -1326,6 +1479,7 @@ async fn test_search_date_birthdate() {
                 "id": "date-1",
                 "birthDate": "1990-01-15"
             }),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -1339,6 +1493,7 @@ async fn test_search_date_birthdate() {
                 "id": "date-2",
                 "birthDate": "1985-06-20"
             }),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -1352,6 +1507,7 @@ async fn test_search_date_birthdate() {
                 "id": "date-3",
                 "birthDate": "2000-12-01"
             }),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -1390,6 +1546,7 @@ async fn test_search_reference_subject() {
                 "resourceType": "Patient",
                 "id": "patient-1"
             }),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -1402,6 +1559,7 @@ async fn test_search_reference_subject() {
                 "resourceType": "Patient",
                 "id": "patient-2"
             }),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -1417,6 +1575,7 @@ async fn test_search_reference_subject() {
                 "subject": {"reference": "Patient/patient-1"},
                 "code": {"coding": [{"code": "8867-4"}]}
             }),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -1431,6 +1590,7 @@ async fn test_search_reference_subject() {
                 "subject": {"reference": "Patient/patient-1"},
                 "code": {"coding": [{"code": "9279-1"}]}
             }),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -1445,6 +1605,7 @@ async fn test_search_reference_subject() {
                 "subject": {"reference": "Patient/patient-2"},
                 "code": {"coding": [{"code": "8867-4"}]}
             }),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -1487,6 +1648,7 @@ async fn test_search_multiple_parameters() {
                 "identifier": [{"system": "http://example.org", "value": "ABC123"}],
                 "active": true
             }),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -1501,6 +1663,7 @@ async fn test_search_multiple_parameters() {
                 "identifier": [{"system": "http://example.org", "value": "ABC123"}],
                 "active": false
             }),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -1515,6 +1678,7 @@ async fn test_search_multiple_parameters() {
                 "identifier": [{"system": "http://example.org", "value": "XYZ789"}],
                 "active": true
             }),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -1571,6 +1735,7 @@ async fn test_reindex_list_resource_types() {
                 "resourceType": "Patient",
                 "id": "p1"
             }),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -1584,6 +1749,7 @@ async fn test_reindex_list_resource_types() {
                 "id": "o1",
                 "status": "final"
             }),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -1596,6 +1762,7 @@ async fn test_reindex_list_resource_types() {
                 "resourceType": "Patient",
                 "id": "p2"
             }),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -1622,6 +1789,7 @@ async fn test_reindex_count_resources() {
                     "resourceType": "Patient",
                     "id": format!("patient-{}", i)
                 }),
+                FhirVersion::default(),
             )
             .await
             .unwrap();
@@ -1654,6 +1822,7 @@ async fn test_reindex_fetch_resources_page() {
                     "resourceType": "Patient",
                     "id": format!("patient-{:02}", i)
                 }),
+                FhirVersion::default(),
             )
             .await
             .unwrap();
@@ -1705,6 +1874,7 @@ async fn test_reindex_clear_search_index() {
                 "name": [{"family": "Smith"}],
                 "identifier": [{"system": "http://example.org", "value": "12345"}]
             }),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -1718,6 +1888,7 @@ async fn test_reindex_clear_search_index() {
                 "id": "o1",
                 "code": {"coding": [{"system": "http://loinc.org", "code": "1234-5"}]}
             }),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -1767,6 +1938,7 @@ async fn test_reindex_operation_full() {
                 "name": [{"family": "Smith"}],
                 "identifier": [{"system": "http://example.org", "value": "A001"}]
             }),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -1781,6 +1953,7 @@ async fn test_reindex_operation_full() {
                 "name": [{"family": "Jones"}],
                 "identifier": [{"system": "http://example.org", "value": "A002"}]
             }),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -1867,6 +2040,7 @@ async fn test_reindex_operation_cancel() {
                     "id": format!("patient-{}", i),
                     "name": [{"family": format!("Patient{}", i)}]
                 }),
+                FhirVersion::default(),
             )
             .await
             .unwrap();
@@ -1923,6 +2097,7 @@ async fn test_conditional_create_with_identifier() {
             "Patient",
             patient.clone(),
             "identifier=http://hospital.org/mrn|MRN-12345",
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -1952,6 +2127,7 @@ async fn test_conditional_create_with_identifier() {
             "Patient",
             patient2,
             "identifier=http://hospital.org/mrn|MRN-12345",
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -1979,7 +2155,7 @@ async fn test_conditional_create_with_id() {
         "name": [{"family": "TestPatient"}]
     });
     backend
-        .create(&tenant, "Patient", patient.clone())
+        .create(&tenant, "Patient", patient.clone(), FhirVersion::default())
         .await
         .unwrap();
 
@@ -1990,7 +2166,13 @@ async fn test_conditional_create_with_id() {
     });
 
     let result = backend
-        .conditional_create(&tenant, "Patient", patient2, "_id=test-patient-cond")
+        .conditional_create(
+            &tenant,
+            "Patient",
+            patient2,
+            "_id=test-patient-cond",
+            FhirVersion::default(),
+        )
         .await
         .unwrap();
 
@@ -2015,7 +2197,10 @@ async fn test_conditional_update_with_identifier() {
         "identifier": [{"system": "http://hospital.org/mrn", "value": "MRN-UPDATE-1"}],
         "name": [{"family": "Original"}]
     });
-    backend.create(&tenant, "Patient", patient).await.unwrap();
+    backend
+        .create(&tenant, "Patient", patient, FhirVersion::default())
+        .await
+        .unwrap();
 
     // Conditional update - should find and update
     let updated_patient = json!({
@@ -2031,6 +2216,7 @@ async fn test_conditional_update_with_identifier() {
             updated_patient,
             "identifier=http://hospital.org/mrn|MRN-UPDATE-1",
             false,
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -2067,6 +2253,7 @@ async fn test_conditional_update_with_upsert() {
             patient,
             "identifier=http://hospital.org/mrn|MRN-UPSERT-1",
             true, // upsert=true
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -2088,7 +2275,10 @@ async fn test_conditional_delete_with_identifier() {
         "identifier": [{"system": "http://hospital.org/mrn", "value": "MRN-DELETE-1"}],
         "name": [{"family": "ToDelete"}]
     });
-    backend.create(&tenant, "Patient", patient).await.unwrap();
+    backend
+        .create(&tenant, "Patient", patient, FhirVersion::default())
+        .await
+        .unwrap();
 
     // Conditional delete - should find and delete
     let result = backend
@@ -2134,7 +2324,10 @@ async fn test_conditional_operations_tenant_isolation() {
         "identifier": [{"system": "http://hospital.org/mrn", "value": "MRN-SHARED"}],
         "name": [{"family": "TenantA"}]
     });
-    backend.create(&tenant_a, "Patient", patient).await.unwrap();
+    backend
+        .create(&tenant_a, "Patient", patient, FhirVersion::default())
+        .await
+        .unwrap();
 
     // Conditional create in tenant B with same identifier - should create (different tenant)
     let patient_b = json!({
@@ -2149,6 +2342,7 @@ async fn test_conditional_operations_tenant_isolation() {
             "Patient",
             patient_b,
             "identifier=http://hospital.org/mrn|MRN-SHARED",
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -2171,14 +2365,20 @@ async fn test_conditional_create_multiple_matches() {
         "identifier": [{"system": "http://system-a.org", "value": "SHARED-VALUE"}],
         "name": [{"family": "Patient1"}]
     });
-    backend.create(&tenant, "Patient", patient1).await.unwrap();
+    backend
+        .create(&tenant, "Patient", patient1, FhirVersion::default())
+        .await
+        .unwrap();
 
     let patient2 = json!({
         "resourceType": "Patient",
         "identifier": [{"system": "http://system-b.org", "value": "SHARED-VALUE"}],
         "name": [{"family": "Patient2"}]
     });
-    backend.create(&tenant, "Patient", patient2).await.unwrap();
+    backend
+        .create(&tenant, "Patient", patient2, FhirVersion::default())
+        .await
+        .unwrap();
 
     // Conditional create with code-only search (no system) - should find multiple matches
     let patient3 = json!({
@@ -2188,7 +2388,13 @@ async fn test_conditional_create_multiple_matches() {
     });
 
     let result = backend
-        .conditional_create(&tenant, "Patient", patient3, "identifier=SHARED-VALUE")
+        .conditional_create(
+            &tenant,
+            "Patient",
+            patient3,
+            "identifier=SHARED-VALUE",
+            FhirVersion::default(),
+        )
         .await
         .unwrap();
 
@@ -2225,7 +2431,12 @@ async fn test_search_parameter_create_registers_in_registry() {
     });
 
     backend
-        .create(&tenant, "SearchParameter", search_param)
+        .create(
+            &tenant,
+            "SearchParameter",
+            search_param,
+            FhirVersion::default(),
+        )
         .await
         .unwrap();
 
@@ -2264,7 +2475,12 @@ async fn test_search_parameter_create_draft_not_registered() {
     });
 
     backend
-        .create(&tenant, "SearchParameter", search_param)
+        .create(
+            &tenant,
+            "SearchParameter",
+            search_param,
+            FhirVersion::default(),
+        )
         .await
         .unwrap();
 
@@ -2296,7 +2512,12 @@ async fn test_search_parameter_delete_unregisters() {
     });
 
     backend
-        .create(&tenant, "SearchParameter", search_param)
+        .create(
+            &tenant,
+            "SearchParameter",
+            search_param,
+            FhirVersion::default(),
+        )
         .await
         .unwrap();
 
@@ -2339,7 +2560,12 @@ async fn test_search_parameter_update_status_change() {
     });
 
     let created = backend
-        .create(&tenant, "SearchParameter", search_param)
+        .create(
+            &tenant,
+            "SearchParameter",
+            search_param,
+            FhirVersion::default(),
+        )
         .await
         .unwrap();
 
@@ -2409,7 +2635,9 @@ async fn test_fts_indexing_does_not_fail() {
     });
 
     // This should succeed regardless of FTS5 availability
-    let result = backend.create(&tenant, "Patient", patient).await;
+    let result = backend
+        .create(&tenant, "Patient", patient, FhirVersion::default())
+        .await;
     assert!(
         result.is_ok(),
         "Creating resource with narrative should succeed"
@@ -2438,7 +2666,10 @@ async fn test_fts_update_does_not_fail() {
         "name": [{"family": "Original"}]
     });
 
-    let created = backend.create(&tenant, "Patient", patient).await.unwrap();
+    let created = backend
+        .create(&tenant, "Patient", patient, FhirVersion::default())
+        .await
+        .unwrap();
 
     // Update with new narrative
     let updated_patient = json!({
@@ -2472,7 +2703,10 @@ async fn test_fts_delete_does_not_fail() {
         "name": [{"family": "Test"}]
     });
 
-    backend.create(&tenant, "Patient", patient).await.unwrap();
+    backend
+        .create(&tenant, "Patient", patient, FhirVersion::default())
+        .await
+        .unwrap();
 
     // Delete should succeed (and clean up FTS if available)
     let result = backend.delete(&tenant, "Patient", "fts-delete-test").await;
@@ -2501,6 +2735,7 @@ async fn test_content_search_basic() {
                 "name": [{"family": "Smithson", "given": ["Alexander"]}],
                 "address": [{"city": "Springfield", "state": "Illinois"}]
             }),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -2515,6 +2750,7 @@ async fn test_content_search_basic() {
                 "name": [{"family": "Johnson", "given": ["Robert"]}],
                 "address": [{"city": "Chicago", "state": "Illinois"}]
             }),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -2559,7 +2795,7 @@ async fn test_text_search_narrative() {
             "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>John Smith is a patient with diabetes and hypertension.</p></div>"
         },
         "name": [{"family": "Smith", "given": ["John"]}]
-    })).await.unwrap();
+    }), FhirVersion::default()).await.unwrap();
 
     backend.create(&tenant, "Patient", json!({
         "resourceType": "Patient",
@@ -2569,7 +2805,7 @@ async fn test_text_search_narrative() {
             "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>Jane Doe has asthma and allergies.</p></div>"
         },
         "name": [{"family": "Doe", "given": ["Jane"]}]
-    })).await.unwrap();
+    }), FhirVersion::default()).await.unwrap();
 
     // Search for patients with "diabetes" in narrative
     let query = SearchQuery::new("Patient").with_parameter(SearchParameter {
@@ -2620,6 +2856,7 @@ async fn test_composite_search_basic() {
                     }
                 ]
             }),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -2676,6 +2913,7 @@ async fn test_token_text_modifier_coding_display() {
                 },
                 "status": "final"
             }),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -2698,6 +2936,7 @@ async fn test_token_text_modifier_coding_display() {
                 },
                 "status": "final"
             }),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -2751,6 +2990,7 @@ async fn test_identifier_of_type_modifier() {
                     }
                 ]
             }),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -2777,6 +3017,7 @@ async fn test_identifier_of_type_modifier() {
                     }
                 ]
             }),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -2826,6 +3067,7 @@ async fn test_text_advanced_simple_term() {
                     }]
                 }
             }),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -2846,6 +3088,7 @@ async fn test_text_advanced_simple_term() {
                     }]
                 }
             }),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -2895,6 +3138,7 @@ async fn test_text_advanced_or_operator() {
                     }]
                 }
             }),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -2915,6 +3159,7 @@ async fn test_text_advanced_or_operator() {
                     }]
                 }
             }),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -2935,6 +3180,7 @@ async fn test_text_advanced_or_operator() {
                     }]
                 }
             }),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -2985,6 +3231,7 @@ async fn test_text_advanced_phrase_match() {
                     }]
                 }
             }),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -3005,6 +3252,7 @@ async fn test_text_advanced_phrase_match() {
                     }]
                 }
             }),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -3056,6 +3304,7 @@ async fn test_text_advanced_prefix_match() {
                     }]
                 }
             }),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -3076,6 +3325,7 @@ async fn test_text_advanced_prefix_match() {
                     }]
                 }
             }),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -3096,6 +3346,7 @@ async fn test_text_advanced_prefix_match() {
                     }]
                 }
             }),
+            FhirVersion::default(),
         )
         .await
         .unwrap();
@@ -3146,6 +3397,7 @@ async fn test_text_advanced_porter_stemming() {
                     }]
                 }
             }),
+            FhirVersion::default(),
         )
         .await
         .unwrap();

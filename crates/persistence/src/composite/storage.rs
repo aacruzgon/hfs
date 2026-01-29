@@ -37,6 +37,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use helios_fhir::FhirVersion;
 use parking_lot::RwLock;
 use serde_json::Value;
 use tracing::{debug, instrument, warn};
@@ -455,11 +456,12 @@ impl ResourceStorage for CompositeStorage {
         tenant: &TenantContext,
         resource_type: &str,
         resource: Value,
+        fhir_version: FhirVersion,
     ) -> StorageResult<StoredResource> {
         // All writes go to primary
         let result = self
             .primary
-            .create(tenant, resource_type, resource.clone())
+            .create(tenant, resource_type, resource.clone(), fhir_version)
             .await;
 
         let primary_id = self.config.primary_id().unwrap_or("primary");
@@ -478,6 +480,7 @@ impl ResourceStorage for CompositeStorage {
                 resource_id: stored.id().to_string(),
                 content: stored.content().clone(),
                 tenant_id: tenant.tenant_id().clone(),
+                fhir_version,
             })
             .await
         {
@@ -495,10 +498,11 @@ impl ResourceStorage for CompositeStorage {
         resource_type: &str,
         id: &str,
         resource: Value,
+        fhir_version: FhirVersion,
     ) -> StorageResult<(StoredResource, bool)> {
         let result = self
             .primary
-            .create_or_update(tenant, resource_type, id, resource.clone())
+            .create_or_update(tenant, resource_type, id, resource.clone(), fhir_version)
             .await;
 
         let primary_id = self.config.primary_id().unwrap_or("primary");
@@ -517,6 +521,7 @@ impl ResourceStorage for CompositeStorage {
                 resource_id: id.to_string(),
                 content: stored.content().clone(),
                 tenant_id: tenant.tenant_id().clone(),
+                fhir_version,
             }
         } else {
             SyncEvent::Update {
@@ -525,6 +530,7 @@ impl ResourceStorage for CompositeStorage {
                 content: stored.content().clone(),
                 tenant_id: tenant.tenant_id().clone(),
                 version: stored.version_id().to_string(),
+                fhir_version,
             }
         };
 
@@ -581,6 +587,7 @@ impl ResourceStorage for CompositeStorage {
                 content: stored.content().clone(),
                 tenant_id: tenant.tenant_id().clone(),
                 version: stored.version_id().to_string(),
+                fhir_version: stored.fhir_version(),
             })
             .await
         {

@@ -348,6 +348,7 @@ pub trait DifferentialHistoryProvider: TypeHistoryProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use helios_fhir::FhirVersion;
 
     #[test]
     fn test_history_params_builder() {
@@ -377,6 +378,7 @@ mod tests {
             "123",
             crate::tenant::TenantId::new("t1"),
             serde_json::json!({}),
+            FhirVersion::default(),
         );
 
         let entry = HistoryEntry {

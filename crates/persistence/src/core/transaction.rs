@@ -412,6 +412,7 @@ pub trait BundleProvider: ResourceStorage {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use helios_fhir::FhirVersion;
 
     #[test]
     fn test_isolation_level_display() {
@@ -451,6 +452,7 @@ mod tests {
             "123",
             crate::tenant::TenantId::new("t1"),
             serde_json::json!({}),
+            FhirVersion::default(),
         );
 
         let result = BundleEntryResult::created(resource);

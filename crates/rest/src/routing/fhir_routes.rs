@@ -17,6 +17,7 @@ use crate::state::AppState;
 ///
 /// ## System-level
 /// - `GET /metadata` - CapabilityStatement
+/// - `GET /$versions` - Supported FHIR versions
 /// - `GET /health` - Health check
 /// - `GET /_history` - System history
 /// - `POST /` - Batch/Transaction
@@ -41,6 +42,7 @@ where
     Router::new()
         // System-level routes
         .route("/metadata", get(handlers::capabilities_handler::<S>))
+        .route("/$versions", get(handlers::versions_handler::<S>))
         .route("/health", get(handlers::health_handler::<S>))
         .route("/_liveness", get(handlers::health::liveness_handler))
         .route("/_readiness", get(handlers::health::readiness_handler::<S>))

@@ -11,9 +11,10 @@ use r2d2::{Pool, PooledConnection};
 use r2d2_sqlite::SqliteConnectionManager;
 use serde::{Deserialize, Serialize};
 
+use helios_fhir::FhirVersion;
+
 use crate::core::{Backend, BackendCapability, BackendKind};
 use crate::error::{BackendError, StorageResult};
-use crate::search::loader::FhirVersion;
 use crate::search::{SearchParameterExtractor, SearchParameterLoader, SearchParameterRegistry};
 
 use super::schema;

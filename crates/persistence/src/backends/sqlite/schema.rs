@@ -5,7 +5,7 @@ use rusqlite::Connection;
 use crate::error::StorageResult;
 
 /// Current schema version.
-pub const SCHEMA_VERSION: i32 = 6;
+pub const SCHEMA_VERSION: i32 = 7;
 
 /// Initialize the database schema.
 pub fn initialize_schema(conn: &Connection) -> StorageResult<()> {
@@ -262,6 +262,7 @@ fn migrate_schema(conn: &Connection, from_version: i32) -> StorageResult<()> {
             3 => migrate_v3_to_v4(conn)?,
             4 => migrate_v4_to_v5(conn)?,
             5 => migrate_v5_to_v6(conn)?,
+            6 => migrate_v6_to_v7(conn)?,
             _ => {
                 return Err(crate::error::StorageError::Backend(
                     crate::error::BackendError::Internal {
@@ -787,6 +788,43 @@ fn migrate_v5_to_v6(conn: &Connection) -> StorageResult<()> {
             source: None,
         })
     })?;
+
+    Ok(())
+}
+
+/// Migrate from schema version 6 to version 7.
+///
+/// This migration adds FHIR version tracking to resources:
+/// - fhir_version column to resources table (defaults to '4.0' for R4)
+/// - fhir_version column to resource_history table (defaults to '4.0' for R4)
+/// - Index on fhir_version for efficient version-based queries
+fn migrate_v6_to_v7(conn: &Connection) -> StorageResult<()> {
+    let migrations = [
+        // Add fhir_version column to resources table (default to R4 for existing resources)
+        "ALTER TABLE resources ADD COLUMN fhir_version TEXT NOT NULL DEFAULT '4.0'",
+        // Add fhir_version column to resource_history table
+        "ALTER TABLE resource_history ADD COLUMN fhir_version TEXT NOT NULL DEFAULT '4.0'",
+    ];
+
+    for sql in &migrations {
+        // Ignore errors for column already exists (idempotent migration)
+        let _ = conn.execute(sql, []);
+    }
+
+    // Create index for efficient version-based queries
+    let indexes = [
+        "CREATE INDEX IF NOT EXISTS idx_resources_fhir_version ON resources(tenant_id, fhir_version)",
+    ];
+
+    for index_sql in &indexes {
+        conn.execute(index_sql, []).map_err(|e| {
+            crate::error::StorageError::Backend(crate::error::BackendError::Internal {
+                backend_name: "sqlite".to_string(),
+                message: format!("Failed to create index in migration: {}", e),
+                source: None,
+            })
+        })?;
+    }
 
     Ok(())
 }

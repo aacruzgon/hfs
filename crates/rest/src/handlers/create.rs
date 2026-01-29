@@ -14,7 +14,7 @@ use serde_json::Value;
 use tracing::debug;
 
 use crate::error::{RestError, RestResult};
-use crate::extractors::TenantExtractor;
+use crate::extractors::{FhirVersionExtractor, TenantExtractor};
 use crate::middleware::conditional::ConditionalHeaders;
 use crate::middleware::prefer::PreferHeader;
 use crate::responses::headers::ResourceHeaders;
@@ -55,6 +55,7 @@ pub async fn create_handler<S>(
     State(state): State<AppState<S>>,
     Path(resource_type): Path<String>,
     tenant: TenantExtractor,
+    version: FhirVersionExtractor,
     conditional: ConditionalHeaders,
     prefer: PreferHeader,
     Json(resource): Json<Value>,
@@ -62,9 +63,13 @@ pub async fn create_handler<S>(
 where
     S: ResourceStorage + ConditionalStorage + Send + Sync,
 {
+    // Determine FHIR version from header or use server default
+    let fhir_version = version.storage_version();
+
     debug!(
         resource_type = %resource_type,
         tenant = %tenant.tenant_id(),
+        fhir_version = %fhir_version,
         conditional = ?conditional.if_none_exist(),
         "Processing create request"
     );
@@ -91,7 +96,13 @@ where
 
         let result = state
             .storage()
-            .conditional_create(tenant.context(), &resource_type, resource, search_params)
+            .conditional_create(
+                tenant.context(),
+                &resource_type,
+                resource,
+                search_params,
+                fhir_version,
+            )
             .await?;
 
         use helios_persistence::core::ConditionalCreateResult;
@@ -130,7 +141,7 @@ where
     // Standard create
     let stored = state
         .storage()
-        .create(tenant.context(), &resource_type, resource)
+        .create(tenant.context(), &resource_type, resource, fhir_version)
         .await?;
 
     let headers = ResourceHeaders::from_stored(&stored, &state);

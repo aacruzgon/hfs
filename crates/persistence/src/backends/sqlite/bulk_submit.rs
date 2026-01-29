@@ -2,6 +2,7 @@
 
 use async_trait::async_trait;
 use chrono::Utc;
+use helios_fhir::FhirVersion;
 use rusqlite::params;
 use serde_json::Value;
 use tokio::io::{AsyncBufRead, AsyncBufReadExt};
@@ -840,8 +841,14 @@ impl SqliteBackend {
                 Ok(None)
                 | Err(StorageError::Resource(crate::error::ResourceError::Gone { .. })) => {
                     // Resource doesn't exist - create it
+                    // Use default FHIR version for bulk operations
                     let created = self
-                        .create(tenant, &entry.resource_type, entry.resource.clone())
+                        .create(
+                            tenant,
+                            &entry.resource_type,
+                            entry.resource.clone(),
+                            FhirVersion::default(),
+                        )
                         .await?;
 
                     // Record change for rollback
@@ -864,8 +871,14 @@ impl SqliteBackend {
             }
         } else {
             // No ID - create new resource
+            // Use default FHIR version for bulk operations
             let created = self
-                .create(tenant, &entry.resource_type, entry.resource.clone())
+                .create(
+                    tenant,
+                    &entry.resource_type,
+                    entry.resource.clone(),
+                    FhirVersion::default(),
+                )
                 .await?;
 
             // Record change for rollback

@@ -11,6 +11,7 @@ use std::collections::HashSet;
 
 use async_trait::async_trait;
 use chrono::Utc;
+use helios_fhir::FhirVersion;
 use rusqlite::params;
 
 use crate::core::{
@@ -83,7 +84,7 @@ impl SearchProvider for SqliteBackend {
                 CursorDirection::Next => {
                     let sql = if let Some(ref filter) = search_filter {
                         format!(
-                            "SELECT id, version_id, data, last_updated FROM resources
+                            "SELECT id, version_id, data, last_updated, fhir_version FROM resources
                              WHERE tenant_id = ?1 AND resource_type = ?2 AND is_deleted = 0
                              AND id IN ({})
                              AND (last_updated < ?3 OR (last_updated = ?3 AND id < ?4))
@@ -94,7 +95,7 @@ impl SearchProvider for SqliteBackend {
                         )
                     } else {
                         format!(
-                            "SELECT id, version_id, data, last_updated FROM resources
+                            "SELECT id, version_id, data, last_updated, fhir_version FROM resources
                              WHERE tenant_id = ?1 AND resource_type = ?2 AND is_deleted = 0
                              AND (last_updated < ?3 OR (last_updated = ?3 AND id < ?4))
                              ORDER BY last_updated DESC, id DESC
@@ -111,7 +112,7 @@ impl SearchProvider for SqliteBackend {
                 CursorDirection::Previous => {
                     let sql = if let Some(ref filter) = search_filter {
                         format!(
-                            "SELECT id, version_id, data, last_updated FROM resources
+                            "SELECT id, version_id, data, last_updated, fhir_version FROM resources
                              WHERE tenant_id = ?1 AND resource_type = ?2 AND is_deleted = 0
                              AND id IN ({})
                              AND (last_updated > ?3 OR (last_updated = ?3 AND id > ?4))
@@ -122,7 +123,7 @@ impl SearchProvider for SqliteBackend {
                         )
                     } else {
                         format!(
-                            "SELECT id, version_id, data, last_updated FROM resources
+                            "SELECT id, version_id, data, last_updated, fhir_version FROM resources
                              WHERE tenant_id = ?1 AND resource_type = ?2 AND is_deleted = 0
                              AND (last_updated > ?3 OR (last_updated = ?3 AND id > ?4))
                              ORDER BY last_updated ASC, id ASC
@@ -141,7 +142,7 @@ impl SearchProvider for SqliteBackend {
             // Offset-based pagination (legacy support)
             let sql = if let Some(ref filter) = search_filter {
                 format!(
-                    "SELECT id, version_id, data, last_updated FROM resources
+                    "SELECT id, version_id, data, last_updated, fhir_version FROM resources
                      WHERE tenant_id = ?1 AND resource_type = ?2 AND is_deleted = 0
                      AND id IN ({})
                      ORDER BY last_updated DESC, id DESC
@@ -152,7 +153,7 @@ impl SearchProvider for SqliteBackend {
                 )
             } else {
                 format!(
-                    "SELECT id, version_id, data, last_updated FROM resources
+                    "SELECT id, version_id, data, last_updated, fhir_version FROM resources
                      WHERE tenant_id = ?1 AND resource_type = ?2 AND is_deleted = 0
                      ORDER BY last_updated DESC, id DESC
                      LIMIT {} OFFSET {}",
@@ -169,7 +170,7 @@ impl SearchProvider for SqliteBackend {
             // First page (no cursor, no offset)
             let sql = if let Some(ref filter) = search_filter {
                 format!(
-                    "SELECT id, version_id, data, last_updated FROM resources
+                    "SELECT id, version_id, data, last_updated, fhir_version FROM resources
                      WHERE tenant_id = ?1 AND resource_type = ?2 AND is_deleted = 0
                      AND id IN ({})
                      ORDER BY last_updated DESC, id DESC
@@ -179,7 +180,7 @@ impl SearchProvider for SqliteBackend {
                 )
             } else {
                 format!(
-                    "SELECT id, version_id, data, last_updated FROM resources
+                    "SELECT id, version_id, data, last_updated, fhir_version FROM resources
                      WHERE tenant_id = ?1 AND resource_type = ?2 AND is_deleted = 0
                      ORDER BY last_updated DESC, id DESC
                      LIMIT {}",
@@ -201,84 +202,89 @@ impl SearchProvider for SqliteBackend {
         // Base params are always tenant_id and resource_type
         // For cursor pagination, add cursor_timestamp and cursor_id
         // Then append any search params from the QueryBuilder
-        let raw_rows: Vec<(String, String, Vec<u8>, String)> = if let Some(ref cursor) = cursor {
-            let (cursor_timestamp, cursor_id) = Self::extract_cursor_values(cursor)?;
+        let raw_rows: Vec<(String, String, Vec<u8>, String, String)> =
+            if let Some(ref cursor) = cursor {
+                let (cursor_timestamp, cursor_id) = Self::extract_cursor_values(cursor)?;
 
-            // Build params: [tenant_id, resource_type, cursor_timestamp, cursor_id, ...search_params]
-            let mut all_params: Vec<Box<dyn rusqlite::ToSql>> = vec![
-                Box::new(tenant_id.to_string()),
-                Box::new(resource_type.to_string()),
-                Box::new(cursor_timestamp),
-                Box::new(cursor_id),
-            ];
+                // Build params: [tenant_id, resource_type, cursor_timestamp, cursor_id, ...search_params]
+                let mut all_params: Vec<Box<dyn rusqlite::ToSql>> = vec![
+                    Box::new(tenant_id.to_string()),
+                    Box::new(resource_type.to_string()),
+                    Box::new(cursor_timestamp),
+                    Box::new(cursor_id),
+                ];
 
-            // Add search params
-            for param in &search_params {
-                match param {
-                    SqlParam::String(s) => all_params.push(Box::new(s.clone())),
-                    SqlParam::Integer(i) => all_params.push(Box::new(*i)),
-                    SqlParam::Float(f) => all_params.push(Box::new(*f)),
-                    SqlParam::Null => all_params.push(Box::new(Option::<String>::None)),
+                // Add search params
+                for param in &search_params {
+                    match param {
+                        SqlParam::String(s) => all_params.push(Box::new(s.clone())),
+                        SqlParam::Integer(i) => all_params.push(Box::new(*i)),
+                        SqlParam::Float(f) => all_params.push(Box::new(*f)),
+                        SqlParam::Null => all_params.push(Box::new(Option::<String>::None)),
+                    }
                 }
-            }
 
-            let param_refs: Vec<&dyn rusqlite::ToSql> =
-                all_params.iter().map(|p| p.as_ref()).collect();
+                let param_refs: Vec<&dyn rusqlite::ToSql> =
+                    all_params.iter().map(|p| p.as_ref()).collect();
 
-            let rows = stmt
-                .query_map(param_refs.as_slice(), |row| {
-                    let id: String = row.get(0)?;
-                    let version_id: String = row.get(1)?;
-                    let data: Vec<u8> = row.get(2)?;
-                    let last_updated: String = row.get(3)?;
-                    Ok((id, version_id, data, last_updated))
-                })
-                .map_err(|e| internal_error(format!("Failed to execute search: {}", e)))?;
+                let rows = stmt
+                    .query_map(param_refs.as_slice(), |row| {
+                        let id: String = row.get(0)?;
+                        let version_id: String = row.get(1)?;
+                        let data: Vec<u8> = row.get(2)?;
+                        let last_updated: String = row.get(3)?;
+                        let fhir_version: String = row.get(4)?;
+                        Ok((id, version_id, data, last_updated, fhir_version))
+                    })
+                    .map_err(|e| internal_error(format!("Failed to execute search: {}", e)))?;
 
-            rows.collect::<Result<Vec<_>, _>>()
-                .map_err(|e| internal_error(format!("Failed to read row: {}", e)))?
-        } else {
-            // Build params: [tenant_id, resource_type, ...search_params]
-            let mut all_params: Vec<Box<dyn rusqlite::ToSql>> = vec![
-                Box::new(tenant_id.to_string()),
-                Box::new(resource_type.to_string()),
-            ];
+                rows.collect::<Result<Vec<_>, _>>()
+                    .map_err(|e| internal_error(format!("Failed to read row: {}", e)))?
+            } else {
+                // Build params: [tenant_id, resource_type, ...search_params]
+                let mut all_params: Vec<Box<dyn rusqlite::ToSql>> = vec![
+                    Box::new(tenant_id.to_string()),
+                    Box::new(resource_type.to_string()),
+                ];
 
-            // Add search params
-            for param in &search_params {
-                match param {
-                    SqlParam::String(s) => all_params.push(Box::new(s.clone())),
-                    SqlParam::Integer(i) => all_params.push(Box::new(*i)),
-                    SqlParam::Float(f) => all_params.push(Box::new(*f)),
-                    SqlParam::Null => all_params.push(Box::new(Option::<String>::None)),
+                // Add search params
+                for param in &search_params {
+                    match param {
+                        SqlParam::String(s) => all_params.push(Box::new(s.clone())),
+                        SqlParam::Integer(i) => all_params.push(Box::new(*i)),
+                        SqlParam::Float(f) => all_params.push(Box::new(*f)),
+                        SqlParam::Null => all_params.push(Box::new(Option::<String>::None)),
+                    }
                 }
-            }
 
-            let param_refs: Vec<&dyn rusqlite::ToSql> =
-                all_params.iter().map(|p| p.as_ref()).collect();
+                let param_refs: Vec<&dyn rusqlite::ToSql> =
+                    all_params.iter().map(|p| p.as_ref()).collect();
 
-            let rows = stmt
-                .query_map(param_refs.as_slice(), |row| {
-                    let id: String = row.get(0)?;
-                    let version_id: String = row.get(1)?;
-                    let data: Vec<u8> = row.get(2)?;
-                    let last_updated: String = row.get(3)?;
-                    Ok((id, version_id, data, last_updated))
-                })
-                .map_err(|e| internal_error(format!("Failed to execute search: {}", e)))?;
+                let rows = stmt
+                    .query_map(param_refs.as_slice(), |row| {
+                        let id: String = row.get(0)?;
+                        let version_id: String = row.get(1)?;
+                        let data: Vec<u8> = row.get(2)?;
+                        let last_updated: String = row.get(3)?;
+                        let fhir_version: String = row.get(4)?;
+                        Ok((id, version_id, data, last_updated, fhir_version))
+                    })
+                    .map_err(|e| internal_error(format!("Failed to execute search: {}", e)))?;
 
-            rows.collect::<Result<Vec<_>, _>>()
-                .map_err(|e| internal_error(format!("Failed to read row: {}", e)))?
-        };
+                rows.collect::<Result<Vec<_>, _>>()
+                    .map_err(|e| internal_error(format!("Failed to read row: {}", e)))?
+            };
 
         let mut resources = Vec::new();
-        for (id, version_id, data, last_updated_str) in raw_rows {
+        for (id, version_id, data, last_updated_str, fhir_version_str) in raw_rows {
             let json_data: serde_json::Value = serde_json::from_slice(&data)
                 .map_err(|e| internal_error(format!("Failed to deserialize resource: {}", e)))?;
 
             let last_updated = chrono::DateTime::parse_from_rfc3339(&last_updated_str)
                 .map_err(|e| internal_error(format!("Failed to parse last_updated: {}", e)))?
                 .with_timezone(&Utc);
+
+            let fhir_version = FhirVersion::from_storage(&fhir_version_str).unwrap_or_default();
 
             let resource = StoredResource::from_storage(
                 resource_type.clone(),
@@ -289,6 +295,7 @@ impl SearchProvider for SqliteBackend {
                 last_updated,
                 last_updated,
                 None,
+                fhir_version,
             );
 
             resources.push(resource);
@@ -437,7 +444,7 @@ impl MultiTypeSearchProvider for SqliteBackend {
         };
 
         let sql = format!(
-            "SELECT resource_type, id, version_id, data, last_updated FROM resources
+            "SELECT resource_type, id, version_id, data, last_updated, fhir_version FROM resources
              WHERE tenant_id = ?1 AND is_deleted = 0{}
              ORDER BY last_updated DESC
              LIMIT {} OFFSET {}",
@@ -457,13 +464,21 @@ impl MultiTypeSearchProvider for SqliteBackend {
                 let version_id: String = row.get(2)?;
                 let data: Vec<u8> = row.get(3)?;
                 let last_updated: String = row.get(4)?;
-                Ok((resource_type, id, version_id, data, last_updated))
+                let fhir_version: String = row.get(5)?;
+                Ok((
+                    resource_type,
+                    id,
+                    version_id,
+                    data,
+                    last_updated,
+                    fhir_version,
+                ))
             })
             .map_err(|e| internal_error(format!("Failed to execute multi-type search: {}", e)))?;
 
         let mut resources = Vec::new();
         for row in rows {
-            let (resource_type, id, version_id, data, last_updated_str) =
+            let (resource_type, id, version_id, data, last_updated_str, fhir_version_str) =
                 row.map_err(|e| internal_error(format!("Failed to read row: {}", e)))?;
 
             let json_data: serde_json::Value = serde_json::from_slice(&data)
@@ -472,6 +487,8 @@ impl MultiTypeSearchProvider for SqliteBackend {
             let last_updated = chrono::DateTime::parse_from_rfc3339(&last_updated_str)
                 .map_err(|e| internal_error(format!("Failed to parse last_updated: {}", e)))?
                 .with_timezone(&Utc);
+
+            let fhir_version = FhirVersion::from_storage(&fhir_version_str).unwrap_or_default();
 
             let resource = StoredResource::from_storage(
                 resource_type,
@@ -482,6 +499,7 @@ impl MultiTypeSearchProvider for SqliteBackend {
                 last_updated,
                 last_updated,
                 None,
+                fhir_version,
             );
 
             resources.push(resource);
@@ -612,7 +630,7 @@ impl RevincludeProvider for SqliteBackend {
             // Build SQL to find resources containing any of the references
             // We search in the JSON data for the search_param field containing a reference
             let sql = format!(
-                "SELECT id, version_id, data, last_updated FROM resources
+                "SELECT id, version_id, data, last_updated, fhir_version FROM resources
                  WHERE tenant_id = ?1 AND resource_type = ?2 AND is_deleted = 0
                  AND ({})",
                 reference_pattern
@@ -643,14 +661,15 @@ impl RevincludeProvider for SqliteBackend {
                     let version_id: String = row.get(1)?;
                     let data: Vec<u8> = row.get(2)?;
                     let last_updated: String = row.get(3)?;
-                    Ok((id, version_id, data, last_updated))
+                    let fhir_version: String = row.get(4)?;
+                    Ok((id, version_id, data, last_updated, fhir_version))
                 })
                 .map_err(|e| {
                     internal_error(format!("Failed to execute revinclude query: {}", e))
                 })?;
 
             for row in rows {
-                let (id, version_id, data, last_updated_str) =
+                let (id, version_id, data, last_updated_str, fhir_version_str) =
                     row.map_err(|e| internal_error(format!("Failed to read row: {}", e)))?;
 
                 // Skip if we've already included this resource
@@ -673,6 +692,8 @@ impl RevincludeProvider for SqliteBackend {
                     .map_err(|e| internal_error(format!("Failed to parse last_updated: {}", e)))?
                     .with_timezone(&Utc);
 
+                let fhir_version = FhirVersion::from_storage(&fhir_version_str).unwrap_or_default();
+
                 let resource = StoredResource::from_storage(
                     &revinclude.source_type,
                     id,
@@ -682,6 +703,7 @@ impl RevincludeProvider for SqliteBackend {
                     last_updated,
                     last_updated,
                     None,
+                    fhir_version,
                 );
 
                 included.push(resource);
@@ -927,25 +949,28 @@ impl SqliteBackend {
         id: &str,
     ) -> StorageResult<Option<StoredResource>> {
         let result = conn.query_row(
-            "SELECT version_id, data, last_updated FROM resources
+            "SELECT version_id, data, last_updated, fhir_version FROM resources
              WHERE tenant_id = ?1 AND resource_type = ?2 AND id = ?3 AND is_deleted = 0",
             params![tenant_id, resource_type, id],
             |row| {
                 let version_id: String = row.get(0)?;
                 let data: Vec<u8> = row.get(1)?;
                 let last_updated: String = row.get(2)?;
-                Ok((version_id, data, last_updated))
+                let fhir_version: String = row.get(3)?;
+                Ok((version_id, data, last_updated, fhir_version))
             },
         );
 
         match result {
-            Ok((version_id, data, last_updated_str)) => {
+            Ok((version_id, data, last_updated_str, fhir_version_str)) => {
                 let json_data: serde_json::Value = serde_json::from_slice(&data)
                     .map_err(|e| internal_error(format!("Failed to deserialize: {}", e)))?;
 
                 let last_updated = chrono::DateTime::parse_from_rfc3339(&last_updated_str)
                     .map_err(|e| internal_error(format!("Failed to parse last_updated: {}", e)))?
                     .with_timezone(&Utc);
+
+                let fhir_version = FhirVersion::from_storage(&fhir_version_str).unwrap_or_default();
 
                 Ok(Some(StoredResource::from_storage(
                     resource_type,
@@ -956,6 +981,7 @@ impl SqliteBackend {
                     last_updated,
                     last_updated,
                     None,
+                    fhir_version,
                 )))
             }
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
@@ -1092,7 +1118,7 @@ impl SqliteBackend {
     ) -> StorageResult<Vec<StoredResource>> {
         let mut stmt = conn
             .prepare(
-                "SELECT id, version_id, data, last_updated FROM resources
+                "SELECT id, version_id, data, last_updated, fhir_version FROM resources
                  WHERE tenant_id = ?1 AND resource_type = ?2 AND is_deleted = 0",
             )
             .map_err(|e| internal_error(format!("Failed to prepare query: {}", e)))?;
@@ -1103,13 +1129,14 @@ impl SqliteBackend {
                 let version_id: String = row.get(1)?;
                 let data: Vec<u8> = row.get(2)?;
                 let last_updated: String = row.get(3)?;
-                Ok((id, version_id, data, last_updated))
+                let fhir_version: String = row.get(4)?;
+                Ok((id, version_id, data, last_updated, fhir_version))
             })
             .map_err(|e| internal_error(format!("Failed to query resources: {}", e)))?;
 
         let mut resources = Vec::new();
         for row in rows {
-            let (id, version_id, data, last_updated_str) =
+            let (id, version_id, data, last_updated_str, fhir_version_str) =
                 row.map_err(|e| internal_error(format!("Failed to read row: {}", e)))?;
 
             let json_data: serde_json::Value = serde_json::from_slice(&data)
@@ -1118,6 +1145,8 @@ impl SqliteBackend {
             let last_updated = chrono::DateTime::parse_from_rfc3339(&last_updated_str)
                 .map_err(|e| internal_error(format!("Failed to parse last_updated: {}", e)))?
                 .with_timezone(&Utc);
+
+            let fhir_version = FhirVersion::from_storage(&fhir_version_str).unwrap_or_default();
 
             resources.push(StoredResource::from_storage(
                 resource_type,
@@ -1128,6 +1157,7 @@ impl SqliteBackend {
                 last_updated,
                 last_updated,
                 None,
+                fhir_version,
             ));
         }
 
@@ -1172,8 +1202,14 @@ mod tests {
         let tenant = create_test_tenant();
 
         // Create some resources
-        backend.create(&tenant, "Patient", json!({})).await.unwrap();
-        backend.create(&tenant, "Patient", json!({})).await.unwrap();
+        backend
+            .create(&tenant, "Patient", json!({}), FhirVersion::default())
+            .await
+            .unwrap();
+        backend
+            .create(&tenant, "Patient", json!({}), FhirVersion::default())
+            .await
+            .unwrap();
 
         let query = SearchQuery::new("Patient");
         let result = backend.search(&tenant, &query).await.unwrap();
@@ -1186,10 +1222,16 @@ mod tests {
         let backend = create_test_backend();
         let tenant = create_test_tenant();
 
-        backend.create(&tenant, "Patient", json!({})).await.unwrap();
-        backend.create(&tenant, "Patient", json!({})).await.unwrap();
         backend
-            .create(&tenant, "Observation", json!({}))
+            .create(&tenant, "Patient", json!({}), FhirVersion::default())
+            .await
+            .unwrap();
+        backend
+            .create(&tenant, "Patient", json!({}), FhirVersion::default())
+            .await
+            .unwrap();
+        backend
+            .create(&tenant, "Observation", json!({}), FhirVersion::default())
             .await
             .unwrap();
 
@@ -1209,15 +1251,15 @@ mod tests {
             TenantContext::new(TenantId::new("tenant-2"), TenantPermissions::full_access());
 
         backend
-            .create(&tenant1, "Patient", json!({}))
+            .create(&tenant1, "Patient", json!({}), FhirVersion::default())
             .await
             .unwrap();
         backend
-            .create(&tenant2, "Patient", json!({}))
+            .create(&tenant2, "Patient", json!({}), FhirVersion::default())
             .await
             .unwrap();
         backend
-            .create(&tenant2, "Patient", json!({}))
+            .create(&tenant2, "Patient", json!({}), FhirVersion::default())
             .await
             .unwrap();
 
@@ -1242,7 +1284,12 @@ mod tests {
         // Create 5 resources
         for i in 0..5 {
             backend
-                .create(&tenant, "Patient", json!({"name": format!("Patient{}", i)}))
+                .create(
+                    &tenant,
+                    "Patient",
+                    json!({"name": format!("Patient{}", i)}),
+                    FhirVersion::default(),
+                )
                 .await
                 .unwrap();
         }
@@ -1298,7 +1345,10 @@ mod tests {
 
         // Create 3 resources
         for _ in 0..3 {
-            backend.create(&tenant, "Patient", json!({})).await.unwrap();
+            backend
+                .create(&tenant, "Patient", json!({}), FhirVersion::default())
+                .await
+                .unwrap();
         }
 
         // Request more than available
@@ -1333,14 +1383,20 @@ mod tests {
         let tenant = create_test_tenant();
 
         // Create different resource types
-        backend.create(&tenant, "Patient", json!({})).await.unwrap();
-        backend.create(&tenant, "Patient", json!({})).await.unwrap();
         backend
-            .create(&tenant, "Observation", json!({}))
+            .create(&tenant, "Patient", json!({}), FhirVersion::default())
             .await
             .unwrap();
         backend
-            .create(&tenant, "Encounter", json!({}))
+            .create(&tenant, "Patient", json!({}), FhirVersion::default())
+            .await
+            .unwrap();
+        backend
+            .create(&tenant, "Observation", json!({}), FhirVersion::default())
+            .await
+            .unwrap();
+        backend
+            .create(&tenant, "Encounter", json!({}), FhirVersion::default())
             .await
             .unwrap();
 
@@ -1358,14 +1414,20 @@ mod tests {
         let tenant = create_test_tenant();
 
         // Create different resource types
-        backend.create(&tenant, "Patient", json!({})).await.unwrap();
-        backend.create(&tenant, "Patient", json!({})).await.unwrap();
         backend
-            .create(&tenant, "Observation", json!({}))
+            .create(&tenant, "Patient", json!({}), FhirVersion::default())
             .await
             .unwrap();
         backend
-            .create(&tenant, "Encounter", json!({}))
+            .create(&tenant, "Patient", json!({}), FhirVersion::default())
+            .await
+            .unwrap();
+        backend
+            .create(&tenant, "Observation", json!({}), FhirVersion::default())
+            .await
+            .unwrap();
+        backend
+            .create(&tenant, "Encounter", json!({}), FhirVersion::default())
             .await
             .unwrap();
 
@@ -1400,15 +1462,15 @@ mod tests {
             TenantContext::new(TenantId::new("tenant-2"), TenantPermissions::full_access());
 
         backend
-            .create(&tenant1, "Patient", json!({}))
+            .create(&tenant1, "Patient", json!({}), FhirVersion::default())
             .await
             .unwrap();
         backend
-            .create(&tenant2, "Patient", json!({}))
+            .create(&tenant2, "Patient", json!({}), FhirVersion::default())
             .await
             .unwrap();
         backend
-            .create(&tenant2, "Observation", json!({}))
+            .create(&tenant2, "Observation", json!({}), FhirVersion::default())
             .await
             .unwrap();
 
@@ -1436,6 +1498,7 @@ mod tests {
                 &tenant,
                 "Patient",
                 json!({"id": "p1", "name": [{"family": "Smith"}]}),
+                FhirVersion::default(),
             )
             .await
             .unwrap();
@@ -1450,6 +1513,7 @@ mod tests {
                     "subject": {"reference": "Patient/p1"},
                     "code": {"text": "Blood pressure"}
                 }),
+                FhirVersion::default(),
             )
             .await
             .unwrap();
@@ -1481,11 +1545,21 @@ mod tests {
 
         // Create resources
         backend
-            .create(&tenant, "Patient", json!({"id": "p1"}))
+            .create(
+                &tenant,
+                "Patient",
+                json!({"id": "p1"}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
         backend
-            .create(&tenant, "Practitioner", json!({"id": "pr1"}))
+            .create(
+                &tenant,
+                "Practitioner",
+                json!({"id": "pr1"}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
 
@@ -1498,6 +1572,7 @@ mod tests {
                     "subject": {"reference": "Patient/p1"},
                     "performer": [{"reference": "Practitioner/pr1"}]
                 }),
+                FhirVersion::default(),
             )
             .await
             .unwrap();
@@ -1551,7 +1626,12 @@ mod tests {
 
         // Create patient in tenant 1
         backend
-            .create(&tenant1, "Patient", json!({"id": "p1"}))
+            .create(
+                &tenant1,
+                "Patient",
+                json!({"id": "p1"}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
 
@@ -1564,6 +1644,7 @@ mod tests {
                     "id": "o1",
                     "subject": {"reference": "Patient/p1"}
                 }),
+                FhirVersion::default(),
             )
             .await
             .unwrap();
@@ -1596,7 +1677,12 @@ mod tests {
 
         // Create a patient
         let patient = backend
-            .create(&tenant, "Patient", json!({"id": "p1"}))
+            .create(
+                &tenant,
+                "Patient",
+                json!({"id": "p1"}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
 
@@ -1609,6 +1695,7 @@ mod tests {
                     "id": "o1",
                     "subject": {"reference": "Patient/p1"}
                 }),
+                FhirVersion::default(),
             )
             .await
             .unwrap();
@@ -1620,6 +1707,7 @@ mod tests {
                     "id": "o2",
                     "subject": {"reference": "Patient/p1"}
                 }),
+                FhirVersion::default(),
             )
             .await
             .unwrap();
@@ -1633,6 +1721,7 @@ mod tests {
                     "id": "o3",
                     "subject": {"reference": "Patient/p2"}
                 }),
+                FhirVersion::default(),
             )
             .await
             .unwrap();
@@ -1664,7 +1753,12 @@ mod tests {
         let tenant = create_test_tenant();
 
         let patient = backend
-            .create(&tenant, "Patient", json!({"id": "p1"}))
+            .create(
+                &tenant,
+                "Patient",
+                json!({"id": "p1"}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
 
@@ -1701,6 +1795,7 @@ mod tests {
                 &tenant,
                 "Patient",
                 json!({"id": "p1", "name": [{"family": "Smith"}]}),
+                FhirVersion::default(),
             )
             .await
             .unwrap();
@@ -1709,6 +1804,7 @@ mod tests {
                 &tenant,
                 "Patient",
                 json!({"id": "p2", "name": [{"family": "Jones"}]}),
+                FhirVersion::default(),
             )
             .await
             .unwrap();
@@ -1722,6 +1818,7 @@ mod tests {
                     "id": "o1",
                     "subject": {"reference": "Patient/p1"}
                 }),
+                FhirVersion::default(),
             )
             .await
             .unwrap();
@@ -1733,6 +1830,7 @@ mod tests {
                     "id": "o2",
                     "subject": {"reference": "Patient/p2"}
                 }),
+                FhirVersion::default(),
             )
             .await
             .unwrap();
@@ -1787,6 +1885,7 @@ mod tests {
                 &tenant,
                 "Patient",
                 json!({"id": "p1", "name": [{"family": "Smith"}]}),
+                FhirVersion::default(),
             )
             .await
             .unwrap();
@@ -1800,6 +1899,7 @@ mod tests {
                     "id": "o1",
                     "subject": {"reference": "Patient/p1"}
                 }),
+                FhirVersion::default(),
             )
             .await
             .unwrap();
@@ -1836,11 +1936,21 @@ mod tests {
 
         // Create patients
         backend
-            .create(&tenant, "Patient", json!({"id": "p1"}))
+            .create(
+                &tenant,
+                "Patient",
+                json!({"id": "p1"}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
         backend
-            .create(&tenant, "Patient", json!({"id": "p2"}))
+            .create(
+                &tenant,
+                "Patient",
+                json!({"id": "p2"}),
+                FhirVersion::default(),
+            )
             .await
             .unwrap();
 
@@ -1854,6 +1964,7 @@ mod tests {
                     "subject": {"reference": "Patient/p1"},
                     "code": {"coding": [{"code": "8867-4"}]}
                 }),
+                FhirVersion::default(),
             )
             .await
             .unwrap();
@@ -1866,6 +1977,7 @@ mod tests {
                     "subject": {"reference": "Patient/p2"},
                     "code": {"coding": [{"code": "other"}]}
                 }),
+                FhirVersion::default(),
             )
             .await
             .unwrap();
@@ -1929,6 +2041,7 @@ mod tests {
                 &tenant,
                 "Organization",
                 json!({"id": "org1", "name": "General Hospital"}),
+                FhirVersion::default(),
             )
             .await
             .unwrap();
@@ -1939,6 +2052,7 @@ mod tests {
                 &tenant,
                 "Patient",
                 json!({"id": "p1", "managingOrganization": {"reference": "Organization/org1"}}),
+                FhirVersion::default(),
             )
             .await
             .unwrap();
@@ -1949,6 +2063,7 @@ mod tests {
                 &tenant,
                 "Observation",
                 json!({"id": "o1", "subject": {"reference": "Patient/p1"}}),
+                FhirVersion::default(),
             )
             .await
             .unwrap();
@@ -2004,6 +2119,7 @@ mod tests {
                 &tenant,
                 "Patient",
                 json!({"id": "p1", "name": [{"family": "Smith"}]}),
+                FhirVersion::default(),
             )
             .await
             .unwrap();
@@ -2014,6 +2130,7 @@ mod tests {
                 &tenant,
                 "Observation",
                 json!({"id": "o1", "subject": {"reference": "Patient/p1"}}),
+                FhirVersion::default(),
             )
             .await
             .unwrap();

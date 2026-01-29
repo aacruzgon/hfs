@@ -3,10 +3,11 @@
 //! Handles content type negotiation for FHIR requests and responses.
 
 use axum::http::{HeaderMap, StatusCode, header};
+use helios_fhir::FhirVersion;
 
 /// Supported FHIR content types.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FhirContentType {
+pub enum FhirFormat {
     /// JSON format (application/fhir+json)
     Json,
     /// XML format (application/fhir+xml)
@@ -15,26 +16,100 @@ pub enum FhirContentType {
     NdJson,
 }
 
+/// Parsed FHIR content type with optional version parameter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FhirContentType {
+    /// The format (json, xml, ndjson)
+    pub format: FhirFormat,
+    /// The FHIR version parameter, if specified (e.g., from `fhirVersion=4.0`)
+    pub fhir_version: Option<FhirVersion>,
+}
+
 impl FhirContentType {
-    /// Returns the MIME type string for this content type.
-    pub fn mime_type(&self) -> &'static str {
-        match self {
-            FhirContentType::Json => "application/fhir+json",
-            FhirContentType::Xml => "application/fhir+xml",
-            FhirContentType::NdJson => "application/fhir+ndjson",
+    /// Creates a new FhirContentType with the given format and no version.
+    pub fn new(format: FhirFormat) -> Self {
+        Self {
+            format,
+            fhir_version: None,
         }
     }
 
-    /// Parses a content type string into a FhirContentType.
+    /// Creates a new FhirContentType with the given format and version.
+    pub fn with_version(format: FhirFormat, version: FhirVersion) -> Self {
+        Self {
+            format,
+            fhir_version: Some(version),
+        }
+    }
+
+    /// Returns the MIME type string for this content type (without version parameter).
+    pub fn mime_type(&self) -> &'static str {
+        self.format.mime_type()
+    }
+
+    /// Returns the full Content-Type header value, including fhirVersion if present.
+    pub fn to_header_value(&self) -> String {
+        match self.fhir_version {
+            Some(version) => format!(
+                "{}; fhirVersion={}",
+                self.format.mime_type(),
+                version.as_mime_param()
+            ),
+            None => self.format.mime_type().to_string(),
+        }
+    }
+
+    /// Parses a content type string with optional fhirVersion parameter.
+    ///
+    /// Example: "application/fhir+json; fhirVersion=4.0"
     pub fn parse(content_type: &str) -> Option<Self> {
-        let ct = content_type.to_lowercase();
+        // Split on semicolon to separate media type from parameters
+        let parts: Vec<&str> = content_type.split(';').map(|s| s.trim()).collect();
+
+        // Parse the media type
+        let format = FhirFormat::parse(parts.first()?)?;
+
+        // Parse optional fhirVersion parameter
+        let fhir_version = parts.iter().skip(1).find_map(|param| {
+            let param_parts: Vec<&str> = param.splitn(2, '=').map(|s| s.trim()).collect();
+            if param_parts.len() == 2 && param_parts[0].eq_ignore_ascii_case("fhirVersion") {
+                FhirVersion::from_mime_param(param_parts[1])
+            } else {
+                None
+            }
+        });
+
+        Some(Self {
+            format,
+            fhir_version,
+        })
+    }
+}
+
+/// Supported FHIR content types.
+/// Kept for backwards compatibility - use FhirContentType for new code.
+pub type FhirContentFormat = FhirFormat;
+
+impl FhirFormat {
+    /// Returns the MIME type string for this format.
+    pub fn mime_type(&self) -> &'static str {
+        match self {
+            FhirFormat::Json => "application/fhir+json",
+            FhirFormat::Xml => "application/fhir+xml",
+            FhirFormat::NdJson => "application/fhir+ndjson",
+        }
+    }
+
+    /// Parses a media type string into a FhirFormat.
+    pub fn parse(media_type: &str) -> Option<Self> {
+        let ct = media_type.to_lowercase();
 
         if ct.contains("fhir+json") || ct.contains("application/json") {
-            Some(FhirContentType::Json)
+            Some(FhirFormat::Json)
         } else if ct.contains("fhir+xml") || ct.contains("application/xml") {
-            Some(FhirContentType::Xml)
+            Some(FhirFormat::Xml)
         } else if ct.contains("fhir+ndjson") || ct.contains("application/ndjson") {
-            Some(FhirContentType::NdJson)
+            Some(FhirFormat::NdJson)
         } else {
             None
         }
@@ -61,12 +136,12 @@ pub fn negotiate_content_type(headers: &HeaderMap) -> FhirContentType {
 
         // Handle wildcards
         if media_type == "*/*" || media_type == "application/*" {
-            return FhirContentType::Json; // Default to JSON
+            return FhirContentType::new(FhirFormat::Json);
         }
     }
 
     // Default to JSON if nothing matched
-    FhirContentType::Json
+    FhirContentType::new(FhirFormat::Json)
 }
 
 /// Validates the Content-Type header for incoming requests.
@@ -80,10 +155,34 @@ pub fn validate_request_content_type(headers: &HeaderMap) -> Result<FhirContentT
     match content_type {
         Some(ct) => FhirContentType::parse(ct).ok_or(StatusCode::UNSUPPORTED_MEDIA_TYPE),
         None => {
-            // If no Content-Type, assume JSON
-            Ok(FhirContentType::Json)
+            // If no Content-Type, assume JSON with default version
+            Ok(FhirContentType::new(FhirFormat::Json))
         }
     }
+}
+
+/// Extracts the fhirVersion from the Accept header, if present.
+pub fn get_accept_fhir_version(headers: &HeaderMap) -> Option<FhirVersion> {
+    let accept = headers.get(header::ACCEPT).and_then(|v| v.to_str().ok())?;
+
+    // Parse Accept header and extract fhirVersion
+    for media_type in accept.split(',') {
+        if let Some(ct) = FhirContentType::parse(media_type.trim()) {
+            if ct.fhir_version.is_some() {
+                return ct.fhir_version;
+            }
+        }
+    }
+    None
+}
+
+/// Extracts the fhirVersion from the Content-Type header, if present.
+pub fn get_content_type_fhir_version(headers: &HeaderMap) -> Option<FhirVersion> {
+    let content_type = headers
+        .get(header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())?;
+
+    FhirContentType::parse(content_type).and_then(|ct| ct.fhir_version)
 }
 
 #[cfg(test)]
@@ -91,25 +190,55 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_parse_content_type() {
+    fn test_parse_format() {
         assert_eq!(
-            FhirContentType::parse("application/fhir+json"),
-            Some(FhirContentType::Json)
+            FhirFormat::parse("application/fhir+json"),
+            Some(FhirFormat::Json)
         );
         assert_eq!(
-            FhirContentType::parse("application/fhir+xml"),
-            Some(FhirContentType::Xml)
+            FhirFormat::parse("application/fhir+xml"),
+            Some(FhirFormat::Xml)
         );
         assert_eq!(
-            FhirContentType::parse("application/json"),
-            Some(FhirContentType::Json)
+            FhirFormat::parse("application/json"),
+            Some(FhirFormat::Json)
         );
-        assert_eq!(FhirContentType::parse("text/plain"), None);
+        assert_eq!(FhirFormat::parse("text/plain"), None);
+    }
+
+    #[test]
+    fn test_parse_content_type_simple() {
+        let ct = FhirContentType::parse("application/fhir+json").unwrap();
+        assert_eq!(ct.format, FhirFormat::Json);
+        assert_eq!(ct.fhir_version, None);
+    }
+
+    #[test]
+    fn test_parse_content_type_with_version() {
+        let ct = FhirContentType::parse("application/fhir+json; fhirVersion=4.0").unwrap();
+        assert_eq!(ct.format, FhirFormat::Json);
+        assert_eq!(ct.fhir_version, Some(FhirVersion::default()));
+
+        #[cfg(feature = "R5")]
+        {
+            let ct5 = FhirContentType::parse("application/fhir+json; fhirVersion=5.0").unwrap();
+            assert_eq!(ct5.fhir_version, Some(FhirVersion::R5));
+        }
+    }
+
+    #[test]
+    fn test_to_header_value() {
+        let ct = FhirContentType::new(FhirFormat::Json);
+        assert_eq!(ct.to_header_value(), "application/fhir+json");
+
+        let ct_with_version =
+            FhirContentType::with_version(FhirFormat::Json, FhirVersion::default());
+        assert!(ct_with_version.to_header_value().contains("fhirVersion="));
     }
 
     #[test]
     fn test_mime_type() {
-        assert_eq!(FhirContentType::Json.mime_type(), "application/fhir+json");
-        assert_eq!(FhirContentType::Xml.mime_type(), "application/fhir+xml");
+        assert_eq!(FhirFormat::Json.mime_type(), "application/fhir+json");
+        assert_eq!(FhirFormat::Xml.mime_type(), "application/fhir+xml");
     }
 }
