@@ -1,0 +1,755 @@
+//! Search query builder.
+//!
+//! Converts REST search parameters to persistence layer SearchQuery.
+
+use std::collections::HashMap;
+
+use helios_persistence::types::{
+    IncludeDirective, IncludeType, ReverseChainedParameter, SearchModifier, SearchParamType,
+    SearchParameter, SearchQuery, SearchValue, SortDirective, SummaryMode, TotalMode,
+};
+
+use super::SearchParams;
+use crate::error::RestError;
+
+/// Builds a SearchQuery from REST parameters.
+///
+/// This function converts HTTP query parameters into the persistence layer's
+/// SearchQuery type, handling:
+/// - Parameter modifiers (e.g., `name:exact`)
+/// - Value prefixes (e.g., `gt2020-01-01`)
+/// - Chained parameters (e.g., `patient.name`)
+/// - Reverse chaining (_has parameters)
+/// - _include/_revinclude directives
+/// - System parameters (_count, _sort, _total, etc.)
+pub fn build_search_query(
+    resource_type: &str,
+    params: &SearchParams,
+) -> Result<SearchQuery, RestError> {
+    let mut query = SearchQuery::new(resource_type);
+
+    // Process system parameters
+    if let Some(count) = params.count() {
+        query.count = Some(count as u32);
+    }
+
+    if let Some(offset) = params.offset() {
+        query.offset = Some(offset as u32);
+    }
+
+    // Process cursor (_cursor)
+    if let Some(cursor) = params.get("_cursor") {
+        query.cursor = Some(cursor.clone());
+    }
+
+    // Process sort parameters
+    if let Some(sort_params) = params.sort() {
+        for sort in sort_params {
+            let directive = if sort.ascending {
+                SortDirective::parse(&sort.field)
+            } else {
+                SortDirective::parse(&format!("-{}", sort.field))
+            };
+            query.sort.push(directive);
+        }
+    }
+
+    // Process _total
+    if let Some(total) = params.total() {
+        query.total = parse_total_mode(total);
+    }
+
+    // Process _summary
+    if let Some(summary) = params.get("_summary") {
+        query.summary = parse_summary_mode(summary);
+    }
+
+    // Process _elements
+    if let Some(elements) = params.elements() {
+        query.elements = elements.to_vec();
+    }
+
+    // Process _include directives
+    for include in params.include() {
+        if let Some(directive) = parse_include_directive(include, IncludeType::Include) {
+            query.includes.push(directive);
+        }
+    }
+
+    // Process _revinclude directives
+    for revinclude in params.revinclude() {
+        if let Some(directive) = parse_include_directive(revinclude, IncludeType::Revinclude) {
+            query.includes.push(directive);
+        }
+    }
+
+    // Store raw parameters for debugging
+    query.raw_params = params
+        .iter()
+        .map(|(k, v)| (k.clone(), vec![v.clone()]))
+        .collect();
+
+    // Process search parameters (non-system params)
+    for (name, value) in params.search_params() {
+        // Handle _has (reverse chaining)
+        if name == "_has" || name.starts_with("_has:") {
+            if let Some(reverse_chain) = parse_has_parameter(name, value)? {
+                query.reverse_chains.push(reverse_chain);
+            }
+            continue;
+        }
+
+        // Parse the parameter
+        let param = parse_search_parameter(name, value)?;
+        query.parameters.push(param);
+    }
+
+    Ok(query)
+}
+
+/// Builds a SearchQuery from a raw HashMap.
+///
+/// Convenience function when you don't have a SearchParams instance.
+pub fn build_search_query_from_map(
+    resource_type: &str,
+    params: &HashMap<String, String>,
+) -> Result<SearchQuery, RestError> {
+    let search_params = SearchParams::from_map(params.clone());
+    build_search_query(resource_type, &search_params)
+}
+
+/// Parses a single search parameter with potential modifiers.
+fn parse_search_parameter(name: &str, value: &str) -> Result<SearchParameter, RestError> {
+    let (param_name, modifier) = parse_parameter_name(name);
+
+    // Check for chained parameters (e.g., "patient.name" or "subject:Patient.name")
+    let (base_name, chain) = parse_chain(param_name);
+
+    // Parse the value(s) - multiple values separated by comma are ORed
+    let values: Vec<SearchValue> = value
+        .split(',')
+        .map(|v| SearchValue::parse(v.trim()))
+        .collect();
+
+    // Determine parameter type based on modifier or heuristics
+    let param_type = infer_param_type(base_name, &modifier, &values);
+
+    let mut param = SearchParameter {
+        name: base_name.to_string(),
+        param_type,
+        modifier,
+        values,
+        chain,
+        components: vec![],
+    };
+
+    // Handle :missing modifier specially
+    if param
+        .modifier
+        .as_ref()
+        .is_some_and(|m| *m == SearchModifier::Missing)
+    {
+        // The value should be "true" or "false"
+        param.values = vec![SearchValue::eq(value)];
+    }
+
+    Ok(param)
+}
+
+/// Parses a parameter name into the base name and optional modifier.
+///
+/// Examples:
+/// - "name" -> ("name", None)
+/// - "name:exact" -> ("name", Some(Exact))
+/// - "subject:Patient" -> ("subject", Some(Type("Patient")))
+fn parse_parameter_name(name: &str) -> (&str, Option<SearchModifier>) {
+    if let Some(colon_pos) = name.find(':') {
+        let param_name = &name[..colon_pos];
+        let modifier_str = &name[colon_pos + 1..];
+
+        // Check if there's a chain after the modifier
+        // e.g., "subject:Patient.name" -> modifier is "Patient", then chain follows
+        let modifier_str = if let Some(dot_pos) = modifier_str.find('.') {
+            &modifier_str[..dot_pos]
+        } else {
+            modifier_str
+        };
+
+        let modifier = SearchModifier::parse(modifier_str);
+        (param_name, modifier)
+    } else {
+        (name, None)
+    }
+}
+
+/// Parses chain elements from a parameter name.
+///
+/// Examples:
+/// - "name" -> ("name", [])
+/// - "patient.name" -> ("patient", [ChainedParameter{...}])
+/// - "subject:Patient.organization.name" -> ("subject", [ChainedParameter{target_type: Patient, ...}])
+fn parse_chain(name: &str) -> (&str, Vec<helios_persistence::types::ChainedParameter>) {
+    // Handle type-qualified chains like "subject:Patient.organization.name"
+    let (base_with_type, rest) = if let Some(dot_pos) = name.find('.') {
+        (&name[..dot_pos], Some(&name[dot_pos + 1..]))
+    } else {
+        (name, None)
+    };
+
+    // Extract type modifier from base if present
+    let (base_name, target_type) = if let Some(colon_pos) = base_with_type.find(':') {
+        let base = &base_with_type[..colon_pos];
+        let type_str = &base_with_type[colon_pos + 1..];
+        (base, Some(type_str.to_string()))
+    } else {
+        (base_with_type, None)
+    };
+
+    // No chain if no dot
+    let rest = match rest {
+        Some(r) => r,
+        None => return (base_name, vec![]),
+    };
+
+    let mut chain = Vec::new();
+    let parts: Vec<&str> = rest.split('.').collect();
+
+    // For simple chains like "patient.name", we need one ChainedParameter
+    // For complex chains like "subject.organization.name", we need multiple
+    if parts.len() == 1 {
+        // Simple chain: patient.name
+        chain.push(helios_persistence::types::ChainedParameter {
+            reference_param: base_name.to_string(),
+            target_type,
+            target_param: parts[0].to_string(),
+        });
+    } else {
+        // Complex chain: build step by step
+        // For subject.organization.name:
+        // 1. reference_param=subject, target_param=organization
+        // 2. reference_param=organization, target_param=name
+        for i in 0..parts.len() {
+            let ref_param = if i == 0 {
+                base_name.to_string()
+            } else {
+                // Get base part of previous (strip any type modifier)
+                let prev = parts[i - 1];
+                if let Some(colon_pos) = prev.find(':') {
+                    prev[..colon_pos].to_string()
+                } else {
+                    prev.to_string()
+                }
+            };
+
+            // Check if current part has type qualifier
+            let (current_param, part_type) = if let Some(colon_pos) = parts[i].find(':') {
+                (
+                    parts[i][..colon_pos].to_string(),
+                    Some(parts[i][colon_pos + 1..].to_string()),
+                )
+            } else {
+                (parts[i].to_string(), None)
+            };
+
+            chain.push(helios_persistence::types::ChainedParameter {
+                reference_param: ref_param,
+                target_type: if i == 0 {
+                    target_type.clone()
+                } else {
+                    part_type
+                },
+                target_param: current_param,
+            });
+        }
+    }
+
+    (base_name, chain)
+}
+
+/// Parses _has parameter (reverse chaining).
+///
+/// Format: _has:[type]:[reference-param]:[search-param]=value
+/// Examples:
+/// - _has:Observation:patient:code=1234-5
+/// - Nested: _has:Observation:patient:_has:Provenance:target:agent=practitioner-id
+fn parse_has_parameter(
+    name: &str,
+    value: &str,
+) -> Result<Option<ReverseChainedParameter>, RestError> {
+    // Handle both _has:... format and _has key with value containing the chain
+    let chain_str = if name == "_has" {
+        // Value format: Observation:patient:code
+        value
+    } else if let Some(rest) = name.strip_prefix("_has:") {
+        // Name format: _has:Observation:patient:code, value is the search value
+        rest
+    } else {
+        return Ok(None);
+    };
+
+    // Split the chain
+    let parts: Vec<&str> = chain_str.splitn(4, ':').collect();
+
+    if parts.len() < 3 {
+        return Err(RestError::InvalidParameter {
+            param: name.to_string(),
+            message:
+                "Invalid _has format. Expected _has:[type]:[reference-param]:[search-param]=value"
+                    .to_string(),
+        });
+    }
+
+    let source_type = parts[0].to_string();
+    let reference_param = parts[1].to_string();
+    let search_param = parts[2].to_string();
+
+    // Get the search value
+    let search_value = if name == "_has" {
+        // For _has=Observation:patient:code:value format
+        if parts.len() > 3 {
+            SearchValue::eq(parts[3])
+        } else {
+            return Err(RestError::InvalidParameter {
+                param: name.to_string(),
+                message: "Missing value for _has parameter".to_string(),
+            });
+        }
+    } else {
+        SearchValue::eq(value)
+    };
+
+    // Check for nested _has
+    if search_param == "_has" || search_param.starts_with("_has:") {
+        // Nested reverse chain - this is complex and requires recursion
+        // For now, return a basic structure; the backend can handle it
+        let nested = parse_has_parameter(
+            &format!("_has:{}", &chain_str[parts[0].len() + parts[1].len() + 2..]),
+            value,
+        )?;
+        if let Some(nested_chain) = nested {
+            return Ok(Some(ReverseChainedParameter::nested(
+                source_type,
+                reference_param,
+                nested_chain,
+            )));
+        }
+    }
+
+    Ok(Some(ReverseChainedParameter::terminal(
+        source_type,
+        reference_param,
+        search_param,
+        search_value,
+    )))
+}
+
+/// Parses _include/_revinclude directive.
+///
+/// Format: [source-type]:[search-param]:[target-type]
+/// Or with :iterate modifier: [source-type]:[search-param]:iterate
+/// Examples:
+/// - Observation:patient
+/// - Observation:subject:Patient
+/// - Observation:patient:iterate
+fn parse_include_directive(directive: &str, include_type: IncludeType) -> Option<IncludeDirective> {
+    let parts: Vec<&str> = directive.split(':').collect();
+
+    if parts.is_empty() {
+        return None;
+    }
+
+    let source_type = parts[0].to_string();
+    let search_param = parts.get(1).map(|s| s.to_string()).unwrap_or_default();
+
+    // Check for :iterate modifier or target type
+    let (target_type, iterate) = if let Some(third) = parts.get(2) {
+        if *third == "iterate" {
+            (None, true)
+        } else {
+            (
+                Some(third.to_string()),
+                parts.get(3).is_some_and(|s| *s == "iterate"),
+            )
+        }
+    } else {
+        (None, false)
+    };
+
+    Some(IncludeDirective {
+        include_type,
+        source_type,
+        search_param,
+        target_type,
+        iterate,
+    })
+}
+
+/// Parses _total parameter value.
+fn parse_total_mode(value: &str) -> Option<TotalMode> {
+    match value.to_lowercase().as_str() {
+        "none" => Some(TotalMode::None),
+        "estimate" => Some(TotalMode::Estimate),
+        "accurate" => Some(TotalMode::Accurate),
+        _ => None,
+    }
+}
+
+/// Parses _summary parameter value.
+fn parse_summary_mode(value: &str) -> Option<SummaryMode> {
+    match value.to_lowercase().as_str() {
+        "true" => Some(SummaryMode::True),
+        "false" => Some(SummaryMode::False),
+        "text" => Some(SummaryMode::Text),
+        "data" => Some(SummaryMode::Data),
+        "count" => Some(SummaryMode::Count),
+        _ => None,
+    }
+}
+
+/// Infers parameter type based on heuristics.
+///
+/// In a full implementation, this would look up the SearchParameterRegistry
+/// to get the actual type. For now, we use heuristics based on:
+/// - Known common parameters
+/// - Modifier hints
+/// - Value format
+fn infer_param_type(
+    name: &str,
+    modifier: &Option<SearchModifier>,
+    values: &[SearchValue],
+) -> SearchParamType {
+    // Special parameters
+    match name {
+        "_id" | "_lastUpdated" | "_tag" | "_profile" | "_security" | "_source" | "_list"
+        | "_has" | "_type" | "_filter" | "_query" | "_text" | "_content" => {
+            return SearchParamType::Special;
+        }
+        _ => {}
+    }
+
+    // Infer from modifier
+    if let Some(mod_) = modifier {
+        match mod_ {
+            SearchModifier::Exact | SearchModifier::Contains => return SearchParamType::String,
+            SearchModifier::Text
+            | SearchModifier::In
+            | SearchModifier::NotIn
+            | SearchModifier::Above
+            | SearchModifier::Below
+            | SearchModifier::OfType
+            | SearchModifier::CodeOnly
+            | SearchModifier::CodeText => return SearchParamType::Token,
+            SearchModifier::Identifier | SearchModifier::Type(_) => {
+                return SearchParamType::Reference;
+            }
+            _ => {}
+        }
+    }
+
+    // Infer from common parameter names
+    match name {
+        // String parameters
+        "name" | "family" | "given" | "address" | "address-city" | "address-country"
+        | "address-postalcode" | "address-state" | "phonetic" | "text" => SearchParamType::String,
+
+        // Token parameters
+        "identifier" | "code" | "status" | "type" | "category" | "gender" | "language"
+        | "active" | "deceased" | "class" | "priority" | "intent" | "severity" => {
+            SearchParamType::Token
+        }
+
+        // Date parameters
+        "birthdate" | "date" | "issued" | "onset" | "recorded" | "authored" | "effective"
+        | "period" | "when" | "_lastUpdated" => SearchParamType::Date,
+
+        // Reference parameters
+        "patient"
+        | "subject"
+        | "encounter"
+        | "practitioner"
+        | "organization"
+        | "location"
+        | "device"
+        | "performer"
+        | "requester"
+        | "author"
+        | "recorder"
+        | "asserter"
+        | "source"
+        | "target"
+        | "agent"
+        | "entity"
+        | "focus"
+        | "based-on"
+        | "part-of"
+        | "derived-from"
+        | "specimen"
+        | "context"
+        | "service-provider"
+        | "general-practitioner"
+        | "link"
+        | "managing-organization" => SearchParamType::Reference,
+
+        // Number parameters
+        "probability" | "age" => SearchParamType::Number,
+
+        // Quantity parameters
+        "value-quantity" | "quantity" | "dose-quantity" | "component-value-quantity" => {
+            SearchParamType::Quantity
+        }
+
+        // URI parameters
+        "url" | "system" | "definition" | "derived-from-uri" => SearchParamType::Uri,
+
+        // Try to infer from value format
+        _ => infer_from_value(values),
+    }
+}
+
+/// Infers parameter type from value format.
+fn infer_from_value(values: &[SearchValue]) -> SearchParamType {
+    if values.is_empty() {
+        return SearchParamType::String;
+    }
+
+    let value = &values[0].value;
+
+    // Check for date format
+    if value.len() >= 4 && value.chars().take(4).all(|c| c.is_ascii_digit()) {
+        if value.len() >= 10
+            && value
+                .chars()
+                .enumerate()
+                .all(|(i, c)| (i == 4 || i == 7) && c == '-' || c.is_ascii_digit())
+        {
+            return SearchParamType::Date;
+        }
+    }
+
+    // Check for quantity format (number with units)
+    if value.contains('|') && value.split('|').count() >= 2 {
+        let parts: Vec<&str> = value.split('|').collect();
+        if !parts[0].is_empty()
+            && parts[0]
+                .chars()
+                .all(|c| c.is_ascii_digit() || c == '.' || c == '-')
+        {
+            return SearchParamType::Quantity;
+        }
+        // Could also be a token with system|code
+        return SearchParamType::Token;
+    }
+
+    // Check for reference format
+    if value.contains('/') {
+        return SearchParamType::Reference;
+    }
+
+    // Default to string
+    SearchParamType::String
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_parameter_name_simple() {
+        let (name, modifier) = parse_parameter_name("name");
+        assert_eq!(name, "name");
+        assert!(modifier.is_none());
+    }
+
+    #[test]
+    fn test_parse_parameter_name_with_modifier() {
+        let (name, modifier) = parse_parameter_name("name:exact");
+        assert_eq!(name, "name");
+        assert_eq!(modifier, Some(SearchModifier::Exact));
+    }
+
+    #[test]
+    fn test_parse_parameter_name_with_type_modifier() {
+        let (name, modifier) = parse_parameter_name("subject:Patient");
+        assert_eq!(name, "subject");
+        assert_eq!(modifier, Some(SearchModifier::Type("Patient".to_string())));
+    }
+
+    #[test]
+    fn test_parse_chain_simple() {
+        let (name, chain) = parse_chain("patient.name");
+        assert_eq!(name, "patient");
+        assert_eq!(chain.len(), 1);
+        assert_eq!(chain[0].reference_param, "patient");
+        assert_eq!(chain[0].target_param, "name");
+    }
+
+    #[test]
+    fn test_parse_chain_with_type() {
+        let (name, chain) = parse_chain("subject:Patient.name");
+        assert_eq!(name, "subject");
+        assert_eq!(chain.len(), 1);
+        assert_eq!(chain[0].reference_param, "subject");
+        assert_eq!(chain[0].target_type, Some("Patient".to_string()));
+        assert_eq!(chain[0].target_param, "name");
+    }
+
+    #[test]
+    fn test_parse_chain_multi_level() {
+        let (name, chain) = parse_chain("subject.organization.name");
+        assert_eq!(name, "subject");
+        assert_eq!(chain.len(), 2);
+        assert_eq!(chain[0].reference_param, "subject");
+        assert_eq!(chain[0].target_param, "organization");
+        assert_eq!(chain[1].reference_param, "organization");
+        assert_eq!(chain[1].target_param, "name");
+    }
+
+    #[test]
+    fn test_parse_include_directive() {
+        let directive = parse_include_directive("Observation:patient", IncludeType::Include);
+        assert!(directive.is_some());
+        let dir = directive.unwrap();
+        assert_eq!(dir.source_type, "Observation");
+        assert_eq!(dir.search_param, "patient");
+        assert!(dir.target_type.is_none());
+        assert!(!dir.iterate);
+    }
+
+    #[test]
+    fn test_parse_include_directive_with_target() {
+        let directive =
+            parse_include_directive("Observation:subject:Patient", IncludeType::Include);
+        assert!(directive.is_some());
+        let dir = directive.unwrap();
+        assert_eq!(dir.source_type, "Observation");
+        assert_eq!(dir.search_param, "subject");
+        assert_eq!(dir.target_type, Some("Patient".to_string()));
+    }
+
+    #[test]
+    fn test_parse_include_directive_with_iterate() {
+        let directive =
+            parse_include_directive("Observation:patient:iterate", IncludeType::Include);
+        assert!(directive.is_some());
+        let dir = directive.unwrap();
+        assert!(dir.iterate);
+    }
+
+    #[test]
+    fn test_parse_has_parameter() {
+        let result = parse_has_parameter("_has:Observation:patient:code", "8867-4").unwrap();
+        assert!(result.is_some());
+        let chain = result.unwrap();
+        assert_eq!(chain.source_type, "Observation");
+        assert_eq!(chain.reference_param, "patient");
+        assert_eq!(chain.search_param, "code");
+    }
+
+    #[test]
+    fn test_build_search_query_basic() {
+        let mut params = HashMap::new();
+        params.insert("name".to_string(), "Smith".to_string());
+        params.insert("_count".to_string(), "10".to_string());
+
+        let search_params = SearchParams::from_map(params);
+        let query = build_search_query("Patient", &search_params).unwrap();
+
+        assert_eq!(query.resource_type, "Patient");
+        assert_eq!(query.count, Some(10));
+        assert_eq!(query.parameters.len(), 1);
+        assert_eq!(query.parameters[0].name, "name");
+    }
+
+    #[test]
+    fn test_build_search_query_with_modifier() {
+        let mut params = HashMap::new();
+        params.insert("name:exact".to_string(), "Smith".to_string());
+
+        let search_params = SearchParams::from_map(params);
+        let query = build_search_query("Patient", &search_params).unwrap();
+
+        assert_eq!(query.parameters.len(), 1);
+        assert_eq!(query.parameters[0].name, "name");
+        assert_eq!(query.parameters[0].modifier, Some(SearchModifier::Exact));
+    }
+
+    #[test]
+    fn test_build_search_query_with_prefix() {
+        let mut params = HashMap::new();
+        params.insert("birthdate".to_string(), "gt2000-01-01".to_string());
+
+        let search_params = SearchParams::from_map(params);
+        let query = build_search_query("Patient", &search_params).unwrap();
+
+        assert_eq!(query.parameters.len(), 1);
+        assert_eq!(
+            query.parameters[0].values[0].prefix,
+            helios_persistence::types::SearchPrefix::Gt
+        );
+        assert_eq!(query.parameters[0].values[0].value, "2000-01-01");
+    }
+
+    #[test]
+    fn test_build_search_query_with_sort() {
+        let mut params = HashMap::new();
+        params.insert("_sort".to_string(), "-date,name".to_string());
+
+        let search_params = SearchParams::from_map(params);
+        let query = build_search_query("Observation", &search_params).unwrap();
+
+        assert_eq!(query.sort.len(), 2);
+        assert_eq!(query.sort[0].parameter, "date");
+        assert_eq!(
+            query.sort[0].direction,
+            helios_persistence::types::SortDirection::Descending
+        );
+        assert_eq!(query.sort[1].parameter, "name");
+        assert_eq!(
+            query.sort[1].direction,
+            helios_persistence::types::SortDirection::Ascending
+        );
+    }
+
+    #[test]
+    fn test_build_search_query_with_include() {
+        let mut params = HashMap::new();
+        params.insert("_include".to_string(), "Observation:patient".to_string());
+
+        let search_params = SearchParams::from_map(params);
+        let query = build_search_query("Observation", &search_params).unwrap();
+
+        assert_eq!(query.includes.len(), 1);
+        assert_eq!(query.includes[0].source_type, "Observation");
+        assert_eq!(query.includes[0].search_param, "patient");
+    }
+
+    #[test]
+    fn test_infer_param_type() {
+        // Known string params
+        assert_eq!(
+            infer_param_type("name", &None, &[]),
+            SearchParamType::String
+        );
+
+        // Known token params
+        assert_eq!(infer_param_type("code", &None, &[]), SearchParamType::Token);
+
+        // Known reference params
+        assert_eq!(
+            infer_param_type("patient", &None, &[]),
+            SearchParamType::Reference
+        );
+
+        // Modifier hints
+        assert_eq!(
+            infer_param_type("custom", &Some(SearchModifier::Exact), &[]),
+            SearchParamType::String
+        );
+
+        // Special params
+        assert_eq!(
+            infer_param_type("_id", &None, &[]),
+            SearchParamType::Special
+        );
+    }
+}

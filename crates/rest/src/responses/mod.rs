@@ -5,11 +5,14 @@
 //! - [`operation_outcome`] - OperationOutcome generation
 //! - [`bundle`] - Bundle response building
 //! - [`headers`] - Response header generation (ETag, Location, etc.)
+//! - [`subsetting`] - Resource subsetting for _summary and _elements
 
 pub mod bundle;
 pub mod headers;
 pub mod operation_outcome;
+pub mod subsetting;
 
 pub use bundle::BundleBuilder;
 pub use headers::ResourceHeaders;
 pub use operation_outcome::OperationOutcomeBuilder;
+pub use subsetting::{SummaryMode, apply_elements, apply_summary};

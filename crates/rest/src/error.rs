@@ -136,6 +136,14 @@ pub enum RestError {
         /// Error message.
         message: String,
     },
+
+    /// Invalid search parameter (HTTP 400).
+    InvalidParameter {
+        /// The parameter name.
+        param: String,
+        /// Error message.
+        message: String,
+    },
 }
 
 impl fmt::Display for RestError {
@@ -197,6 +205,9 @@ impl fmt::Display for RestError {
             }
             RestError::NotAcceptable { message } => {
                 write!(f, "Not acceptable: {}", message)
+            }
+            RestError::InvalidParameter { param, message } => {
+                write!(f, "Invalid parameter '{}': {}", param, message)
             }
         }
     }
@@ -280,6 +291,11 @@ impl IntoResponse for RestError {
             RestError::NotAcceptable { message } => {
                 (StatusCode::NOT_ACCEPTABLE, "not-supported", message.clone())
             }
+            RestError::InvalidParameter { param, message } => (
+                StatusCode::BAD_REQUEST,
+                "invalid",
+                format!("Invalid parameter '{}': {}", param, message),
+            ),
         };
 
         let operation_outcome = create_operation_outcome("error", code, &details);

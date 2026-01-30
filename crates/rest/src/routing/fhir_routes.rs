@@ -7,10 +7,12 @@ use axum::{
     Router,
     body::Body,
     extract::Request,
-    routing::{delete, get, patch, post, put},
+    routing::{delete, get, head, patch, post, put},
 };
 use helios_fhir::FhirVersion;
-use helios_persistence::core::{ConditionalStorage, ResourceStorage};
+use helios_persistence::core::{
+    ConditionalStorage, InstanceHistoryProvider, ResourceStorage, SearchProvider,
+};
 use tower::ServiceExt;
 
 use crate::config::TenantRoutingMode;
@@ -52,7 +54,13 @@ use crate::state::AppState;
 /// - `GET /{type}/{id}/_history/{vid}` - Version read
 pub fn create_routes<S>(state: AppState<S>) -> Router
 where
-    S: ResourceStorage + ConditionalStorage + Send + Sync + 'static,
+    S: ResourceStorage
+        + ConditionalStorage
+        + SearchProvider
+        + InstanceHistoryProvider
+        + Send
+        + Sync
+        + 'static,
 {
     match state.config().multitenancy.routing_mode {
         TenantRoutingMode::HeaderOnly => create_standard_routes(state),
@@ -64,7 +72,13 @@ where
 /// Creates standard routes (header-only tenant identification).
 fn create_standard_routes<S>(state: AppState<S>) -> Router
 where
-    S: ResourceStorage + ConditionalStorage + Send + Sync + 'static,
+    S: ResourceStorage
+        + ConditionalStorage
+        + SearchProvider
+        + InstanceHistoryProvider
+        + Send
+        + Sync
+        + 'static,
 {
     create_fhir_router().with_state(state)
 }
@@ -75,7 +89,13 @@ where
 /// route matching. The tenant is stored in request extensions.
 fn create_url_tenant_routes<S>(state: AppState<S>) -> Router
 where
-    S: ResourceStorage + ConditionalStorage + Send + Sync + 'static,
+    S: ResourceStorage
+        + ConditionalStorage
+        + SearchProvider
+        + InstanceHistoryProvider
+        + Send
+        + Sync
+        + 'static,
 {
     let router = create_fhir_router().with_state(state);
 
@@ -91,7 +111,13 @@ where
 /// tenant prefix from URL paths.
 fn create_combined_routes<S>(state: AppState<S>) -> Router
 where
-    S: ResourceStorage + ConditionalStorage + Send + Sync + 'static,
+    S: ResourceStorage
+        + ConditionalStorage
+        + SearchProvider
+        + InstanceHistoryProvider
+        + Send
+        + Sync
+        + 'static,
 {
     let router = create_fhir_router().with_state(state);
 
@@ -146,7 +172,13 @@ fn build_uri_with_new_path(original: &axum::http::Uri, new_path: &str) -> axum::
 /// Creates the core FHIR router with all endpoints.
 fn create_fhir_router<S>() -> Router<AppState<S>>
 where
-    S: ResourceStorage + ConditionalStorage + Send + Sync + 'static,
+    S: ResourceStorage
+        + ConditionalStorage
+        + SearchProvider
+        + InstanceHistoryProvider
+        + Send
+        + Sync
+        + 'static,
 {
     Router::new()
         // System-level routes
@@ -160,6 +192,16 @@ where
         // Type-level routes
         .route("/{resource_type}", get(handlers::search_get_handler::<S>))
         .route("/{resource_type}", post(handlers::create_handler::<S>))
+        // Conditional update: PUT [base]/[type]?[search-params]
+        .route(
+            "/{resource_type}",
+            put(handlers::conditional_update_handler::<S>),
+        )
+        // Conditional delete: DELETE [base]/[type]?[search-params]
+        .route(
+            "/{resource_type}",
+            delete(handlers::conditional_delete_handler::<S>),
+        )
         .route(
             "/{resource_type}/_search",
             post(handlers::search_post_handler::<S>),
@@ -170,6 +212,11 @@ where
         )
         // Instance-level routes
         .route("/{resource_type}/{id}", get(handlers::read_handler::<S>))
+        // HEAD for read - returns headers without body
+        .route(
+            "/{resource_type}/{id}",
+            head(handlers::head_read_handler::<S>),
+        )
         .route("/{resource_type}/{id}", put(handlers::update_handler::<S>))
         .route("/{resource_type}/{id}", patch(handlers::patch_handler::<S>))
         .route(
@@ -180,9 +227,24 @@ where
             "/{resource_type}/{id}/_history",
             get(handlers::history_instance_handler::<S>),
         )
+        // Delete instance history (FHIR v6.0.0 Trial Use)
+        .route(
+            "/{resource_type}/{id}/_history",
+            delete(handlers::delete_instance_history_handler::<S>),
+        )
         .route(
             "/{resource_type}/{id}/_history/{version_id}",
             get(handlers::vread_handler::<S>),
+        )
+        // Delete specific version (FHIR v6.0.0 Trial Use)
+        .route(
+            "/{resource_type}/{id}/_history/{version_id}",
+            delete(handlers::delete_version_handler::<S>),
+        )
+        // Compartment search: GET [base]/[compartment-type]/[id]/[target-type]?params
+        .route(
+            "/{compartment_type}/{compartment_id}/{target_type}",
+            get(handlers::compartment_search_handler::<S>),
         )
 }
 

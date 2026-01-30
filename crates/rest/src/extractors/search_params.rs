@@ -117,9 +117,32 @@ impl SearchParams {
         self.params.iter()
     }
 
-    /// Returns an iterator over search parameters (excluding system params).
+    /// Returns an iterator over search parameters (excluding result format/pagination params).
+    ///
+    /// Excludes: _count, _offset, _cursor, _sort, _total, _summary, _elements,
+    ///           _include, _revinclude, _contained, _containedType, _format
+    ///
+    /// Includes: _id, _lastUpdated, _tag, _profile, _security, _source, _has,
+    ///           _list, _text, _content, _filter, _query, _type
     pub fn search_params(&self) -> impl Iterator<Item = (&String, &String)> {
-        self.params.iter().filter(|(k, _)| !k.starts_with('_'))
+        const EXCLUDED_PARAMS: &[&str] = &[
+            "_count",
+            "_offset",
+            "_cursor",
+            "_sort",
+            "_total",
+            "_summary",
+            "_elements",
+            "_include",
+            "_revinclude",
+            "_contained",
+            "_containedType",
+            "_format",
+            "_pretty",
+        ];
+        self.params
+            .iter()
+            .filter(|(k, _)| !EXCLUDED_PARAMS.contains(&k.as_str()))
     }
 
     /// Returns the page size (_count).

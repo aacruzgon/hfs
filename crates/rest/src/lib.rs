@@ -158,7 +158,9 @@ pub use tenant::{ResolvedTenant, TenantResolver, TenantSource};
 use std::sync::Arc;
 
 use axum::Router;
-use helios_persistence::core::{ConditionalStorage, ResourceStorage};
+use helios_persistence::core::{
+    ConditionalStorage, InstanceHistoryProvider, ResourceStorage, SearchProvider,
+};
 use tower::ServiceBuilder;
 use tower_http::{
     cors::{Any, CorsLayer},
@@ -187,7 +189,13 @@ use tracing::info;
 /// ```
 pub fn create_app<S>(storage: S) -> Router
 where
-    S: ResourceStorage + ConditionalStorage + Send + Sync + 'static,
+    S: ResourceStorage
+        + ConditionalStorage
+        + SearchProvider
+        + InstanceHistoryProvider
+        + Send
+        + Sync
+        + 'static,
 {
     create_app_with_config(storage, ServerConfig::default())
 }
@@ -218,7 +226,13 @@ where
 /// ```
 pub fn create_app_with_config<S>(storage: S, config: ServerConfig) -> Router
 where
-    S: ResourceStorage + ConditionalStorage + Send + Sync + 'static,
+    S: ResourceStorage
+        + ConditionalStorage
+        + SearchProvider
+        + InstanceHistoryProvider
+        + Send
+        + Sync
+        + 'static,
 {
     info!(
         "Creating REST API server with backend: {}",

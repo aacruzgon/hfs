@@ -5,16 +5,22 @@
 //! - Type history: `GET [base]/[type]/_history`
 //! - System history: `GET [base]/_history`
 //!
+//! Also implements FHIR v6.0.0 Trial Use delete history operations:
+//! - Delete instance history: `DELETE [base]/[type]/[id]/_history`
+//! - Delete specific version: `DELETE [base]/[type]/[id]/_history/[vid]`
+//!
 //! Note: Full history functionality requires a backend that implements
 //! the InstanceHistoryProvider, TypeHistoryProvider, and SystemHistoryProvider traits.
 
 use axum::{
+    Json,
     extract::{Path, Query, State},
-    response::Response,
+    http::StatusCode,
+    response::{IntoResponse, Response},
 };
-use helios_persistence::core::ResourceStorage;
+use helios_persistence::core::{InstanceHistoryProvider, ResourceStorage};
 use serde::Deserialize;
-use tracing::debug;
+use tracing::{debug, warn};
 
 use crate::error::{RestError, RestResult};
 use crate::extractors::TenantExtractor;
@@ -139,6 +145,117 @@ where
     Err(RestError::NotImplemented {
         feature: "System history".to_string(),
     })
+}
+
+/// Handler for deleting instance history.
+///
+/// Deletes all historical versions of a resource, preserving only the current version.
+/// This is a FHIR v6.0.0 Trial Use feature.
+///
+/// # HTTP Request
+///
+/// `DELETE [base]/[type]/[id]/_history`
+///
+/// # Response
+///
+/// - `200 OK` with OperationOutcome indicating number of versions deleted
+/// - `404 Not Found` if the resource doesn't exist
+/// - `501 Not Implemented` if the backend doesn't support this operation
+pub async fn delete_instance_history_handler<S>(
+    State(state): State<AppState<S>>,
+    Path((resource_type, id)): Path<(String, String)>,
+    tenant: TenantExtractor,
+) -> RestResult<Response>
+where
+    S: ResourceStorage + InstanceHistoryProvider + Send + Sync,
+{
+    debug!(
+        resource_type = %resource_type,
+        id = %id,
+        tenant = %tenant.tenant_id(),
+        "Processing delete instance history request"
+    );
+
+    let deleted_count = state
+        .storage()
+        .delete_instance_history(tenant.context(), &resource_type, &id)
+        .await
+        .map_err(|e| {
+            warn!(error = %e, "Delete instance history failed");
+            RestError::from(e)
+        })?;
+
+    debug!(
+        resource_type = %resource_type,
+        id = %id,
+        deleted_count = deleted_count,
+        "Instance history deleted successfully"
+    );
+
+    // Return OperationOutcome with success message
+    let outcome = serde_json::json!({
+        "resourceType": "OperationOutcome",
+        "issue": [{
+            "severity": "information",
+            "code": "informational",
+            "diagnostics": format!(
+                "Deleted {} historical version(s) of {}/{}. Current version preserved.",
+                deleted_count, resource_type, id
+            )
+        }]
+    });
+
+    Ok((StatusCode::OK, Json(outcome)).into_response())
+}
+
+/// Handler for deleting a specific version from history.
+///
+/// Deletes a specific historical version of a resource. Cannot delete the current version.
+/// This is a FHIR v6.0.0 Trial Use feature.
+///
+/// # HTTP Request
+///
+/// `DELETE [base]/[type]/[id]/_history/[vid]`
+///
+/// # Response
+///
+/// - `204 No Content` on successful deletion
+/// - `404 Not Found` if the resource or version doesn't exist
+/// - `400 Bad Request` if attempting to delete the current version
+/// - `501 Not Implemented` if the backend doesn't support this operation
+pub async fn delete_version_handler<S>(
+    State(state): State<AppState<S>>,
+    Path((resource_type, id, version_id)): Path<(String, String, String)>,
+    tenant: TenantExtractor,
+) -> RestResult<Response>
+where
+    S: ResourceStorage + InstanceHistoryProvider + Send + Sync,
+{
+    debug!(
+        resource_type = %resource_type,
+        id = %id,
+        version_id = %version_id,
+        tenant = %tenant.tenant_id(),
+        "Processing delete version request"
+    );
+
+    state
+        .storage()
+        .delete_version(tenant.context(), &resource_type, &id, &version_id)
+        .await
+        .map_err(|e| {
+            warn!(error = %e, "Delete version failed");
+            RestError::from(e)
+        })?;
+
+    debug!(
+        resource_type = %resource_type,
+        id = %id,
+        version_id = %version_id,
+        "Version deleted successfully"
+    );
+
+    Ok(StatusCode::NO_CONTENT.into_response())
 }
 
 /// Builds a history Bundle from history entries.
