@@ -59,9 +59,9 @@
 //! 3. **Prefix Operators**: Unary plus/minus (`+`, `-`)
 //! 4. **Multiplicative**: `*`, `/`, `div`, `mod`
 //! 5. **Additive**: `+`, `-`, `&` (string concatenation)
-//! 6. **Union**: `|` (collection union)
-//! 7. **Inequality**: `<`, `<=`, `>`, `>=`
-//! 8. **Type Operations**: `is`, `as`
+//! 6. **Type Operations**: `is`, `as`
+//! 7. **Union**: `|` (collection union)
+//! 8. **Inequality**: `<`, `<=`, `>`, `>=`
 //! 9. **Equality**: `=`, `~`, `!=`, `!~`
 //! 10. **Membership**: `in`, `contains`
 //! 11. **Logical AND**: `and`
@@ -1078,18 +1078,35 @@ pub fn parser<'src>()
                 })
             });
 
-        // Level 3: Union (|) - Left associative (though spec doesn't strictly define associativity here)
-        let op_union = just('|').padded();
-        let union = additive
+        // Level 3: Type (is, as) - Left associative
+        // Per FHIRPath spec, type operations bind tighter than union
+        let op_type = choice((text::keyword("is").to("is"), text::keyword("as").to("as"))).padded();
+        let type_expr = additive
             .clone()
-            .then(op_union.then(additive).repeated().collect::<Vec<_>>())
+            .then(
+                op_type
+                    .then(qualified_identifier.clone())
+                    .repeated()
+                    .collect::<Vec<_>>(),
+            ) // Type specifier follows 'is'/'as'
+            .map(|(left, ops)| {
+                ops.into_iter().fold(left, |acc, (op_str, type_spec)| {
+                    Expression::Type(Box::new(acc), op_str.to_string(), type_spec)
+                })
+            });
+
+        // Level 4: Union (|) - Left associative
+        let op_union = just('|').padded();
+        let union = type_expr
+            .clone()
+            .then(op_union.then(type_expr).repeated().collect::<Vec<_>>())
             .map(|(left, ops)| {
                 ops.into_iter().fold(left, |acc, (_, right)| {
                     Expression::Union(Box::new(acc), Box::new(right))
                 })
             });
 
-        // Level 4: Inequality (<, <=, >, >=) - Left associative
+        // Level 5: Inequality (<, <=, >, >=) - Left associative
         let op_ineq = choice((
             just("<=").to("<="),
             just("<").to("<"),
@@ -1106,22 +1123,6 @@ pub fn parser<'src>()
                 })
             });
 
-        // Level 5: Type (is, as) - Left associative
-        let op_type = choice((text::keyword("is").to("is"), text::keyword("as").to("as"))).padded();
-        let type_expr = inequality
-            .clone()
-            .then(
-                op_type
-                    .then(qualified_identifier.clone())
-                    .repeated()
-                    .collect::<Vec<_>>(),
-            ) // Type specifier follows 'is'/'as'
-            .map(|(left, ops)| {
-                ops.into_iter().fold(left, |acc, (op_str, type_spec)| {
-                    Expression::Type(Box::new(acc), op_str.to_string(), type_spec)
-                })
-            });
-
         // Level 6: Equality (=, ~, !=, !~) - Left associative
         let op_eq = choice((
             just("=").to("="),
@@ -1130,12 +1131,12 @@ pub fn parser<'src>()
             just("!~").to("!~"),
         ))
         .padded();
-        let equality = type_expr
+        let equality = inequality
             .clone()
             .boxed()
             .then(
                 op_eq
-                    .then(type_expr.clone().boxed())
+                    .then(inequality.clone().boxed())
                     .repeated()
                     .collect::<Vec<_>>(),
             )
