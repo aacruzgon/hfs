@@ -20,6 +20,8 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use tracing::{debug, warn};
 
+use helios_fhir::FhirVersion;
+
 use crate::error::{RestError, RestResult};
 use crate::extractors::{TenantExtractor, build_search_query_from_map};
 use crate::responses::subsetting::{SummaryMode, apply_elements, apply_summary};
@@ -198,12 +200,16 @@ where
         "Search completed"
     );
 
+    // Get FHIR version from config for subsetting
+    let fhir_version = state.config().default_fhir_version;
+
     Ok((
         StatusCode::OK,
         Json(bundle_to_json_with_subsetting(
             bundle,
             summary_mode,
             elements.as_deref(),
+            fhir_version,
         )),
     )
         .into_response())
@@ -265,12 +271,16 @@ where
         "System-level search completed"
     );
 
+    // Get FHIR version from config for subsetting
+    let fhir_version = state.config().default_fhir_version;
+
     Ok((
         StatusCode::OK,
         Json(bundle_to_json_with_subsetting(
             bundle,
             summary_mode,
             elements.as_deref(),
+            fhir_version,
         )),
     )
         .into_response())
@@ -329,6 +339,7 @@ fn bundle_to_json_with_subsetting(
     bundle: SearchBundle,
     summary_mode: Option<SummaryMode>,
     elements: Option<&[&str]>,
+    fhir_version: FhirVersion,
 ) -> serde_json::Value {
     // Handle _summary=count specially - only return count, no entries
     if summary_mode == Some(SummaryMode::Count) {
@@ -356,7 +367,7 @@ fn bundle_to_json_with_subsetting(
             }
             if let Some(ref resource) = e.resource {
                 // Apply subsetting to the resource
-                let subsetted = apply_subsetting(resource, summary_mode, elements);
+                let subsetted = apply_subsetting(resource, summary_mode, elements, fhir_version);
                 entry["resource"] = subsetted;
             }
             if let Some(ref search) = e.search {
@@ -378,12 +389,13 @@ fn apply_subsetting(
     resource: &serde_json::Value,
     summary_mode: Option<SummaryMode>,
     elements: Option<&[&str]>,
+    fhir_version: FhirVersion,
 ) -> serde_json::Value {
     let mut result = resource.clone();
 
     // Apply _summary if specified
     if let Some(mode) = summary_mode {
-        result = apply_summary(&result, mode);
+        result = apply_summary(&result, mode, fhir_version);
     }
 
     // Apply _elements if specified (takes precedence over _summary for element selection)

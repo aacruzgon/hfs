@@ -81,7 +81,9 @@ pub trait ChoiceElement {
 ///
 /// This trait is implemented by generated FHIR resource structs to provide
 /// metadata about the resource's structure, particularly which fields are
-/// choice elements. This enables accurate polymorphic field access in FHIRPath.
+/// choice elements and which fields are included in summaries. This enables
+/// accurate polymorphic field access in FHIRPath and proper `_summary` handling
+/// in REST operations.
 ///
 /// # Example
 ///
@@ -89,6 +91,10 @@ pub trait ChoiceElement {
 /// impl FhirResourceMetadata for Observation {
 ///     fn choice_elements() -> &'static [&'static str] {
 ///         &["value", "effective", "component.value"]
+///     }
+///
+///     fn summary_fields() -> &'static [&'static str] {
+///         &["id", "meta", "status", "category", "code", "subject", "effective", "issued", "value"]
 ///     }
 /// }
 /// ```
@@ -98,6 +104,18 @@ pub trait FhirResourceMetadata {
     /// The returned slice contains the base names (without [x]) of fields
     /// that are choice elements in the FHIR specification.
     fn choice_elements() -> &'static [&'static str];
+
+    /// Returns the field names that should be included in resource summaries.
+    ///
+    /// These are fields marked with `isSummary: true` in the FHIR specification.
+    /// The returned slice contains Rust field names (snake_case) for elements
+    /// that should be included when `_summary=true` is requested.
+    ///
+    /// The default implementation returns an empty slice for backward compatibility
+    /// with types that don't have summary metadata.
+    fn summary_fields() -> &'static [&'static str] {
+        &[]
+    }
 }
 
 /// Universal conversion trait for transforming values into FHIRPath evaluation results.

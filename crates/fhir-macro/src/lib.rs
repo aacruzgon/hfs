@@ -2666,12 +2666,32 @@ fn generate_fhirpath_struct_impl(
         }
     };
 
-    // Check if this struct has the fhir_resource attribute with choice_elements
-    if let Some(choice_elements) = extract_resource_choice_elements(attrs) {
+    // Check if this struct has the fhir_resource attribute with choice_elements or summary_fields
+    let choice_elements = extract_resource_choice_elements(attrs);
+    let summary_fields = extract_resource_summary_fields(attrs);
+
+    // Only generate FhirResourceMetadata impl if we have at least one of the metadata types
+    if choice_elements.is_some() || summary_fields.is_some() {
         let choice_element_literals: Vec<_> = choice_elements
-            .iter()
-            .map(|elem| quote! { #elem })
-            .collect();
+            .as_ref()
+            .map(|elems| elems.iter().map(|elem| quote! { #elem }).collect())
+            .unwrap_or_default();
+
+        let summary_field_literals: Vec<_> = summary_fields
+            .as_ref()
+            .map(|fields| fields.iter().map(|field| quote! { #field }).collect())
+            .unwrap_or_default();
+
+        // Generate summary_fields method only if we have summary fields
+        let summary_fields_impl = if summary_fields.is_some() {
+            quote! {
+                fn summary_fields() -> &'static [&'static str] {
+                    &[#(#summary_field_literals),*]
+                }
+            }
+        } else {
+            quote! {}
+        };
 
         quote! {
             #into_evaluation_result_impl
@@ -2680,6 +2700,8 @@ fn generate_fhirpath_struct_impl(
                 fn choice_elements() -> &'static [&'static str] {
                     &[#(#choice_element_literals),*]
                 }
+
+                #summary_fields_impl
             }
         }
     } else {
@@ -3255,6 +3277,37 @@ fn extract_resource_choice_elements(attrs: &[syn::Attribute]) -> Option<Vec<Stri
                                         .filter(|s| !s.is_empty())
                                         .collect();
                                     return Some(elements);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Extracts summary fields from fhir_resource attribute if present.
+fn extract_resource_summary_fields(attrs: &[syn::Attribute]) -> Option<Vec<String>> {
+    for attr in attrs {
+        if attr.path().is_ident("fhir_resource") {
+            if let Ok(list) =
+                attr.parse_args_with(Punctuated::<Meta, token::Comma>::parse_terminated)
+            {
+                for meta in list {
+                    if let Meta::NameValue(nv) = meta {
+                        if nv.path.is_ident("summary_fields") {
+                            if let syn::Expr::Lit(expr_lit) = nv.value {
+                                if let Lit::Str(lit_str) = expr_lit.lit {
+                                    // Split the comma-separated list of summary fields
+                                    let fields: Vec<String> = lit_str
+                                        .value()
+                                        .split(',')
+                                        .map(|s| s.trim().to_string())
+                                        .filter(|s| !s.is_empty())
+                                        .collect();
+                                    return Some(fields);
                                 }
                             }
                         }

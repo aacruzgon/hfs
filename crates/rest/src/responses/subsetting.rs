@@ -6,6 +6,7 @@
 //!
 //! See: https://hl7.org/fhir/search.html#summary
 
+use helios_fhir::FhirVersion;
 use serde_json::{Map, Value};
 
 /// Summary mode for resource subsetting.
@@ -40,132 +41,69 @@ impl SummaryMode {
 /// Elements that are always included regardless of subsetting.
 const ALWAYS_INCLUDED: &[&str] = &["resourceType", "id", "meta"];
 
-/// Common summary elements for most resource types.
-/// These are elements typically marked as "isSummary" in the FHIR specification.
-fn get_summary_elements(resource_type: &str) -> Vec<&'static str> {
-    // Common elements that are usually in summaries
-    let mut elements = vec!["resourceType", "id", "meta", "identifier"];
+/// Converts a Rust snake_case field name to JSON camelCase.
+///
+/// The generated FHIR types use snake_case for Rust field names, but the
+/// JSON serialization uses camelCase. This function converts between the two.
+fn snake_to_camel(s: &str) -> String {
+    // Handle raw identifier prefix
+    let s = s.strip_prefix("r#").unwrap_or(s);
 
-    // Add resource-specific summary elements
-    match resource_type {
-        "Patient" => {
-            elements.extend(&[
-                "active",
-                "name",
-                "telecom",
-                "gender",
-                "birthDate",
-                "deceased",
-                "address",
-                "managingOrganization",
-                "link",
-            ]);
+    let mut result = String::with_capacity(s.len());
+    let mut capitalize_next = false;
+
+    for c in s.chars() {
+        if c == '_' {
+            capitalize_next = true;
+        } else if capitalize_next {
+            result.push(c.to_ascii_uppercase());
+            capitalize_next = false;
+        } else {
+            result.push(c);
         }
-        "Observation" => {
-            elements.extend(&[
-                "status",
-                "category",
-                "code",
-                "subject",
-                "encounter",
-                "effective",
-                "issued",
-                "value",
-                "dataAbsentReason",
-                "interpretation",
-                "component",
-            ]);
-        }
-        "Condition" => {
-            elements.extend(&[
-                "clinicalStatus",
-                "verificationStatus",
-                "category",
-                "severity",
-                "code",
-                "bodySite",
-                "subject",
-                "encounter",
-                "onset",
-                "abatement",
-                "recordedDate",
-            ]);
-        }
-        "Encounter" => {
-            elements.extend(&[
-                "status",
-                "class",
-                "type",
-                "serviceType",
-                "subject",
-                "participant",
-                "period",
-                "location",
-            ]);
-        }
-        "Procedure" => {
-            elements.extend(&[
-                "status",
-                "code",
-                "subject",
-                "encounter",
-                "performed",
-                "performer",
-            ]);
-        }
-        "MedicationRequest" => {
-            elements.extend(&[
-                "status",
-                "intent",
-                "medication",
-                "subject",
-                "encounter",
-                "authoredOn",
-                "requester",
-            ]);
-        }
-        "DiagnosticReport" => {
-            elements.extend(&[
-                "status",
-                "category",
-                "code",
-                "subject",
-                "encounter",
-                "effective",
-                "issued",
-                "performer",
-                "result",
-                "conclusion",
-            ]);
-        }
-        "Practitioner" => {
-            elements.extend(&[
-                "active",
-                "name",
-                "telecom",
-                "address",
-                "gender",
-                "birthDate",
-            ]);
-        }
-        "Organization" => {
-            elements.extend(&["active", "type", "name", "alias", "telecom", "address"]);
-        }
-        "Location" => {
-            elements.extend(&[
-                "status",
-                "operationalStatus",
-                "name",
-                "alias",
-                "description",
-                "type",
-                "telecom",
-                "address",
-            ]);
-        }
-        _ => {
-            // Default: include common top-level elements
-            elements.extend(&["status", "name", "code", "subject", "patient"]);
+    }
+
+    result
+}
+
+/// Returns summary elements for a resource type using the FHIR specification metadata.
+///
+/// This function retrieves the summary fields from the generated FHIR types, which are
+/// derived from the `isSummary` flag in the official FHIR StructureDefinitions.
+/// The field names are converted from Rust snake_case to JSON camelCase.
+///
+/// # Arguments
+///
+/// * `resource_type` - The FHIR resource type name (e.g., "Patient", "Observation")
+/// * `fhir_version` - The FHIR version to use for field lookup
+///
+/// # Returns
+///
+/// A vector of field names in camelCase that should be included in summaries.
+fn get_summary_elements(resource_type: &str, fhir_version: FhirVersion) -> Vec<String> {
+    // Get the summary fields from the generated FHIR types
+    let summary_fields: &[&str] = match fhir_version {
+        #[cfg(feature = "R4")]
+        FhirVersion::R4 => helios_fhir::r4::get_summary_fields(resource_type),
+        #[cfg(feature = "R4B")]
+        FhirVersion::R4B => helios_fhir::r4b::get_summary_fields(resource_type),
+        #[cfg(feature = "R5")]
+        FhirVersion::R5 => helios_fhir::r5::get_summary_fields(resource_type),
+        #[cfg(feature = "R6")]
+        FhirVersion::R6 => helios_fhir::r6::get_summary_fields(resource_type),
+        // Fallback for versions not enabled - use minimal fields
+        #[allow(unreachable_patterns)]
+        _ => &["resourceType", "id", "meta"],
+    };
+
+    // Convert snake_case Rust field names to camelCase JSON keys
+    // Also ensure resourceType is always included (it's not a struct field but always needed)
+    let mut elements: Vec<String> = vec!["resourceType".to_string()];
+
+    for field in summary_fields {
+        let camel = snake_to_camel(field);
+        if !elements.contains(&camel) {
+            elements.push(camel);
         }
     }
 
@@ -175,7 +113,13 @@ fn get_summary_elements(resource_type: &str) -> Vec<&'static str> {
 /// Applies _summary subsetting to a resource.
 ///
 /// Returns a new JSON value with only the requested elements.
-pub fn apply_summary(resource: &Value, mode: SummaryMode) -> Value {
+///
+/// # Arguments
+///
+/// * `resource` - The FHIR resource as a JSON value
+/// * `mode` - The summary mode to apply
+/// * `fhir_version` - The FHIR version (used to determine summary fields for each resource type)
+pub fn apply_summary(resource: &Value, mode: SummaryMode, fhir_version: FhirVersion) -> Value {
     match mode {
         SummaryMode::False => resource.clone(),
         SummaryMode::Count => {
@@ -193,10 +137,11 @@ pub fn apply_summary(resource: &Value, mode: SummaryMode) -> Value {
             exclude_elements(resource, &["text"])
         }
         SummaryMode::True => {
-            // Include summary elements
+            // Include summary elements from the FHIR specification
             if let Some(resource_type) = resource.get("resourceType").and_then(|v| v.as_str()) {
-                let summary_elements = get_summary_elements(resource_type);
-                filter_resource(resource, &summary_elements)
+                let summary_elements = get_summary_elements(resource_type, fhir_version);
+                let element_refs: Vec<&str> = summary_elements.iter().map(|s| s.as_str()).collect();
+                filter_resource(resource, &element_refs)
             } else {
                 resource.clone()
             }
@@ -339,6 +284,18 @@ mod tests {
     }
 
     #[test]
+    fn test_snake_to_camel() {
+        assert_eq!(snake_to_camel("birth_date"), "birthDate");
+        assert_eq!(
+            snake_to_camel("managing_organization"),
+            "managingOrganization"
+        );
+        assert_eq!(snake_to_camel("id"), "id");
+        assert_eq!(snake_to_camel("r#type"), "type");
+        assert_eq!(snake_to_camel("implicit_rules"), "implicitRules");
+    }
+
+    #[test]
     fn test_apply_summary_false() {
         let resource = json!({
             "resourceType": "Patient",
@@ -349,7 +306,7 @@ mod tests {
             "birthDate": "1990-01-01"
         });
 
-        let result = apply_summary(&resource, SummaryMode::False);
+        let result = apply_summary(&resource, SummaryMode::False, FhirVersion::R4);
         assert_eq!(result, resource);
     }
 
@@ -364,7 +321,7 @@ mod tests {
             "birthDate": "1990-01-01"
         });
 
-        let result = apply_summary(&resource, SummaryMode::Text);
+        let result = apply_summary(&resource, SummaryMode::Text, FhirVersion::R4);
 
         // Should include resourceType, id, meta, text
         assert!(result.get("resourceType").is_some());
@@ -387,7 +344,7 @@ mod tests {
             "birthDate": "1990-01-01"
         });
 
-        let result = apply_summary(&resource, SummaryMode::Data);
+        let result = apply_summary(&resource, SummaryMode::Data, FhirVersion::R4);
 
         // Should include everything except text
         assert!(result.get("resourceType").is_some());
@@ -412,7 +369,7 @@ mod tests {
             "photo": [{"data": "base64..."}]
         });
 
-        let result = apply_summary(&resource, SummaryMode::True);
+        let result = apply_summary(&resource, SummaryMode::True, FhirVersion::R4);
 
         // Should include summary elements
         assert!(result.get("resourceType").is_some());
@@ -423,6 +380,20 @@ mod tests {
         // Should not include non-summary elements
         assert!(result.get("communication").is_none());
         assert!(result.get("photo").is_none());
+    }
+
+    #[test]
+    fn test_get_summary_elements_from_spec() {
+        // Test that the generated summary fields are correctly retrieved
+        let patient_summary = get_summary_elements("Patient", FhirVersion::R4);
+
+        // These fields should be in the Patient summary per FHIR spec
+        assert!(patient_summary.contains(&"id".to_string()));
+        assert!(patient_summary.contains(&"meta".to_string()));
+        assert!(patient_summary.contains(&"name".to_string()));
+        assert!(patient_summary.contains(&"birthDate".to_string()));
+        assert!(patient_summary.contains(&"gender".to_string()));
+        assert!(patient_summary.contains(&"active".to_string()));
     }
 
     #[test]

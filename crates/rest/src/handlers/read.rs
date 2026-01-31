@@ -127,7 +127,7 @@ where
             let mut content = stored.content().clone();
 
             if let Some(mode) = summary_mode {
-                content = apply_summary(&content, mode);
+                content = apply_summary(&content, mode, stored.fhir_version());
             }
             if let Some(ref elem_list) = elements {
                 content = apply_elements(&content, elem_list);

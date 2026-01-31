@@ -711,6 +711,69 @@ fn generate_global_constructs(
         writeln!(file, "}}")?;
     }
 
+    // Generate the get_summary_fields lookup function for all resource types
+    if !all_resources.is_empty() {
+        writeln!(file, "\n// --- Summary Fields Lookup ---")?;
+        writeln!(
+            file,
+            "/// Returns the summary fields for a given resource type."
+        )?;
+        writeln!(file, "///")?;
+        writeln!(
+            file,
+            "/// Summary fields are elements marked with `isSummary: true` in the FHIR"
+        )?;
+        writeln!(
+            file,
+            "/// specification. These are the fields returned when `_summary=true` is"
+        )?;
+        writeln!(
+            file,
+            "/// requested in a FHIR REST search or read operation."
+        )?;
+        writeln!(file, "///")?;
+        writeln!(file, "/// # Arguments")?;
+        writeln!(file, "///")?;
+        writeln!(
+            file,
+            "/// * `resource_type` - The FHIR resource type name (e.g., \"Patient\", \"Observation\")"
+        )?;
+        writeln!(file, "///")?;
+        writeln!(file, "/// # Returns")?;
+        writeln!(file, "///")?;
+        writeln!(
+            file,
+            "/// A static slice of field names that should be included in summaries."
+        )?;
+        writeln!(
+            file,
+            "/// Returns a default set of fields for unknown resource types."
+        )?;
+        writeln!(
+            file,
+            "pub fn get_summary_fields(resource_type: &str) -> &'static [&'static str] {{"
+        )?;
+        writeln!(
+            file,
+            "    use helios_fhirpath_support::FhirResourceMetadata;"
+        )?;
+        writeln!(file, "    match resource_type {{")?;
+        for resource in all_resources {
+            writeln!(
+                file,
+                "        \"{}\" => {}::summary_fields(),",
+                resource, resource
+            )?;
+        }
+        writeln!(
+            file,
+            "        // Default for unknown resource types: include minimal required fields"
+        )?;
+        writeln!(file, "        _ => &[\"resourceType\", \"id\", \"meta\"],")?;
+        writeln!(file, "    }}")?;
+        writeln!(file, "}}")?;
+    }
+
     Ok(())
 }
 
@@ -2240,6 +2303,24 @@ fn process_elements(
             .map(|name| name.trim_end_matches("[x]").to_string())
             .collect();
 
+        // Collect summary fields ONLY for the root resource type (not backbone elements).
+        // Summary fields are used for _summary=true in REST API and only apply to top-level
+        // resource fields, not nested backbone element fields.
+        let summary_fields: Vec<String> = if path == *root_type_name {
+            group
+                .iter()
+                .filter(|e| e.is_summary == Some(true))
+                .filter_map(|e| e.path.rsplit('.').next())
+                .map(|name| {
+                    // Convert to Rust field name (snake_case), handling choice types
+                    let field_name = name.trim_end_matches("[x]");
+                    make_rust_safe(field_name)
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+
         // Add struct documentation
         if path == *root_type_name {
             // This is the root type, use the provided documentation
@@ -2273,13 +2354,19 @@ fn process_elements(
         ];
         output.push_str(&format!("#[derive({})]\n", derives.join(", ")));
 
-        // Add fhir_resource attribute if there are choice elements
-        if !choice_element_fields.is_empty() {
-            let choice_elements_str = choice_element_fields.join(",");
-            output.push_str(&format!(
-                "#[fhir_resource(choice_elements = \"{}\")]\n",
-                choice_elements_str
-            ));
+        // Add fhir_resource attribute if there are choice elements or summary fields
+        if !choice_element_fields.is_empty() || !summary_fields.is_empty() {
+            let mut attrs = Vec::new();
+            if !choice_element_fields.is_empty() {
+                attrs.push(format!(
+                    "choice_elements = \"{}\"",
+                    choice_element_fields.join(",")
+                ));
+            }
+            if !summary_fields.is_empty() {
+                attrs.push(format!("summary_fields = \"{}\"", summary_fields.join(",")));
+            }
+            output.push_str(&format!("#[fhir_resource({})]\n", attrs.join(", ")));
         }
 
         // Add other serde attributes and struct definition
