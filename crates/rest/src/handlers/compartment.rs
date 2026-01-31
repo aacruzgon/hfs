@@ -14,89 +14,46 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
+use helios_fhir::FhirVersion;
 use helios_persistence::core::{ResourceStorage, SearchProvider};
 use tracing::debug;
 
 use crate::error::{RestError, RestResult};
-use crate::extractors::{TenantExtractor, build_search_query_from_map};
+use crate::extractors::{FhirVersionExtractor, TenantExtractor, build_search_query_from_map};
 use crate::state::AppState;
 
-/// Compartment definitions mapping compartment types to their reference parameters.
+/// Returns compartment search parameters for a specific FHIR version.
 ///
-/// For example, the Patient compartment includes resources that reference Patient
-/// via parameters like "patient", "subject", "performer", etc.
-fn get_compartment_param(compartment_type: &str, target_type: &str) -> Option<&'static str> {
-    // Common compartment membership parameters based on FHIR compartment definitions
-    // See: https://hl7.org/fhir/compartmentdefinition-patient.html
-    match (compartment_type, target_type) {
-        // Patient compartment
-        ("Patient", "Observation") => Some("subject"),
-        ("Patient", "Condition") => Some("subject"),
-        ("Patient", "Procedure") => Some("subject"),
-        ("Patient", "Encounter") => Some("subject"),
-        ("Patient", "DiagnosticReport") => Some("subject"),
-        ("Patient", "MedicationRequest") => Some("subject"),
-        ("Patient", "MedicationStatement") => Some("subject"),
-        ("Patient", "Immunization") => Some("patient"),
-        ("Patient", "AllergyIntolerance") => Some("patient"),
-        ("Patient", "CarePlan") => Some("subject"),
-        ("Patient", "CareTeam") => Some("subject"),
-        ("Patient", "Claim") => Some("patient"),
-        ("Patient", "Coverage") => Some("beneficiary"),
-        ("Patient", "DocumentReference") => Some("subject"),
-        ("Patient", "Goal") => Some("subject"),
-        ("Patient", "ServiceRequest") => Some("subject"),
-        ("Patient", "Appointment") => Some("actor"),
-        ("Patient", "Communication") => Some("subject"),
-        ("Patient", "Consent") => Some("patient"),
-        ("Patient", "Device") => Some("patient"),
-        ("Patient", "FamilyMemberHistory") => Some("patient"),
-        ("Patient", "Flag") => Some("subject"),
-        ("Patient", "ImagingStudy") => Some("subject"),
-        ("Patient", "List") => Some("subject"),
-        ("Patient", "MeasureReport") => Some("subject"),
-        ("Patient", "NutritionOrder") => Some("patient"),
-        ("Patient", "QuestionnaireResponse") => Some("subject"),
-        ("Patient", "RelatedPerson") => Some("patient"),
-        ("Patient", "RiskAssessment") => Some("subject"),
-        ("Patient", "Schedule") => Some("actor"),
-        ("Patient", "Specimen") => Some("subject"),
-        ("Patient", "SupplyDelivery") => Some("patient"),
-        ("Patient", "SupplyRequest") => Some("subject"),
-        ("Patient", "VisionPrescription") => Some("patient"),
-
-        // Encounter compartment
-        ("Encounter", "Observation") => Some("encounter"),
-        ("Encounter", "Condition") => Some("encounter"),
-        ("Encounter", "Procedure") => Some("encounter"),
-        ("Encounter", "DiagnosticReport") => Some("encounter"),
-        ("Encounter", "MedicationRequest") => Some("encounter"),
-        ("Encounter", "DocumentReference") => Some("encounter"),
-        ("Encounter", "Communication") => Some("encounter"),
-        ("Encounter", "Composition") => Some("encounter"),
-
-        // Practitioner compartment
-        ("Practitioner", "Appointment") => Some("actor"),
-        ("Practitioner", "Encounter") => Some("participant"),
-        ("Practitioner", "Observation") => Some("performer"),
-        ("Practitioner", "Procedure") => Some("performer"),
-        ("Practitioner", "DiagnosticReport") => Some("performer"),
-        ("Practitioner", "MedicationRequest") => Some("requester"),
-        ("Practitioner", "CarePlan") => Some("author"),
-        ("Practitioner", "CareTeam") => Some("participant"),
-        ("Practitioner", "Communication") => Some("sender"),
-
-        // RelatedPerson compartment
-        ("RelatedPerson", "Observation") => Some("performer"),
-        ("RelatedPerson", "Procedure") => Some("performer"),
-        ("RelatedPerson", "Appointment") => Some("actor"),
-
-        // Device compartment
-        ("Device", "Observation") => Some("device"),
-        ("Device", "Procedure") => Some("device"),
-        ("Device", "DiagnosticReport") => Some("device"),
-
-        _ => None,
+/// This function dispatches to the version-specific generated compartment lookup
+/// functions in the helios_fhir crate. The compartment definitions are generated
+/// from the official FHIR CompartmentDefinition resources.
+///
+/// # Arguments
+///
+/// * `version` - The FHIR version to use for lookup
+/// * `compartment_type` - The compartment type (e.g., "Patient", "Encounter")
+/// * `resource_type` - The target resource type (e.g., "Observation")
+///
+/// # Returns
+///
+/// A static slice of search parameter names that link the resource to the compartment.
+/// Returns an empty slice if the resource is not a member of the compartment.
+fn get_compartment_params_for_version(
+    version: FhirVersion,
+    compartment_type: &str,
+    resource_type: &str,
+) -> &'static [&'static str] {
+    match version {
+        #[cfg(feature = "R4")]
+        FhirVersion::R4 => helios_fhir::r4::get_compartment_params(compartment_type, resource_type),
+        #[cfg(feature = "R4B")]
+        FhirVersion::R4B => {
+            helios_fhir::r4b::get_compartment_params(compartment_type, resource_type)
+        }
+        #[cfg(feature = "R5")]
+        FhirVersion::R5 => helios_fhir::r5::get_compartment_params(compartment_type, resource_type),
+        #[cfg(feature = "R6")]
+        FhirVersion::R6 => helios_fhir::r6::get_compartment_params(compartment_type, resource_type),
     }
 }
 
@@ -121,6 +78,7 @@ pub async fn compartment_search_handler<S>(
     State(state): State<AppState<S>>,
     Path((compartment_type, compartment_id, target_type)): Path<(String, String, String)>,
     tenant: TenantExtractor,
+    version: FhirVersionExtractor,
     Query(mut params): Query<HashMap<String, String>>,
 ) -> RestResult<Response>
 where
@@ -135,21 +93,27 @@ where
         "Processing compartment search request"
     );
 
-    // Get the reference parameter for this compartment/target combination
-    let ref_param = get_compartment_param(&compartment_type, &target_type).ok_or_else(|| {
-        RestError::BadRequest {
+    // Get the reference parameters for this compartment/target combination
+    let fhir_version = version.storage_version();
+    let ref_params =
+        get_compartment_params_for_version(fhir_version, &compartment_type, &target_type);
+
+    // Check if the resource type is a member of the compartment
+    if ref_params.is_empty() {
+        return Err(RestError::BadRequest {
             message: format!(
                 "Resource type '{}' is not a member of the '{}' compartment",
                 target_type, compartment_type
             ),
-        }
-    })?;
+        });
+    }
 
     // Build the compartment reference
     let compartment_ref = format!("{}/{}", compartment_type, compartment_id);
 
-    // Add the compartment reference to the search parameters
-    params.insert(ref_param.to_string(), compartment_ref);
+    // Add the first compartment reference parameter to the search parameters
+    // (the first parameter is typically the most specific one)
+    params.insert(ref_params[0].to_string(), compartment_ref);
 
     // Apply pagination limits
     apply_pagination_limits(
@@ -316,32 +280,54 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_get_compartment_param_patient_observation() {
-        assert_eq!(
-            get_compartment_param("Patient", "Observation"),
-            Some("subject")
-        );
+    fn test_get_compartment_params_patient_observation() {
+        // Test that Patient compartment includes Observation with subject and performer params
+        let params =
+            get_compartment_params_for_version(FhirVersion::default(), "Patient", "Observation");
+        assert!(!params.is_empty());
+        assert!(params.contains(&"subject"));
     }
 
     #[test]
-    fn test_get_compartment_param_patient_immunization() {
-        assert_eq!(
-            get_compartment_param("Patient", "Immunization"),
-            Some("patient")
-        );
+    fn test_get_compartment_params_patient_immunization() {
+        // Test that Patient compartment includes Immunization with patient param
+        let params =
+            get_compartment_params_for_version(FhirVersion::default(), "Patient", "Immunization");
+        assert!(!params.is_empty());
+        assert!(params.contains(&"patient"));
     }
 
     #[test]
-    fn test_get_compartment_param_encounter_procedure() {
-        assert_eq!(
-            get_compartment_param("Encounter", "Procedure"),
-            Some("encounter")
-        );
+    fn test_get_compartment_params_encounter_procedure() {
+        // Test that Encounter compartment includes Procedure with encounter param
+        let params =
+            get_compartment_params_for_version(FhirVersion::default(), "Encounter", "Procedure");
+        assert!(!params.is_empty());
+        assert!(params.contains(&"encounter"));
     }
 
     #[test]
-    fn test_get_compartment_param_unknown() {
-        assert_eq!(get_compartment_param("Patient", "UnknownType"), None);
+    fn test_get_compartment_params_unknown() {
+        // Test that unknown resource types return an empty slice
+        let params =
+            get_compartment_params_for_version(FhirVersion::default(), "Patient", "UnknownType");
+        assert!(params.is_empty());
+    }
+
+    #[test]
+    fn test_get_compartment_params_multiple() {
+        // Test that some resources have multiple compartment params
+        // AllergyIntolerance in Patient compartment has: patient, recorder, asserter
+        let params = get_compartment_params_for_version(
+            FhirVersion::default(),
+            "Patient",
+            "AllergyIntolerance",
+        );
+        assert!(
+            params.len() >= 2,
+            "Expected multiple params for AllergyIntolerance"
+        );
+        assert!(params.contains(&"patient"));
     }
 
     #[test]

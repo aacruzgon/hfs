@@ -102,6 +102,10 @@ fn main() {
     // Delete the zip file after extraction
     fs::remove_file(output_path).expect("Failed to delete zip file");
 
+    // Verify compartment definitions are present (they should be in the downloaded zip)
+    verify_compartment_definitions(&resources_dir)
+        .expect("Failed to verify compartment definitions");
+
     // Insert ViewDefinition into profiles-resources.json
     insert_view_definition(&resources_dir).expect("Failed to insert ViewDefinition");
 
@@ -215,6 +219,71 @@ fn save_download_metadata(resources_dir: &Path) -> Result<(), Box<dyn std::error
 
     fs::write(metadata_path, serde_json::to_string_pretty(&metadata)?)?;
     println!("Saved download metadata");
+
+    Ok(())
+}
+
+/// Verifies that compartment definition files are present after extraction.
+///
+/// The compartment definitions are included in the definitions.json.zip from HL7.
+/// This function ensures they were extracted properly and logs which ones are found.
+/// The code generator uses these files to generate the `get_compartment_params` function.
+fn verify_compartment_definitions(resources_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    // Expected compartment definitions in R6
+    // Note: R6 has Group compartment but not Questionnaire (unlike R4/R4B/R5)
+    let expected_compartments = [
+        "compartmentdefinition-device.json",
+        "compartmentdefinition-encounter.json",
+        "compartmentdefinition-group.json",
+        "compartmentdefinition-patient.json",
+        "compartmentdefinition-practitioner.json",
+        "compartmentdefinition-relatedperson.json",
+    ];
+
+    let mut found_count = 0;
+    let mut missing = Vec::new();
+
+    for compartment in &expected_compartments {
+        let path = resources_dir.join(compartment);
+        if path.exists() {
+            found_count += 1;
+            println!("Found compartment definition: {}", compartment);
+        } else {
+            missing.push(*compartment);
+        }
+    }
+
+    println!(
+        "Verified {}/{} expected compartment definitions",
+        found_count,
+        expected_compartments.len()
+    );
+
+    if !missing.is_empty() {
+        // Log warning but don't fail - HL7 may change compartment definitions over time
+        println!(
+            "cargo:warning=Missing compartment definitions (may indicate spec change): {:?}",
+            missing
+        );
+    }
+
+    // Also check for any additional compartment definitions we didn't expect
+    if let Ok(entries) = fs::read_dir(resources_dir) {
+        for entry in entries.flatten() {
+            let filename = entry.file_name();
+            let filename_str = filename.to_string_lossy();
+            if filename_str.starts_with("compartmentdefinition-")
+                && filename_str.ends_with(".json")
+                && !filename_str.contains("example")
+                && !expected_compartments.contains(&filename_str.as_ref())
+            {
+                println!(
+                    "cargo:warning=Found unexpected compartment definition: {}",
+                    filename_str
+                );
+            }
+        }
+    }
 
     Ok(())
 }

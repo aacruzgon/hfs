@@ -33,7 +33,7 @@
 
 pub mod initial_fhir_model;
 
-use crate::initial_fhir_model::{Bundle, Resource};
+use crate::initial_fhir_model::{Bundle, CompartmentDefinition, Resource};
 use helios_fhir::FhirVersion;
 use initial_fhir_model::ElementDefinition;
 use initial_fhir_model::StructureDefinition;
@@ -394,12 +394,16 @@ fn process_single_version(version: &FhirVersion, output_path: impl AsRef<Path>) 
     all_complex_types.sort();
     all_complex_types.dedup();
 
+    // Load compartment definitions for this version
+    let compartment_definitions = load_compartment_definitions(&version_dir);
+
     // Generate global constructs once at the end
     generate_global_constructs(
         &version_path,
         &global_type_hierarchy,
         &all_resources,
         &all_complex_types,
+        &compartment_definitions,
     )?;
 
     Ok(())
@@ -632,6 +636,7 @@ fn generate_global_constructs(
     type_hierarchy: &std::collections::HashMap<String, String>,
     all_resources: &[String],
     all_complex_types: &[String],
+    compartment_definitions: &[CompartmentDefinition],
 ) -> io::Result<()> {
     let mut file = std::fs::OpenOptions::new()
         .create(true)
@@ -773,6 +778,176 @@ fn generate_global_constructs(
         writeln!(file, "    }}")?;
         writeln!(file, "}}")?;
     }
+
+    // Generate compartment params lookup
+    generate_compartment_lookup(&mut file, compartment_definitions)?;
+
+    Ok(())
+}
+
+/// Loads compartment definition files from a version directory.
+///
+/// This function reads standalone CompartmentDefinition JSON files from the
+/// resources directory. It filters out example files and returns the parsed
+/// definitions sorted by compartment code for deterministic output.
+///
+/// # Arguments
+///
+/// * `version_dir` - Path to the version-specific resources directory
+///
+/// # Returns
+///
+/// A vector of CompartmentDefinition structs sorted by code.
+fn load_compartment_definitions(version_dir: &Path) -> Vec<CompartmentDefinition> {
+    let mut compartments = Vec::new();
+
+    if let Ok(entries) = std::fs::read_dir(version_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if let Some(filename) = path.file_name().and_then(|f| f.to_str()) {
+                // Only load compartmentdefinition-*.json files, excluding example
+                if filename.starts_with("compartmentdefinition-")
+                    && filename.ends_with(".json")
+                    && !filename.contains("example")
+                {
+                    if let Ok(file) = File::open(&path) {
+                        let reader = BufReader::new(file);
+                        match serde_json::from_reader::<_, CompartmentDefinition>(reader) {
+                            Ok(def) => compartments.push(def),
+                            Err(e) => {
+                                eprintln!(
+                                    "Warning: Failed to parse compartment definition {}: {}",
+                                    path.display(),
+                                    e
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Sort by compartment code for deterministic output
+    compartments.sort_by(|a, b| a.code.cmp(&b.code));
+    compartments
+}
+
+/// Generates the compartment params lookup function.
+///
+/// This function creates a `get_compartment_params` function that returns the
+/// search parameters that link a resource type to a specific compartment type.
+/// This is used for compartment-based searches in the FHIR REST API.
+///
+/// # Arguments
+///
+/// * `file` - The file to write the generated code to
+/// * `compartments` - The compartment definitions to generate code from
+///
+/// # Returns
+///
+/// Returns `Ok(())` on success, or an `io::Error` if writing fails.
+fn generate_compartment_lookup(
+    file: &mut File,
+    compartments: &[CompartmentDefinition],
+) -> io::Result<()> {
+    if compartments.is_empty() {
+        return Ok(());
+    }
+
+    writeln!(file, "\n// --- Compartment Params Lookup ---")?;
+    writeln!(
+        file,
+        "/// Returns search parameters linking a resource to a compartment."
+    )?;
+    writeln!(file, "///")?;
+    writeln!(
+        file,
+        "/// Compartment search allows finding all resources related to a specific"
+    )?;
+    writeln!(
+        file,
+        "/// resource, such as all Observations for a specific Patient. This function"
+    )?;
+    writeln!(
+        file,
+        "/// returns the search parameters that can be used to filter resources for"
+    )?;
+    writeln!(file, "/// inclusion in a compartment.")?;
+    writeln!(file, "///")?;
+    writeln!(file, "/// # Arguments")?;
+    writeln!(file, "///")?;
+    writeln!(
+        file,
+        "/// * `compartment_type` - The compartment type (e.g., \"Patient\", \"Encounter\")"
+    )?;
+    writeln!(
+        file,
+        "/// * `resource_type` - The FHIR resource type name (e.g., \"Observation\")"
+    )?;
+    writeln!(file, "///")?;
+    writeln!(file, "/// # Returns")?;
+    writeln!(file, "///")?;
+    writeln!(
+        file,
+        "/// A static slice of search parameter names that link the resource to the compartment."
+    )?;
+    writeln!(
+        file,
+        "/// Returns an empty slice if the resource is not a member of the compartment."
+    )?;
+    writeln!(file, "///")?;
+    writeln!(file, "/// # Examples")?;
+    writeln!(file, "///")?;
+    writeln!(file, "/// ```ignore")?;
+    writeln!(
+        file,
+        "/// let params = get_compartment_params(\"Patient\", \"Observation\");"
+    )?;
+    writeln!(
+        file,
+        "/// assert_eq!(params, &[\"subject\", \"performer\"]);"
+    )?;
+    writeln!(file, "/// ```")?;
+    writeln!(
+        file,
+        "pub fn get_compartment_params(compartment_type: &str, resource_type: &str) -> &'static [&'static str] {{"
+    )?;
+    writeln!(file, "    match compartment_type {{")?;
+
+    for compartment in compartments {
+        writeln!(
+            file,
+            "        \"{}\" => match resource_type {{",
+            compartment.code
+        )?;
+
+        if let Some(resources) = &compartment.resource {
+            // Filter to only resources that have params
+            let resources_with_params: Vec<_> = resources
+                .iter()
+                .filter(|r| r.param.as_ref().is_some_and(|p| !p.is_empty()))
+                .collect();
+
+            for res in resources_with_params {
+                if let Some(params) = &res.param {
+                    let params_str = params
+                        .iter()
+                        .map(|p| format!("\"{}\"", p))
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    writeln!(file, "            \"{}\" => &[{}],", res.code, params_str)?;
+                }
+            }
+        }
+
+        writeln!(file, "            _ => &[],")?;
+        writeln!(file, "        }},")?;
+    }
+
+    writeln!(file, "        _ => &[],")?;
+    writeln!(file, "    }}")?;
+    writeln!(file, "}}")?;
 
     Ok(())
 }
