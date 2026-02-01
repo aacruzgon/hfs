@@ -517,6 +517,7 @@ fn visit_dirs(dir: &Path) -> io::Result<Vec<PathBuf>> {
                             && !filename.contains("valueset")
                             && !filename.contains("bundle-entry")
                             && !filename.contains("download_metadata")
+                            && !filename.contains("compartmentdefinition")
                         {
                             json_files.push(path);
                         }
