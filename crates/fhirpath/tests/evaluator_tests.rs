@@ -1948,6 +1948,76 @@ fn test_function_conversion_converts_to_quantity() {
     assert!(eval("(1 | 2).convertsToQuantity()", &context).is_err()); // This assertion is now correct
 }
 
+// Spec: https://hl7.org/fhirpath/2025Jan/#comparableother--quantity--boolean
+// Related: https://jira.hl7.org/browse/FHIR-53957 (implicit conversion from integer to quantity)
+#[test]
+fn test_function_comparable() {
+    let context = EvaluationContext::new_empty_with_default_version();
+
+    // Basic quantity comparisons
+    assert_eq!(
+        eval("1 'cm'.comparable(1 '[in_i]')", &context).unwrap(),
+        EvaluationResult::boolean(true)
+    );
+    assert_eq!(
+        eval("1 'cm'.comparable(1 's')", &context).unwrap(),
+        EvaluationResult::boolean(false)
+    );
+    assert_eq!(
+        eval("1 'mg'.comparable(1 'g')", &context).unwrap(),
+        EvaluationResult::boolean(true)
+    );
+
+    // Implicit conversion from integer to quantity (FHIR-53957)
+    // Integer is implicitly converted to quantity with unit '1'
+    assert_eq!(
+        eval("1 '1'.comparable(2)", &context).unwrap(),
+        EvaluationResult::boolean(true)
+    );
+    assert_eq!(
+        eval("2.comparable(1 '1')", &context).unwrap(),
+        EvaluationResult::boolean(true)
+    );
+    assert_eq!(
+        eval("1.comparable(2)", &context).unwrap(),
+        EvaluationResult::boolean(true)
+    );
+
+    // Implicit conversion from decimal to quantity
+    assert_eq!(
+        eval("1.5 '1'.comparable(2.5)", &context).unwrap(),
+        EvaluationResult::boolean(true)
+    );
+    assert_eq!(
+        eval("2.5.comparable(1.5 '1')", &context).unwrap(),
+        EvaluationResult::boolean(true)
+    );
+
+    // Integer/Decimal not comparable with units other than '1'
+    assert_eq!(
+        eval("1 'cm'.comparable(2)", &context).unwrap(),
+        EvaluationResult::boolean(false)
+    );
+    assert_eq!(
+        eval("2.comparable(1 'cm')", &context).unwrap(),
+        EvaluationResult::boolean(false)
+    );
+
+    // Empty propagation
+    assert_eq!(
+        eval("{}.comparable(1 'cm')", &context).unwrap(),
+        EvaluationResult::Empty
+    );
+    assert_eq!(
+        eval("1 'cm'.comparable({})", &context).unwrap(),
+        EvaluationResult::Empty
+    );
+
+    // Multi-item collections should error
+    assert!(eval("(1 'cm' | 2 'cm').comparable(1 'm')", &context).is_err());
+    assert!(eval("1 'cm'.comparable((1 'm' | 2 'm'))", &context).is_err());
+}
+
 // --- String Manipulation ---
 // Spec: https://hl7.org/fhirpath/2025Jan/#indexofsubstring--string--integer
 #[test]

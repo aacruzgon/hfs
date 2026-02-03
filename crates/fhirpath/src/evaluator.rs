@@ -4017,17 +4017,32 @@ fn call_function(
                 ));
             }
 
+            // Helper to convert Integer/Decimal to Quantity with unit '1' (implicit conversion)
+            fn to_quantity_unit(result: &EvaluationResult) -> Option<String> {
+                match result {
+                    EvaluationResult::Quantity(_, unit, _) => Some(unit.clone()),
+                    EvaluationResult::Integer(_, _) | EvaluationResult::Decimal(_, _) => {
+                        Some("1".to_string())
+                    }
+                    _ => None,
+                }
+            }
+
             Ok(match (invocation_base, &args[0]) {
                 (EvaluationResult::Empty, _) | (_, EvaluationResult::Empty) => {
                     EvaluationResult::Empty
                 }
-                (
-                    EvaluationResult::Quantity(_, unit1, _),
-                    EvaluationResult::Quantity(_, unit2, _),
-                ) => EvaluationResult::boolean(crate::ucum::units_are_comparable(unit1, unit2)),
                 _ => {
-                    // Non-quantity types are not comparable in the UCUM sense
-                    EvaluationResult::boolean(false)
+                    // Try to get units from both operands (with implicit conversion for Integer/Decimal)
+                    match (to_quantity_unit(invocation_base), to_quantity_unit(&args[0])) {
+                        (Some(unit1), Some(unit2)) => {
+                            EvaluationResult::boolean(crate::ucum::units_are_comparable(&unit1, &unit2))
+                        }
+                        _ => {
+                            // Non-quantity types that can't be implicitly converted are not comparable
+                            EvaluationResult::boolean(false)
+                        }
+                    }
                 }
             })
         }
