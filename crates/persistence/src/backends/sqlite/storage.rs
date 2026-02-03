@@ -482,13 +482,13 @@ impl SqliteBackend {
             }
             Err(e) => {
                 tracing::warn!(
-                    "Dynamic extraction failed for {}/{}, falling back to hardcoded: {}",
+                    "Dynamic extraction failed for {}/{}: {}. Using minimal fallback (_id, _lastUpdated only).",
                     resource_type,
                     resource_id,
                     e
                 );
-                // Fall back to hardcoded extraction for common parameters
-                self.index_common_params(conn, tenant_id, resource_type, resource_id, resource)?;
+                // Fall back to minimal extraction (just _id and _lastUpdated)
+                self.index_minimal_fallback(conn, tenant_id, resource_type, resource_id, resource)?;
             }
         }
 
@@ -680,8 +680,12 @@ impl SqliteBackend {
         Ok(())
     }
 
-    /// Index common search parameters that exist across most resources.
-    fn index_common_params(
+    /// Index minimal fallback search parameters.
+    ///
+    /// This only indexes `_id` and `_lastUpdated` - the essential Resource-level
+    /// parameters that should always work. Used when dynamic extraction fails
+    /// and spec files are not available.
+    fn index_minimal_fallback(
         &self,
         conn: &rusqlite::Connection,
         tenant_id: &str,
@@ -689,147 +693,27 @@ impl SqliteBackend {
         resource_id: &str,
         resource: &Value,
     ) -> StorageResult<()> {
-        // Index identifier (token)
-        if let Some(identifiers) = resource.get("identifier").and_then(|v| v.as_array()) {
-            for identifier in identifiers {
-                let system = identifier.get("system").and_then(|v| v.as_str());
-                let value = identifier.get("value").and_then(|v| v.as_str());
-                if let Some(val) = value {
-                    self.insert_token_index(
-                        conn,
-                        tenant_id,
-                        resource_type,
-                        resource_id,
-                        "identifier",
-                        system,
-                        val,
-                    )?;
-                }
-            }
+        // _id - always available from resource.id
+        if let Some(id) = resource.get("id").and_then(|v| v.as_str()) {
+            self.insert_token_index(conn, tenant_id, resource_type, resource_id, "_id", None, id)?;
         }
 
-        // Index name for Patient, Practitioner, etc. (string)
-        if let Some(names) = resource.get("name").and_then(|v| v.as_array()) {
-            for name in names {
-                // Family name
-                if let Some(family) = name.get("family").and_then(|v| v.as_str()) {
-                    self.insert_string_index(
-                        conn,
-                        tenant_id,
-                        resource_type,
-                        resource_id,
-                        "family",
-                        family,
-                    )?;
-                    self.insert_string_index(
-                        conn,
-                        tenant_id,
-                        resource_type,
-                        resource_id,
-                        "name",
-                        family,
-                    )?;
-                }
-                // Given names
-                if let Some(given) = name.get("given").and_then(|v| v.as_array()) {
-                    for g in given {
-                        if let Some(gname) = g.as_str() {
-                            self.insert_string_index(
-                                conn,
-                                tenant_id,
-                                resource_type,
-                                resource_id,
-                                "given",
-                                gname,
-                            )?;
-                            self.insert_string_index(
-                                conn,
-                                tenant_id,
-                                resource_type,
-                                resource_id,
-                                "name",
-                                gname,
-                            )?;
-                        }
-                    }
-                }
-            }
-        }
-
-        // Index code/coding (token) - common in many resources
-        if let Some(code) = resource.get("code") {
-            self.index_codeable_concept(conn, tenant_id, resource_type, resource_id, "code", code)?;
-        }
-
-        // Index status (token)
-        if let Some(status) = resource.get("status").and_then(|v| v.as_str()) {
-            self.insert_token_index(
-                conn,
-                tenant_id,
-                resource_type,
-                resource_id,
-                "status",
-                None,
-                status,
-            )?;
-        }
-
-        // Index subject/patient reference
-        if let Some(subject) = resource.get("subject") {
-            self.index_reference(
-                conn,
-                tenant_id,
-                resource_type,
-                resource_id,
-                "subject",
-                subject,
-            )?;
-        }
-        if let Some(patient) = resource.get("patient") {
-            self.index_reference(
-                conn,
-                tenant_id,
-                resource_type,
-                resource_id,
-                "patient",
-                patient,
-            )?;
-        }
-
-        // Index date fields
-        if let Some(date) = resource.get("date").and_then(|v| v.as_str()) {
-            self.insert_date_index(conn, tenant_id, resource_type, resource_id, "date", date)?;
-        }
-        if let Some(date) = resource.get("birthDate").and_then(|v| v.as_str()) {
+        // _lastUpdated - from resource.meta.lastUpdated
+        if let Some(last_updated) = resource
+            .get("meta")
+            .and_then(|m| m.get("lastUpdated"))
+            .and_then(|v| v.as_str())
+        {
             self.insert_date_index(
                 conn,
                 tenant_id,
                 resource_type,
                 resource_id,
-                "birthdate",
-                date,
+                "_lastUpdated",
+                last_updated,
             )?;
         }
 
-        Ok(())
-    }
-
-    /// Insert a string index entry.
-    fn insert_string_index(
-        &self,
-        conn: &rusqlite::Connection,
-        tenant_id: &str,
-        resource_type: &str,
-        resource_id: &str,
-        param_name: &str,
-        value: &str,
-    ) -> StorageResult<()> {
-        conn.execute(
-            "INSERT INTO search_index (tenant_id, resource_type, resource_id, param_name, value_string)
-             VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![tenant_id, resource_type, resource_id, param_name, value.to_lowercase()],
-        )
-        .map_err(|e| internal_error(format!("Failed to insert string index: {}", e)))?;
         Ok(())
     }
 
@@ -887,94 +771,6 @@ impl SqliteBackend {
             params![tenant_id, resource_type, resource_id, param_name, normalized],
         )
         .map_err(|e| internal_error(format!("Failed to insert date index: {}", e)))?;
-        Ok(())
-    }
-
-    /// Insert a reference index entry.
-    fn insert_reference_index(
-        &self,
-        conn: &rusqlite::Connection,
-        tenant_id: &str,
-        resource_type: &str,
-        resource_id: &str,
-        param_name: &str,
-        reference: &str,
-    ) -> StorageResult<()> {
-        conn.execute(
-            "INSERT INTO search_index (tenant_id, resource_type, resource_id, param_name, value_reference)
-             VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![tenant_id, resource_type, resource_id, param_name, reference],
-        )
-        .map_err(|e| internal_error(format!("Failed to insert reference index: {}", e)))?;
-        Ok(())
-    }
-
-    /// Index a CodeableConcept or Coding.
-    fn index_codeable_concept(
-        &self,
-        conn: &rusqlite::Connection,
-        tenant_id: &str,
-        resource_type: &str,
-        resource_id: &str,
-        param_name: &str,
-        value: &Value,
-    ) -> StorageResult<()> {
-        // Check for coding array (CodeableConcept)
-        if let Some(codings) = value.get("coding").and_then(|v| v.as_array()) {
-            for coding in codings {
-                let system = coding.get("system").and_then(|v| v.as_str());
-                let code = coding.get("code").and_then(|v| v.as_str());
-                if let Some(c) = code {
-                    self.insert_token_index(
-                        conn,
-                        tenant_id,
-                        resource_type,
-                        resource_id,
-                        param_name,
-                        system,
-                        c,
-                    )?;
-                }
-            }
-        }
-        // Check for direct Coding
-        else if let (Some(code), system) = (
-            value.get("code").and_then(|v| v.as_str()),
-            value.get("system").and_then(|v| v.as_str()),
-        ) {
-            self.insert_token_index(
-                conn,
-                tenant_id,
-                resource_type,
-                resource_id,
-                param_name,
-                system,
-                code,
-            )?;
-        }
-        Ok(())
-    }
-
-    /// Index a Reference.
-    fn index_reference(
-        &self,
-        conn: &rusqlite::Connection,
-        tenant_id: &str,
-        resource_type: &str,
-        resource_id: &str,
-        param_name: &str,
-        value: &Value,
-    ) -> StorageResult<()> {
-        if let Some(reference) = value.get("reference").and_then(|v| v.as_str()) {
-            self.insert_reference_index(
-                conn,
-                tenant_id,
-                resource_type,
-                resource_id,
-                param_name,
-                reference,
-            )?;
-        }
         Ok(())
     }
 }
@@ -3238,9 +3034,24 @@ mod tests {
     use crate::core::history::HistoryParams;
     use crate::tenant::{TenantId, TenantPermissions};
     use serde_json::json;
+    use std::path::PathBuf;
+
+    use crate::backends::sqlite::SqliteBackendConfig;
 
     fn create_test_backend() -> SqliteBackend {
-        let backend = SqliteBackend::in_memory().unwrap();
+        // Configure with data directory to load spec SearchParameters
+        // Use the workspace root data directory
+        let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .and_then(|p| p.parent())
+            .map(|p| p.join("data"))
+            .unwrap_or_else(|| PathBuf::from("data"));
+
+        let config = SqliteBackendConfig {
+            data_dir: Some(data_dir),
+            ..Default::default()
+        };
+        let backend = SqliteBackend::with_config(":memory:", config).unwrap();
         backend.init_schema().unwrap();
         backend
     }

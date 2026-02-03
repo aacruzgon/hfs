@@ -2,10 +2,12 @@
 //!
 //! These tests verify the SQLite backend implementation against the actual API.
 
+use std::path::PathBuf;
+
 use helios_fhir::FhirVersion;
 use serde_json::json;
 
-use helios_persistence::backends::sqlite::SqliteBackend;
+use helios_persistence::backends::sqlite::{SqliteBackend, SqliteBackendConfig};
 use helios_persistence::core::ResourceStorage;
 use helios_persistence::core::history::{
     HistoryMethod, HistoryParams, InstanceHistoryProvider, SystemHistoryProvider,
@@ -15,7 +17,20 @@ use helios_persistence::error::{ResourceError, StorageError};
 use helios_persistence::tenant::{TenantContext, TenantId, TenantPermissions};
 
 fn create_backend() -> SqliteBackend {
-    let backend = SqliteBackend::in_memory().expect("Failed to create SQLite backend");
+    // Configure with data directory to load spec SearchParameters
+    // CARGO_MANIFEST_DIR for tests is crates/persistence
+    let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(|p| p.parent())
+        .map(|p| p.join("data"))
+        .unwrap_or_else(|| PathBuf::from("data"));
+
+    let config = SqliteBackendConfig {
+        data_dir: Some(data_dir),
+        ..Default::default()
+    };
+    let backend =
+        SqliteBackend::with_config(":memory:", config).expect("Failed to create SQLite backend");
     backend.init_schema().expect("Failed to initialize schema");
     backend
 }

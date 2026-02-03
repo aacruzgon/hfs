@@ -1,7 +1,7 @@
 //! SQLite backend implementation.
 
 use std::fmt::Debug;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -69,6 +69,16 @@ pub struct SqliteBackendConfig {
     /// Enable foreign key constraints.
     #[serde(default = "default_true")]
     pub enable_foreign_keys: bool,
+
+    /// FHIR version for this backend instance.
+    /// Used to load the appropriate SearchParameter definitions.
+    #[serde(default)]
+    pub fhir_version: FhirVersion,
+
+    /// Directory containing FHIR SearchParameter spec files.
+    /// If None, defaults to "./data" or the directory containing the executable.
+    #[serde(default)]
+    pub data_dir: Option<PathBuf>,
 }
 
 fn default_max_connections() -> u32 {
@@ -100,6 +110,8 @@ impl Default for SqliteBackendConfig {
             busy_timeout_ms: default_busy_timeout_ms(),
             enable_wal: true,
             enable_foreign_keys: true,
+            fhir_version: FhirVersion::default(),
+            data_dir: None,
         }
     }
 }
@@ -149,18 +161,89 @@ impl SqliteBackend {
                 })
             })?;
 
-        // Initialize the search parameter registry with embedded R4 parameters
+        // Initialize the search parameter registry
         let search_registry = Arc::new(RwLock::new(SearchParameterRegistry::new()));
         {
-            let loader = SearchParameterLoader::new(FhirVersion::R4);
-            if let Ok(params) = loader.load_embedded() {
-                let mut registry = search_registry.write();
-                for param in params {
-                    // Ignore duplicate errors during initial load
-                    let _ = registry.register(param);
+            let loader = SearchParameterLoader::new(config.fhir_version);
+            let mut registry = search_registry.write();
+
+            // 1. Load minimal embedded fallback params (always available)
+            match loader.load_embedded() {
+                Ok(params) => {
+                    let count = params.len();
+                    for param in params {
+                        let _ = registry.register(param);
+                    }
+                    tracing::debug!("Loaded {} minimal fallback SearchParameters", count);
                 }
-                tracing::info!("Loaded {} search parameters into registry", registry.len());
+                Err(e) => {
+                    tracing::error!("Failed to load embedded SearchParameters: {}", e);
+                }
             }
+
+            // 2. Load spec file params (may fail if file missing)
+            let data_dir = config
+                .data_dir
+                .clone()
+                .unwrap_or_else(|| PathBuf::from("./data"));
+            match loader.load_from_spec_file(&data_dir) {
+                Ok(params) => {
+                    let count = params.len();
+                    let mut registered = 0;
+                    for param in params {
+                        if registry.register(param).is_ok() {
+                            registered += 1;
+                        }
+                    }
+                    tracing::info!(
+                        "Loaded {} spec SearchParameters from {} ({} new)",
+                        count,
+                        data_dir.display(),
+                        registered
+                    );
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        "Could not load spec SearchParameters from {}: {}. Using minimal fallback.",
+                        data_dir.display(),
+                        e
+                    );
+                }
+            }
+
+            // 3. Load custom SearchParameters from data directory (optional)
+            match loader.load_custom_from_directory(&data_dir) {
+                Ok(params) => {
+                    if !params.is_empty() {
+                        let count = params.len();
+                        let mut registered = 0;
+                        for param in params {
+                            if registry.register(param).is_ok() {
+                                registered += 1;
+                            }
+                        }
+                        tracing::info!(
+                            "Loaded {} custom SearchParameters from {} ({} new)",
+                            count,
+                            data_dir.display(),
+                            registered
+                        );
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        "Error loading custom SearchParameters from {}: {}",
+                        data_dir.display(),
+                        e
+                    );
+                }
+            }
+
+            tracing::info!(
+                "SearchParameter registry initialized with {} parameters for {:?}",
+                registry.len(),
+                config.fhir_version
+            );
         }
         let search_extractor = Arc::new(SearchParameterExtractor::new(search_registry.clone()));
 
@@ -179,9 +262,93 @@ impl SqliteBackend {
     }
 
     /// Initialize the database schema.
+    ///
+    /// This also loads any stored SearchParameter resources from the database
+    /// into the registry.
     pub fn init_schema(&self) -> StorageResult<()> {
         let conn = self.get_connection()?;
-        schema::initialize_schema(&conn)
+        schema::initialize_schema(&conn)?;
+
+        // Load stored (POSTed) SearchParameters from database
+        let stored_count = self.load_stored_search_parameters()?;
+        if stored_count > 0 {
+            tracing::info!(
+                "Loaded {} stored SearchParameters from database",
+                stored_count
+            );
+        }
+
+        Ok(())
+    }
+
+    /// Loads SearchParameter resources stored in the database into the registry.
+    ///
+    /// This is called during schema initialization to restore any custom
+    /// SearchParameters that were POSTed to the server.
+    fn load_stored_search_parameters(&self) -> StorageResult<usize> {
+        use crate::search::registry::{SearchParameterSource, SearchParameterStatus};
+
+        let conn = self.get_connection()?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT data FROM resources WHERE resource_type = 'SearchParameter' AND is_deleted = 0",
+            )
+            .map_err(|e| {
+                crate::error::StorageError::Backend(BackendError::Internal {
+                    backend_name: "sqlite".to_string(),
+                    message: format!("Failed to prepare SearchParameter query: {}", e),
+                    source: None,
+                })
+            })?;
+
+        let loader = SearchParameterLoader::new(self.config.fhir_version);
+        let mut registry = self.search_registry.write();
+        let mut count = 0;
+
+        let rows = stmt
+            .query_map([], |row| row.get::<_, Vec<u8>>(0))
+            .map_err(|e| {
+                crate::error::StorageError::Backend(BackendError::Internal {
+                    backend_name: "sqlite".to_string(),
+                    message: format!("Failed to query SearchParameters: {}", e),
+                    source: None,
+                })
+            })?;
+
+        for row in rows {
+            let data = match row {
+                Ok(data) => data,
+                Err(e) => {
+                    tracing::warn!("Failed to read SearchParameter row: {}", e);
+                    continue;
+                }
+            };
+
+            let json: serde_json::Value = match serde_json::from_slice(&data) {
+                Ok(json) => json,
+                Err(e) => {
+                    tracing::warn!("Failed to parse SearchParameter JSON: {}", e);
+                    continue;
+                }
+            };
+
+            match loader.parse_resource(&json) {
+                Ok(mut def) => {
+                    // Only register active parameters
+                    if def.status == SearchParameterStatus::Active {
+                        def.source = SearchParameterSource::Stored;
+                        if registry.register(def).is_ok() {
+                            count += 1;
+                        }
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to parse stored SearchParameter: {}", e);
+                }
+            }
+        }
+
+        Ok(count)
     }
 
     /// Get a connection from the pool.

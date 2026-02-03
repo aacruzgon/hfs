@@ -7,7 +7,7 @@ use helios_rest::{ServerConfig, create_app_with_config, init_logging};
 use tracing::info;
 
 #[cfg(feature = "sqlite")]
-use helios_persistence::backends::sqlite::SqliteBackend;
+use helios_persistence::backends::sqlite::{SqliteBackend, SqliteBackendConfig};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -24,6 +24,7 @@ async fn main() -> anyhow::Result<()> {
     info!(
         port = config.port,
         host = %config.host,
+        fhir_version = ?config.default_fhir_version,
         "Starting Helios FHIR Server"
     );
 
@@ -32,10 +33,17 @@ async fn main() -> anyhow::Result<()> {
         let db_path = config.database_url.as_deref().unwrap_or("fhir.db");
         info!(database = %db_path, "Initializing SQLite backend");
 
+        // Configure the backend with FHIR version and data directory
+        let backend_config = SqliteBackendConfig {
+            fhir_version: config.default_fhir_version,
+            data_dir: config.data_dir.clone(),
+            ..Default::default()
+        };
+
         let backend = if db_path == ":memory:" {
-            SqliteBackend::in_memory()?
+            SqliteBackend::with_config(":memory:", backend_config)?
         } else {
-            SqliteBackend::open(db_path)?
+            SqliteBackend::with_config(db_path, backend_config)?
         };
         backend.init_schema()?;
         backend

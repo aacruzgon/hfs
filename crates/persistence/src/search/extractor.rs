@@ -309,13 +309,33 @@ mod tests {
     use crate::search::loader::SearchParameterLoader;
     use helios_fhir::FhirVersion;
     use serde_json::json;
+    use std::path::PathBuf;
 
     fn create_test_extractor() -> SearchParameterExtractor {
         let loader = SearchParameterLoader::new(FhirVersion::R4);
         let mut registry = SearchParameterRegistry::new();
-        let _ = tokio::runtime::Runtime::new()
-            .unwrap()
-            .block_on(async { registry.load_all(&loader).await });
+
+        // Load minimal fallback
+        if let Ok(params) = loader.load_embedded() {
+            for param in params {
+                let _ = registry.register(param);
+            }
+        }
+
+        // Load spec file for full parameter support
+        // CARGO_MANIFEST_DIR for this crate is crates/persistence
+        // We need to go up two levels to reach the workspace root
+        let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .and_then(|p| p.parent())
+            .map(|p| p.join("data"))
+            .unwrap_or_else(|| PathBuf::from("data"));
+
+        if let Ok(params) = loader.load_from_spec_file(&data_dir) {
+            for param in params {
+                let _ = registry.register(param);
+            }
+        }
 
         SearchParameterExtractor::new(Arc::new(RwLock::new(registry)))
     }

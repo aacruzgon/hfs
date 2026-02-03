@@ -13,12 +13,13 @@
 
 mod common;
 
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use axum::http::{HeaderName, HeaderValue, StatusCode};
 use axum_test::TestServer;
 use helios_fhir::FhirVersion;
-use helios_persistence::backends::sqlite::SqliteBackend;
+use helios_persistence::backends::sqlite::{SqliteBackend, SqliteBackendConfig};
 use helios_persistence::core::ResourceStorage;
 use helios_persistence::tenant::{TenantContext, TenantId, TenantPermissions};
 use helios_rest::ServerConfig;
@@ -32,7 +33,19 @@ const CONTENT_TYPE: HeaderName = HeaderName::from_static("content-type");
 
 /// Creates a test server with search capability.
 async fn create_test_server() -> (TestServer, Arc<SqliteBackend>) {
-    let backend = SqliteBackend::in_memory().expect("Failed to create SQLite backend");
+    // Configure with data directory to load spec SearchParameters
+    let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(|p| p.parent())
+        .map(|p| p.join("data"))
+        .unwrap_or_else(|| PathBuf::from("data"));
+
+    let backend_config = SqliteBackendConfig {
+        data_dir: Some(data_dir),
+        ..Default::default()
+    };
+    let backend = SqliteBackend::with_config(":memory:", backend_config)
+        .expect("Failed to create SQLite backend");
     backend.init_schema().expect("Failed to init schema");
     let backend = Arc::new(backend);
 

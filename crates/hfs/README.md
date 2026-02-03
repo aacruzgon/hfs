@@ -57,6 +57,8 @@ Options:
       --log-level <LOG_LEVEL>    Log level (error, warn, info, debug, trace)
                                  [env: REST_LOG_LEVEL=] [default: info]
       --database-url <URL>       Database connection URL [env: DATABASE_URL=]
+      --data-dir <PATH>          Path to FHIR data directory containing search parameter
+                                 definitions [env: REST_DATA_DIR=] [default: ./data]
       --max-body-size <BYTES>    Maximum request body size [env: REST_MAX_BODY_SIZE=]
                                  [default: 10485760]
       --request-timeout <SECS>   Request timeout in seconds [env: REST_REQUEST_TIMEOUT=]
@@ -77,6 +79,7 @@ Options:
 | `REST_SERVER_HOST` | 127.0.0.1 | Host to bind |
 | `REST_LOG_LEVEL` | info | Log level (error, warn, info, debug, trace) |
 | `DATABASE_URL` | fhir.db | Database connection string |
+| `REST_DATA_DIR` | ./data | Path to FHIR data directory (search parameters) |
 | `REST_MAX_BODY_SIZE` | 10485760 | Max request body size (bytes) |
 | `REST_REQUEST_TIMEOUT` | 30 | Request timeout (seconds) |
 | `REST_ENABLE_CORS` | true | Enable CORS |
@@ -258,6 +261,88 @@ The following FHIR bundle features are not yet implemented:
 - Conditional reference resolution (`Patient?identifier=12345`)
 - PATCH method in bundles
 - Prefer header handling (`return=minimal`, etc.)
+
+## Search Parameter Configuration
+
+HFS loads FHIR SearchParameter definitions from JSON bundle files to enable comprehensive search functionality. By default, these files are expected in a `data/` directory relative to the working directory or executable.
+
+### Data Directory Structure
+
+```
+data/
+├── search-parameters-r4.json   # FHIR R4 SearchParameters (HL7 spec)
+├── search-parameters-r4b.json  # FHIR R4B SearchParameters (HL7 spec)
+├── search-parameters-r5.json   # FHIR R5 SearchParameters (HL7 spec)
+├── search-parameters-r6.json   # FHIR R6 SearchParameters (auto-downloaded at build time)
+└── *.json                      # Custom SearchParameter files (see below)
+```
+
+### Search Parameter Loading
+
+On startup, HFS loads SearchParameters in this order:
+1. **Minimal fallback** - Built-in `_id`, `_lastUpdated`, `_tag`, `_profile`, `_security` (always available)
+2. **Spec file** - Loads from the appropriate `search-parameters-*.json` based on configured FHIR version
+3. **Custom files** - Loads any additional `.json` files in the data directory (not matching `search-parameters-*.json`)
+4. **Stored parameters** - Loads any custom SearchParameters POSTed to the server
+
+### Custom SearchParameter Files
+
+You can add custom SearchParameters by placing JSON files in the data directory. Each file can contain:
+- A single SearchParameter resource
+- An array of SearchParameter resources
+- A FHIR Bundle containing SearchParameter resources
+
+Example custom SearchParameter file (`data/custom-search-params.json`):
+```json
+{
+  "resourceType": "SearchParameter",
+  "id": "patient-mrn",
+  "url": "http://example.org/fhir/SearchParameter/patient-mrn",
+  "name": "mrn",
+  "status": "active",
+  "code": "mrn",
+  "base": ["Patient"],
+  "type": "token",
+  "expression": "Patient.identifier.where(type.coding.code='MR')"
+}
+```
+
+Or as a Bundle:
+```json
+{
+  "resourceType": "Bundle",
+  "type": "collection",
+  "entry": [
+    {
+      "resource": {
+        "resourceType": "SearchParameter",
+        "url": "http://example.org/fhir/SearchParameter/patient-mrn",
+        ...
+      }
+    }
+  ]
+}
+```
+
+### Custom Data Directory
+
+Specify a custom location for the data files:
+
+```bash
+# Via command line
+./target/release/hfs --data-dir /opt/hfs/data
+
+# Via environment variable
+REST_DATA_DIR=/opt/hfs/data ./target/release/hfs
+```
+
+If the spec file is missing, HFS logs a warning and continues with minimal fallback parameters. This ensures the server can start even without the full spec files, though search functionality will be limited.
+
+### R6 Automatic Download
+
+When building with the R6 feature enabled, the `search-parameters-r6.json` file is automatically downloaded from the HL7 build server during compilation. The download is skipped if:
+- The file already exists and is less than 24 hours old
+- The `DOCS_RS` environment variable is set (for docs.rs builds)
 
 ## Multi-Tenant Support
 

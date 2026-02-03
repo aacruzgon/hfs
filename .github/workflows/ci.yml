@@ -596,6 +596,7 @@ jobs:
           name: hfs-${{ matrix.target }}
           path: |
             target/release/
+            data/
             !target/release/build/
             !target/release/deps/
             !target/release/incremental/

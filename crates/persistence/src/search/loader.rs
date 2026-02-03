@@ -2,6 +2,8 @@
 //!
 //! Loads SearchParameter definitions from multiple sources:
 //! - Embedded standard parameters (compiled into the binary)
+//! - FHIR spec bundle files (search-parameters-*.json)
+//! - Custom SearchParameter files in the data directory
 //! - Stored SearchParameter resources (from database)
 //! - Runtime configuration files
 
@@ -33,13 +35,215 @@ impl SearchParameterLoader {
         self.fhir_version
     }
 
-    /// Loads embedded standard parameters for the FHIR version.
+    /// Loads embedded minimal fallback parameters for the FHIR version.
     ///
-    /// This returns the core search parameters from the FHIR specification.
+    /// This returns only the essential Resource-level search parameters that
+    /// should always be available as a fallback. For full FHIR spec compliance,
+    /// use `load_from_spec_file()` to load the complete parameter set.
     pub fn load_embedded(&self) -> Result<Vec<SearchParameterDefinition>, LoaderError> {
-        // For now, return a set of commonly used search parameters
-        // In production, this would load from embedded JSON files
-        Ok(self.get_core_search_parameters())
+        Ok(self.get_minimal_fallback_parameters())
+    }
+
+    /// Loads SearchParameter resources from a FHIR spec bundle file.
+    ///
+    /// Expects files in the format `search-parameters-{version}.json` in the
+    /// specified data directory, where version is r4, r4b, r5, or r6.
+    #[allow(unreachable_patterns)]
+    pub fn load_from_spec_file(
+        &self,
+        data_dir: &Path,
+    ) -> Result<Vec<SearchParameterDefinition>, LoaderError> {
+        let filename = match self.fhir_version {
+            #[cfg(feature = "R4")]
+            FhirVersion::R4 => "search-parameters-r4.json",
+            #[cfg(feature = "R4B")]
+            FhirVersion::R4B => "search-parameters-r4b.json",
+            #[cfg(feature = "R5")]
+            FhirVersion::R5 => "search-parameters-r5.json",
+            #[cfg(feature = "R6")]
+            FhirVersion::R6 => "search-parameters-r6.json",
+            // Fallback to R4 if no specific version is enabled
+            _ => "search-parameters-r4.json",
+        };
+        let path = data_dir.join(filename);
+        let content =
+            std::fs::read_to_string(&path).map_err(|e| LoaderError::ConfigLoadFailed {
+                path: path.display().to_string(),
+                message: e.to_string(),
+            })?;
+        let json: Value =
+            serde_json::from_str(&content).map_err(|e| LoaderError::ConfigLoadFailed {
+                path: path.display().to_string(),
+                message: format!("Invalid JSON: {}", e),
+            })?;
+
+        let mut params = Vec::new();
+        let mut errors = Vec::new();
+
+        // Handle Bundle format (expected from FHIR spec files)
+        if let Some(entries) = json.get("entry").and_then(|e| e.as_array()) {
+            for entry in entries {
+                if let Some(resource) = entry.get("resource") {
+                    if resource.get("resourceType").and_then(|t| t.as_str())
+                        == Some("SearchParameter")
+                    {
+                        match self.parse_resource(resource) {
+                            Ok(mut param) => {
+                                param.source = SearchParameterSource::Embedded;
+                                // Treat draft params from spec files as active
+                                // (the FHIR spec uses "draft" for most standard params)
+                                if param.status == SearchParameterStatus::Draft {
+                                    param.status = SearchParameterStatus::Active;
+                                }
+                                params.push(param);
+                            }
+                            Err(e) => {
+                                // Log but continue - don't fail on individual params
+                                errors.push(e);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if !errors.is_empty() {
+            tracing::warn!(
+                "Skipped {} invalid SearchParameters while loading spec file: {:?}",
+                errors.len(),
+                path
+            );
+        }
+
+        tracing::info!(
+            "Loaded {} SearchParameters from spec file: {:?}",
+            params.len(),
+            path
+        );
+
+        Ok(params)
+    }
+
+    /// Loads custom SearchParameter files from the data directory.
+    ///
+    /// Scans the data directory for JSON files that are not the standard
+    /// FHIR spec bundles (search-parameters-*.json). These files can contain:
+    /// - A single SearchParameter resource
+    /// - An array of SearchParameter resources
+    /// - A Bundle containing SearchParameter resources
+    ///
+    /// This allows organizations to add custom SearchParameters by placing
+    /// JSON files in the data directory.
+    pub fn load_custom_from_directory(
+        &self,
+        data_dir: &Path,
+    ) -> Result<Vec<SearchParameterDefinition>, LoaderError> {
+        let mut params = Vec::new();
+        let mut errors = Vec::new();
+
+        // List of spec files to skip (loaded separately)
+        let spec_files = [
+            "search-parameters-r4.json",
+            "search-parameters-r4b.json",
+            "search-parameters-r5.json",
+            "search-parameters-r6.json",
+        ];
+
+        // Read directory entries
+        let entries = match std::fs::read_dir(data_dir) {
+            Ok(entries) => entries,
+            Err(e) => {
+                tracing::debug!(
+                    "Could not read data directory {}: {}",
+                    data_dir.display(),
+                    e
+                );
+                return Ok(params); // Return empty - not an error
+            }
+        };
+
+        for entry in entries {
+            let entry = match entry {
+                Ok(e) => e,
+                Err(e) => {
+                    tracing::warn!("Failed to read directory entry: {}", e);
+                    continue;
+                }
+            };
+
+            let path = entry.path();
+
+            // Skip non-JSON files
+            if path.extension().is_none_or(|ext| ext != "json") {
+                continue;
+            }
+
+            // Skip spec files
+            if let Some(filename) = path.file_name().and_then(|n| n.to_str()) {
+                if spec_files.contains(&filename) {
+                    continue;
+                }
+            }
+
+            // Skip directories
+            if path.is_dir() {
+                continue;
+            }
+
+            // Try to load the file
+            match self.load_custom_file(&path) {
+                Ok(mut file_params) => {
+                    if !file_params.is_empty() {
+                        tracing::info!(
+                            "Loaded {} custom SearchParameters from {:?}",
+                            file_params.len(),
+                            path
+                        );
+                        params.append(&mut file_params);
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        "Failed to load custom SearchParameter file {:?}: {}",
+                        path,
+                        e
+                    );
+                    errors.push(e);
+                }
+            }
+        }
+
+        if !errors.is_empty() {
+            tracing::warn!(
+                "Encountered {} errors while loading custom SearchParameters",
+                errors.len()
+            );
+        }
+
+        Ok(params)
+    }
+
+    /// Loads SearchParameters from a single custom file.
+    fn load_custom_file(&self, path: &Path) -> Result<Vec<SearchParameterDefinition>, LoaderError> {
+        let content = std::fs::read_to_string(path).map_err(|e| LoaderError::ConfigLoadFailed {
+            path: path.display().to_string(),
+            message: e.to_string(),
+        })?;
+
+        let json: Value =
+            serde_json::from_str(&content).map_err(|e| LoaderError::ConfigLoadFailed {
+                path: path.display().to_string(),
+                message: format!("Invalid JSON: {}", e),
+            })?;
+
+        let mut params = self.load_from_json(&json)?;
+
+        // Mark all as config source
+        for param in &mut params {
+            param.source = SearchParameterSource::Config;
+        }
+
+        Ok(params)
     }
 
     /// Loads SearchParameter resources from a JSON bundle or array.
@@ -278,12 +482,15 @@ impl SearchParameterLoader {
         })
     }
 
-    /// Returns core search parameters for the FHIR version.
+    /// Returns minimal fallback search parameters for the FHIR version.
+    ///
+    /// This provides only the essential Resource-level parameters that should
+    /// always work, used when spec files are unavailable.
     #[allow(clippy::vec_init_then_push)]
-    fn get_core_search_parameters(&self) -> Vec<SearchParameterDefinition> {
+    fn get_minimal_fallback_parameters(&self) -> Vec<SearchParameterDefinition> {
         let mut params = Vec::new();
 
-        // Common parameters for all resource types
+        // Minimal parameters that work on all resource types
         // Note: We use simplified expressions without "Resource." prefix since our FHIRPath
         // evaluator doesn't support Resource type filtering. The FHIR spec uses "Resource.id",
         // but we simplify to just "id" which works correctly when evaluated in the resource context.
@@ -342,249 +549,6 @@ impl SearchParameterLoader {
             .with_source(SearchParameterSource::Embedded),
         );
 
-        // Patient search parameters
-        params.push(
-            SearchParameterDefinition::new(
-                "http://hl7.org/fhir/SearchParameter/Patient-name",
-                "name",
-                SearchParamType::String,
-                "Patient.name",
-            )
-            .with_base(vec!["Patient"])
-            .with_source(SearchParameterSource::Embedded),
-        );
-
-        params.push(
-            SearchParameterDefinition::new(
-                "http://hl7.org/fhir/SearchParameter/Patient-family",
-                "family",
-                SearchParamType::String,
-                "Patient.name.family",
-            )
-            .with_base(vec!["Patient"])
-            .with_source(SearchParameterSource::Embedded),
-        );
-
-        params.push(
-            SearchParameterDefinition::new(
-                "http://hl7.org/fhir/SearchParameter/Patient-given",
-                "given",
-                SearchParamType::String,
-                "Patient.name.given",
-            )
-            .with_base(vec!["Patient"])
-            .with_source(SearchParameterSource::Embedded),
-        );
-
-        params.push(
-            SearchParameterDefinition::new(
-                "http://hl7.org/fhir/SearchParameter/Patient-identifier",
-                "identifier",
-                SearchParamType::Token,
-                "Patient.identifier",
-            )
-            .with_base(vec!["Patient"])
-            .with_source(SearchParameterSource::Embedded),
-        );
-
-        params.push(
-            SearchParameterDefinition::new(
-                "http://hl7.org/fhir/SearchParameter/Patient-birthdate",
-                "birthdate",
-                SearchParamType::Date,
-                "Patient.birthDate",
-            )
-            .with_base(vec!["Patient"])
-            .with_source(SearchParameterSource::Embedded),
-        );
-
-        params.push(
-            SearchParameterDefinition::new(
-                "http://hl7.org/fhir/SearchParameter/Patient-gender",
-                "gender",
-                SearchParamType::Token,
-                "Patient.gender",
-            )
-            .with_base(vec!["Patient"])
-            .with_source(SearchParameterSource::Embedded),
-        );
-
-        params.push(
-            SearchParameterDefinition::new(
-                "http://hl7.org/fhir/SearchParameter/Patient-organization",
-                "organization",
-                SearchParamType::Reference,
-                "Patient.managingOrganization",
-            )
-            .with_base(vec!["Patient"])
-            .with_targets(vec!["Organization"])
-            .with_source(SearchParameterSource::Embedded),
-        );
-
-        // Observation search parameters
-        params.push(
-            SearchParameterDefinition::new(
-                "http://hl7.org/fhir/SearchParameter/Observation-code",
-                "code",
-                SearchParamType::Token,
-                "Observation.code",
-            )
-            .with_base(vec!["Observation"])
-            .with_source(SearchParameterSource::Embedded),
-        );
-
-        params.push(
-            SearchParameterDefinition::new(
-                "http://hl7.org/fhir/SearchParameter/Observation-subject",
-                "subject",
-                SearchParamType::Reference,
-                "Observation.subject",
-            )
-            .with_base(vec!["Observation"])
-            .with_targets(vec!["Patient", "Group", "Device", "Location"])
-            .with_source(SearchParameterSource::Embedded),
-        );
-
-        params.push(
-            SearchParameterDefinition::new(
-                "http://hl7.org/fhir/SearchParameter/Observation-patient",
-                "patient",
-                SearchParamType::Reference,
-                "Observation.subject.where(resolve() is Patient)",
-            )
-            .with_base(vec!["Observation"])
-            .with_targets(vec!["Patient"])
-            .with_source(SearchParameterSource::Embedded),
-        );
-
-        params.push(
-            SearchParameterDefinition::new(
-                "http://hl7.org/fhir/SearchParameter/Observation-date",
-                "date",
-                SearchParamType::Date,
-                "Observation.effective",
-            )
-            .with_base(vec!["Observation"])
-            .with_source(SearchParameterSource::Embedded),
-        );
-
-        params.push(
-            SearchParameterDefinition::new(
-                "http://hl7.org/fhir/SearchParameter/Observation-value-quantity",
-                "value-quantity",
-                SearchParamType::Quantity,
-                "Observation.value.ofType(Quantity)",
-            )
-            .with_base(vec!["Observation"])
-            .with_source(SearchParameterSource::Embedded),
-        );
-
-        params.push(
-            SearchParameterDefinition::new(
-                "http://hl7.org/fhir/SearchParameter/Observation-status",
-                "status",
-                SearchParamType::Token,
-                "Observation.status",
-            )
-            .with_base(vec!["Observation"])
-            .with_source(SearchParameterSource::Embedded),
-        );
-
-        // Encounter search parameters
-        params.push(
-            SearchParameterDefinition::new(
-                "http://hl7.org/fhir/SearchParameter/Encounter-patient",
-                "patient",
-                SearchParamType::Reference,
-                "Encounter.subject.where(resolve() is Patient)",
-            )
-            .with_base(vec!["Encounter"])
-            .with_targets(vec!["Patient"])
-            .with_source(SearchParameterSource::Embedded),
-        );
-
-        params.push(
-            SearchParameterDefinition::new(
-                "http://hl7.org/fhir/SearchParameter/Encounter-status",
-                "status",
-                SearchParamType::Token,
-                "Encounter.status",
-            )
-            .with_base(vec!["Encounter"])
-            .with_source(SearchParameterSource::Embedded),
-        );
-
-        params.push(
-            SearchParameterDefinition::new(
-                "http://hl7.org/fhir/SearchParameter/Encounter-date",
-                "date",
-                SearchParamType::Date,
-                "Encounter.period",
-            )
-            .with_base(vec!["Encounter"])
-            .with_source(SearchParameterSource::Embedded),
-        );
-
-        // Condition search parameters
-        params.push(
-            SearchParameterDefinition::new(
-                "http://hl7.org/fhir/SearchParameter/Condition-patient",
-                "patient",
-                SearchParamType::Reference,
-                "Condition.subject.where(resolve() is Patient)",
-            )
-            .with_base(vec!["Condition"])
-            .with_targets(vec!["Patient"])
-            .with_source(SearchParameterSource::Embedded),
-        );
-
-        params.push(
-            SearchParameterDefinition::new(
-                "http://hl7.org/fhir/SearchParameter/Condition-code",
-                "code",
-                SearchParamType::Token,
-                "Condition.code",
-            )
-            .with_base(vec!["Condition"])
-            .with_source(SearchParameterSource::Embedded),
-        );
-
-        // MedicationRequest search parameters
-        params.push(
-            SearchParameterDefinition::new(
-                "http://hl7.org/fhir/SearchParameter/MedicationRequest-patient",
-                "patient",
-                SearchParamType::Reference,
-                "MedicationRequest.subject.where(resolve() is Patient)",
-            )
-            .with_base(vec!["MedicationRequest"])
-            .with_targets(vec!["Patient"])
-            .with_source(SearchParameterSource::Embedded),
-        );
-
-        params.push(
-            SearchParameterDefinition::new(
-                "http://hl7.org/fhir/SearchParameter/MedicationRequest-medication",
-                "medication",
-                SearchParamType::Reference,
-                "MedicationRequest.medication.reference",
-            )
-            .with_base(vec!["MedicationRequest"])
-            .with_targets(vec!["Medication"])
-            .with_source(SearchParameterSource::Embedded),
-        );
-
-        params.push(
-            SearchParameterDefinition::new(
-                "http://hl7.org/fhir/SearchParameter/MedicationRequest-status",
-                "status",
-                SearchParamType::Token,
-                "MedicationRequest.status",
-            )
-            .with_base(vec!["MedicationRequest"])
-            .with_source(SearchParameterSource::Embedded),
-        );
-
         params
     }
 }
@@ -606,20 +570,29 @@ mod tests {
     }
 
     #[test]
-    fn test_load_embedded() {
+    fn test_load_embedded_minimal_fallback() {
         let loader = SearchParameterLoader::new(FhirVersion::R4);
         let params = loader.load_embedded().unwrap();
 
+        // Minimal fallback only contains Resource-level params
         assert!(!params.is_empty());
+        assert!(params.len() <= 5, "Minimal fallback should have ~5 params");
 
-        // Check for common parameters
-        let has_patient_name = params
+        // Check for essential Resource-level parameters
+        let has_id = params.iter().any(|p| p.code == "_id");
+        assert!(has_id, "Should have _id parameter");
+
+        let has_last_updated = params.iter().any(|p| p.code == "_lastUpdated");
+        assert!(has_last_updated, "Should have _lastUpdated parameter");
+
+        // Should NOT have resource-specific parameters (those come from spec files)
+        let has_patient_specific = params
             .iter()
             .any(|p| p.code == "name" && p.base.contains(&"Patient".to_string()));
-        assert!(has_patient_name);
-
-        let has_id = params.iter().any(|p| p.code == "_id");
-        assert!(has_id);
+        assert!(
+            !has_patient_specific,
+            "Minimal fallback should not have Patient-specific params"
+        );
     }
 
     #[test]
@@ -720,5 +693,112 @@ mod tests {
         let param = loader.parse_resource(&json).unwrap();
         assert!(param.is_composite());
         assert_eq!(param.component.as_ref().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn test_load_custom_from_directory() {
+        use std::fs;
+        use std::path::PathBuf;
+
+        // Create a temp directory for testing
+        let temp_dir = std::env::temp_dir().join("hfs_loader_test");
+        let _ = fs::remove_dir_all(&temp_dir); // Clean up any previous test
+        fs::create_dir_all(&temp_dir).unwrap();
+
+        // Create a custom SearchParameter file
+        let custom_param = serde_json::json!({
+            "resourceType": "SearchParameter",
+            "url": "http://example.org/sp/custom-mrn",
+            "code": "mrn",
+            "type": "token",
+            "expression": "Patient.identifier.where(type.coding.code='MR')",
+            "base": ["Patient"],
+            "status": "active"
+        });
+        let custom_file = temp_dir.join("custom-params.json");
+        fs::write(&custom_file, serde_json::to_string_pretty(&custom_param).unwrap()).unwrap();
+
+        // Create a spec file that should be skipped
+        let spec_file = temp_dir.join("search-parameters-r4.json");
+        fs::write(&spec_file, "{}").unwrap(); // Empty file, would fail if read
+
+        // Create a non-JSON file that should be skipped
+        let txt_file = temp_dir.join("readme.txt");
+        fs::write(&txt_file, "This should be skipped").unwrap();
+
+        // Load custom parameters
+        let loader = SearchParameterLoader::new(FhirVersion::R4);
+        let params = loader.load_custom_from_directory(&temp_dir).unwrap();
+
+        assert_eq!(params.len(), 1);
+        assert_eq!(params[0].code, "mrn");
+        assert_eq!(params[0].url, "http://example.org/sp/custom-mrn");
+        assert_eq!(params[0].source, SearchParameterSource::Config);
+
+        // Clean up
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_load_custom_from_directory_bundle() {
+        use std::fs;
+
+        // Create a temp directory for testing
+        let temp_dir = std::env::temp_dir().join("hfs_loader_test_bundle");
+        let _ = fs::remove_dir_all(&temp_dir);
+        fs::create_dir_all(&temp_dir).unwrap();
+
+        // Create a Bundle with multiple SearchParameters
+        let bundle = serde_json::json!({
+            "resourceType": "Bundle",
+            "type": "collection",
+            "entry": [
+                {
+                    "resource": {
+                        "resourceType": "SearchParameter",
+                        "url": "http://example.org/sp/custom1",
+                        "code": "custom1",
+                        "type": "string",
+                        "expression": "Patient.name.family",
+                        "base": ["Patient"]
+                    }
+                },
+                {
+                    "resource": {
+                        "resourceType": "SearchParameter",
+                        "url": "http://example.org/sp/custom2",
+                        "code": "custom2",
+                        "type": "token",
+                        "expression": "Patient.identifier",
+                        "base": ["Patient"]
+                    }
+                }
+            ]
+        });
+        let bundle_file = temp_dir.join("custom-bundle.json");
+        fs::write(&bundle_file, serde_json::to_string_pretty(&bundle).unwrap()).unwrap();
+
+        // Load custom parameters
+        let loader = SearchParameterLoader::new(FhirVersion::R4);
+        let params = loader.load_custom_from_directory(&temp_dir).unwrap();
+
+        assert_eq!(params.len(), 2);
+        assert!(params.iter().any(|p| p.code == "custom1"));
+        assert!(params.iter().any(|p| p.code == "custom2"));
+
+        // Clean up
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_load_custom_from_nonexistent_directory() {
+        use std::path::PathBuf;
+
+        let loader = SearchParameterLoader::new(FhirVersion::R4);
+        let nonexistent = PathBuf::from("/nonexistent/path/that/does/not/exist");
+
+        // Should return empty vec, not error
+        let params = loader.load_custom_from_directory(&nonexistent).unwrap();
+        assert!(params.is_empty());
     }
 }

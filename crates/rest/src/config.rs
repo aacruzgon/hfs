@@ -41,6 +41,7 @@
 //! ```
 
 use std::fmt;
+use std::path::PathBuf;
 use std::str::FromStr;
 
 use clap::Parser;
@@ -235,6 +236,11 @@ pub struct ServerConfig {
     )]
     pub default_fhir_version: FhirVersion,
 
+    /// Directory containing FHIR data files (e.g., search-parameters-r4.json).
+    /// Defaults to ./data or the directory containing the executable.
+    #[arg(long, env = "REST_DATA_DIR")]
+    pub data_dir: Option<PathBuf>,
+
     /// Default page size for search results.
     #[arg(long, env = "REST_DEFAULT_PAGE_SIZE", default_value = "20")]
     pub default_page_size: usize,
@@ -268,6 +274,7 @@ impl Default for ServerConfig {
             enable_versioning: true,
             require_if_match: false,
             default_fhir_version: FhirVersion::default(),
+            data_dir: None,
             default_page_size: 20,
             max_page_size: 1000,
             multitenancy: MultitenancyConfig::default(),
@@ -352,6 +359,7 @@ impl ServerConfig {
             enable_versioning: true,
             require_if_match: false,
             default_fhir_version: FhirVersion::default(),
+            data_dir: None,
             default_page_size: 10,
             max_page_size: 100,
             multitenancy: MultitenancyConfig::default(),
