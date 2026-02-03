@@ -167,14 +167,19 @@ impl SqliteBackend {
             let loader = SearchParameterLoader::new(config.fhir_version);
             let mut registry = search_registry.write();
 
+            // Track counts for summary
+            let mut fallback_count = 0;
+            let mut spec_count = 0;
+            let mut custom_count = 0;
+
             // 1. Load minimal embedded fallback params (always available)
             match loader.load_embedded() {
                 Ok(params) => {
-                    let count = params.len();
                     for param in params {
-                        let _ = registry.register(param);
+                        if registry.register(param).is_ok() {
+                            fallback_count += 1;
+                        }
                     }
-                    tracing::debug!("Loaded {} minimal fallback SearchParameters", count);
                 }
                 Err(e) => {
                     tracing::error!("Failed to load embedded SearchParameters: {}", e);
@@ -188,19 +193,11 @@ impl SqliteBackend {
                 .unwrap_or_else(|| PathBuf::from("./data"));
             match loader.load_from_spec_file(&data_dir) {
                 Ok(params) => {
-                    let count = params.len();
-                    let mut registered = 0;
                     for param in params {
                         if registry.register(param).is_ok() {
-                            registered += 1;
+                            spec_count += 1;
                         }
                     }
-                    tracing::info!(
-                        "Loaded {} spec SearchParameters from {} ({} new)",
-                        count,
-                        data_dir.display(),
-                        registered
-                    );
                 }
                 Err(e) => {
                     tracing::warn!(
@@ -214,20 +211,10 @@ impl SqliteBackend {
             // 3. Load custom SearchParameters from data directory (optional)
             match loader.load_custom_from_directory(&data_dir) {
                 Ok(params) => {
-                    if !params.is_empty() {
-                        let count = params.len();
-                        let mut registered = 0;
-                        for param in params {
-                            if registry.register(param).is_ok() {
-                                registered += 1;
-                            }
+                    for param in params {
+                        if registry.register(param).is_ok() {
+                            custom_count += 1;
                         }
-                        tracing::info!(
-                            "Loaded {} custom SearchParameters from {} ({} new)",
-                            count,
-                            data_dir.display(),
-                            registered
-                        );
                     }
                 }
                 Err(e) => {
@@ -239,9 +226,15 @@ impl SqliteBackend {
                 }
             }
 
+            // Log summary
+            let resource_type_count = registry.resource_types().len();
             tracing::info!(
-                "SearchParameter registry initialized with {} parameters for {:?}",
+                "SearchParameter registry initialized: {} total ({} spec, {} fallback, {} custom) covering {} resource types for FHIR {:?}",
                 registry.len(),
+                spec_count,
+                fallback_count,
+                custom_count,
+                resource_type_count,
                 config.fhir_version
             );
         }
@@ -272,9 +265,11 @@ impl SqliteBackend {
         // Load stored (POSTed) SearchParameters from database
         let stored_count = self.load_stored_search_parameters()?;
         if stored_count > 0 {
+            let registry = self.search_registry.read();
             tracing::info!(
-                "Loaded {} stored SearchParameters from database",
-                stored_count
+                "Loaded {} stored SearchParameters from database (total now: {})",
+                stored_count,
+                registry.len()
             );
         }
 
