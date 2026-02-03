@@ -156,8 +156,21 @@ impl SearchParameterExtractor {
             return Ok(Vec::new());
         }
 
-        // Evaluate the FHIRPath expression using the actual evaluator
-        let values = self.evaluate_fhirpath(resource, &param.expression)?;
+        // Get the resource type from the resource
+        let resource_type = resource
+            .get("resourceType")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+
+        // Filter the expression to only include parts relevant to this resource type
+        let filtered_expr = self.filter_expression_for_resource(&param.expression, resource_type);
+
+        if filtered_expr.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // Evaluate the filtered FHIRPath expression using the actual evaluator
+        let values = self.evaluate_fhirpath(resource, &filtered_expr)?;
 
         let mut results = Vec::new();
         for value in values {
@@ -173,6 +186,36 @@ impl SearchParameterExtractor {
         }
 
         Ok(results)
+    }
+
+    /// Filters a FHIRPath expression to only include parts relevant to a specific resource type.
+    ///
+    /// Many FHIR SearchParameters have expressions that span multiple resource types, joined
+    /// with `|` (union). For example, the `patient` parameter has:
+    /// `AllergyIntolerance.patient | CarePlan.subject.where(resolve() is Patient) | ...`
+    ///
+    /// This method extracts only the parts that start with the given resource type.
+    fn filter_expression_for_resource(&self, expression: &str, resource_type: &str) -> String {
+        // Split by | and filter to parts starting with our resource type
+        let parts: Vec<&str> = expression
+            .split('|')
+            .map(|p| p.trim())
+            .filter(|p| {
+                // Check if this part starts with our resource type
+                p.starts_with(resource_type)
+                    && (p.len() == resource_type.len()
+                        || p.chars().nth(resource_type.len()) == Some('.'))
+            })
+            .collect();
+
+        if parts.is_empty() {
+            // If no parts match, return the original expression
+            // This handles expressions that don't use ResourceType prefix
+            expression.to_string()
+        } else {
+            // Join the filtered parts back with |
+            parts.join(" | ")
+        }
     }
 
     /// Evaluates a FHIRPath expression against a resource using the helios-fhirpath evaluator.
@@ -589,6 +632,72 @@ mod tests {
             assert!(map.contains_key("key"));
         } else {
             panic!("Expected object");
+        }
+    }
+
+    #[test]
+    fn test_filter_expression_for_resource() {
+        let extractor = create_test_extractor();
+
+        // Test multi-resource expression (like patient search param)
+        let complex_expr =
+            "AllergyIntolerance.patient | Immunization.patient | Observation.subject";
+        let filtered = extractor.filter_expression_for_resource(complex_expr, "Immunization");
+        assert_eq!(filtered, "Immunization.patient");
+
+        // Test with no matching parts - should return original
+        let no_match = extractor.filter_expression_for_resource(complex_expr, "Patient");
+        assert_eq!(no_match, complex_expr);
+
+        // Test simple expression (single resource type)
+        let simple_expr = "Patient.name";
+        let simple_filtered = extractor.filter_expression_for_resource(simple_expr, "Patient");
+        assert_eq!(simple_filtered, "Patient.name");
+
+        // Test that partial matches don't count (Observation shouldn't match Obs)
+        let partial = extractor.filter_expression_for_resource("Observation.code", "Obs");
+        assert_eq!(partial, "Observation.code");
+    }
+
+    #[test]
+    fn test_extract_immunization_patient() {
+        let extractor = create_test_extractor();
+
+        let immunization = json!({
+            "resourceType": "Immunization",
+            "id": "test-imm",
+            "status": "completed",
+            "vaccineCode": {
+                "coding": [{
+                    "system": "http://hl7.org/fhir/sid/cvx",
+                    "code": "140"
+                }]
+            },
+            "patient": {
+                "reference": "Patient/test-patient"
+            },
+            "occurrenceDateTime": "2021-01-01"
+        });
+
+        let values = extractor.extract(&immunization, "Immunization").unwrap();
+
+        // Should have extracted patient reference
+        let patient_values: Vec<_> = values
+            .iter()
+            .filter(|v| v.param_name == "patient")
+            .collect();
+        assert!(
+            !patient_values.is_empty(),
+            "Should extract 'patient' values from Immunization"
+        );
+
+        // Check the reference value
+        if let IndexValue::Reference { reference, .. } = &patient_values[0].value {
+            assert!(
+                reference.contains("Patient/test-patient") || reference.contains("test-patient"),
+                "Should contain patient reference, got: {}",
+                reference
+            );
         }
     }
 }
