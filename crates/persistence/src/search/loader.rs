@@ -35,6 +35,22 @@ impl SearchParameterLoader {
         self.fhir_version
     }
 
+    /// Returns the spec filename for the configured FHIR version.
+    #[allow(unreachable_patterns)]
+    pub fn spec_filename(&self) -> &'static str {
+        match self.fhir_version {
+            #[cfg(feature = "R4")]
+            FhirVersion::R4 => "search-parameters-r4.json",
+            #[cfg(feature = "R4B")]
+            FhirVersion::R4B => "search-parameters-r4b.json",
+            #[cfg(feature = "R5")]
+            FhirVersion::R5 => "search-parameters-r5.json",
+            #[cfg(feature = "R6")]
+            FhirVersion::R6 => "search-parameters-r6.json",
+            _ => "search-parameters-r4.json",
+        }
+    }
+
     /// Loads embedded minimal fallback parameters for the FHIR version.
     ///
     /// This returns only the essential Resource-level search parameters that
@@ -48,24 +64,11 @@ impl SearchParameterLoader {
     ///
     /// Expects files in the format `search-parameters-{version}.json` in the
     /// specified data directory, where version is r4, r4b, r5, or r6.
-    #[allow(unreachable_patterns)]
     pub fn load_from_spec_file(
         &self,
         data_dir: &Path,
     ) -> Result<Vec<SearchParameterDefinition>, LoaderError> {
-        let filename = match self.fhir_version {
-            #[cfg(feature = "R4")]
-            FhirVersion::R4 => "search-parameters-r4.json",
-            #[cfg(feature = "R4B")]
-            FhirVersion::R4B => "search-parameters-r4b.json",
-            #[cfg(feature = "R5")]
-            FhirVersion::R5 => "search-parameters-r5.json",
-            #[cfg(feature = "R6")]
-            FhirVersion::R6 => "search-parameters-r6.json",
-            // Fallback to R4 if no specific version is enabled
-            _ => "search-parameters-r4.json",
-        };
-        let path = data_dir.join(filename);
+        let path = data_dir.join(self.spec_filename());
         let content =
             std::fs::read_to_string(&path).map_err(|e| LoaderError::ConfigLoadFailed {
                 path: path.display().to_string(),
@@ -138,7 +141,19 @@ impl SearchParameterLoader {
         &self,
         data_dir: &Path,
     ) -> Result<Vec<SearchParameterDefinition>, LoaderError> {
+        self.load_custom_from_directory_with_files(data_dir)
+            .map(|(params, _)| params)
+    }
+
+    /// Loads custom SearchParameter files from the data directory.
+    ///
+    /// Returns both the loaded parameters and the list of filenames that were loaded.
+    pub fn load_custom_from_directory_with_files(
+        &self,
+        data_dir: &Path,
+    ) -> Result<(Vec<SearchParameterDefinition>, Vec<String>), LoaderError> {
         let mut params = Vec::new();
+        let mut loaded_files = Vec::new();
         let mut errors = Vec::new();
 
         // List of spec files to skip (loaded separately)
@@ -158,7 +173,7 @@ impl SearchParameterLoader {
                     data_dir.display(),
                     e
                 );
-                return Ok(params); // Return empty - not an error
+                return Ok((params, loaded_files)); // Return empty - not an error
             }
         };
 
@@ -179,10 +194,12 @@ impl SearchParameterLoader {
             }
 
             // Skip spec files
-            if let Some(filename) = path.file_name().and_then(|n| n.to_str()) {
-                if spec_files.contains(&filename) {
-                    continue;
-                }
+            let filename = match path.file_name().and_then(|n| n.to_str()) {
+                Some(name) => name.to_string(),
+                None => continue,
+            };
+            if spec_files.contains(&filename.as_str()) {
+                continue;
             }
 
             // Skip directories
@@ -194,12 +211,13 @@ impl SearchParameterLoader {
             match self.load_custom_file(&path) {
                 Ok(mut file_params) => {
                     if !file_params.is_empty() {
-                        tracing::info!(
-                            "Loaded {} custom SearchParameters from {:?}",
+                        tracing::debug!(
+                            "Loaded {} custom SearchParameters from {}",
                             file_params.len(),
-                            path
+                            filename
                         );
                         params.append(&mut file_params);
+                        loaded_files.push(filename);
                     }
                 }
                 Err(e) => {
@@ -220,7 +238,7 @@ impl SearchParameterLoader {
             );
         }
 
-        Ok(params)
+        Ok((params, loaded_files))
     }
 
     /// Loads SearchParameters from a single custom file.
@@ -716,7 +734,11 @@ mod tests {
             "status": "active"
         });
         let custom_file = temp_dir.join("custom-params.json");
-        fs::write(&custom_file, serde_json::to_string_pretty(&custom_param).unwrap()).unwrap();
+        fs::write(
+            &custom_file,
+            serde_json::to_string_pretty(&custom_param).unwrap(),
+        )
+        .unwrap();
 
         // Create a spec file that should be skipped
         let spec_file = temp_dir.join("search-parameters-r4.json");

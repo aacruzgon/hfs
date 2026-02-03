@@ -167,10 +167,12 @@ impl SqliteBackend {
             let loader = SearchParameterLoader::new(config.fhir_version);
             let mut registry = search_registry.write();
 
-            // Track counts for summary
+            // Track counts and sources for summary
             let mut fallback_count = 0;
             let mut spec_count = 0;
+            let mut spec_file: Option<PathBuf> = None;
             let mut custom_count = 0;
+            let mut custom_files: Vec<String> = Vec::new();
 
             // 1. Load minimal embedded fallback params (always available)
             match loader.load_embedded() {
@@ -191,6 +193,8 @@ impl SqliteBackend {
                 .data_dir
                 .clone()
                 .unwrap_or_else(|| PathBuf::from("./data"));
+            let spec_filename = loader.spec_filename();
+            let spec_path = data_dir.join(spec_filename);
             match loader.load_from_spec_file(&data_dir) {
                 Ok(params) => {
                     for param in params {
@@ -198,24 +202,28 @@ impl SqliteBackend {
                             spec_count += 1;
                         }
                     }
+                    if spec_count > 0 {
+                        spec_file = Some(spec_path);
+                    }
                 }
                 Err(e) => {
                     tracing::warn!(
                         "Could not load spec SearchParameters from {}: {}. Using minimal fallback.",
-                        data_dir.display(),
+                        spec_path.display(),
                         e
                     );
                 }
             }
 
             // 3. Load custom SearchParameters from data directory (optional)
-            match loader.load_custom_from_directory(&data_dir) {
-                Ok(params) => {
+            match loader.load_custom_from_directory_with_files(&data_dir) {
+                Ok((params, files)) => {
                     for param in params {
                         if registry.register(param).is_ok() {
                             custom_count += 1;
                         }
                     }
+                    custom_files = files;
                 }
                 Err(e) => {
                     tracing::warn!(
@@ -228,14 +236,23 @@ impl SqliteBackend {
 
             // Log summary
             let resource_type_count = registry.resource_types().len();
+            let spec_info = spec_file
+                .map(|p| format!(" from {}", p.display()))
+                .unwrap_or_default();
+            let custom_info = if custom_files.is_empty() {
+                String::new()
+            } else {
+                format!(" [{}]", custom_files.join(", "))
+            };
             tracing::info!(
-                "SearchParameter registry initialized: {} total ({} spec, {} fallback, {} custom) covering {} resource types for FHIR {:?}",
+                "SearchParameter registry initialized: {} total ({} spec{}, {} fallback, {} custom{}) covering {} resource types",
                 registry.len(),
                 spec_count,
+                spec_info,
                 fallback_count,
                 custom_count,
-                resource_type_count,
-                config.fhir_version
+                custom_info,
+                resource_type_count
             );
         }
         let search_extractor = Arc::new(SearchParameterExtractor::new(search_registry.clone()));
