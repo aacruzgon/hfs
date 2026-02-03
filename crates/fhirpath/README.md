@@ -22,6 +22,7 @@ This implementation is available for testing in Brian Postlethwaite's [FHIRPath 
    - [Environment Variables](#environment-variables)
    - [Types and Reflection](#types-and-reflection)
    - [Type Safety and Strict Evaluation](#type-safety-and-strict-evaluation)
+   - [FHIR-Specific Functions](#fhir-specific-functions)
  - [Architecture](#architecture)
    - [Overview](#overview)
    - [FHIR Version Support](#fhir-version-support)
@@ -342,6 +343,7 @@ The SQL on FHIR specification leverages FHIRPath to define flattened tabular vie
     *   [escape()](https://hl7.org/fhirpath/2025Jan/#escapetarget--string--string): ✅ (html, json targets)
     *   [unescape()](https://hl7.org/fhirpath/2025Jan/#unescapetarget--string--string): ✅ (html, json targets)
     *   [split()](https://hl7.org/fhirpath/2025Jan/#splitseparator--string--collection): ✅
+    *   [join()](https://hl7.org/fhirpath/2025Jan/#joinseparator--string--string): ✅
     *   [trim()](https://hl7.org/fhirpath/2025Jan/#trim--string): ✅
 *   [Math](https://hl7.org/fhirpath/2025Jan/#math) (STU): ✅
     *   [round()](https://hl7.org/fhirpath/2025Jan/#round-precision--integer--decimal): ✅
@@ -428,6 +430,55 @@ The SQL on FHIR specification leverages FHIRPath to define flattened tabular vie
 ### [Type Safety and Strict Evaluation](https://hl7.org/fhirpath/2025Jan/#type-safety-and-strict-evaluation)
     
 *   [Type Safety / Strict Evaluation](https://hl7.org/fhirpath/2025Jan/#type-safety-and-strict-evaluation): ✅ (Configurable strict mode with proper error handling)
+
+### [FHIR-Specific Functions](https://build.fhir.org/fhirpath.html#functions)
+
+These functions extend the base FHIRPath specification with FHIR-specific capabilities.
+
+*   [Additional Functions](https://build.fhir.org/fhirpath.html#functions)
+    *   [extension()](https://build.fhir.org/fhirpath.html#functions): ✅ (Full support with variable URL resolution)
+    *   [hasValue()](https://build.fhir.org/fhirpath.html#functions): ✅ (Tests if primitive has actual value beyond extensions)
+    *   [getValue()](https://build.fhir.org/fhirpath.html#functions): ❌ Not Implemented
+    *   [resolve()](https://build.fhir.org/fhirpath.html#functions): ❌ Not Implemented (Requires resource resolver integration)
+    *   [ofType()](https://build.fhir.org/fhirpath.html#functions): ✅ (Full FHIR type support)
+    *   [elementDefinition()](https://build.fhir.org/fhirpath.html#functions): ❌ Not Implemented
+    *   [slice()](https://build.fhir.org/fhirpath.html#functions): ❌ Not Implemented
+    *   [checkModifiers()](https://build.fhir.org/fhirpath.html#functions): ❌ Not Implemented
+    *   [conformsTo()](https://build.fhir.org/fhirpath.html#functions): ❌ Not Implemented (Requires profile validation)
+    *   [memberOf()](https://build.fhir.org/fhirpath.html#functions): ✅ (Via %terminologies integration)
+    *   [subsumes()](https://build.fhir.org/fhirpath.html#functions): ❌ Not Implemented (Function form; %terminologies.subsumes available)
+    *   [subsumedBy()](https://build.fhir.org/fhirpath.html#functions): ❌ Not Implemented
+    *   [htmlChecks()](https://build.fhir.org/fhirpath.html#functions): ❌ Not Implemented (XHTML narrative validation)
+    *   [comparable()](https://build.fhir.org/fhirpath.html#functions): ✅ (UCUM unit comparison)
+    *   [weight()](https://build.fhir.org/fhirpath.html#functions): ❌ Not Implemented
+
+*   [Type Factory (%factory)](https://build.fhir.org/fhirpath.html#factory)
+    *   %factory.{primitive}(): ❌ Not Implemented
+    *   %factory.Extension(): ❌ Not Implemented
+    *   %factory.Identifier(): ❌ Not Implemented
+    *   %factory.HumanName(): ❌ Not Implemented
+    *   %factory.ContactPoint(): ❌ Not Implemented
+    *   %factory.Address(): ❌ Not Implemented
+    *   %factory.Quantity(): ❌ Not Implemented
+    *   %factory.Coding(): ❌ Not Implemented
+    *   %factory.CodeableConcept(): ❌ Not Implemented
+    *   %factory.create(): ❌ Not Implemented
+    *   %factory.withExtension(): ❌ Not Implemented
+    *   %factory.withProperty(): ❌ Not Implemented
+
+*   [Server API (%server)](https://build.fhir.org/fhirpath.html#api)
+    *   %server.at(): ❌ Not Implemented
+    *   %server.read(): ❌ Not Implemented
+    *   %server.create(): ❌ Not Implemented
+    *   %server.update(): ❌ Not Implemented
+    *   %server.delete(): ❌ Not Implemented
+    *   %server.patch(): ❌ Not Implemented
+    *   %server.search(): ❌ Not Implemented
+    *   %server.capabilities(): ❌ Not Implemented
+    *   %server.validate(): ❌ Not Implemented
+    *   %server.transform(): ❌ Not Implemented
+    *   %server.everything(): ❌ Not Implemented
+    *   %server.apply(): ❌ Not Implemented
 
 ## Architecture
 
