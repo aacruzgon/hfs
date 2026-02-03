@@ -10,6 +10,7 @@
 use std::path::Path;
 
 use helios_fhir::FhirVersion;
+use regex::Regex;
 use serde_json::Value;
 
 use crate::types::SearchParamType;
@@ -18,6 +19,41 @@ use super::errors::LoaderError;
 use super::registry::{
     CompositeComponentDef, SearchParameterDefinition, SearchParameterSource, SearchParameterStatus,
 };
+
+/// Transforms FHIRPath expressions to replace `as` operator/function with `ofType`.
+///
+/// Per FHIRPath spec, `as(type)` requires singleton input and throws an error for
+/// collections with multiple items. However, many FHIR SearchParameter expressions
+/// use `as` on paths that can return multiple values (e.g., `Observation.component.value`).
+///
+/// This function rewrites such expressions to use `ofType()` which properly filters
+/// collections, making them compatible with strict FHIRPath evaluation.
+///
+/// Transformations:
+/// - `(X as Type)` → `(X.ofType(Type))` (operator form)
+/// - `X.as(Type)` → `X.ofType(Type)` (function form)
+///
+/// See: https://chat.fhir.org/#narrow/channel/179266-fhirpath/topic/FHIRPath.20Strictness.20in.20R4
+fn transform_as_to_oftype(expression: &str) -> String {
+    // First, handle the operator form: "X as Type" → "X.ofType(Type)"
+    // This regex matches: path/expression followed by " as " followed by type name
+    // We need to be careful with parentheses grouping
+    let operator_re = Regex::new(
+        r"(\([^()]*\)|[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\s+as\s+([A-Za-z_][A-Za-z0-9_]*)"
+    ).unwrap();
+
+    let result = operator_re.replace_all(expression, |caps: &regex::Captures| {
+        let path = &caps[1];
+        let type_name = &caps[2];
+        format!("{}.ofType({})", path, type_name)
+    });
+
+    // Then handle the function form: ".as(Type)" → ".ofType(Type)"
+    let function_re = Regex::new(r"\.as\(([A-Za-z_][A-Za-z0-9_]*)\)").unwrap();
+    let result = function_re.replace_all(&result, ".ofType($1)");
+
+    result.into_owned()
+}
 
 /// Loader for SearchParameter definitions.
 pub struct SearchParameterLoader {
@@ -365,11 +401,19 @@ impl SearchParameterLoader {
                     url: Some(url.clone()),
                 })?;
 
-        let expression = resource
+        let raw_expression = resource
             .get("expression")
             .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
+            .unwrap_or("");
+
+        // Transform `as` to `ofType` for FHIRPath spec compliance
+        // Many SearchParameter expressions use `as` on collection paths which would
+        // fail with strict FHIRPath singleton requirements
+        let expression = if raw_expression.contains(" as ") || raw_expression.contains(".as(") {
+            transform_as_to_oftype(raw_expression)
+        } else {
+            raw_expression.to_string()
+        };
 
         // For non-composite types, expression is required
         if expression.is_empty() && param_type != SearchParamType::Composite {
@@ -821,5 +865,70 @@ mod tests {
         // Should return empty vec, not error
         let params = loader.load_custom_from_directory(&nonexistent).unwrap();
         assert!(params.is_empty());
+    }
+
+    #[test]
+    fn test_transform_as_to_oftype() {
+        // Test operator form: "X as Type" → "X.ofType(Type)"
+        assert_eq!(
+            transform_as_to_oftype("Observation.value as CodeableConcept"),
+            "Observation.value.ofType(CodeableConcept)"
+        );
+
+        // Test with parentheses (common in SearchParameter expressions)
+        assert_eq!(
+            transform_as_to_oftype("(Observation.value as CodeableConcept)"),
+            "(Observation.value.ofType(CodeableConcept))"
+        );
+
+        // Test union expression (the actual problematic case)
+        assert_eq!(
+            transform_as_to_oftype(
+                "(Observation.value as CodeableConcept) | (Observation.component.value as CodeableConcept)"
+            ),
+            "(Observation.value.ofType(CodeableConcept)) | (Observation.component.value.ofType(CodeableConcept))"
+        );
+
+        // Test function form: ".as(Type)" → ".ofType(Type)"
+        assert_eq!(
+            transform_as_to_oftype("Patient.name.as(HumanName)"),
+            "Patient.name.ofType(HumanName)"
+        );
+
+        // Test expression without 'as' should be unchanged
+        assert_eq!(
+            transform_as_to_oftype("Patient.name.family"),
+            "Patient.name.family"
+        );
+
+        // Test expression with ofType already should be unchanged
+        assert_eq!(
+            transform_as_to_oftype("Observation.value.ofType(Quantity)"),
+            "Observation.value.ofType(Quantity)"
+        );
+    }
+
+    #[test]
+    fn test_parse_resource_transforms_as_expression() {
+        let loader = SearchParameterLoader::new(FhirVersion::R4);
+
+        // SearchParameter with 'as' operator should be transformed
+        let json = serde_json::json!({
+            "resourceType": "SearchParameter",
+            "url": "http://example.org/sp/test",
+            "code": "test",
+            "type": "token",
+            "expression": "(Observation.value as CodeableConcept) | (Observation.component.value as CodeableConcept)",
+            "base": ["Observation"],
+            "status": "active"
+        });
+
+        let param = loader.parse_resource(&json).unwrap();
+
+        // Expression should be transformed to use ofType
+        assert_eq!(
+            param.expression,
+            "(Observation.value.ofType(CodeableConcept)) | (Observation.component.value.ofType(CodeableConcept))"
+        );
     }
 }
