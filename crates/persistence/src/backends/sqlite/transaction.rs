@@ -116,10 +116,8 @@ impl SqliteTransaction {
             );
 
             // Build parameter refs for rusqlite
-            let param_refs: Vec<&dyn ToSql> = sql_params
-                .iter()
-                .map(Self::sql_value_to_ref)
-                .collect();
+            let param_refs: Vec<&dyn ToSql> =
+                sql_params.iter().map(Self::sql_value_to_ref).collect();
 
             conn.execute(SqliteSearchIndexWriter::insert_sql(), param_refs.as_slice())
                 .map_err(|e| {

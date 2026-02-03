@@ -7496,12 +7496,18 @@ fn apply_type_operation(
     type_spec: &TypeSpecifier,
     context: &EvaluationContext, // Added context
 ) -> Result<EvaluationResult, EvaluationError> {
-    // Handle singleton evaluation for 'is' and 'as' before attempting polymorphic or resource_type logic
-    if (op == "is" || op == "as") && value.count() > 1 {
-        return Err(EvaluationError::SingletonEvaluationError(format!(
-            "'{}' operator requires a singleton input",
-            op
-        )));
+    // Handle singleton evaluation for 'is' - it returns a boolean so needs singleton
+    if op == "is" && value.count() > 1 {
+        return Err(EvaluationError::SingletonEvaluationError(
+            "'is' operator requires a singleton input".to_string(),
+        ));
+    }
+
+    // For 'as' with collections, apply type filter to each item (like ofType)
+    // This is needed for FHIR SearchParameter expressions like:
+    // (Observation.component.value as CodeableConcept)
+    if op == "as" && value.count() > 1 {
+        return apply_as_to_collection(value, type_spec, context);
     }
 
     // For singleton collections, extract the item for type checking
@@ -7609,6 +7615,50 @@ fn apply_type_operation(
             "Unknown type operator: {}",
             op
         ))),
+    }
+}
+
+/// Applies the 'as' type operator to a collection by filtering to items of the matching type.
+///
+/// This handles FHIR SearchParameter expressions like:
+/// `(Observation.component.value as CodeableConcept)`
+/// where `component.value` returns multiple items.
+fn apply_as_to_collection(
+    value: &EvaluationResult,
+    type_spec: &TypeSpecifier,
+    context: &EvaluationContext,
+) -> Result<EvaluationResult, EvaluationError> {
+    let items = match value {
+        EvaluationResult::Collection { items, .. } => items,
+        _ => return Ok(EvaluationResult::Empty),
+    };
+
+    let mut result = Vec::new();
+    for item in items {
+        // Check if this item is of the specified type
+        if crate::resource_type::is_of_type_with_context(item, type_spec, context)? {
+            result.push(item.clone());
+        }
+    }
+
+    if result.is_empty() {
+        Ok(EvaluationResult::Empty)
+    } else if result.len() == 1 {
+        Ok(result.into_iter().next().unwrap())
+    } else {
+        // Preserve order from input
+        let input_was_unordered = matches!(
+            value,
+            EvaluationResult::Collection {
+                has_undefined_order: true,
+                ..
+            }
+        );
+        Ok(EvaluationResult::Collection {
+            items: result,
+            has_undefined_order: input_was_unordered,
+            type_info: None,
+        })
     }
 }
 

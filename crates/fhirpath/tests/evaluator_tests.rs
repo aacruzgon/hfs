@@ -3001,8 +3001,30 @@ fn test_operator_types_as() {
         eval("1 as System.Integer", &context).unwrap(), // Add unwrap
         EvaluationResult::integer(1)
     );
-    // Test multi-item collection - should error
-    assert!(eval("(1 | 2) as Integer", &context).is_err());
+    // Test multi-item collection - now filters like ofType() for practical FHIR use
+    // (e.g., Observation.component.value as CodeableConcept)
+    assert_eq!(
+        eval("(1 | 2) as Integer", &context).unwrap(),
+        EvaluationResult::Collection {
+            items: vec![EvaluationResult::integer(1), EvaluationResult::integer(2)],
+            has_undefined_order: true,
+            type_info: None,
+        }
+    );
+    // Mixed types - only matching items returned
+    assert_eq!(
+        eval("(1 | 'a') as Integer", &context).unwrap(),
+        EvaluationResult::integer(1)
+    );
+    assert_eq!(
+        eval("(1 | 'a') as String", &context).unwrap(),
+        EvaluationResult::string("a".to_string())
+    );
+    // No matching items returns empty
+    assert_eq!(
+        eval("('a' | 'b') as Integer", &context).unwrap(),
+        EvaluationResult::Empty
+    );
 }
 
 // --- Collections ---
