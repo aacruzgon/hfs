@@ -320,8 +320,12 @@ fn build_cors_layer(config: &ServerConfig) -> CorsLayer {
 pub fn init_logging(level: &str) {
     use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
-    let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new(format!("helios_rest={},tower_http=debug", level)));
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+        EnvFilter::new(format!(
+            "helios_hfs={},helios_rest={},helios_persistence={},tower_http=debug",
+            level, level, level
+        ))
+    });
 
     tracing_subscriber::registry()
         .with(fmt::layer())
