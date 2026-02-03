@@ -2407,6 +2407,10 @@ impl SqliteBackend {
                         "_lastUpdated" => SearchParamType::Date,
                         "_tag" | "_profile" | "_security" => SearchParamType::Token,
                         "identifier" => SearchParamType::Token,
+                        // Common reference parameters across many resource types
+                        "patient" | "subject" | "encounter" | "performer" | "author"
+                        | "requester" | "recorder" | "asserter" | "practitioner"
+                        | "organization" | "location" | "device" => SearchParamType::Reference,
                         _ => SearchParamType::String, // Default fallback
                     }
                 });
