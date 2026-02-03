@@ -159,7 +159,7 @@ use std::sync::Arc;
 
 use axum::Router;
 use helios_persistence::core::{
-    ConditionalStorage, InstanceHistoryProvider, ResourceStorage, SearchProvider,
+    BundleProvider, ConditionalStorage, InstanceHistoryProvider, ResourceStorage, SearchProvider,
 };
 use tower::ServiceBuilder;
 use tower_http::{
@@ -193,6 +193,7 @@ where
         + ConditionalStorage
         + SearchProvider
         + InstanceHistoryProvider
+        + BundleProvider
         + Send
         + Sync
         + 'static,
@@ -230,6 +231,7 @@ where
         + ConditionalStorage
         + SearchProvider
         + InstanceHistoryProvider
+        + BundleProvider
         + Send
         + Sync
         + 'static,

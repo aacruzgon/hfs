@@ -238,27 +238,38 @@ pub trait TransactionProvider: ResourceStorage {
 }
 
 /// Entry in a FHIR transaction or batch bundle.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct BundleEntry {
     /// The HTTP method for this entry.
+    #[serde(default)]
     pub method: BundleMethod,
     /// The resource URL (relative or absolute).
+    #[serde(default)]
     pub url: String,
     /// The resource content (for POST, PUT, PATCH).
+    #[serde(default)]
     pub resource: Option<Value>,
     /// If-Match header value for conditional operations.
+    #[serde(default)]
     pub if_match: Option<String>,
     /// If-None-Match header value for conditional creates.
+    #[serde(default)]
     pub if_none_match: Option<String>,
     /// If-None-Exist header for conditional creates.
+    #[serde(default)]
     pub if_none_exist: Option<String>,
+    /// The fullUrl for this entry, used for reference resolution.
+    /// Typically a urn:uuid: for new resources in transactions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub full_url: Option<String>,
 }
 
 /// HTTP method for bundle entries.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum BundleMethod {
     /// GET - Read operation.
+    #[default]
     Get,
     /// POST - Create operation.
     Post,

@@ -180,6 +180,85 @@ curl "http://localhost:8080/Patient?family=Smith"
 curl http://localhost:8080/metadata
 ```
 
+## Batch and Transaction Support
+
+HFS supports both batch and transaction bundles for processing multiple operations in a single request.
+
+> **Note:** Transaction bundles require ACID transaction support. The default SQLite backend fully supports transactions. If using other backends, check the capability matrix in the persistence crate documentation.
+
+### Transaction Bundle (Atomic)
+
+All operations succeed or all fail. Entries are processed in FHIR-specified order: DELETE → POST → PUT → GET.
+
+```bash
+curl -X POST http://localhost:8080/ \
+  -H "Content-Type: application/fhir+json" \
+  -d '{
+    "resourceType": "Bundle",
+    "type": "transaction",
+    "entry": [
+      {
+        "fullUrl": "urn:uuid:patient-1",
+        "resource": {
+          "resourceType": "Patient",
+          "name": [{"family": "Smith"}]
+        },
+        "request": {
+          "method": "POST",
+          "url": "Patient"
+        }
+      },
+      {
+        "resource": {
+          "resourceType": "Observation",
+          "subject": {"reference": "urn:uuid:patient-1"},
+          "code": {"text": "Blood Pressure"}
+        },
+        "request": {
+          "method": "POST",
+          "url": "Observation"
+        }
+      }
+    ]
+  }'
+```
+
+The `urn:uuid:patient-1` reference is automatically resolved to the actual Patient ID after creation.
+
+### Batch Bundle (Independent)
+
+Each operation is processed independently; failures don't affect other entries.
+
+```bash
+curl -X POST http://localhost:8080/ \
+  -H "Content-Type: application/fhir+json" \
+  -d '{
+    "resourceType": "Bundle",
+    "type": "batch",
+    "entry": [
+      {
+        "request": {
+          "method": "GET",
+          "url": "Patient/123"
+        }
+      },
+      {
+        "request": {
+          "method": "DELETE",
+          "url": "Patient/456"
+        }
+      }
+    ]
+  }'
+```
+
+### Current Limitations
+
+The following FHIR bundle features are not yet implemented:
+- Conditional reference resolution (`Patient?identifier=12345`)
+- PATCH method in bundles
+- Prefer header handling (`return=minimal`, etc.)
+
 ## Multi-Tenant Support
 
 Use the `X-Tenant-ID` header to isolate data between tenants:

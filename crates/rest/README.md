@@ -165,6 +165,77 @@ helios-rest = { version = "0.1", features = ["R4", "sqlite"] }
 - `postgres` - PostgreSQL (recommended for production)
 - `mongodb` - MongoDB
 
+## Batch and Transaction Bundles
+
+The server supports FHIR [batch](https://hl7.org/fhir/http.html#batch) and [transaction](https://hl7.org/fhir/http.html#transaction) bundles via `POST /`.
+
+> **Backend Support:** Transaction bundles require a backend with ACID transaction support. SQLite fully supports transactions. Some backends (Cassandra, Elasticsearch, S3) only support batch bundles. See the persistence crate documentation for the full capability matrix.
+
+### Transaction (Atomic)
+
+All entries succeed or all fail together. Entries are processed in FHIR-specified order:
+1. DELETE operations
+2. POST (create) operations
+3. PUT/PATCH (update) operations
+4. GET (read) operations
+
+**Reference Resolution:** `urn:uuid:` references in resources are automatically resolved to assigned IDs after creates. This allows referencing newly-created resources within the same transaction.
+
+```bash
+curl -X POST http://localhost:8080/ \
+  -H "Content-Type: application/fhir+json" \
+  -d '{
+    "resourceType": "Bundle",
+    "type": "transaction",
+    "entry": [
+      {
+        "fullUrl": "urn:uuid:new-patient",
+        "resource": {"resourceType": "Patient", "name": [{"family": "Smith"}]},
+        "request": {"method": "POST", "url": "Patient"}
+      },
+      {
+        "resource": {
+          "resourceType": "Observation",
+          "subject": {"reference": "urn:uuid:new-patient"}
+        },
+        "request": {"method": "POST", "url": "Observation"}
+      }
+    ]
+  }'
+```
+
+### Batch (Independent)
+
+Each entry is processed independently. Failures in one entry don't affect others.
+
+```bash
+curl -X POST http://localhost:8080/ \
+  -H "Content-Type: application/fhir+json" \
+  -d '{
+    "resourceType": "Bundle",
+    "type": "batch",
+    "entry": [
+      {"request": {"method": "GET", "url": "Patient/123"}},
+      {"request": {"method": "DELETE", "url": "Patient/456"}}
+    ]
+  }'
+```
+
+### Conditional Operations in Bundles
+
+Bundle entries support conditional headers:
+- `ifMatch` - ETag for optimistic locking on updates
+- `ifNoneMatch` - Prevent overwrites (`*` for conditional create)
+- `ifNoneExist` - Search query for conditional create
+
+### Current Limitations
+
+The following FHIR transaction features are not yet implemented:
+- **Conditional reference resolution** - References like `Patient?identifier=12345` are not resolved
+- **PATCH method** - PATCH operations in bundles return 501 Not Implemented
+- **Prefer header** - `return=minimal` and `return=OperationOutcome` not honored
+- **Duplicate detection** - Same resource appearing twice in a transaction is not detected
+
 ## HTTP Headers
 
 The server supports standard FHIR HTTP headers:

@@ -2655,6 +2655,7 @@ impl BundleProvider for SqliteBackend {
         entries: Vec<BundleEntry>,
     ) -> Result<BundleResult, TransactionError> {
         use crate::core::transaction::{Transaction, TransactionOptions, TransactionProvider};
+        use std::collections::HashMap;
 
         // Start a transaction
         let mut tx = self
@@ -2667,8 +2668,20 @@ impl BundleProvider for SqliteBackend {
         let mut results = Vec::with_capacity(entries.len());
         let mut error_info: Option<(usize, String)> = None;
 
+        // Build a map of fullUrl -> assigned reference for reference resolution
+        // This maps urn:uuid:xxx to ResourceType/assigned-id after creates
+        let mut reference_map: HashMap<String, String> = HashMap::new();
+
+        // Make entries mutable for reference resolution
+        let mut entries = entries;
+
         // Process each entry within the transaction
-        for (idx, entry) in entries.iter().enumerate() {
+        for (idx, entry) in entries.iter_mut().enumerate() {
+            // Resolve references in this entry's resource before processing
+            if let Some(ref mut resource) = entry.resource {
+                resolve_bundle_references(resource, &reference_map);
+            }
+
             let result = self.process_bundle_entry_tx(&mut tx, entry).await;
 
             match result {
@@ -2681,6 +2694,23 @@ impl BundleProvider for SqliteBackend {
                         ));
                         break;
                     }
+
+                    // If this was a create (POST) and we have a fullUrl, record the mapping
+                    if entry.method == BundleMethod::Post {
+                        if let Some(ref full_url) = entry.full_url {
+                            if let Some(ref location) = entry_result.location {
+                                // location is in format "ResourceType/id/_history/version"
+                                // Extract "ResourceType/id"
+                                let reference = location
+                                    .split("/_history")
+                                    .next()
+                                    .unwrap_or(location)
+                                    .to_string();
+                                reference_map.insert(full_url.clone(), reference);
+                            }
+                        }
+                    }
+
                     results.push(entry_result);
                 }
                 Err(e) => {
@@ -2966,6 +2996,39 @@ impl SqliteBackend {
                 },
             ))
         }
+    }
+}
+
+/// Recursively resolves urn:uuid references in a JSON value using the reference map.
+///
+/// This function walks through the JSON structure and replaces any `reference` fields
+/// that contain urn:uuid: values with the corresponding resource references from the map.
+fn resolve_bundle_references(
+    value: &mut serde_json::Value,
+    reference_map: &std::collections::HashMap<String, String>,
+) {
+    use serde_json::Value;
+    match value {
+        Value::Object(map) => {
+            // Check if this is a Reference with a urn:uuid reference
+            if let Some(Value::String(ref_str)) = map.get("reference") {
+                if ref_str.starts_with("urn:uuid:") {
+                    if let Some(resolved) = reference_map.get(ref_str) {
+                        map.insert("reference".to_string(), Value::String(resolved.clone()));
+                    }
+                }
+            }
+            // Recurse into all values
+            for v in map.values_mut() {
+                resolve_bundle_references(v, reference_map);
+            }
+        }
+        Value::Array(arr) => {
+            for item in arr {
+                resolve_bundle_references(item, reference_map);
+            }
+        }
+        _ => {}
     }
 }
 
@@ -5338,6 +5401,7 @@ mod tests {
                 if_match: None,
                 if_none_match: None,
                 if_none_exist: None,
+                full_url: None,
             },
             BundleEntry {
                 method: BundleMethod::Post,
@@ -5346,6 +5410,7 @@ mod tests {
                 if_match: None,
                 if_none_match: None,
                 if_none_exist: None,
+                full_url: None,
             },
         ];
 
@@ -5383,6 +5448,7 @@ mod tests {
                 if_match: None,
                 if_none_match: None,
                 if_none_exist: None,
+                full_url: None,
             },
             // Create new
             BundleEntry {
@@ -5392,6 +5458,7 @@ mod tests {
                 if_match: None,
                 if_none_match: None,
                 if_none_exist: None,
+                full_url: None,
             },
             // Read nonexistent
             BundleEntry {
@@ -5401,6 +5468,7 @@ mod tests {
                 if_match: None,
                 if_none_match: None,
                 if_none_exist: None,
+                full_url: None,
             },
         ];
 
@@ -5437,6 +5505,7 @@ mod tests {
             if_match: None,
             if_none_match: None,
             if_none_exist: None,
+            full_url: None,
         }];
 
         let result = backend.process_batch(&tenant, entries).await.unwrap();
@@ -5480,6 +5549,7 @@ mod tests {
                 if_match: None,
                 if_none_match: None,
                 if_none_exist: None,
+                full_url: None,
             },
             // This should fail (duplicate ID)
             BundleEntry {
@@ -5489,6 +5559,7 @@ mod tests {
                 if_match: None,
                 if_none_match: None,
                 if_none_exist: None,
+                full_url: None,
             },
         ];
 
@@ -5517,6 +5588,7 @@ mod tests {
                 if_match: None,
                 if_none_match: None,
                 if_none_exist: None,
+                full_url: None,
             },
             BundleEntry {
                 method: BundleMethod::Post,
@@ -5525,6 +5597,7 @@ mod tests {
                 if_match: None,
                 if_none_match: None,
                 if_none_exist: None,
+                full_url: None,
             },
         ];
 

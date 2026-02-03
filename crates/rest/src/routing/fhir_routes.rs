@@ -11,7 +11,7 @@ use axum::{
 };
 use helios_fhir::FhirVersion;
 use helios_persistence::core::{
-    ConditionalStorage, InstanceHistoryProvider, ResourceStorage, SearchProvider,
+    BundleProvider, ConditionalStorage, InstanceHistoryProvider, ResourceStorage, SearchProvider,
 };
 use tower::ServiceExt;
 
@@ -58,6 +58,7 @@ where
         + ConditionalStorage
         + SearchProvider
         + InstanceHistoryProvider
+        + BundleProvider
         + Send
         + Sync
         + 'static,
@@ -76,6 +77,7 @@ where
         + ConditionalStorage
         + SearchProvider
         + InstanceHistoryProvider
+        + BundleProvider
         + Send
         + Sync
         + 'static,
@@ -93,6 +95,7 @@ where
         + ConditionalStorage
         + SearchProvider
         + InstanceHistoryProvider
+        + BundleProvider
         + Send
         + Sync
         + 'static,
@@ -115,6 +118,7 @@ where
         + ConditionalStorage
         + SearchProvider
         + InstanceHistoryProvider
+        + BundleProvider
         + Send
         + Sync
         + 'static,
@@ -176,6 +180,7 @@ where
         + ConditionalStorage
         + SearchProvider
         + InstanceHistoryProvider
+        + BundleProvider
         + Send
         + Sync
         + 'static,

@@ -281,7 +281,8 @@ The matrix below shows which FHIR operations each backend supports. This reflect
 | [Instance History](https://build.fhir.org/http.html#history) | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
 | [Type History](https://build.fhir.org/http.html#history) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
 | [System History](https://build.fhir.org/http.html#history) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
-| [Transactions](https://build.fhir.org/http.html#transaction) | ✓ | ○ | ○ | ✗ | ○ | ✗ | ✗ |
+| [Batch Bundles](https://build.fhir.org/http.html#batch) | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
+| [Transaction Bundles](https://build.fhir.org/http.html#transaction) | ✓ | ○ | ○ | ✗ | ○ | ✗ | ✗ |
 | [Conditional Operations](https://build.fhir.org/http.html#cond-update) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
 | [Conditional Patch](https://build.fhir.org/http.html#patch) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
 | [Delete History](https://build.fhir.org/http.html#delete) | ✓ | ○ | ○ | ✗ | ○ | ✗ | ✗ |
@@ -383,6 +384,34 @@ The matrix below shows which FHIR operations each backend supports. This reflect
 - [x] History providers (instance, type, system)
 - [x] TransactionProvider implementation
 - [x] Conditional operations (conditional create/update/delete)
+
+#### Transaction & Batch Support ◐
+
+FHIR [transaction](https://build.fhir.org/http.html#transaction) and [batch](https://build.fhir.org/http.html#batch) bundle processing.
+
+> **Backend Support:** Transaction bundles require ACID support. SQLite supports transactions. Cassandra, Elasticsearch, and S3 do not support transactions (batch only). See the capability matrix above.
+
+**Implemented Features:**
+- [x] **Transaction bundles** - Atomic all-or-nothing processing with automatic rollback on failure
+- [x] **Batch bundles** - Independent entry processing (failures don't affect other entries)
+- [x] **Processing order** - Entries processed per FHIR spec: DELETE → POST → PUT/PATCH → GET
+- [x] **Reference resolution** - `urn:uuid:` references automatically resolved to assigned IDs after creates
+- [x] **fullUrl support** - Track temporary identifiers for intra-bundle references
+- [x] **Conditional headers** - If-Match, If-None-Match, If-None-Exist in bundle entries
+- [x] **Error responses** - Transaction failures return OperationOutcome with failing entry index
+- [x] **Response ordering** - Results returned in original request entry order
+
+**Not Yet Implemented:**
+
+| Gap | Description | Spec Reference |
+|-----|-------------|----------------|
+| Conditional reference resolution | References like `Patient?identifier=12345` should resolve via search | [Transaction](https://build.fhir.org/http.html#trules) |
+| PATCH method | PATCH operations in bundle entries return 501 | [Patch](https://build.fhir.org/http.html#patch) |
+| Duplicate resource detection | Same resource appearing twice in transaction should fail | [Transaction](https://build.fhir.org/http.html#trules) |
+| Prefer header handling | `return=minimal`, `return=representation`, `return=OperationOutcome` | [Prefer](https://build.fhir.org/http.html#return) |
+| History bundle acceptance | Servers SHOULD accept history bundles for replay | [History](https://build.fhir.org/http.html#history) |
+| Version-specific references | `resolve-as-version-specific` extension support | [References](https://build.fhir.org/http.html#trules) |
+| lastModified in response | Bundle entry responses should include lastModified | [Transaction](https://build.fhir.org/http.html#transaction-response) |
 
 #### SQLite Search Implementation ✓
 
