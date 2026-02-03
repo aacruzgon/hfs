@@ -15,6 +15,7 @@ use crate::core::{Transaction, TransactionOptions, TransactionProvider};
 use crate::error::{
     BackendError, ConcurrencyError, ResourceError, StorageError, StorageResult, TransactionError,
 };
+use crate::search::SearchParameterExtractor;
 use crate::tenant::TenantContext;
 use crate::types::StoredResource;
 
@@ -40,6 +41,8 @@ pub struct SqliteTransaction {
     active: bool,
     /// The tenant context for this transaction.
     tenant: TenantContext,
+    /// Search parameter extractor for indexing resources.
+    search_extractor: Arc<SearchParameterExtractor>,
 }
 
 impl std::fmt::Debug for SqliteTransaction {
@@ -56,6 +59,7 @@ impl SqliteTransaction {
     fn new(
         conn: PooledConnection<SqliteConnectionManager>,
         tenant: TenantContext,
+        search_extractor: Arc<SearchParameterExtractor>,
     ) -> StorageResult<Self> {
         // Start the transaction
         conn.execute("BEGIN IMMEDIATE", []).map_err(|e| {
@@ -68,12 +72,79 @@ impl SqliteTransaction {
             conn: Arc::new(Mutex::new(conn)),
             active: true,
             tenant,
+            search_extractor,
         })
     }
 
     /// Generate a new ID for a resource.
     fn generate_id() -> String {
         uuid::Uuid::new_v4().to_string()
+    }
+
+    /// Index a resource for search.
+    fn index_resource(
+        &self,
+        conn: &rusqlite::Connection,
+        tenant_id: &str,
+        resource_type: &str,
+        resource_id: &str,
+        resource: &Value,
+    ) -> StorageResult<()> {
+        use super::search::writer::SqliteSearchIndexWriter;
+        use rusqlite::ToSql;
+
+        // First, delete any existing index entries for this resource
+        conn.execute(
+            "DELETE FROM search_index WHERE tenant_id = ?1 AND resource_type = ?2 AND resource_id = ?3",
+            params![tenant_id, resource_type, resource_id],
+        )
+        .map_err(|e| internal_error(format!("Failed to clear search index: {}", e)))?;
+
+        // Extract values using the registry-driven extractor
+        let values = self
+            .search_extractor
+            .extract(resource, resource_type)
+            .map_err(|e| internal_error(format!("Search parameter extraction failed: {}", e)))?;
+
+        // Write each extracted value to the index
+        for value in values {
+            let sql_params = SqliteSearchIndexWriter::to_sql_params(
+                tenant_id,
+                resource_type,
+                resource_id,
+                &value,
+            );
+
+            // Build parameter refs for rusqlite
+            let param_refs: Vec<&dyn ToSql> = sql_params
+                .iter()
+                .map(|p| Self::sql_value_to_ref(p))
+                .collect();
+
+            conn.execute(SqliteSearchIndexWriter::insert_sql(), param_refs.as_slice())
+                .map_err(|e| internal_error(format!("Failed to insert search index entry: {}", e)))?;
+        }
+
+        tracing::debug!(
+            "Indexed resource {}/{} within transaction",
+            resource_type,
+            resource_id
+        );
+
+        Ok(())
+    }
+
+    /// Converts a SqlValue to a rusqlite-compatible reference.
+    fn sql_value_to_ref<'a>(value: &'a super::search::writer::SqlValue) -> &'a dyn rusqlite::ToSql {
+        use super::search::writer::SqlValue;
+        match value {
+            SqlValue::String(s) => s,
+            SqlValue::OptString(opt) => opt,
+            SqlValue::Int(i) => i,
+            SqlValue::OptInt(opt) => opt,
+            SqlValue::Float(f) => f,
+            SqlValue::Null => &rusqlite::types::Null,
+        }
     }
 }
 
@@ -153,6 +224,9 @@ impl Transaction for SqliteTransaction {
             params![tenant_id, resource_type, id, version_id, data_bytes, last_updated, fhir_version_str],
         )
         .map_err(|e| internal_error(format!("Failed to insert history: {}", e)))?;
+
+        // Index the resource for search
+        self.index_resource(&conn, tenant_id, resource_type, &id, &data)?;
 
         Ok(StoredResource::from_storage(
             resource_type,
@@ -328,6 +402,9 @@ impl Transaction for SqliteTransaction {
         )
         .map_err(|e| internal_error(format!("Failed to insert history: {}", e)))?;
 
+        // Re-index the resource for search
+        self.index_resource(&conn, tenant_id, resource_type, id, &data)?;
+
         Ok(StoredResource::from_storage(
             resource_type,
             id,
@@ -461,7 +538,7 @@ impl TransactionProvider for SqliteBackend {
         _options: TransactionOptions,
     ) -> StorageResult<Self::Transaction> {
         let conn = self.get_connection()?;
-        SqliteTransaction::new(conn, tenant.clone())
+        SqliteTransaction::new(conn, tenant.clone(), self.search_extractor().clone())
     }
 }
 
