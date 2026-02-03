@@ -118,11 +118,13 @@ impl SqliteTransaction {
             // Build parameter refs for rusqlite
             let param_refs: Vec<&dyn ToSql> = sql_params
                 .iter()
-                .map(|p| Self::sql_value_to_ref(p))
+                .map(Self::sql_value_to_ref)
                 .collect();
 
             conn.execute(SqliteSearchIndexWriter::insert_sql(), param_refs.as_slice())
-                .map_err(|e| internal_error(format!("Failed to insert search index entry: {}", e)))?;
+                .map_err(|e| {
+                    internal_error(format!("Failed to insert search index entry: {}", e))
+                })?;
         }
 
         tracing::debug!(
@@ -135,7 +137,7 @@ impl SqliteTransaction {
     }
 
     /// Converts a SqlValue to a rusqlite-compatible reference.
-    fn sql_value_to_ref<'a>(value: &'a super::search::writer::SqlValue) -> &'a dyn rusqlite::ToSql {
+    fn sql_value_to_ref(value: &super::search::writer::SqlValue) -> &dyn rusqlite::ToSql {
         use super::search::writer::SqlValue;
         match value {
             SqlValue::String(s) => s,

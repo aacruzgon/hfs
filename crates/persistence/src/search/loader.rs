@@ -716,7 +716,6 @@ mod tests {
     #[test]
     fn test_load_custom_from_directory() {
         use std::fs;
-        use std::path::PathBuf;
 
         // Create a temp directory for testing
         let temp_dir = std::env::temp_dir().join("hfs_loader_test");

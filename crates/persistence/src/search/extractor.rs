@@ -194,10 +194,11 @@ impl SearchParameterExtractor {
     /// with `|` (union). For example, the `patient` parameter has:
     /// `AllergyIntolerance.patient | CarePlan.subject.where(resolve() is Patient) | ...`
     ///
-    /// This method extracts only the parts that start with the given resource type.
+    /// This method extracts only the parts that start with the given resource type and
+    /// simplifies common patterns that use `resolve()`.
     fn filter_expression_for_resource(&self, expression: &str, resource_type: &str) -> String {
         // Split by | and filter to parts starting with our resource type
-        let parts: Vec<&str> = expression
+        let parts: Vec<String> = expression
             .split('|')
             .map(|p| p.trim())
             .filter(|p| {
@@ -206,6 +207,7 @@ impl SearchParameterExtractor {
                     && (p.len() == resource_type.len()
                         || p.chars().nth(resource_type.len()) == Some('.'))
             })
+            .map(|p| self.simplify_resolve_pattern(p))
             .collect();
 
         if parts.is_empty() {
@@ -216,6 +218,26 @@ impl SearchParameterExtractor {
             // Join the filtered parts back with |
             parts.join(" | ")
         }
+    }
+
+    /// Simplifies common `.where(resolve() is ResourceType)` patterns.
+    ///
+    /// In FHIR SearchParameters, patterns like `subject.where(resolve() is Patient)`
+    /// are used to filter references by target type. Since we're extracting references
+    /// for indexing (not actually resolving them), we can safely strip this pattern
+    /// and just extract the reference value.
+    fn simplify_resolve_pattern(&self, expr: &str) -> String {
+        // Pattern: .where(resolve() is SomeType)
+        // We want to remove this suffix since we just need the reference value
+        if let Some(where_pos) = expr.find(".where(resolve()") {
+            // Find the matching closing paren
+            let after_where = &expr[where_pos..];
+            if after_where.rfind(')').is_some() {
+                // Return everything before .where(...)
+                return expr[..where_pos].to_string();
+            }
+        }
+        expr.to_string()
     }
 
     /// Evaluates a FHIRPath expression against a resource using the helios-fhirpath evaluator.
@@ -657,6 +679,18 @@ mod tests {
         // Test that partial matches don't count (Observation shouldn't match Obs)
         let partial = extractor.filter_expression_for_resource("Observation.code", "Obs");
         assert_eq!(partial, "Observation.code");
+
+        // Test stripping .where(resolve() is X) pattern
+        let with_resolve = "Observation.subject.where(resolve() is Patient) | Patient.link.other";
+        let stripped = extractor.filter_expression_for_resource(with_resolve, "Observation");
+        assert_eq!(stripped, "Observation.subject");
+
+        // Test real-world patient search param pattern
+        let patient_expr = "CarePlan.subject.where(resolve() is Patient) | Observation.subject.where(resolve() is Patient)";
+        let careplan_filtered = extractor.filter_expression_for_resource(patient_expr, "CarePlan");
+        assert_eq!(careplan_filtered, "CarePlan.subject");
+        let obs_filtered = extractor.filter_expression_for_resource(patient_expr, "Observation");
+        assert_eq!(obs_filtered, "Observation.subject");
     }
 
     #[test]
