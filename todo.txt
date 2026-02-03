@@ -1,8 +1,3 @@
-- Seeing this warning when importing uscore test bundles:
-  Warning: Unsupported function called: resolve
-
-- transaction not yet supported - sqlite
-
 - FHIRPath
   - Add R6 support in fhirpath-lab.com
   - FHIRPath Lab Debugger support
