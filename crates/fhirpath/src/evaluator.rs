@@ -4034,10 +4034,13 @@ fn call_function(
                 }
                 _ => {
                     // Try to get units from both operands (with implicit conversion for Integer/Decimal)
-                    match (to_quantity_unit(invocation_base), to_quantity_unit(&args[0])) {
-                        (Some(unit1), Some(unit2)) => {
-                            EvaluationResult::boolean(crate::ucum::units_are_comparable(&unit1, &unit2))
-                        }
+                    match (
+                        to_quantity_unit(invocation_base),
+                        to_quantity_unit(&args[0]),
+                    ) {
+                        (Some(unit1), Some(unit2)) => EvaluationResult::boolean(
+                            crate::ucum::units_are_comparable(&unit1, &unit2),
+                        ),
                         _ => {
                             // Non-quantity types that can't be implicitly converted are not comparable
                             EvaluationResult::boolean(false)
