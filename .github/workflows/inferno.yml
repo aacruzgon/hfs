@@ -101,6 +101,12 @@ jobs:
           # Ensure the data/redis directory has correct permissions for the Redis container
           chmod -R 777 /tmp/us-core-test-kit/data/redis
 
+      - name: Clean up orphan containers from previous runs
+        working-directory: /tmp/us-core-test-kit
+        run: |
+          echo "Stopping any orphan containers from previous runs..."
+          docker compose down -v --remove-orphans 2>/dev/null || true
+
       - name: Setup Inferno
         working-directory: /tmp/us-core-test-kit
         run: |
@@ -261,7 +267,7 @@ jobs:
 
           echo "Stopping Inferno..."
           if [ -d /tmp/us-core-test-kit ]; then
-            docker compose -f /tmp/us-core-test-kit/docker-compose.yml down -v 2>/dev/null || true
+            docker compose -f /tmp/us-core-test-kit/docker-compose.yml down -v --remove-orphans 2>/dev/null || true
           fi
 
           echo "Removing cloned directory..."
