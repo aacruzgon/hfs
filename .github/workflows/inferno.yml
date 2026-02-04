@@ -94,6 +94,13 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/inferno-framework/us-core-test-kit.git /tmp/us-core-test-kit
 
+      - name: Fix Redis data directory permissions
+        run: |
+          # Remove .keep file that prevents Redis from auto-fixing permissions
+          rm -f /tmp/us-core-test-kit/data/redis/.keep
+          # Ensure the data/redis directory has correct permissions for the Redis container
+          chmod -R 777 /tmp/us-core-test-kit/data/redis
+
       - name: Setup Inferno
         working-directory: /tmp/us-core-test-kit
         run: |
