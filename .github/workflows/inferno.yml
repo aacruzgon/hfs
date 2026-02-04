@@ -9,7 +9,7 @@ env:
   CARGO_BUILD_JOBS: 1
   CARGO_PROFILE_DEV_DEBUG: 0
   HFS_PORT: 8088
-  INFERNO_PORT: 80
+  INFERNO_PORT: 4568
 
 jobs:
   inferno-test:
@@ -92,6 +92,18 @@ jobs:
       - name: Clone Inferno US Core Test Kit
         run: |
           git clone --depth 1 https://github.com/inferno-framework/us-core-test-kit.git /tmp/us-core-test-kit
+
+      - name: Configure Inferno port
+        run: |
+          # Create docker-compose.override.yml to change nginx port from 80 to INFERNO_PORT
+          # The base docker-compose.background.yml has hardcoded "80:80" for nginx
+          cat > /tmp/us-core-test-kit/docker-compose.override.yml << EOF
+          services:
+            nginx:
+              ports:
+                - "${INFERNO_PORT}:80"
+          EOF
+          echo "Configured Inferno to listen on port $INFERNO_PORT"
 
       - name: Fix Redis data directory permissions
         run: |
