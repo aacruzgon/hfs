@@ -77,16 +77,22 @@ jobs:
             exit 1
           fi
 
+      - name: Clean up any previous Inferno state
+        run: |
+          echo "Cleaning up any previous Inferno containers, volumes, and directories..."
+          # Stop any running containers from previous runs
+          if [ -d /tmp/us-core-test-kit ]; then
+            docker compose -f /tmp/us-core-test-kit/docker-compose.yml down -v --remove-orphans 2>/dev/null || true
+          fi
+          # Remove any orphaned volumes
+          docker volume rm us-core-test-kit_redis 2>/dev/null || true
+          # Remove directory (may contain root-owned files from Docker)
+          rm -rf /tmp/us-core-test-kit 2>/dev/null || sudo rm -rf /tmp/us-core-test-kit 2>/dev/null || true
+          echo "Cleanup complete"
+
       - name: Clone Inferno US Core Test Kit
         run: |
           git clone --depth 1 https://github.com/inferno-framework/us-core-test-kit.git /tmp/us-core-test-kit
-
-      - name: Clean up any previous Inferno containers/volumes
-        working-directory: /tmp/us-core-test-kit
-        run: |
-          echo "Cleaning up any previous Inferno containers and volumes..."
-          docker compose down -v --remove-orphans 2>/dev/null || true
-          docker volume rm us-core-test-kit_redis 2>/dev/null || true
 
       - name: Setup Inferno
         working-directory: /tmp/us-core-test-kit
