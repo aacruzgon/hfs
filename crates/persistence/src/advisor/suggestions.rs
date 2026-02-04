@@ -44,7 +44,7 @@ impl SuggestionEngine {
         suggestions.extend(self.suggest_cost_optimizations(config, workload));
 
         // Sort by priority
-        suggestions.sort_by(|a, b| b.priority.cmp(&a.priority));
+        suggestions.sort_by_key(|s| std::cmp::Reverse(s.priority));
 
         suggestions
     }
