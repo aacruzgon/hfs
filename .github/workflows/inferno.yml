@@ -172,6 +172,7 @@ jobs:
             -H "Content-Type: application/json" \
             -d "{
               \"test_session_id\": \"$SESSION_ID\",
+              \"test_group_id\": \"us_core_v311-us_core_v311_fhir_api\",
               \"inputs\": [
                 {\"name\": \"url\", \"value\": \"http://host.docker.internal:$HFS_PORT\"},
                 {\"name\": \"patient_id\", \"value\": \"355\"}
