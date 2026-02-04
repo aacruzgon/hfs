@@ -80,18 +80,13 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/inferno-framework/us-core-test-kit.git /tmp/us-core-test-kit
 
-      - name: Setup Inferno
+      - name: Setup and Start Inferno
         working-directory: /tmp/us-core-test-kit
         run: |
-          echo "Running Inferno setup..."
-          ./setup.sh
-
-      - name: Start Inferno
-        working-directory: /tmp/us-core-test-kit
-        run: |
-          echo "Starting Inferno..."
-          ./run.sh &
-          echo "Inferno starting in background..."
+          echo "Building and starting Inferno with docker compose..."
+          sudo docker compose pull
+          sudo docker compose build
+          sudo docker compose up -d
 
       - name: Wait for Inferno to be ready
         run: |
@@ -105,7 +100,7 @@ jobs:
             sleep 5
           done
           echo "Inferno failed to start"
-          docker compose -f /tmp/us-core-test-kit/docker-compose.yml logs
+          sudo docker compose -f /tmp/us-core-test-kit/docker-compose.yml logs
           exit 1
 
       - name: Create results directory
@@ -240,7 +235,7 @@ jobs:
 
           echo "Stopping Inferno..."
           if [ -d /tmp/us-core-test-kit ]; then
-            docker compose -f /tmp/us-core-test-kit/docker-compose.yml down -v 2>/dev/null || true
+            sudo docker compose -f /tmp/us-core-test-kit/docker-compose.yml down -v 2>/dev/null || true
           fi
 
           echo "Removing cloned directory..."
