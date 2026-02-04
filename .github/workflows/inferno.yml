@@ -105,6 +105,7 @@ jobs:
           # Create docker-compose.override.yml to:
           # 1. Change nginx port from 80 to INFERNO_PORT
           # 2. Add host.docker.internal mapping (not automatic on Linux)
+          # 3. Disable TLS tests (HFS runs HTTP in CI; TLS would require nginx/certs)
           cat > us-core-test-kit/docker-compose.override.yml << 'EOF'
           services:
             nginx:
@@ -113,11 +114,16 @@ jobs:
             inferno:
               extra_hosts:
                 - "host.docker.internal:host-gateway"
+              environment:
+                - INFERNO_DISABLE_TLS_TEST=true
             worker:
               extra_hosts:
                 - "host.docker.internal:host-gateway"
+              environment:
+                - INFERNO_DISABLE_TLS_TEST=true
           EOF
           echo "Configured Inferno to listen on port $INFERNO_PORT with host.docker.internal mapping"
+          echo "TLS tests disabled (INFERNO_DISABLE_TLS_TEST=true)"
 
       - name: Fix Redis data directory permissions
         run: |
