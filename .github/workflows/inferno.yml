@@ -8,7 +8,7 @@ env:
   RUST_MIN_STACK: 8388608
   CARGO_BUILD_JOBS: 1
   CARGO_PROFILE_DEV_DEBUG: 0
-  HFS_PORT: 8080
+  HFS_PORT: 8088
   INFERNO_PORT: 80
 
 jobs:
@@ -37,7 +37,7 @@ jobs:
 
       - name: Start HFS server
         run: |
-          ./target/release/hfs --database-url :memory: --log-level info --port $HFS_PORT --host 0.0.0.0 &
+          ./target/debug/hfs --database-url :memory: --log-level info --port $HFS_PORT --host 0.0.0.0 &
           echo $! > /tmp/hfs.pid
           echo "HFS_PID=$(cat /tmp/hfs.pid)" >> $GITHUB_ENV
 
