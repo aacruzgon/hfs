@@ -93,17 +93,24 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/inferno-framework/us-core-test-kit.git us-core-test-kit
 
-      - name: Configure Inferno port
+      - name: Configure Inferno port and networking
         run: |
-          # Create docker-compose.override.yml to change nginx port from 80 to INFERNO_PORT
-          # The base docker-compose.background.yml has hardcoded "80:80" for nginx
-          cat > us-core-test-kit/docker-compose.override.yml << EOF
+          # Create docker-compose.override.yml to:
+          # 1. Change nginx port from 80 to INFERNO_PORT
+          # 2. Add host.docker.internal mapping (not automatic on Linux)
+          cat > us-core-test-kit/docker-compose.override.yml << 'EOF'
           services:
             nginx:
               ports:
                 - "${INFERNO_PORT}:80"
+            inferno:
+              extra_hosts:
+                - "host.docker.internal:host-gateway"
+            worker:
+              extra_hosts:
+                - "host.docker.internal:host-gateway"
           EOF
-          echo "Configured Inferno to listen on port $INFERNO_PORT"
+          echo "Configured Inferno to listen on port $INFERNO_PORT with host.docker.internal mapping"
 
       - name: Fix Redis data directory permissions
         run: |
@@ -252,7 +259,7 @@ jobs:
             if [ "$FAIL" -gt 0 ] || [ "$ERROR" -gt 0 ]; then
               echo "### Failed/Error Tests" >> $GITHUB_STEP_SUMMARY
               echo "" >> $GITHUB_STEP_SUMMARY
-              echo "$RESULTS" | jq -r '.[] | select(.result == "fail" or .result == "error") | "- **\(.test_id // .id)**: \(.result) - \(.output_message // "No message" | .[0:200])"' >> $GITHUB_STEP_SUMMARY
+              echo "$RESULTS" | jq -r '.[] | select(.result == "fail" or .result == "error") | "- **\(.test_id // .id)**: \(.result) - \(.result_message // "No message" | .[0:200])"' >> $GITHUB_STEP_SUMMARY
             fi
           else
             echo "## Inferno Test Results" >> $GITHUB_STEP_SUMMARY
@@ -281,8 +288,5 @@ jobs:
           if [ -d us-core-test-kit ]; then
             docker compose -f us-core-test-kit/docker-compose.yml down -v --remove-orphans 2>/dev/null || true
           fi
-
-          echo "Removing cloned directory..."
-          rm -rf us-core-test-kit
 
           echo "Cleanup complete"
