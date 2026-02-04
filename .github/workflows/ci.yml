@@ -183,7 +183,7 @@ jobs:
   security:
     name: Security Audit
     runs-on: [self-hosted]
-    needs: [coverage]
+    needs: [lint]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -232,7 +232,7 @@ jobs:
   coverage:
     name: Code Coverage
     runs-on: [self-hosted, Unix] # llvm-tools-preview has problems on Windows, so restrict to Unix
-    needs: [lint]
+    needs: [security]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -525,7 +525,7 @@ jobs:
   build:
     name: Build Release
     runs-on: ${{ matrix.os }}
-    needs: [security, test-python, fhirpath-validation]
+    needs: [coverage, test-python, fhirpath-validation]
     if: startsWith(github.ref, 'refs/tags/v')
     strategy:
       fail-fast: false

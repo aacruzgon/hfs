@@ -9,4 +9,5 @@
 
 - Test to see if invalid attributes in the FHIR JSON model are allowed/disallowed?
 
+- Async index for transactions
 
