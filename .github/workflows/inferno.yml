@@ -81,6 +81,13 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/inferno-framework/us-core-test-kit.git /tmp/us-core-test-kit
 
+      - name: Clean up any previous Inferno containers/volumes
+        working-directory: /tmp/us-core-test-kit
+        run: |
+          echo "Cleaning up any previous Inferno containers and volumes..."
+          docker compose down -v --remove-orphans 2>/dev/null || true
+          docker volume rm us-core-test-kit_redis 2>/dev/null || true
+
       - name: Setup Inferno
         working-directory: /tmp/us-core-test-kit
         run: |
