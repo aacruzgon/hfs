@@ -80,24 +80,24 @@ jobs:
         run: |
           echo "Cleaning up any previous Inferno containers, volumes, and directories..."
           # Stop any running containers from previous runs
-          if [ -d /tmp/us-core-test-kit ]; then
-            docker compose -f /tmp/us-core-test-kit/docker-compose.yml down -v --remove-orphans 2>/dev/null || true
+          if [ -d us-core-test-kit ]; then
+            docker compose -f us-core-test-kit/docker-compose.yml down -v --remove-orphans 2>/dev/null || true
           fi
           # Remove any orphaned volumes
           docker volume rm us-core-test-kit_redis 2>/dev/null || true
           # Remove directory (may contain root-owned files from Docker)
-          rm -rf /tmp/us-core-test-kit 2>/dev/null || sudo rm -rf /tmp/us-core-test-kit 2>/dev/null || true
+          rm -rf us-core-test-kit 2>/dev/null || sudo rm -rf us-core-test-kit 2>/dev/null || true
           echo "Cleanup complete"
 
       - name: Clone Inferno US Core Test Kit
         run: |
-          git clone --depth 1 https://github.com/inferno-framework/us-core-test-kit.git /tmp/us-core-test-kit
+          git clone --depth 1 https://github.com/inferno-framework/us-core-test-kit.git us-core-test-kit
 
       - name: Configure Inferno port
         run: |
           # Create docker-compose.override.yml to change nginx port from 80 to INFERNO_PORT
           # The base docker-compose.background.yml has hardcoded "80:80" for nginx
-          cat > /tmp/us-core-test-kit/docker-compose.override.yml << EOF
+          cat > us-core-test-kit/docker-compose.override.yml << EOF
           services:
             nginx:
               ports:
@@ -108,24 +108,24 @@ jobs:
       - name: Fix Redis data directory permissions
         run: |
           # Remove .keep file that prevents Redis from auto-fixing permissions
-          rm -f /tmp/us-core-test-kit/data/redis/.keep
+          rm -f us-core-test-kit/data/redis/.keep
           # Ensure the data/redis directory has correct permissions for the Redis container
-          chmod -R 777 /tmp/us-core-test-kit/data/redis
+          chmod -R 777 us-core-test-kit/data/redis
 
       - name: Clean up orphan containers from previous runs
-        working-directory: /tmp/us-core-test-kit
+        working-directory: us-core-test-kit
         run: |
           echo "Stopping any orphan containers from previous runs..."
           docker compose down -v --remove-orphans 2>/dev/null || true
 
       - name: Setup Inferno
-        working-directory: /tmp/us-core-test-kit
+        working-directory: us-core-test-kit
         run: |
           echo "Running Inferno setup..."
           ./setup.sh
 
       - name: Start Inferno
-        working-directory: /tmp/us-core-test-kit
+        working-directory: us-core-test-kit
         run: |
           echo "Starting Inferno..."
           ./run.sh &
@@ -143,7 +143,7 @@ jobs:
             sleep 5
           done
           echo "Inferno failed to start"
-          docker compose -f /tmp/us-core-test-kit/docker-compose.yml logs
+          docker compose -f us-core-test-kit/docker-compose.yml logs
           exit 1
 
       - name: Create results directory
@@ -278,11 +278,11 @@ jobs:
           fi
 
           echo "Stopping Inferno..."
-          if [ -d /tmp/us-core-test-kit ]; then
-            docker compose -f /tmp/us-core-test-kit/docker-compose.yml down -v --remove-orphans 2>/dev/null || true
+          if [ -d us-core-test-kit ]; then
+            docker compose -f us-core-test-kit/docker-compose.yml down -v --remove-orphans 2>/dev/null || true
           fi
 
           echo "Removing cloned directory..."
-          rm -rf /tmp/us-core-test-kit
+          rm -rf us-core-test-kit
 
           echo "Cleanup complete"
