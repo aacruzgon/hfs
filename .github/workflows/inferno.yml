@@ -16,6 +16,13 @@ jobs:
     name: Inferno US Core v3.1.1 Tests
     runs-on: [self-hosted, Linux, Docker]
     steps:
+      - name: Clean up Docker-owned files from previous run
+        run: |
+          # Remove root-owned files created by Docker containers
+          if [ -d us-core-test-kit ]; then
+            docker run --rm -v "$(pwd):/workspace" alpine rm -rf /workspace/us-core-test-kit
+          fi
+
       - name: Checkout code
         uses: actions/checkout@v4
 
