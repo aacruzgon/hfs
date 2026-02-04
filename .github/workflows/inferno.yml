@@ -14,7 +14,7 @@ env:
 jobs:
   inferno-test:
     name: Inferno US Core v3.1.1 Tests
-    runs-on: [self-hosted, Linux]
+    runs-on: [self-hosted, Linux, Docker]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
