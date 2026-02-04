@@ -68,6 +68,7 @@ jobs:
   test-python:
     name: Test Python
     runs-on: [self-hosted]
+    needs: [test-rust]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -182,6 +183,7 @@ jobs:
   security:
     name: Security Audit
     runs-on: [self-hosted]
+    needs: [coverage]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -230,7 +232,7 @@ jobs:
   coverage:
     name: Code Coverage
     runs-on: [self-hosted, Unix] # llvm-tools-preview has problems on Windows, so restrict to Unix
-    needs: [lint, security]
+    needs: [lint]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -296,6 +298,7 @@ jobs:
   fhirpath-validation:
     name: FhirPath Validation
     runs-on: [self-hosted, Windows]
+    needs: [test-rust]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -522,7 +525,7 @@ jobs:
   build:
     name: Build Release
     runs-on: ${{ matrix.os }}
-    needs: [test-rust, test-python, lint, security, fhirpath-validation]
+    needs: [security, test-python, fhirpath-validation]
     if: startsWith(github.ref, 'refs/tags/v')
     strategy:
       fail-fast: false
