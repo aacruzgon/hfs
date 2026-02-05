@@ -166,13 +166,6 @@ jobs:
           docker compose -f us-core-test-kit/docker-compose.yml logs
           exit 1
 
-      - name: Debug pause (20 minutes)
-        run: |
-          echo "Pausing for 20 minutes to allow manual debugging..."
-          echo "Inferno UI: http://localhost:$INFERNO_PORT"
-          echo "HFS endpoint: http://localhost:$HFS_PORT"
-          sleep 1200
-
       - name: Create results directory
         run: mkdir -p inferno-results
 
@@ -219,27 +212,28 @@ jobs:
           echo "Test run started: $RUN_ID"
           echo "$RUN_RESPONSE" > inferno-results/run.json
 
-          # Poll for results
+          # Poll for test run completion
           echo "Polling for results..."
           MAX_POLLS=120
           POLL_INTERVAL=10
 
           for i in $(seq 1 $MAX_POLLS); do
-            RESULTS=$(curl -s "http://localhost:$INFERNO_PORT/api/test_runs/$RUN_ID/results")
-            STATUS=$(echo "$RESULTS" | jq -r '.[0].result // "running"')
+            # Check test run status directly (more reliable than counting results)
+            RUN_STATUS=$(curl -s "http://localhost:$INFERNO_PORT/api/test_runs/$RUN_ID" | jq -r '.status')
 
-            # Count results
+            # Get results for progress display
+            RESULTS=$(curl -s "http://localhost:$INFERNO_PORT/api/test_runs/$RUN_ID/results")
             TOTAL=$(echo "$RESULTS" | jq 'length')
             PASS=$(echo "$RESULTS" | jq '[.[] | select(.result == "pass")] | length')
             FAIL=$(echo "$RESULTS" | jq '[.[] | select(.result == "fail")] | length')
             SKIP=$(echo "$RESULTS" | jq '[.[] | select(.result == "skip")] | length')
             ERROR=$(echo "$RESULTS" | jq '[.[] | select(.result == "error")] | length')
-            RUNNING=$(echo "$RESULTS" | jq '[.[] | select(.result == null or .result == "running")] | length')
+            OMIT=$(echo "$RESULTS" | jq '[.[] | select(.result == "omit")] | length')
 
-            echo "Poll $i/$MAX_POLLS: Total=$TOTAL Pass=$PASS Fail=$FAIL Skip=$SKIP Error=$ERROR Running=$RUNNING"
+            echo "Poll $i/$MAX_POLLS: Status=$RUN_STATUS Total=$TOTAL Pass=$PASS Fail=$FAIL Skip=$SKIP Error=$ERROR Omit=$OMIT"
 
-            # Check if test run is complete (no more running tests)
-            if [ "$RUNNING" -eq 0 ] && [ "$TOTAL" -gt 0 ]; then
+            # Check if test run is complete
+            if [ "$RUN_STATUS" = "done" ]; then
               echo "Test run complete!"
               echo "$RESULTS" > inferno-results/results.json
               break
