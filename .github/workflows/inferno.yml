@@ -4,6 +4,7 @@ on:
   workflow_dispatch:  # Manual trigger only for initial implementation
 
 env:
+  COMPOSE_PROJECT_NAME: inferno-ci  # Isolate CI Docker resources from local development
   CARGO_TERM_COLOR: always
   RUST_MIN_STACK: 8388608
   CARGO_BUILD_JOBS: 1
@@ -116,12 +117,12 @@ jobs:
       - name: Clean up any previous Inferno state
         run: |
           echo "Cleaning up any previous Inferno containers, volumes, and directories..."
-          # Stop any running containers from previous runs
+          # Stop any running containers from previous runs (use explicit project name)
           if [ -d us-core-test-kit ]; then
-            docker compose -f us-core-test-kit/docker-compose.yml down -v --remove-orphans 2>/dev/null || true
+            docker compose -p inferno-ci -f us-core-test-kit/docker-compose.yml down -v --remove-orphans 2>/dev/null || true
           fi
-          # Remove any orphaned volumes
-          docker volume rm us-core-test-kit_redis 2>/dev/null || true
+          # Remove any orphaned volumes (note: uses project name prefix)
+          docker volume rm inferno-ci_redis 2>/dev/null || true
           # Remove directory (may contain root-owned files from Docker)
           rm -rf us-core-test-kit 2>/dev/null || sudo rm -rf us-core-test-kit 2>/dev/null || true
           echo "Cleanup complete"
@@ -166,7 +167,7 @@ jobs:
         working-directory: us-core-test-kit
         run: |
           echo "Stopping any orphan containers from previous runs..."
-          docker compose down -v --remove-orphans 2>/dev/null || true
+          docker compose -p inferno-ci down -v --remove-orphans 2>/dev/null || true
 
       - name: Setup Inferno
         working-directory: us-core-test-kit
@@ -193,7 +194,7 @@ jobs:
             sleep 5
           done
           echo "Inferno failed to start"
-          docker compose -f us-core-test-kit/docker-compose.yml logs
+          docker compose -p inferno-ci -f us-core-test-kit/docker-compose.yml logs
           exit 1
 
       - name: Create results directory
@@ -335,7 +336,7 @@ jobs:
 
           echo "Stopping Inferno..."
           if [ -d us-core-test-kit ]; then
-            docker compose -f us-core-test-kit/docker-compose.yml down -v --remove-orphans 2>/dev/null || true
+            docker compose -p inferno-ci -f us-core-test-kit/docker-compose.yml down -v --remove-orphans 2>/dev/null || true
           fi
 
           echo "Cleanup complete"
