@@ -1,0 +1,3471 @@
+{
+  "type": "transaction",
+  "resourceType": "Bundle",
+  "entry": [
+    {
+      "resource": {
+        "id": "us-core-client-tests-patient",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-patient"
+          ]
+        },
+        "extension": [
+          {
+            "extension": [
+              {
+                "url": "ombCategory",
+                "valueCoding": {
+                  "system": "urn:oid:2.16.840.1.113883.6.238",
+                  "code": "2106-3",
+                  "display": "White"
+                }
+              },
+              {
+                "url": "text",
+                "valueString": "White"
+              }
+            ],
+            "url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-race"
+          },
+          {
+            "extension": [
+              {
+                "url": "ombCategory",
+                "valueCoding": {
+                  "system": "urn:oid:2.16.840.1.113883.6.238",
+                  "code": "2186-5"
+                }
+              },
+              {
+                "url": "text",
+                "valueString": "Non Hispanic or Latino"
+              }
+            ],
+            "url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-ethnicity"
+          },
+          {
+            "url": "http://hl7.org/fhir/StructureDefinition/patient-mothersMaidenName",
+            "valueString": "Arnetta705 Walker122"
+          },
+          {
+            "url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-birthsex",
+            "valueCode": "M"
+          },
+          {
+            "url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-sex",
+            "valueCode": "248153007"
+          },
+          {
+            "url": "http://hl7.org/fhir/StructureDefinition/patient-birthPlace",
+            "valueAddress": {
+              "city": "Brookline",
+              "state": "Massachusetts",
+              "country": "US"
+            }
+          },
+          {
+            "url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-genderIdentity",
+            "valueCodeableConcept": {
+              "coding": [
+                {
+                  "system": "http://terminology.hl7.org/CodeSystem/v3-NullFlavor",
+                  "code": "ASKU",
+                  "display": "asked but unknown"
+                }
+              ]
+            }
+          }
+        ],
+        "identifier": [
+          {
+            "type": {
+              "coding": [
+                {
+                  "system": "http://terminology.hl7.org/CodeSystem/v2-0203",
+                  "code": "MR",
+                  "display": "Medical record number"
+                }
+              ],
+              "text": "Medical record number"
+            },
+            "system": "urn:inferno:mrn",
+            "value": "us-core-client-tests-patient"
+          }
+        ],
+        "name": [
+          {
+            "use": "official",
+            "family": "USCore",
+            "given": [
+              "ClientTests"
+            ],
+            "prefix": [
+              "Mr."
+            ],
+            "suffix": [
+              "PharmD"
+            ]
+          }
+        ],
+        "telecom": [
+          {
+            "system": "phone",
+            "value": "555-510-6254",
+            "use": "home"
+          }
+        ],
+        "gender": "male",
+        "_gender": {
+          "extension": [
+            {
+              "url": "http://hl7.org/fhir/StructureDefinition/alternate-codes",
+              "valueCodeableConcept": {
+                "coding": [
+                  {
+                    "system": "http://snomed.info/sct",
+                    "code": "248153007",
+                    "display": "Male (finding)"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "birthDate": "1940-03-29",
+        "address": [
+          {
+            "line": [
+              "934 Olson Highlands"
+            ],
+            "city": "Lowell",
+            "state": "MA",
+            "postalCode": "01854",
+            "country": "US",
+            "period": {
+              "start": "1940-03-29"
+            }
+          }
+        ],
+        "maritalStatus": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/v3-MaritalStatus",
+              "code": "M",
+              "display": "Married"
+            }
+          ],
+          "text": "Married"
+        },
+        "multipleBirthBoolean": false,
+        "communication": [
+          {
+            "language": {
+              "coding": [
+                {
+                  "system": "urn:ietf:bcp:47",
+                  "code": "en-US",
+                  "display": "English (United States)"
+                }
+              ],
+              "text": "English (United States)"
+            }
+          }
+        ],
+        "resourceType": "Patient"
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Patient/us-core-client-tests-patient"
+      }
+    },
+    {
+      "resource": {
+        "id": "us-core-client-tests-allergy-intolerance",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-allergyintolerance"
+          ]
+        },
+        "clinicalStatus": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/allergyintolerance-clinical",
+              "code": "inactive"
+            }
+          ]
+        },
+        "verificationStatus": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/allergyintolerance-verification",
+              "code": "confirmed"
+            }
+          ]
+        },
+        "type": "allergy",
+        "category": [
+          "food"
+        ],
+        "criticality": "low",
+        "code": {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "code": "300916003",
+              "display": "Latex allergy"
+            }
+          ],
+          "text": "Latex allergy"
+        },
+        "patient": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "recordedDate": "1941-10-14T18:33:18-05:00",
+        "reaction": [
+          {
+            "manifestation": [
+              {
+                "coding": [
+                  {
+                    "system": "http://snomed.info/sct",
+                    "code": "271807003",
+                    "display": "skin rash"
+                  }
+                ],
+                "text": "skin rash"
+              }
+            ]
+          }
+        ],
+        "resourceType": "AllergyIntolerance"
+      },
+      "request": {
+        "method": "PUT",
+        "url": "AllergyIntolerance/us-core-client-tests-allergy-intolerance"
+      }
+    },
+    {
+      "resource": {
+        "id": "us-core-client-tests-care-plan",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-careplan"
+          ]
+        },
+        "text": {
+          "status": "additional",
+          "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\">Respiratory Therapy Plan</div>"
+        },
+        "status": "completed",
+        "intent": "order",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://hl7.org/fhir/us/core/CodeSystem/careplan-category",
+                "code": "assess-plan"
+              }
+            ]
+          },
+          {
+            "coding": [
+              {
+                "system": "http://snomed.info/sct",
+                "code": "53950000",
+                "display": "Respiratory therapy"
+              }
+            ],
+            "text": "Respiratory therapy"
+          }
+        ],
+        "subject": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "encounter": {
+          "reference": "Encounter/us-core-client-tests-encounter"
+        },
+        "period": {
+          "start": "1941-12-31T18:49:18-05:00",
+          "end": "1942-02-12T19:33:18-04:00"
+        },
+        "careTeam": [
+          {
+            "reference": "CareTeam/us-core-client-tests-care-team"
+          }
+        ],
+        "activity": [
+          {
+            "detail": {
+              "code": {
+                "coding": [
+                  {
+                    "system": "http://snomed.info/sct",
+                    "code": "304510005",
+                    "display": "Recommendation to avoid exercise"
+                  }
+                ],
+                "text": "Recommendation to avoid exercise"
+              },
+              "status": "completed",
+              "location": {
+                "reference": "Location/us-core-client-tests-location",
+                "display": "HOLYOKE MEDICAL CENTER"
+              }
+            }
+          },
+          {
+            "detail": {
+              "code": {
+                "coding": [
+                  {
+                    "system": "http://snomed.info/sct",
+                    "code": "371605008",
+                    "display": "Deep breathing and coughing exercises"
+                  }
+                ],
+                "text": "Deep breathing and coughing exercises"
+              },
+              "status": "completed",
+              "location": {
+                "reference": "Location/us-core-client-tests-location",
+                "display": "HOLYOKE MEDICAL CENTER"
+              }
+            }
+          }
+        ],
+        "resourceType": "CarePlan"
+      },
+      "request": {
+        "method": "PUT",
+        "url": "CarePlan/us-core-client-tests-care-plan"
+      }
+    },
+    {
+      "resource": {
+        "id": "us-core-client-tests-care-team",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-careteam"
+          ]
+        },
+        "status": "inactive",
+        "subject": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "encounter": {
+          "reference": "Encounter/us-core-client-tests-encounter"
+        },
+        "period": {
+          "start": "1942-03-15T19:49:18-04:00",
+          "end": "1942-08-13T19:33:18-04:00"
+        },
+        "participant": [
+          {
+            "role": [
+              {
+                "coding": [
+                  {
+                    "system": "http://snomed.info/sct",
+                    "code": "116154003",
+                    "display": "Patient (person)"
+                  }
+                ],
+                "text": "Patient"
+              }
+            ],
+            "member": {
+              "reference": "Patient/us-core-client-tests-patient"
+            }
+          },
+          {
+            "role": [
+              {
+                "coding": [
+                  {
+                    "system": "http://snomed.info/sct",
+                    "code": "309343006",
+                    "display": "Physician (occupation)"
+                  }
+                ],
+                "text": "Physician"
+              }
+            ],
+            "member": {
+              "reference": "PractitionerRole/us-core-client-tests-practitioner-role"
+            }
+          },
+          {
+            "role": [
+              {
+                "coding": [
+                  {
+                    "system": "http://snomed.info/sct",
+                    "code": "1287116005",
+                    "display": "Chaperone (person)"
+                  }
+                ],
+                "text": "Niece"
+              }
+            ],
+            "member": {
+              "reference": "RelatedPerson/us-core-client-tests-related-person"
+            }
+          }
+        ],
+        "reasonCode": [
+          {
+            "coding": [
+              {
+                "system": "http://snomed.info/sct",
+                "code": "10509002",
+                "display": "Acute bronchitis (disorder)"
+              }
+            ],
+            "text": "Acute bronchitis (disorder)"
+          }
+        ],
+        "managingOrganization": [
+          {
+            "reference": "Organization/us-core-client-tests-organization",
+            "display": "HOLYOKE MEDICAL CENTER"
+          }
+        ],
+        "resourceType": "CareTeam"
+      },
+      "request": {
+        "method": "PUT",
+        "url": "CareTeam/us-core-client-tests-care-team"
+      }
+    },
+    {
+      "resource": {
+        "id": "us-core-client-tests-condition-encounter-diagnosis",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-condition"
+          ]
+        },
+        "clinicalStatus": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/condition-clinical",
+              "code": "resolved"
+            }
+          ]
+        },
+        "verificationStatus": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/condition-ver-status",
+              "code": "confirmed"
+            }
+          ]
+        },
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/condition-category",
+                "code": "encounter-diagnosis",
+                "display": "Encounter Diagnosis"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "code": "233678006",
+              "display": "Childhood asthma"
+            }
+          ],
+          "text": "Childhood asthma"
+        },
+        "subject": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "encounter": {
+          "reference": "Encounter/us-core-client-tests-encounter"
+        },
+        "onsetDateTime": "1944-09-11T19:33:18-04:00",
+        "abatementDateTime": "1959-12-22T18:33:18-05:00",
+        "recordedDate": "1944-09-11T19:33:18-04:00",
+        "resourceType": "Condition"
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Condition/us-core-client-tests-condition-encounter-diagnosis"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Condition",
+        "id": "us-core-client-tests-condition-problems-health-concerns",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-condition-problems-health-concerns"
+          ]
+        },
+        "extension": [
+          {
+            "url": "http://hl7.org/fhir/StructureDefinition/condition-assertedDate",
+            "valueDateTime": "2016-08-10"
+          }
+        ],
+        "identifier": [
+          {
+            "system": "https://github.com/inferno-framework/us-core-test-kit",
+            "value": "b9fbaa22-6097-11ed-9b6a-0242ac120002"
+          }
+        ],
+        "clinicalStatus": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/condition-clinical",
+              "code": "resolved",
+              "display": "Resolved"
+            }
+          ],
+          "text": "Resolved"
+        },
+        "verificationStatus": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/condition-ver-status",
+              "code": "confirmed",
+              "display": "Confirmed"
+            }
+          ],
+          "text": "Confirmed"
+        },
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/condition-category",
+                "code": "problem-list-item",
+                "display": "Problem List Item"
+              }
+            ],
+            "text": "Problem List Item"
+          },
+          {
+            "coding": [
+              {
+                "system": "http://hl7.org/fhir/us/core/CodeSystem/us-core-tags",
+                "code": "sdoh",
+                "display": "SDOH"
+              },
+              {
+                "system": "http://hl7.org/fhir/us/core/CodeSystem/us-core-category",
+                "code": "sdoh",
+                "display": "SDOH"
+              }
+            ],
+            "text": "Social Determinants Of Health"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "code": "445281000124101",
+              "display": "Nutrition impaired due to limited access to healthful foods (finding)"
+            }
+          ],
+          "text": "Nutrition impaired due to limited access to healthful foods (finding)"
+        },
+        "subject": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "abatementDateTime": "2016-08-10T07:15:07-08:00",
+        "recordedDate": "2016-08-10T07:15:07-08:00"
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Condition/us-core-client-tests-condition-problems-health-concerns"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Coverage",
+        "id": "us-core-client-tests-coverage",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-coverage"
+          ]
+        },
+        "identifier": [
+          {
+            "type": {
+              "coding": [
+                {
+                  "system": "http://terminology.hl7.org/CodeSystem/v2-0203",
+                  "code": "MB",
+                  "display": "Member Number"
+                }
+              ]
+            },
+            "system": "urn:inferno:memberidentifier",
+            "value": "88800933501"
+          }
+        ],
+        "status": "active",
+        "type": {
+          "coding": [
+            {
+              "system": "https://nahdo.org/sopt",
+              "code": "3712",
+              "display": "PPO"
+            },
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+              "code": "PPO",
+              "display": "preferred provider organization policy"
+            }
+          ],
+          "text": "PPO"
+        },
+        "subscriberId": "888009335",
+        "beneficiary": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "payor": [
+          {
+            "reference": "Organization/us-core-client-tests-organization"
+          }
+        ],
+        "relationship": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/subscriber-relationship",
+              "code": "self"
+            }
+          ],
+          "text": "Self"
+        },
+        "period": {
+          "start": "2020-01-01"
+        },
+        "class": [
+          {
+            "type": {
+              "coding": [
+                {
+                  "system": "http://terminology.hl7.org/CodeSystem/coverage-class",
+                  "code": "group",
+                  "display": "Group"
+                }
+              ],
+              "text": "An employee group"
+            },
+            "value": "xyz",
+            "name": "XYZ employee Group Plan"
+          },
+          {
+            "type": {
+              "coding": [
+                {
+                  "system": "http://terminology.hl7.org/CodeSystem/coverage-class",
+                  "code": "plan",
+                  "display": "Plan"
+                }
+              ],
+              "text": "A specific suite of benefits."
+            },
+            "value": "gold",
+            "name": "Acme Gold Plan"
+          }
+        ]
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Coverage/us-core-client-tests-coverage"
+      }
+    },
+    {
+      "resource": {
+        "id": "us-core-client-tests-device",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-implantable-device"
+          ]
+        },
+        "udiCarrier": [
+          {
+            "deviceIdentifier": "43069338026389",
+            "carrierHRF": "(01)43069338026389(11)000302(17)250317(10)1134(21)842026117977"
+          }
+        ],
+        "status": "active",
+        "distinctIdentifier": "43069338026389",
+        "manufactureDate": "2000-03-02T18:33:18-05:00",
+        "expirationDate": "2025-03-17T19:33:18-04:00",
+        "lotNumber": "1134",
+        "serialNumber": "842026117977",
+        "deviceName": [
+          {
+            "name": "Implantable defibrillator, device (physical object)",
+            "type": "user-friendly-name"
+          }
+        ],
+        "type": {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "code": "72506001",
+              "display": "Implantable defibrillator, device (physical object)"
+            }
+          ],
+          "text": "Implantable defibrillator, device (physical object)"
+        },
+        "patient": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "resourceType": "Device"
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Device/us-core-client-tests-device"
+      }
+    },
+    {
+      "resource": {
+        "id": "us-core-client-tests-diagnostic-report-note",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-diagnosticreport-note"
+          ]
+        },
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://loinc.org",
+                "code": "LP29684-5",
+                "display": "Radiology"
+              }
+            ],
+            "text": "Radiology"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "28570-0",
+              "display": "Procedure note"
+            }
+          ],
+          "text": "Procedure note"
+        },
+        "subject": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "encounter": {
+          "reference": "Encounter/us-core-client-tests-encounter"
+        },
+        "effectiveDateTime": "2000-03-23T18:33:18-05:00",
+        "issued": "2000-03-23T18:33:18.715-05:00",
+        "performer": [
+          {
+            "reference": "Practitioner/us-core-client-tests-practitioner"
+          }
+        ],
+        "presentedForm": [
+          {
+            "contentType": "text/plain",
+            "data": "CjIwMDAtMDMtMjMKCiMgQ2hpZWYgQ29tcGxhaW50Ci0gRGVjcmVhc2VkIGluIEp1ZGdlbWVudAotIENvbmZ1c2lvbgotIE5hc2FsIENvbmdlc3Rpb24KLSBTbmVlemluZyBGaXRzCi0gTmFzYWwgRGlzY2hhcmdlCi0gQ291Z2gKCgojIEhpc3Rvcnkgb2YgUHJlc2VudCBJbGxuZXNzCkR1c3RpbjMxIGlzIGEgNTkgeWVhci1vbGQgbm9uLWhpc3BhbmljIHdoaXRlIG1hbGUuIFBhdGllbnQgaGFzIGEgaGlzdG9yeSBvZiBhY3V0ZSBhbGxlcmdpYyByZWFjdGlvbiwgYWN1dGUgYnJvbmNoaXRpcyAoZGlzb3JkZXIpLCBsYWNlcmF0aW9uIG9mIHRoaWdoLCBvdGl0aXMgbWVkaWEsIGFjdXRlIHZpcmFsIHBoYXJ5bmdpdGlzIChkaXNvcmRlciksIHBvbHlwIG9mIGNvbG9uLCB2aXJhbCBzaW51c2l0aXMgKGRpc29yZGVyKSwgc3ByYWluIG9mIGFua2xlLCBmaXJzdCBkZWdyZWUgYnVybiwgZnJhY3R1cmUgb2YgYW5rbGUsIGNoaWxkaG9vZCBhc3RobWEuCgojIFNvY2lhbCBIaXN0b3J5ClBhdGllbnQgaXMgbWFycmllZC4gUGF0aWVudCBpcyB0ZW1wb3JhcmlseSBob21lbGVzcy4gUGF0aWVudCBpcyBhbiBhY3RpdmUgc21va2VyIGFuZCBpcyBhbiBhbGNvaG9saWMuIFBhdGllbnQgaWRlbnRpZmllcyBhcyBoZXRlcm9zZXh1YWwuCgpQYXRpZW50IGNvbWVzIGZyb20gYSBtaWRkbGUgc29jaW9lY29ub21pYyBiYWNrZ3JvdW5kLiBQYXRpZW50IGRpZCBub3QgZmluaXNoIGhpZ2ggc2Nob29sLiBQYXRpZW50IGN1cnJlbnRseSBoYXMgQWV0bmEuCgojIEFsbGVyZ2llcwpsYXRleCBhbGxlcmd5LCBhbGxlcmd5IHRvIHNveWEKCiMgTWVkaWNhdGlvbnMKYWNldGFtaW5vcGhlbiAzMjUgbWcgb3JhbCB0YWJsZXQ7IDEyMCBhY3R1YXQgZmx1dGljYXNvbmUgcHJvcGlvbmF0ZSAwLjA0NCBtZy9hY3R1YXQgbWV0ZXJlZCBkb3NlIGluaGFsZXI7IG5kYTAyMDUwMyAyMDAgYWN0dWF0IGFsYnV0ZXJvbCAwLjA5IG1nL2FjdHVhdCBtZXRlcmVkIGRvc2UgaW5oYWxlcjsgcHJlZG5pc29uZSA1IG1nIG9yYWwgdGFibGV0OyBhc3BpcmluIDgxIG1nIG9yYWwgdGFibGV0CgojIEFzc2Vzc21lbnQgYW5kIFBsYW4KUGF0aWVudCBpcyBwcmVzZW50aW5nIHdpdGggY2FyZGlhYyBhcnJlc3QsIGhpc3Rvcnkgb2YgY2FyZGlhYyBhcnJlc3QgKHNpdHVhdGlvbikuIAoKIyMgUGxhbgoKVGhlIGZvbGxvd2luZyBwcm9jZWR1cmVzIHdlcmUgY29uZHVjdGVkOgotIGVjaG9jYXJkaW9ncmFwaHkgKHByb2NlZHVyZSkKLSBpbnNlcnRpb24gb2YgYml2ZW50cmljdWxhciBpbXBsYW50YWJsZSBjYXJkaW92ZXJ0ZXIgZGVmaWJyaWxsYXRvcgotIGNhdGhldGVyIGFibGF0aW9uIG9mIHRpc3N1ZSBvZiBoZWFydApUaGUgcGF0aWVudCB3YXMgcHJlc2NyaWJlZCB0aGUgZm9sbG93aW5nIG1lZGljYXRpb25zOgotIDEgbWwgZXBpbmVwaHJpbmUgMSBtZy9tbCBpbmplY3Rpb24KLSAzIG1sIGFtaW9kYXJvbmUgaHlkcm9jaG9sb3JpZGUgNTAgbWcvbWwgcHJlZmlsbGVkIHN5cmluZ2UKLSBhdHJvcGluZSBzdWxmYXRlIDEgbWcvbWwgaW5qZWN0YWJsZSBzb2x1dGlvbgo="
+          }
+        ],
+        "resourceType": "DiagnosticReport"
+      },
+      "request": {
+        "method": "PUT",
+        "url": "DiagnosticReport/us-core-client-tests-diagnostic-report-note"
+      }
+    },
+    {
+      "resource": {
+        "id": "us-core-client-tests-diagnostic-report-lab",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-diagnosticreport-lab"
+          ]
+        },
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/v2-0074",
+                "code": "LAB",
+                "display": "Laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "51990-0",
+              "display": "Basic metabolic panel - Blood"
+            }
+          ],
+          "text": "Basic metabolic panel - Blood"
+        },
+        "subject": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "encounter": {
+          "reference": "Encounter/us-core-client-tests-encounter"
+        },
+        "effectiveDateTime": "2017-09-28T19:33:18-04:00",
+        "issued": "2017-09-28T19:33:18.715-04:00",
+        "performer": [
+          {
+            "reference": "Practitioner/us-core-client-tests-practitioner"
+          }
+        ],
+        "resourceType": "DiagnosticReport"
+      },
+      "request": {
+        "method": "PUT",
+        "url": "DiagnosticReport/us-core-client-tests-diagnostic-report-lab"
+      }
+    },
+    {
+      "resource": {
+        "id": "us-core-client-tests-document-reference",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-documentreference"
+          ]
+        },
+        "status": "superseded",
+        "type": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "34117-2",
+              "display": "History and physical note"
+            }
+          ],
+          "text": "History and physical note"
+        },
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://hl7.org/fhir/us/core/CodeSystem/us-core-documentreference-category",
+                "code": "clinical-note",
+                "display": "Clinical Note"
+              }
+            ]
+          }
+        ],
+        "subject": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "date": "2018-02-28T19:55:18.715-05:00",
+        "author": [
+          {
+            "reference": "Practitioner/us-core-client-tests-practitioner",
+            "display": "Dr. Patricia625 Kilback373"
+          }
+        ],
+        "custodian": {
+          "reference": "Organization/us-core-client-tests-organization",
+          "display": "HOLYOKE MEDICAL CENTER"
+        },
+        "content": [
+          {
+            "attachment": {
+              "contentType": "text/plain",
+              "data": "CjIwMTgtMDItMjgKCiMgQ2hpZWYgQ29tcGxhaW50Ci0gRGVjcmVhc2VkIGluIEp1ZGdlbWVudAotIENvbmZ1c2lvbgotIE5hc2FsIENvbmdlc3Rpb24KLSBTbmVlemluZyBGaXRzCi0gTmFzYWwgRGlzY2hhcmdlCi0gQ291Z2gKCgojIEhpc3Rvcnkgb2YgUHJlc2VudCBJbGxuZXNzCkR1c3RpbjMxIGlzIGEgNzcgeWVhci1vbGQgbm9uLWhpc3BhbmljIHdoaXRlIG1hbGUuIFBhdGllbnQgaGFzIGEgaGlzdG9yeSBvZiBhY3V0ZSBhbGxlcmdpYyByZWFjdGlvbiwgY29uY3Vzc2lvbiB3aXRoIG5vIGxvc3Mgb2YgY29uc2Npb3VzbmVzcywgb3ZlcmxhcHBpbmcgbWFsaWduYW50IG5lb3BsYXNtIG9mIGNvbG9uLCBhY3V0ZSB2aXJhbCBwaGFyeW5naXRpcyAoZGlzb3JkZXIpLCBwb2x5cCBvZiBjb2xvbiwgdmlyYWwgc2ludXNpdGlzIChkaXNvcmRlciksIGZyYWN0dXJlIG9mIGFua2xlLCBjaGlsZGhvb2QgYXN0aG1hLCBhY3V0ZSBicm9uY2hpdGlzIChkaXNvcmRlciksIGxhY2VyYXRpb24gb2YgdGhpZ2gsIG90aXRpcyBtZWRpYSwgc3ByYWluIG9mIGFua2xlLCBmaXJzdCBkZWdyZWUgYnVybi4KCiMgU29jaWFsIEhpc3RvcnkKUGF0aWVudCBpcyBtYXJyaWVkLiBQYXRpZW50IGlzIHRlbXBvcmFyaWx5IGhvbWVsZXNzLiBQYXRpZW50IGlzIGFuIGFjdGl2ZSBzbW9rZXIgYW5kIGlzIGFuIGFsY29ob2xpYy4gUGF0aWVudCBpZGVudGlmaWVzIGFzIGhldGVyb3NleHVhbC4KClBhdGllbnQgY29tZXMgZnJvbSBhIG1pZGRsZSBzb2Npb2Vjb25vbWljIGJhY2tncm91bmQuIFBhdGllbnQgZGlkIG5vdCBmaW5pc2ggaGlnaCBzY2hvb2wuIFBhdGllbnQgY3VycmVudGx5IGhhcyBNZWRpY2FyZS4KCiMgQWxsZXJnaWVzCmxhdGV4IGFsbGVyZ3ksIGFsbGVyZ3kgdG8gc295YQoKIyBNZWRpY2F0aW9ucwphY2V0YW1pbm9waGVuIDMyNSBtZyBvcmFsIHRhYmxldDsgMTIwIGFjdHVhdCBmbHV0aWNhc29uZSBwcm9waW9uYXRlIDAuMDQ0IG1nL2FjdHVhdCBtZXRlcmVkIGRvc2UgaW5oYWxlcjsgbmRhMDIwNTAzIDIwMCBhY3R1YXQgYWxidXRlcm9sIDAuMDkgbWcvYWN0dWF0IG1ldGVyZWQgZG9zZSBpbmhhbGVyOyAxIG1sIGVwaW5lcGhyaW5lIDEgbWcvbWwgaW5qZWN0aW9uOyBhdHJvcGluZSBzdWxmYXRlIDEgbWcvbWwgaW5qZWN0YWJsZSBzb2x1dGlvbjsgcHJlZG5pc29uZSA1IG1nIG9yYWwgdGFibGV0OyAzIG1sIGFtaW9kYXJvbmUgaHlkcm9jaG9sb3JpZGUgNTAgbWcvbWwgcHJlZmlsbGVkIHN5cmluZ2U7IGFzcGlyaW4gODEgbWcgb3JhbCB0YWJsZXQ7IGFtb3hpY2lsbGluIDI1MCBtZyAvIGNsYXZ1bGFuYXRlIDEyNSBtZyBvcmFsIHRhYmxldAoKIyBBc3Nlc3NtZW50IGFuZCBQbGFuClBhdGllbnQgaXMgcHJlc2VudGluZyB3aXRoIGZyYWN0dXJlIHN1Ymx1eGF0aW9uIG9mIHdyaXN0LiAKCiMjIFBsYW4KClRoZSBmb2xsb3dpbmcgcHJvY2VkdXJlcyB3ZXJlIGNvbmR1Y3RlZDoKLSB4LXJheSBvciB3cmlzdAotIGJvbmUgaW1tb2JpbGl6YXRpb24KLSBib25lIGRlbnNpdHkgc2NhbiAocHJvY2VkdXJlKQpUaGUgcGF0aWVudCB3YXMgcHJlc2NyaWJlZCB0aGUgZm9sbG93aW5nIG1lZGljYXRpb25zOgotIG1lcGVyaWRpbmUgaHlkcm9jaGxvcmlkZSA1MCBtZyBvcmFsIHRhYmxldAotIGlidXByb2ZlbiAyMDAgbWcgb3JhbCB0YWJsZXQKVGhlIHBhdGllbnQgd2FzIHBsYWNlZCBvbiBhIGNhcmVwbGFuOgotIGZyYWN0dXJlIGNhcmUK"
+            },
+            "format": {
+              "system": "http://ihe.net/fhir/ValueSet/IHE.FormatCode.codesystem",
+              "code": "urn:ihe:iti:xds:2017:mimeTypeSufficient",
+              "display": "mimeType Sufficient"
+            }
+          }
+        ],
+        "context": {
+          "encounter": [
+            {
+              "reference": "Encounter/us-core-client-tests-encounter"
+            }
+          ],
+          "period": {
+            "start": "2018-02-28T19:55:18-05:00",
+            "end": "2018-02-28T20:55:18-05:00"
+          }
+        },
+        "resourceType": "DocumentReference"
+      },
+      "request": {
+        "method": "PUT",
+        "url": "DocumentReference/us-core-client-tests-document-reference"
+      }
+    },
+    {
+      "resource": {
+        "id": "us-core-client-tests-encounter",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-encounter"
+          ]
+        },
+        "identifier": [
+          {
+            "use": "official",
+            "system": "https://github.com/inferno-framework/us-core-test-kit",
+            "value": "us-core-client-tests-encounter"
+          }
+        ],
+        "status": "finished",
+        "class": {
+          "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+          "code": "AMB"
+        },
+        "type": [
+          {
+            "coding": [
+              {
+                "system": "http://snomed.info/sct",
+                "code": "162673000",
+                "display": "General examination of patient (procedure)"
+              }
+            ],
+            "text": "General examination of patient (procedure)"
+          }
+        ],
+        "subject": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "participant": [
+          {
+            "type": [
+              {
+                "coding": [
+                  {
+                    "system": "http://terminology.hl7.org/CodeSystem/v3-ParticipationType",
+                    "code": "PPRF",
+                    "display": "primary performer"
+                  }
+                ],
+                "text": "primary performer"
+              }
+            ],
+            "period": {
+              "start": "2018-10-04T19:33:18-04:00",
+              "end": "2018-10-04T19:48:18-04:00"
+            },
+            "individual": {
+              "reference": "Practitioner/us-core-client-tests-practitioner"
+            }
+          }
+        ],
+        "period": {
+          "start": "2018-10-04T19:33:18-04:00",
+          "end": "2018-10-04T19:48:18-04:00"
+        },
+        "location": [
+          {
+            "location": {
+              "reference": "Location/us-core-client-tests-location",
+              "display": "PCP170967"
+            }
+          }
+        ],
+        "resourceType": "Encounter"
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Encounter/us-core-client-tests-encounter"
+      }
+    },
+    {
+      "resource": {
+        "id": "us-core-client-tests-goal",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-goal"
+          ]
+        },
+        "lifecycleStatus": "active",
+        "description": {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "code": "281004",
+              "display": "Alcoholic dementia"
+            }
+          ],
+          "text": "Alcoholic dementia"
+        },
+        "subject": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "target": [
+          {
+            "dueDate": "2020-12-07"
+          }
+        ],
+        "resourceType": "Goal"
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Goal/us-core-client-tests-goal"
+      }
+    },
+    {
+      "resource": {
+        "id": "us-core-client-tests-immunization",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-immunization"
+          ]
+        },
+        "status": "not-done",
+        "statusReason": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/v3-ActReason",
+              "code": "OSTOCK",
+              "display": "product out of stock"
+            }
+          ],
+          "text": "product out of stock"
+        },
+        "vaccineCode": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/data-absent-reason",
+              "code": "unknown",
+              "display": "Unknown"
+            }
+          ],
+          "text": "Unknown"
+        },
+        "patient": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "encounter": {
+          "reference": "Encounter/us-core-client-tests-encounter"
+        },
+        "occurrenceString": "1946-08-29T19:33:18-04:00",
+        "primarySource": true,
+        "location": {
+          "reference": "Location/us-core-client-tests-location",
+          "display": "RIVER BEND MEDICAL GROUP - CHICOPEE OFFICE - URGENT CARE"
+        },
+        "resourceType": "Immunization"
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Immunization/us-core-client-tests-immunization"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "MedicationDispense",
+        "id": "us-core-client-tests-medication-dispense",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-medicationdispense"
+          ]
+        },
+        "status": "completed",
+        "medicationCodeableConcept": {
+          "coding": [
+            {
+              "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+              "code": "476872",
+              "display": "Nizatidine 15 MG/ML Oral Solution"
+            }
+          ],
+          "text": "Nizatidine 15 MG/ML Oral Solution"
+        },
+        "subject": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "context": {
+          "reference": "Encounter/us-core-client-tests-encounter",
+          "display": "Office Visit"
+        },
+        "performer": [
+          {
+            "actor": {
+              "reference": "Practitioner/us-core-client-tests-practitioner"
+            }
+          }
+        ],
+        "authorizingPrescription": [
+          {
+            "reference": "MedicationRequest/medicationrequest-coded-oral-axid",
+            "display": "MedicationRequest Coded Oral Axid Example"
+          }
+        ],
+        "type": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+              "code": "FFC",
+              "display": "First Fill - Complete"
+            }
+          ]
+        },
+        "quantity": {
+          "value": 480,
+          "unit": "mL",
+          "system": "http://unitsofmeasure.org",
+          "code": "mL"
+        },
+        "whenHandedOver": "2016-12-08T06:38:52Z",
+        "dosageInstruction": [
+          {
+            "text": "10 mL bid",
+            "timing": {
+              "repeat": {
+                "boundsPeriod": {
+                  "start": "2008-04-05"
+                },
+                "frequency": 2,
+                "period": 1,
+                "periodUnit": "d"
+              }
+            },
+            "doseAndRate": [
+              {
+                "doseQuantity": {
+                  "value": 10,
+                  "unit": "ml",
+                  "system": "http://unitsofmeasure.org",
+                  "code": "mL"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "request": {
+        "method": "PUT",
+        "url": "MedicationDispense/us-core-client-tests-medication-dispense"
+      }
+    },
+    {
+      "resource": {
+        "id": "us-core-client-tests-medication-request",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-medicationrequest"
+          ]
+        },
+        "status": "stopped",
+        "intent": "order",
+        "medicationCodeableConcept": {
+          "coding": [
+            {
+              "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+              "code": "2123111",
+              "display": "NDA020503 200 ACTUAT Albuterol 0.09 MG/ACTUAT Metered Dose Inhaler"
+            }
+          ],
+          "text": "NDA020503 200 ACTUAT Albuterol 0.09 MG/ACTUAT Metered Dose Inhaler"
+        },
+        "subject": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "encounter": {
+          "reference": "Encounter/us-core-client-tests-encounter"
+        },
+        "authoredOn": "1947-12-11T18:33:18-05:00",
+        "requester": {
+          "reference": "Practitioner/us-core-client-tests-practitioner"
+        },
+        "dosageInstruction": [
+          {
+            "sequence": 1,
+            "text": "Take as needed.",
+            "asNeededBoolean": true
+          }
+        ],
+        "resourceType": "MedicationRequest"
+      },
+      "request": {
+        "method": "PUT",
+        "url": "MedicationRequest/us-core-client-tests-medication-request"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "us-core-client-tests-observation-lab",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-observation-lab|7.0.0"
+          ]
+        },
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "laboratory",
+                "display": "Laboratory"
+              }
+            ],
+            "text": "Laboratory"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "1975-2",
+              "display": "Bilirub SerPl-mCnc"
+            }
+          ],
+          "text": "Bilirub SerPl-mCnc"
+        },
+        "subject": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "effectivePeriod": {
+          "start": "1972-01-13T18:33:18-05:00",
+          "end": "1972-01-13T19:33:18-05:00"
+        },
+        "issued": "1972-01-13T18:33:18.715-05:00",
+        "valueQuantity": {
+          "value": 8.6,
+          "unit": "mg/dL",
+          "system": "http://unitsofmeasure.org",
+          "code": "mg/dL"
+        },
+        "interpretation": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/v3-ObservationInterpretation",
+                "code": "H",
+                "display": "High"
+              }
+            ],
+            "text": "High"
+          }
+        ],
+        "specimen": {
+          "reference": "Specimen/us-core-client-tests-specimen",
+          "display": "Serum specimen"
+        },
+        "referenceRange": [
+          {
+            "low": {
+              "value": 2,
+              "unit": "mg/dL",
+              "system": "http://unitsofmeasure.org",
+              "code": "mg/dL"
+            },
+            "high": {
+              "value": 7,
+              "unit": "mg/dL",
+              "system": "http://unitsofmeasure.org",
+              "code": "mg/dL"
+            },
+            "type": {
+              "coding": [
+                {
+                  "system": "http://terminology.hl7.org/CodeSystem/referencerange-meaning",
+                  "code": "normal",
+                  "display": "Normal Range"
+                }
+              ],
+              "text": "Normal Range"
+            }
+          }
+        ]
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Observation/us-core-client-tests-observation-lab"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "us-core-client-tests-observation-pregnancystatus",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-observation-pregnancystatus"
+          ]
+        },
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "social-history",
+                "display": "Social History"
+              }
+            ],
+            "text": "Social History"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "82810-3",
+              "display": "Pregnancy status"
+            }
+          ],
+          "text": "Pregnancy Status"
+        },
+        "subject": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "effectiveDateTime": "2022-08-24T10:39:52Z",
+        "valueCodeableConcept": {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "version": "http://snomed.info/sct/731000124108",
+              "code": "77386006",
+              "display": "Pregnant"
+            }
+          ],
+          "text": "Pregnant"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Observation/us-core-client-tests-observation-pregnancystatus"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "us-core-client-tests-observation-pregnancyintent",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-observation-pregnancyintent"
+          ]
+        },
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "social-history",
+                "display": "Social History"
+              }
+            ],
+            "text": "Social History"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "86645-9",
+              "display": "Pregnancy intention in the next year - Reported"
+            }
+          ],
+          "text": "Pregnancy Intent"
+        },
+        "subject": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "effectiveDateTime": "2022-09-23T22:39:43Z",
+        "valueCodeableConcept": {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "version": "http://snomed.info/sct/731000124108",
+              "code": "454381000124105",
+              "display": "Not sure of desire to become pregnant (finding)"
+            }
+          ],
+          "text": "Pregnant"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Observation/us-core-client-tests-observation-pregnancyintent"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "us-core-client-tests-observation-occupation",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-observation-occupation"
+          ]
+        },
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "social-history"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "11341-5",
+              "display": "History of Occupation"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "effectivePeriod": {
+          "start": "2015-04-24"
+        },
+        "valueCodeableConcept": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/PHOccupationalDataForHealthODH",
+              "code": "31-1014.00.007136",
+              "display": "Certified Nursing Assistant (CNA) [Nursing Assistants]"
+            }
+          ]
+        },
+        "component": [
+          {
+            "code": {
+              "coding": [
+                {
+                  "system": "http://loinc.org",
+                  "code": "86188-0",
+                  "display": "History of Occupation Industry"
+                }
+              ]
+            },
+            "valueCodeableConcept": {
+              "coding": [
+                {
+                  "system": "http://terminology.hl7.org/CodeSystem/PHOccupationalDataForHealthODH",
+                  "code": "621610.008495",
+                  "display": "Home nursing services"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Observation/us-core-client-tests-observation-occupation"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "us-core-client-tests-respiratory-rate",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-respiratory-rate"
+          ]
+        },
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "vital-signs",
+                "display": "Vital Signs"
+              }
+            ],
+            "text": "Vital Signs"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "9279-1",
+              "display": "Respiratory rate"
+            }
+          ],
+          "text": "respiratory_rate"
+        },
+        "subject": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "encounter": {
+          "display": "GP Visit"
+        },
+        "effectiveDateTime": "1999-07-02",
+        "valueQuantity": {
+          "value": 26,
+          "unit": "breaths per minute",
+          "system": "http://unitsofmeasure.org",
+          "code": "/min"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Observation/us-core-client-tests-respiratory-rate"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "us-core-client-tests-simple-observation",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-simple-observation"
+          ]
+        },
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://hl7.org/fhir/us/core/CodeSystem/us-core-category",
+                "code": "cognitive-status",
+                "display": "Cognitive Status"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "11332-4",
+              "display": "History of Cognitive Function Narrative"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "effectiveDateTime": "2022-11-27T19:22:02Z",
+        "performer": [
+          {
+            "reference": "Practitioner/us-core-client-tests-practitioner"
+          }
+        ],
+        "valueString": "Alert and oriented x 3. She is independent in household finances, social and community activities, coherent and appropriate communication. Appropriate attire for location and weather."
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Observation/us-core-client-tests-simple-observation"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "us-core-client-tests-treatment-intervention-preference",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-treatment-intervention-preference"
+          ]
+        },
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://hl7.org/fhir/us/core/CodeSystem/us-core-category",
+                "code": "treatment-intervention-preference",
+                "display": "Treatment Intervention preference"
+              }
+            ],
+            "text": "Treatment Intervention Preference"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "75773-2",
+              "display": "Goals, preferences, and priorities for medical treatment Narrative - Reported"
+            }
+          ],
+          "text": "preferences for medical treatment"
+        },
+        "subject": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "effectiveDateTime": "2023-08-30",
+        "performer": [
+          {
+            "reference": "Patient/us-core-client-tests-patient"
+          }
+        ],
+        "valueString": "If I am having significant pain or suffering, I would like my doctors to consult a Supportive and Palliative Care Team to help treat my physical, emotional and spiritual discomfort, and to support my family."
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Observation/us-core-client-tests-treatment-intervention-preference"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "us-core-client-tests-care-experience-preference",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-care-experience-preference|7.0.0"
+          ]
+        },
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://hl7.org/fhir/us/core/CodeSystem/us-core-category",
+                "code": "care-experience-preference",
+                "display": "Care experience preference"
+              }
+            ],
+            "text": "Care Experience Preference"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "95541-9",
+              "display": "Care experience preference"
+            }
+          ],
+          "text": "Care Experience Preference"
+        },
+        "subject": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "effectiveDateTime": "2023-08-30",
+        "performer": [
+          {
+            "reference": "Patient/us-core-client-tests-patient"
+          }
+        ],
+        "valueString": "For critical or end-of-life care, here are some examples of the things that I would like to have near me, music that I’d like to hear, and other details of my care that would help to keep me happy and relaxed: Like Bach, especially the cantatas.  St. Martin in the Fields"
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Observation/us-core-client-tests-care-experience-preference"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "us-core-client-tests-heart-rate",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-heart-rate"
+          ]
+        },
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "vital-signs",
+                "display": "Vital Signs"
+              }
+            ],
+            "text": "Vital Signs"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "8867-4",
+              "display": "Heart Rate"
+            }
+          ],
+          "text": "heart_rate"
+        },
+        "subject": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "encounter": {
+          "display": "GP Visit"
+        },
+        "effectiveDateTime": "1999-07-02",
+        "valueQuantity": {
+          "value": 44,
+          "unit": "beats/min",
+          "system": "http://unitsofmeasure.org",
+          "code": "/min"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Observation/us-core-client-tests-heart-rate"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "us-core-client-tests-pediatric-weight-for-height",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/pediatric-weight-for-height"
+          ]
+        },
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "vital-signs",
+                "display": "Vital Signs"
+              }
+            ],
+            "text": "Vital Signs"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "77606-2",
+              "display": "Weight-for-length Per age and sex"
+            }
+          ],
+          "text": "BMI"
+        },
+        "subject": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "encounter": {
+          "display": "GP Visit"
+        },
+        "effectiveDateTime": "2020-07-02",
+        "valueQuantity": {
+          "value": 65,
+          "unit": "%",
+          "system": "http://unitsofmeasure.org",
+          "code": "%"
+        },
+        "note": [
+          {
+            "text": "WHO Males, 0-2 years Chart"
+          }
+        ]
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Observation/us-core-client-tests-pediatric-weight-for-height"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "us-core-client-tests-smokingstatus",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-smokingstatus"
+          ]
+        },
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "social-history",
+                "display": "Social History"
+              }
+            ],
+            "text": "Social History"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "72166-2",
+              "display": "Tobacco smoking status"
+            }
+          ],
+          "text": "Tobacco smoking status"
+        },
+        "subject": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "effectiveDateTime": "2016-03-18T05:27:04Z",
+        "issued": "2016-03-18T05:27:04Z",
+        "valueCodeableConcept": {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "version": "http://snomed.info/sct/731000124108",
+              "code": "428041000124106"
+            }
+          ],
+          "text": "Current some day smoker"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Observation/us-core-client-tests-smokingstatus"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "us-core-client-tests-observation-sexual-orientation",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-observation-sexual-orientation"
+          ]
+        },
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "social-history",
+                "display": "Social History"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "76690-7",
+              "display": "Sexual orientation"
+            }
+          ],
+          "text": "Sexual orientation"
+        },
+        "subject": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "effectiveDateTime": "2021-11-11",
+        "valueCodeableConcept": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/data-absent-reason",
+              "code": "asked-declined",
+              "display": "Asked But Declined"
+            }
+          ],
+          "text": "Asked But Declined"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Observation/us-core-client-tests-observation-sexual-orientation"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "us-core-client-tests-head-circumference",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-head-circumference"
+          ]
+        },
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "vital-signs",
+                "display": "Vital Signs"
+              }
+            ],
+            "text": "Vital Signs"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "9843-4",
+              "display": "Head Occipital-frontal circumference"
+            }
+          ],
+          "text": "Head Circumference"
+        },
+        "subject": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "effectiveDateTime": "2020-11-18T16:19:31-08:00",
+        "valueQuantity": {
+          "value": 51.2,
+          "unit": "cm",
+          "system": "http://unitsofmeasure.org",
+          "code": "cm"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Observation/us-core-client-tests-head-circumference"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "us-core-client-tests-body-height",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-body-height"
+          ]
+        },
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "vital-signs",
+                "display": "Vital Signs"
+              }
+            ],
+            "text": "Vital Signs"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "8302-2",
+              "display": "Body height"
+            }
+          ],
+          "text": "height"
+        },
+        "subject": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "encounter": {
+          "display": "GP Visit"
+        },
+        "effectiveDateTime": "1999-07-02",
+        "valueQuantity": {
+          "value": 111.506,
+          "unit": "cm",
+          "system": "http://unitsofmeasure.org",
+          "code": "cm"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Observation/us-core-client-tests-body-height"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "us-core-client-tests-bmi",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-bmi"
+          ]
+        },
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "vital-signs",
+                "display": "Vital Signs"
+              }
+            ],
+            "text": "Vital Signs"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "39156-5",
+              "display": "Body mass index (BMI) [Ratio]"
+            }
+          ],
+          "text": "BMI"
+        },
+        "subject": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "encounter": {
+          "display": "GP Visit"
+        },
+        "effectiveDateTime": "1999-07-02",
+        "valueQuantity": {
+          "value": 16.2,
+          "unit": "kg/m2",
+          "system": "http://unitsofmeasure.org",
+          "code": "kg/m2"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Observation/us-core-client-tests-bmi"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "us-core-client-tests-average-blood-pressure",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-average-blood-pressure"
+          ]
+        },
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "vital-signs",
+                "display": "Vital Signs"
+              }
+            ],
+            "text": "Vital Signs"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "96607-7",
+              "display": "Blood pressure panel mean systolic and mean diastolic"
+            }
+          ],
+          "text": "Avg Blood pressure systolic and diastolic"
+        },
+        "subject": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "effectivePeriod": {
+          "start": "2023-08-03T01:06:52.480Z",
+          "end": "2023-08-06T13:07:01.166Z"
+        },
+        "performer": [
+          {
+            "reference": "Patient/us-core-client-tests-patient"
+          }
+        ],
+        "note": [
+          {
+            "text": "Average blood pressure is calculated from 12 measurements taken by the patient over 3 days."
+          }
+        ],
+        "component": [
+          {
+            "code": {
+              "coding": [
+                {
+                  "system": "http://loinc.org",
+                  "code": "96608-5",
+                  "display": "Systolic blood pressure mean"
+                }
+              ],
+              "text": "Average systolic blood pressure"
+            },
+            "valueQuantity": {
+              "value": 109,
+              "unit": "mm[Hg]",
+              "system": "http://unitsofmeasure.org",
+              "code": "mm[Hg]"
+            }
+          },
+          {
+            "code": {
+              "coding": [
+                {
+                  "system": "http://loinc.org",
+                  "code": "96609-3",
+                  "display": "Diastolic blood pressure mean"
+                }
+              ],
+              "text": "Average diastolic blood pressure"
+            },
+            "valueQuantity": {
+              "value": 72,
+              "unit": "mm[Hg]",
+              "system": "http://unitsofmeasure.org",
+              "code": "mm[Hg]"
+            }
+          },
+          {
+            "code": {
+              "coding": [
+                {
+                  "system": "http://snomed.info/sct",
+                  "code": "246432004",
+                  "display": "Number of occurrences (qualifier value)"
+                }
+              ],
+              "text": "Number of measurements"
+            },
+            "valueQuantity": {
+              "value": 3,
+              "unit": "#"
+            }
+          }
+        ]
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Observation/us-core-client-tests-average-blood-pressure"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "us-core-client-tests-blood-pressure",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-blood-pressure"
+          ]
+        },
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "vital-signs",
+                "display": "Vital Signs"
+              }
+            ],
+            "text": "Vital Signs"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "85354-9",
+              "display": "Blood pressure panel with all children optional"
+            }
+          ],
+          "text": "Blood pressure systolic and diastolic"
+        },
+        "subject": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "encounter": {
+          "display": "GP Visit"
+        },
+        "effectiveDateTime": "1999-07-02",
+        "component": [
+          {
+            "code": {
+              "coding": [
+                {
+                  "system": "http://loinc.org",
+                  "code": "8480-6",
+                  "display": "Systolic blood pressure"
+                }
+              ],
+              "text": "Systolic blood pressure"
+            },
+            "valueQuantity": {
+              "value": 109,
+              "unit": "mmHg",
+              "system": "http://unitsofmeasure.org",
+              "code": "mm[Hg]"
+            }
+          },
+          {
+            "code": {
+              "coding": [
+                {
+                  "system": "http://loinc.org",
+                  "code": "8462-4",
+                  "display": "Diastolic blood pressure"
+                }
+              ],
+              "text": "Diastolic blood pressure"
+            },
+            "valueQuantity": {
+              "value": 44,
+              "unit": "mmHg",
+              "system": "http://unitsofmeasure.org",
+              "code": "mm[Hg]"
+            }
+          }
+        ]
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Observation/us-core-client-tests-blood-pressure"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "us-core-client-tests-pediatric-bmi-for-age",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/pediatric-bmi-for-age"
+          ]
+        },
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "vital-signs",
+                "display": "Vital Signs"
+              }
+            ],
+            "text": "Vital Signs"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "59576-9",
+              "display": "Body mass index (BMI) [Percentile] Per age and sex"
+            }
+          ],
+          "text": "BMI"
+        },
+        "subject": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "encounter": {
+          "display": "GP Visit"
+        },
+        "effectiveDateTime": "2019-05-04T12:12:29-07:00",
+        "valueQuantity": {
+          "value": 65,
+          "unit": "%",
+          "system": "http://unitsofmeasure.org",
+          "code": "%"
+        },
+        "note": [
+          {
+            "text": "CDC Males, 2-20 years Chart"
+          }
+        ],
+        "performer": [
+          {
+            "extension": [
+              {
+                "url": "http://hl7.org/fhir/StructureDefinition/data-absent-reason",
+                "valueCode": "unknown"
+              }
+            ]
+          }
+        ]
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Observation/us-core-client-tests-pediatric-bmi-for-age"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "us-core-client-tests-head-circumference-percentile",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/head-occipital-frontal-circumference-percentile"
+          ]
+        },
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "vital-signs",
+                "display": "Vital Signs"
+              }
+            ],
+            "text": "Vital Signs"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "8289-1",
+              "display": "Head Occipital-frontal circumference Percentile"
+            }
+          ],
+          "text": "Head Occipital-frontal circumference Percentile"
+        },
+        "subject": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "effectiveDateTime": "2020-07-01",
+        "valueQuantity": {
+          "value": 82,
+          "unit": "%",
+          "system": "http://unitsofmeasure.org",
+          "code": "%"
+        },
+        "note": [
+          {
+            "text": "WHO Males, 0-2 years Chart"
+          }
+        ]
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Observation/us-core-client-tests-head-circumference-percentile"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "us-core-client-tests-body-weight",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-body-weight"
+          ]
+        },
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "vital-signs",
+                "display": "Vital Signs"
+              }
+            ],
+            "text": "Vital Signs"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "29463-7",
+              "display": "Body Weight"
+            }
+          ],
+          "text": "weight"
+        },
+        "subject": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "encounter": {
+          "display": "GP Visit"
+        },
+        "effectiveDateTime": "1999-07-02",
+        "valueQuantity": {
+          "value": 20.09414,
+          "unit": "kg",
+          "system": "http://unitsofmeasure.org",
+          "code": "kg"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Observation/us-core-client-tests-body-weight"
+      }
+    },
+    {
+      "resource": {
+        "id": "us-core-client-tests-procedure",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-procedure"
+          ]
+        },
+        "status": "completed",
+        "code": {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "code": "430193006",
+              "display": "Medication Reconciliation (procedure)"
+            }
+          ],
+          "text": "Medication Reconciliation (procedure)"
+        },
+        "subject": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "encounter": {
+          "reference": "Encounter/us-core-client-tests-encounter"
+        },
+        "performedDateTime": "1941-02-13T18:33:18-05:00",
+        "location": {
+          "reference": "Location/us-core-client-tests-location",
+          "display": "PCP170967"
+        },
+        "resourceType": "Procedure"
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Procedure/us-core-client-tests-procedure"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "QuestionnaireResponse",
+        "id": "us-core-client-tests-questionnaire-response",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-questionnaireresponse"
+          ]
+        },
+        "questionnaire": "http://hl7.org/fhir/us/core/Questionnaire/exercise-vital-sign",
+        "status": "completed",
+        "subject": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "authored": "2023-08-04T03:52:52.685Z",
+        "author": {
+          "reference": "Practitioner/us-core-client-tests-practitioner",
+          "type": "Practitioner"
+        },
+        "item": [
+          {
+            "linkId": "/89555-7",
+            "text": "How many D per W did you engage in moderate to strenuous physical activity in the last 30D",
+            "answer": [
+              {
+                "valueDecimal": 3
+              }
+            ]
+          },
+          {
+            "linkId": "/68516-4",
+            "text": "On those days that you engage in moderate to strenuous exercise, how many minutes, on average, do you exercise?",
+            "answer": [
+              {
+                "valueDecimal": 60
+              }
+            ]
+          }
+        ]
+      },
+      "request": {
+        "method": "PUT",
+        "url": "QuestionnaireResponse/us-core-client-tests-questionnaire-response"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "ServiceRequest",
+        "id": "us-core-client-tests-service-request",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-servicerequest"
+          ]
+        },
+        "status": "active",
+        "intent": "order",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://hl7.org/fhir/us/core/CodeSystem/us-core-category",
+                "code": "sdoh",
+                "display": "SDOH"
+              }
+            ],
+            "text": "Social Determinants Of Health"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "version": "http://snomed.info/sct/731000124108",
+              "code": "467771000124109",
+              "display": "Assistance with application for food pantry program"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "occurrenceDateTime": "2021-11-20",
+        "authoredOn": "2021-11-12T10:59:38-08:00",
+        "requester": {
+          "reference": "Practitioner/us-core-client-tests-practitioner"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "ServiceRequest/us-core-client-tests-service-request"
+      }
+    },
+    {
+      "resource": {
+        "id": "us-core-client-tests-location",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-location"
+          ]
+        },
+        "identifier": [
+          {
+            "system": "https://github.com/inferno-framework/us-core-test-kit",
+            "value": "us-core-client-tests-location"
+          }
+        ],
+        "status": "active",
+        "name": "RIVER BEND MEDICAL GROUP - CHICOPEE OFFICE - URGENT CARE",
+        "type": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/v3-RoleCode",
+                "code": "OF",
+                "display": "Outpatient facility"
+              }
+            ]
+          }
+        ],
+        "telecom": [
+          {
+            "system": "phone",
+            "value": "413-594-3111"
+          }
+        ],
+        "address": {
+          "line": [
+            "444 MONTGOMERY STREET"
+          ],
+          "city": "CHICOPEE",
+          "state": "MA",
+          "postalCode": "1020",
+          "country": "US"
+        },
+        "position": {
+          "longitude": -72.5849672,
+          "latitude": 42.1718584
+        },
+        "managingOrganization": {
+          "reference": "Organization/us-core-client-tests-organization",
+          "display": "RIVER BEND MEDICAL GROUP - CHICOPEE OFFICE - URGENT CARE"
+        },
+        "resourceType": "Location"
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Location/us-core-client-tests-location"
+      }
+    },
+    {
+      "resource": {
+        "id": "us-core-client-tests-organization",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-organization"
+          ]
+        },
+        "identifier": [
+          {
+            "system": "https://github.com/inferno-framework/us-core-test-kit",
+            "value": "us-core-client-tests-organization"
+          }
+        ],
+        "active": true,
+        "type": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/organization-type",
+                "code": "prov",
+                "display": "Healthcare Provider"
+              }
+            ],
+            "text": "Healthcare Provider"
+          }
+        ],
+        "name": "RIVER BEND MEDICAL GROUP - CHICOPEE OFFICE - URGENT CARE",
+        "telecom": [
+          {
+            "system": "phone",
+            "value": "413-594-3111"
+          }
+        ],
+        "address": [
+          {
+            "line": [
+              "444 MONTGOMERY STREET"
+            ],
+            "city": "CHICOPEE",
+            "state": "MA",
+            "postalCode": "1020",
+            "country": "US"
+          }
+        ],
+        "resourceType": "Organization"
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Organization/us-core-client-tests-organization"
+      }
+    },
+    {
+      "resource": {
+        "id": "us-core-client-tests-practitioner",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-practitioner"
+          ]
+        },
+        "identifier": [
+          {
+            "system": "https://github.com/inferno-framework/us-core-test-kit",
+            "value": "us-core-client-tests-practitioner"
+          }
+        ],
+        "active": true,
+        "name": [
+          {
+            "family": "DuBuque211",
+            "given": [
+              "Sammie902"
+            ],
+            "prefix": [
+              "Dr."
+            ]
+          }
+        ],
+        "telecom": [
+          {
+            "extension": [
+              {
+                "url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-direct",
+                "valueBoolean": true
+              }
+            ],
+            "system": "email",
+            "value": "Sammie902.DuBuque211@mitre.org",
+            "use": "work"
+          }
+        ],
+        "address": [
+          {
+            "line": [
+              "444 MONTGOMERY STREET"
+            ],
+            "city": "CHICOPEE",
+            "state": "MA",
+            "postalCode": "1020",
+            "country": "US"
+          }
+        ],
+        "gender": "male",
+        "resourceType": "Practitioner"
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Practitioner/us-core-client-tests-practitioner"
+      }
+    },
+    {
+      "resource": {
+        "id": "us-core-client-tests-practitioner-role",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-practitionerrole"
+          ]
+        },
+        "practitioner": {
+          "reference": "Practitioner/us-core-client-tests-practitioner",
+          "display": "Dr. Sammie902 DuBuque211"
+        },
+        "organization": {
+          "reference": "Organization/us-core-client-tests-organization",
+          "display": "RIVER BEND MEDICAL GROUP - CHICOPEE OFFICE - URGENT CARE"
+        },
+        "code": [
+          {
+            "coding": [
+              {
+                "system": "http://nucc.org/provider-taxonomy",
+                "code": "208D00000X",
+                "display": "General Practice Physician"
+              }
+            ],
+            "text": "General Practice Physician"
+          }
+        ],
+        "specialty": [
+          {
+            "coding": [
+              {
+                "system": "http://nucc.org/provider-taxonomy",
+                "code": "208D00000X",
+                "display": "General Practice Physician"
+              }
+            ],
+            "text": "General Practice Physician"
+          }
+        ],
+        "location": [
+          {
+            "reference": "Location/us-core-client-tests-location",
+            "display": "RIVER BEND MEDICAL GROUP - CHICOPEE OFFICE - URGENT CARE"
+          }
+        ],
+        "telecom": [
+          {
+            "system": "phone",
+            "value": "413-594-3111"
+          },
+          {
+            "extension": [
+              {
+                "url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-direct",
+                "valueBoolean": true
+              }
+            ],
+            "system": "email",
+            "value": "Sammie902.DuBuque211@mitre.org",
+            "use": "work"
+          }
+        ],
+        "resourceType": "PractitionerRole"
+      },
+      "request": {
+        "method": "PUT",
+        "url": "PractitionerRole/us-core-client-tests-practitioner-role"
+      }
+    },
+    {
+      "resource": {
+        "id": "us-core-client-tests-provenance",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-provenance"
+          ]
+        },
+        "target": [
+          {
+            "reference": "Patient/us-core-client-tests-patient"
+          }
+        ],
+        "recorded": "2020-12-10T18:33:18.715-05:00",
+        "agent": [
+          {
+            "type": {
+              "coding": [
+                {
+                  "system": "http://terminology.hl7.org/CodeSystem/provenance-participant-type",
+                  "code": "author",
+                  "display": "Author"
+                }
+              ],
+              "text": "Author"
+            },
+            "who": {
+              "reference": "Practitioner/us-core-client-tests-practitioner"
+            },
+            "onBehalfOf": {
+              "reference": "Organization/us-core-client-tests-organization"
+            }
+          },
+          {
+            "type": {
+              "coding": [
+                {
+                  "system": "http://hl7.org/fhir/us/core/CodeSystem/us-core-provenance-participant-type",
+                  "code": "transmitter",
+                  "display": "Transmitter"
+                }
+              ],
+              "text": "Transmitter"
+            },
+            "who": {
+              "reference": "Practitioner/us-core-client-tests-practitioner"
+            },
+            "onBehalfOf": {
+              "reference": "Organization/us-core-client-tests-organization"
+            }
+          }
+        ],
+        "resourceType": "Provenance"
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Provenance/us-core-client-tests-provenance"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "RelatedPerson",
+        "id": "us-core-client-tests-related-person",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-relatedperson"
+          ]
+        },
+        "active": true,
+        "patient": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "relationship": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/v3-RoleCode",
+                "code": "NIECE",
+                "display": "niece"
+              }
+            ]
+          }
+        ],
+        "name": [
+          {
+            "use": "official",
+            "family": "van Putten",
+            "given": [
+              "Sarah"
+            ]
+          }
+        ],
+        "telecom": [
+          {
+            "system": "phone",
+            "value": "555-555-5555",
+            "use": "home"
+          },
+          {
+            "system": "email",
+            "value": "sarah432.vanputten1111@mitre.org",
+            "use": "home"
+          }
+        ],
+        "birthDate": "1996-01-28",
+        "address": [
+          {
+            "use": "home",
+            "line": [
+              "80A VILLAGE ST"
+            ],
+            "city": "NEW HOLLAND",
+            "state": "PA",
+            "postalCode": "17557"
+          }
+        ]
+      },
+      "request": {
+        "method": "PUT",
+        "url": "RelatedPerson/us-core-client-tests-related-person"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Specimen",
+        "id": "us-core-client-tests-specimen",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-specimen"
+          ]
+        },
+        "identifier": [
+          {
+            "system": "https://github.com/inferno-framework/us-core-test-kit",
+            "value": "us-core-client-tests-specimen"
+          }
+        ],
+        "accessionIdentifier": {
+          "system": "urn:inferno:accession-ids",
+          "value": "20220927-00124"
+        },
+        "type": {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "version": "http://snomed.info/sct/731000124108",
+              "code": "119364003",
+              "display": "Serum sample"
+            },
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/v2-0487",
+              "code": "SER",
+              "display": "Serum"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "collection": {
+          "collectedDateTime": "2022-09-27T18:07:12Z",
+          "bodySite": {
+            "coding": [
+              {
+                "system": "http://snomed.info/sct",
+                "version": "http://snomed.info/sct/731000124108",
+                "code": "368209003",
+                "display": "Right arm"
+              }
+            ],
+            "text": "Right arm"
+          }
+        },
+        "container": [
+          {
+            "type": {
+              "text": "Serum Separator Tube"
+            }
+          }
+        ],
+        "condition": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/v2-0493",
+                "code": "HEM",
+                "display": "Hemolyzed"
+              }
+            ],
+            "text": "Hemolyzed"
+          }
+        ]
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Specimen/us-core-client-tests-specimen"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "us-core-client-tests-body-temperature",
+        "meta": {
+          "extension": [
+            {
+              "url": "http://hl7.org/fhir/StructureDefinition/instance-name",
+              "valueString": "Temperature Example"
+            }
+          ],
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-body-temperature"
+          ]
+        },
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "vital-signs",
+                "display": "Vital Signs"
+              }
+            ],
+            "text": "Vital Signs"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "8310-5",
+              "display": "Body temperature"
+            }
+          ],
+          "text": "temperature"
+        },
+        "subject": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "encounter": {
+          "display": "GP Visit"
+        },
+        "effectiveDateTime": "1999-07-02",
+        "performer": [
+          {
+            "reference": "Practitioner/us-core-client-tests-practitioner"
+          }
+        ],
+        "valueQuantity": {
+          "value": 36.55556,
+          "unit": "Cel",
+          "system": "http://unitsofmeasure.org",
+          "code": "Cel"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Observation/us-core-client-tests-body-temperature"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "us-core-client-tests-pulse-oximetry",
+        "meta": {
+          "extension": [
+            {
+              "url": "http://hl7.org/fhir/StructureDefinition/instance-name",
+              "valueString": "Oxygen Saturation Example"
+            }
+          ],
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-pulse-oximetry"
+          ]
+        },
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "vital-signs",
+                "display": "Vital Signs"
+              }
+            ],
+            "text": "Vital Signs"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "2708-6",
+              "display": "Oxygen saturation in Arterial blood"
+            },
+            {
+              "system": "http://loinc.org",
+              "code": "59408-5",
+              "display": "Oxygen saturation in Arterial blood by Pulse oximetry"
+            }
+          ],
+          "text": "oxygen_saturation"
+        },
+        "subject": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "encounter": {
+          "display": "GP Visit"
+        },
+        "effectiveDateTime": "1999-07-02",
+        "performer": [
+          {
+            "reference": "Practitioner/us-core-client-tests-practitioner"
+          }
+        ],
+        "valueQuantity": {
+          "value": 99,
+          "unit": "%O2",
+          "system": "http://unitsofmeasure.org",
+          "code": "%"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Observation/us-core-client-tests-pulse-oximetry"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "us-core-client-tests-observation-screening-assessment",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-observation-screening-assessment"
+          ]
+        },
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "survey",
+                "display": "Survey"
+              }
+            ],
+            "text": "Survey"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "32401-2",
+              "display": "10 minute Apgar Color"
+            }
+          ],
+          "text": "Apgar color score"
+        },
+        "subject": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "effectiveDateTime": "2016-05-18T22:33:22+00:00",
+        "performer": [
+          {
+            "reference": "Practitioner/us-core-client-tests-practitioner"
+          }
+        ],
+        "valueCodeableConcept": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "LA6724-4",
+              "display": "Good color all over"
+            }
+          ],
+          "text": "2. Good color all over"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Observation/us-core-client-tests-observation-screening-assessment"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "us-core-client-tests-observation-clinical-result",
+        "meta": {
+          "extension": [
+            {
+              "url": "http://hl7.org/fhir/StructureDefinition/instance-name",
+              "valueString": "Capillary refill Time Nail Bed Example"
+            }
+          ],
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-observation-clinical-result"
+          ]
+        },
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "exam",
+                "display": "Exam"
+              }
+            ],
+            "text": "Exam"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "44963-7",
+              "display": "Capillary refill Time Nail Bed"
+            }
+          ],
+          "text": "Capillary refill Time Nail Bed"
+        },
+        "subject": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "encounter": {
+          "display": "Cardiology Consult"
+        },
+        "effectiveDateTime": "2021-11-10T16:48:57.246958-08:00",
+        "performer": [
+          {
+            "reference": "Practitioner/us-core-client-tests-practitioner"
+          }
+        ],
+        "valueQuantity": {
+          "value": 1,
+          "unit": "s",
+          "system": "http://unitsofmeasure.org",
+          "code": "s"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Observation/us-core-client-tests-observation-clinical-result"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "us-core-client-tests-observation-imaging",
+        "meta": {
+          "extension": [
+            {
+              "url": "http://hl7.org/fhir/StructureDefinition/instance-name",
+              "valueString": "Capillary refill Time Nail Bed Example"
+            }
+          ],
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-observation-clinical-result"
+          ]
+        },
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "imaging",
+                "display": "Imaging"
+              }
+            ],
+            "text": "Imaging"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "18782-3",
+              "display": "Radiology Study observation (narrative)"
+            }
+          ],
+          "text": "Findings"
+        },
+        "subject": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "encounter": {
+          "display": "ER Visit"
+        },
+        "effectiveDateTime": "2019-02-03T19:43:30.000Z",
+        "valueString": "LINES AND TUBES: None.\\n LUNGS AND PLEURA:\\n Clear lungs. Normal pulmonary vascularity.\\n No pleural effusion.\\n No pneumothorax.\\n HEART, MEDIASTINUM AND HILA:\\n Heart is normal in size.\\n Normal mediastinal and hilar contour.\\n BONES AND SOFT TISSUES:\\n No acute abnormality.\\n"
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Observation/us-core-client-tests-observation-imaging"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "us-core-client-tests-observation-clinical-test",
+        "meta": {
+          "extension": [
+            {
+              "url": "http://hl7.org/fhir/StructureDefinition/instance-name",
+              "valueString": "Capillary refill Time Nail Bed Example"
+            }
+          ],
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-observation-clinical-test"
+          ]
+        },
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://hl7.org/fhir/us/core/CodeSystem/us-core-observation-category",
+                "code": "clinical-test",
+                "display": "Clinical Test"
+              }
+            ],
+            "text": "Clinical Test"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "44974-4",
+              "display": "Pulse intensity Palpation"
+            }
+          ],
+          "text": "Pulse intensity Palpation"
+        },
+        "subject": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "encounter": {
+          "display": "Cardiology Consult"
+        },
+        "effectiveDateTime": "2021-11-10T16:48:57.246958-08:00",
+        "valueCodeableConcept": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "LA11841-6",
+              "display": "1+"
+            }
+          ],
+          "text": "1+"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Observation/us-core-client-tests-observation-clinical-test"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "DocumentReference",
+        "id": "us-core-client-tests-adi-document-reference",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-adi-documentreference|8.0.0"
+          ]
+        },
+        "extension": [
+          {
+            "url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-authentication-time",
+            "valueDateTime": "1941-09-05T01:11:45-04:00"
+          }
+        ],
+        "identifier": [
+          {
+            "system": "https://github.com/inferno-framework/us-core-test-kit",
+            "value": "cf2587fa-6106-45f4-8264-fbe3d38853f5"
+          }
+        ],
+        "status": "current",
+        "type": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "86533-7",
+              "display": "Patient Living will"
+            }
+          ],
+          "text": "Patient Living Will"
+        },
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://loinc.org",
+                "code": "42348-3",
+                "display": "Advance healthcare directives"
+              }
+            ],
+            "text": "Advance Directives"
+          }
+        ],
+        "subject": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "date": "2024-10-08T19:48:54.316108-07:00",
+        "author": [
+          {
+            "reference": "Practitioner/us-core-client-tests-practitioner",
+            "display": "Dr. Patricia625 Kilback373"
+          }
+        ],
+        "authenticator": {
+            "reference": "Practitioner/us-core-client-tests-practitioner",
+            "display": "Dr. Patricia625 Kilback373"
+        },
+        "content": [
+          {
+            "attachment": {
+              "contentType": "application/pdf",
+              "data": "JVBERi0xLjQKJdPr6eEKMSAwIG9iago8PC9UaXRsZSAoRXhhbXBsZSBvZiBhIExpdmluZyBXaWxsKQovQ3JlYXRvciAoTW96aWxsYS81LjAgXChNYWNpbnRvc2g7IEludGVsIE1hYyBPUyBYIDEwXzE1XzdcKSBBcHBsZVdlYktpdC81MzcuMzYgXChLSFRNTCwgbGlrZSBHZWNrb1wpIENocm9tZS8xMjkuMC4wLjAgU2FmYXJpLzUzNy4zNikKL1Byb2R1Y2VyIChTa2lhL1BERiBtMTI5KQovQ3JlYXRpb25EYXRlIChEOjIwMjQxMDA0MTQ0MTUxKzAwJzAwJykKL01vZERhdGUgKEQ6MjAyNDEwMDQxNDQxNTErMDAnMDAnKT4+CmVuZG9iagozIDAgb2JqCjw8L2NhIDEKL0JNIC9Ob3JtYWw=",
+              "title": "Living Will (PDF)",
+              "creation": "1941-10-04"
+            },
+            "format": {
+              "system": "http://ihe.net/fhir/ihe.formatcode.fhir/CodeSystem/formatcode",
+              "code": "urn:ihe:iti:xds-sd:pdf:2008",
+              "display": "ITI XDS-SD PDF"
+            }
+          }
+        ]
+      },
+      "request": {
+        "method": "PUT",
+        "url": "DocumentReference/us-core-client-tests-adi-document-reference"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "us-core-client-tests-observation-adi-documentation",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-observation-adi-documentation"
+          ]
+        },
+        "extension": [
+          {
+            "url": "http://hl7.org/fhir/StructureDefinition/workflow-supportingInfo",
+            "valueReference": {
+              "reference": "DocumentReference/us-core-client-tests-adi-document-reference",
+              "display": "Living Will"
+            }
+          }
+        ],
+        "identifier": [
+          {
+            "system": "https://github.com/inferno-framework/us-core-test-kit",
+            "value": "23c5bf6a-b411-424a-b466-9dee7f4838df"
+          }
+        ],
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://hl7.org/fhir/us/core/CodeSystem/us-core-category",
+                "code": "observation-adi-documentation",
+                "display": "Observation ADI Documentation"
+              }
+            ],
+            "text": "Observation ADI Documentation"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "45473-6"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "Patient/us-core-client-tests-patient"
+        },
+        "effectiveDateTime": "1941-09-05T01:11:45-04:00",
+        "issued": "1941-09-05T01:11:45-04:00",
+        "performer": [
+          {
+            "reference": "Practitioner/us-core-client-tests-practitioner",
+            "display": "Dr. Patricia625 Kilback373"
+          }
+        ],
+        "valueCodeableConcept": {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "version": "http://snomed.info/sct/731000124108",
+              "code": "373066001",
+              "display": "Yes (qualifier value)"
+            }
+          ]
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Observation/us-core-client-tests-observation-adi-documentation"
+      }
+    }
+  ]
+}
