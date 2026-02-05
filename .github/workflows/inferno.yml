@@ -180,7 +180,7 @@ jobs:
               \"test_group_id\": \"us_core_v311-us_core_v311_fhir_api\",
               \"inputs\": [
                 {\"name\": \"url\", \"value\": \"http://host.docker.internal:$HFS_PORT\"},
-                {\"name\": \"patient_ids\", \"value\": \"85,355,907,908\"},
+                {\"name\": \"patient_ids\", \"value\": \"85,355,907,908,us-core-client-tests-patient\"},
                 {\"name\": \"smart_auth_info\", \"value\": \"{\\\"auth_type\\\":\\\"public\\\"}\"}
               ]
             }")
