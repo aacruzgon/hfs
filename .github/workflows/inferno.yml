@@ -64,10 +64,10 @@ jobs:
 
       - name: Load US Core test data into HFS
         run: |
-          echo "Loading US Core test data from data/inferno/uscore_bundle_patient_355.json..."
+          echo "Loading US Core test data from crates/hfs/tests/inferno/uscore_bundle_patient_355.json..."
           RESPONSE=$(curl -s -w "\n%{http_code}" -X POST http://localhost:$HFS_PORT/ \
             -H "Content-Type: application/fhir+json" \
-            -d @data/inferno/uscore_bundle_patient_355.json)
+            -d @crates/hfs/tests/inferno/uscore_bundle_patient_355.json)
 
           HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
           BODY=$(echo "$RESPONSE" | sed '$d')
