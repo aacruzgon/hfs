@@ -95,8 +95,6 @@ jobs:
             nginx:
               ports:
                 - "${INFERNO_PORT}:80"
-            redis:
-              ports: []  # Don't expose Redis to host - internal network is sufficient
             inferno:
               extra_hosts:
                 - "host.docker.internal:host-gateway"
@@ -110,6 +108,13 @@ jobs:
           EOF
           echo "Configured Inferno to listen on port $INFERNO_PORT with host.docker.internal mapping"
           echo "TLS tests disabled (INFERNO_DISABLE_TLS_TEST=true)"
+
+      - name: Remove Redis host port binding
+        run: |
+          # Docker Compose merges arrays, so override with empty ports doesn't work.
+          # Remove the Redis port mapping from the original file to avoid host port conflicts.
+          sed -i '/"6379:6379"/d' us-core-test-kit/docker-compose.yml
+          echo "Removed Redis port 6379 host binding (internal network is sufficient)"
 
       - name: Fix Redis data directory permissions
         run: |
