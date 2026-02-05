@@ -187,6 +187,7 @@ jobs:
 
           # Start the test run
           # Note: host.docker.internal is used so Docker containers can reach the host
+          # Note: smart_auth_info with auth_type=public allows testing without SMART OAuth
           echo "Starting test run..."
           RUN_RESPONSE=$(curl -s -X POST "http://localhost:$INFERNO_PORT/api/test_runs" \
             -H "Content-Type: application/json" \
@@ -195,7 +196,8 @@ jobs:
               \"test_group_id\": \"us_core_v311-us_core_v311_fhir_api\",
               \"inputs\": [
                 {\"name\": \"url\", \"value\": \"http://host.docker.internal:$HFS_PORT\"},
-                {\"name\": \"patient_ids\", \"value\": \"355\"}
+                {\"name\": \"patient_ids\", \"value\": \"355\"},
+                {\"name\": \"smart_auth_info\", \"value\": \"{\\\"auth_type\\\":\\\"public\\\"}\"}
               ]
             }")
 
