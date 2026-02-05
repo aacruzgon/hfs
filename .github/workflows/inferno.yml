@@ -62,26 +62,56 @@ jobs:
           echo "HFS failed to start"
           exit 1
 
-      - name: Load US Core test data into HFS
+      - name: Load Inferno test data into HFS
         run: |
-          echo "Loading US Core test data from crates/hfs/tests/inferno/uscore_bundle_patient_355.json..."
-          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST http://localhost:$HFS_PORT/ \
-            -H "Content-Type: application/fhir+json" \
-            -d @crates/hfs/tests/inferno/uscore_bundle_patient_355.json)
+          echo "Loading all test data from crates/hfs/tests/inferno/..."
+          FAILED=0
 
-          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-          BODY=$(echo "$RESPONSE" | sed '$d')
+          for FILE in crates/hfs/tests/inferno/*.json; do
+            FILENAME=$(basename "$FILE")
+            echo ""
+            echo "Processing $FILENAME..."
 
-          echo "HTTP Status: $HTTP_CODE"
+            # Determine resource type and endpoint
+            RESOURCE_TYPE=$(jq -r '.resourceType // empty' "$FILE")
+            BUNDLE_TYPE=$(jq -r '.type // empty' "$FILE")
 
-          if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
-            echo "Test data loaded successfully"
-            echo "$BODY" | head -c 1000
-          else
-            echo "Failed to load test data"
-            echo "$BODY"
+            if [ "$BUNDLE_TYPE" = "transaction" ]; then
+              ENDPOINT="/"
+              echo "  Type: transaction bundle -> POST $ENDPOINT"
+            elif [ "$RESOURCE_TYPE" = "SearchParameter" ]; then
+              ENDPOINT="/SearchParameter"
+              echo "  Type: SearchParameter -> POST $ENDPOINT"
+            elif [ "$RESOURCE_TYPE" = "Group" ]; then
+              ENDPOINT="/Group"
+              echo "  Type: Group -> POST $ENDPOINT"
+            else
+              echo "  WARNING: Unknown type (resourceType=$RESOURCE_TYPE, type=$BUNDLE_TYPE), skipping"
+              continue
+            fi
+
+            RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "http://localhost:$HFS_PORT$ENDPOINT" \
+              -H "Content-Type: application/fhir+json" \
+              -d @"$FILE")
+
+            HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+            BODY=$(echo "$RESPONSE" | sed '$d')
+
+            if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+              echo "  Success (HTTP $HTTP_CODE)"
+            else
+              echo "  FAILED (HTTP $HTTP_CODE)"
+              echo "  $BODY" | head -c 500
+              FAILED=1
+            fi
+          done
+
+          echo ""
+          if [ "$FAILED" -eq 1 ]; then
+            echo "One or more files failed to load"
             exit 1
           fi
+          echo "All test data loaded successfully"
 
       - name: Clean up any previous Inferno state
         run: |
