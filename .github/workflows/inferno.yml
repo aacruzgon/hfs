@@ -215,14 +215,14 @@ jobs:
             # Check test run status directly (more reliable than counting results)
             RUN_STATUS=$(curl -s "http://localhost:$INFERNO_PORT/api/test_runs/$RUN_ID" | jq -r '.status')
 
-            # Get results for progress display
+            # Get results for progress display (filter to individual tests only, not group aggregations)
             RESULTS=$(curl -s "http://localhost:$INFERNO_PORT/api/test_runs/$RUN_ID/results")
-            TOTAL=$(echo "$RESULTS" | jq 'length')
-            PASS=$(echo "$RESULTS" | jq '[.[] | select(.result == "pass")] | length')
-            FAIL=$(echo "$RESULTS" | jq '[.[] | select(.result == "fail")] | length')
-            SKIP=$(echo "$RESULTS" | jq '[.[] | select(.result == "skip")] | length')
-            ERROR=$(echo "$RESULTS" | jq '[.[] | select(.result == "error")] | length')
-            OMIT=$(echo "$RESULTS" | jq '[.[] | select(.result == "omit")] | length')
+            TOTAL=$(echo "$RESULTS" | jq '[.[] | select(.test_id)] | length')
+            PASS=$(echo "$RESULTS" | jq '[.[] | select(.test_id and .result == "pass")] | length')
+            FAIL=$(echo "$RESULTS" | jq '[.[] | select(.test_id and .result == "fail")] | length')
+            SKIP=$(echo "$RESULTS" | jq '[.[] | select(.test_id and .result == "skip")] | length')
+            ERROR=$(echo "$RESULTS" | jq '[.[] | select(.test_id and .result == "error")] | length')
+            OMIT=$(echo "$RESULTS" | jq '[.[] | select(.test_id and .result == "omit")] | length')
 
             echo "Poll $i/$MAX_POLLS: Status=$RUN_STATUS Total=$TOTAL Pass=$PASS Fail=$FAIL Skip=$SKIP Error=$ERROR Omit=$OMIT"
 
