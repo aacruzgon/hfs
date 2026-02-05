@@ -271,11 +271,11 @@ jobs:
             echo "| **Total** | **$TOTAL** |" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
 
-            # List failed tests
+            # List failed tests (exclude group results which don't have result_message)
             if [ "$FAIL" -gt 0 ] || [ "$ERROR" -gt 0 ]; then
               echo "### Failed/Error Tests" >> $GITHUB_STEP_SUMMARY
               echo "" >> $GITHUB_STEP_SUMMARY
-              echo "$RESULTS" | jq -r '.[] | select(.result == "fail" or .result == "error") | "- **\(.test_id // .id)**: \(.result) - \(.result_message // "No message" | .[0:200])"' >> $GITHUB_STEP_SUMMARY
+              echo "$RESULTS" | jq -r '.[] | select((.result == "fail" or .result == "error") and .test_id) | "- **\(.test_id)**: \(.result) - \(.result_message // "No message" | .[0:200])"' >> $GITHUB_STEP_SUMMARY
             fi
           else
             echo "## Inferno Test Results" >> $GITHUB_STEP_SUMMARY
