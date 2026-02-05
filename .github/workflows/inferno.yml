@@ -256,11 +256,13 @@ jobs:
 
             RESULTS=$(cat inferno-results/results.json)
 
-            TOTAL=$(echo "$RESULTS" | jq 'length')
-            PASS=$(echo "$RESULTS" | jq '[.[] | select(.result == "pass")] | length')
-            FAIL=$(echo "$RESULTS" | jq '[.[] | select(.result == "fail")] | length')
-            SKIP=$(echo "$RESULTS" | jq '[.[] | select(.result == "skip")] | length')
-            ERROR=$(echo "$RESULTS" | jq '[.[] | select(.result == "error")] | length')
+            # Count only individual tests (exclude group aggregations which have test_group_id instead of test_id)
+            TOTAL=$(echo "$RESULTS" | jq '[.[] | select(.test_id)] | length')
+            PASS=$(echo "$RESULTS" | jq '[.[] | select(.test_id and .result == "pass")] | length')
+            FAIL=$(echo "$RESULTS" | jq '[.[] | select(.test_id and .result == "fail")] | length')
+            SKIP=$(echo "$RESULTS" | jq '[.[] | select(.test_id and .result == "skip")] | length')
+            ERROR=$(echo "$RESULTS" | jq '[.[] | select(.test_id and .result == "error")] | length')
+            OMIT=$(echo "$RESULTS" | jq '[.[] | select(.test_id and .result == "omit")] | length')
 
             echo "| Status | Count |" >> $GITHUB_STEP_SUMMARY
             echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
@@ -268,6 +270,7 @@ jobs:
             echo "| :x: Fail | $FAIL |" >> $GITHUB_STEP_SUMMARY
             echo "| :warning: Error | $ERROR |" >> $GITHUB_STEP_SUMMARY
             echo "| :fast_forward: Skip | $SKIP |" >> $GITHUB_STEP_SUMMARY
+            echo "| :arrow_right: Omit | $OMIT |" >> $GITHUB_STEP_SUMMARY
             echo "| **Total** | **$TOTAL** |" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
 
