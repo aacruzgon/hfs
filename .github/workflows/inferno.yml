@@ -65,54 +65,7 @@ jobs:
 
       - name: Load Inferno test data into HFS
         run: |
-          echo "Loading all test data from crates/hfs/tests/inferno/..."
-          FAILED=0
-
-          for FILE in crates/hfs/tests/inferno/*.json; do
-            FILENAME=$(basename "$FILE")
-            echo ""
-            echo "Processing $FILENAME..."
-
-            # Determine resource type and endpoint
-            RESOURCE_TYPE=$(jq -r '.resourceType // empty' "$FILE")
-            BUNDLE_TYPE=$(jq -r '.type // empty' "$FILE")
-
-            if [ "$BUNDLE_TYPE" = "transaction" ]; then
-              ENDPOINT="/"
-              echo "  Type: transaction bundle -> POST $ENDPOINT"
-            elif [ "$RESOURCE_TYPE" = "SearchParameter" ]; then
-              ENDPOINT="/SearchParameter"
-              echo "  Type: SearchParameter -> POST $ENDPOINT"
-            elif [ "$RESOURCE_TYPE" = "Group" ]; then
-              ENDPOINT="/Group"
-              echo "  Type: Group -> POST $ENDPOINT"
-            else
-              echo "  WARNING: Unknown type (resourceType=$RESOURCE_TYPE, type=$BUNDLE_TYPE), skipping"
-              continue
-            fi
-
-            RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "http://localhost:$HFS_PORT$ENDPOINT" \
-              -H "Content-Type: application/fhir+json" \
-              -d @"$FILE")
-
-            HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-            BODY=$(echo "$RESPONSE" | sed '$d')
-
-            if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
-              echo "  Success (HTTP $HTTP_CODE)"
-            else
-              echo "  FAILED (HTTP $HTTP_CODE)"
-              echo "  $BODY" | head -c 500
-              FAILED=1
-            fi
-          done
-
-          echo ""
-          if [ "$FAILED" -eq 1 ]; then
-            echo "One or more files failed to load"
-            exit 1
-          fi
-          echo "All test data loaded successfully"
+          ./crates/hfs/tests/inferno/install.sh
 
       - name: Clean up any previous Inferno state
         run: |
@@ -227,7 +180,7 @@ jobs:
               \"test_group_id\": \"us_core_v311-us_core_v311_fhir_api\",
               \"inputs\": [
                 {\"name\": \"url\", \"value\": \"http://host.docker.internal:$HFS_PORT\"},
-                {\"name\": \"patient_ids\", \"value\": \"355\"},
+                {\"name\": \"patient_ids\", \"value\": \"85,355,907,908\"},
                 {\"name\": \"smart_auth_info\", \"value\": \"{\\\"auth_type\\\":\\\"public\\\"}\"}
               ]
             }")
