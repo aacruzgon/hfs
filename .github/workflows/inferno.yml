@@ -112,9 +112,9 @@ jobs:
       - name: Remove Redis host port binding
         run: |
           # Docker Compose merges arrays, so override with empty ports doesn't work.
-          # Remove the Redis port mapping from the background file to avoid host port conflicts.
+          # Remove the entire Redis ports block from the background file to avoid host port conflicts.
           # (Redis config is in docker-compose.background.yml, not docker-compose.yml)
-          sed -i '/"6379:6379"/d' us-core-test-kit/docker-compose.background.yml
+          sed -i '/ports:/,/- "6379:6379"/d' us-core-test-kit/docker-compose.background.yml
           echo "Removed Redis port 6379 host binding (internal network is sufficient)"
 
       - name: Fix Redis data directory permissions
