@@ -69,6 +69,10 @@
                 }
               }
             ]
+          },
+          {
+            "url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-sex",
+            "valueCode": "248153007"
           }
         ],
         "identifier": [
@@ -5743,10 +5747,10 @@
           "reference": "urn:uuid:4c34c0db-7434-8c8f-1936-30dd023babc2",
           "display": "RIVER BEND MEDICAL GROUP - CHICOPEE OFFICE - URGENT CARE"
         },
-        "lotNumber" : "AAJN11K",
-        "performer" : [
+        "lotNumber": "AAJN11K",
+        "performer": [
           {
-            "actor" : {
+            "actor": {
               "reference": "urn:uuid:cf8468d4-5a1b-3b05-8c92-7a82e2df0128",
               "display": "Dr. Sammie902 DuBuque211"
             }
@@ -7316,10 +7320,12 @@
         "encounter": {
           "reference": "urn:uuid:7c13ad71-94b0-83e4-db57-1b466f8140c0"
         },
-        "performer": [{
-          "reference": "urn:uuid:618787f5-2588-3dca-b90e-5e8fd27b1a36",
-          "display": "Dr. Blossom971 Christiansen251"
-        }],
+        "performer": [
+          {
+            "reference": "urn:uuid:618787f5-2588-3dca-b90e-5e8fd27b1a36",
+            "display": "Dr. Blossom971 Christiansen251"
+          }
+        ],
         "effectiveDateTime": "1952-09-25T19:33:18-04:00",
         "issued": "1952-09-25T19:33:18.715-04:00",
         "valueQuantity": {
@@ -14327,10 +14333,12 @@
         "encounter": {
           "reference": "urn:uuid:e964a4a8-4f9f-5c0f-4e68-e34329e27156"
         },
-        "performer": [{
-          "reference": "urn:uuid:618787f5-2588-3dca-b90e-5e8fd27b1a36",
-          "display": "Dr. Blossom971 Christiansen251"
-        }],
+        "performer": [
+          {
+            "reference": "urn:uuid:618787f5-2588-3dca-b90e-5e8fd27b1a36",
+            "display": "Dr. Blossom971 Christiansen251"
+          }
+        ],
         "effectiveDateTime": "1976-02-05T18:33:18-05:00",
         "issued": "1976-02-05T18:33:18.715-05:00",
         "valueQuantity": {
@@ -16464,10 +16472,12 @@
         "encounter": {
           "reference": "urn:uuid:df3732c1-8b05-471b-0801-d40ff6bf5823"
         },
-        "performer": [{
-          "reference": "urn:uuid:618787f5-2588-3dca-b90e-5e8fd27b1a36",
-          "display": "Dr. Blossom971 Christiansen251"
-        }],
+        "performer": [
+          {
+            "reference": "urn:uuid:618787f5-2588-3dca-b90e-5e8fd27b1a36",
+            "display": "Dr. Blossom971 Christiansen251"
+          }
+        ],
         "effectiveDateTime": "1983-03-17T18:33:18-05:00",
         "issued": "1983-03-17T18:33:18.715-05:00",
         "valueQuantity": {
@@ -17087,11 +17097,10 @@
         },
         "performer": [
           {
-            "actor":
-              {
-                "reference": "urn:uuid:618787f5-2588-3dca-b90e-5e8fd27b1a36",
-                "display": "Dr. Blossom971 Christiansen251"
-              }
+            "actor": {
+              "reference": "urn:uuid:618787f5-2588-3dca-b90e-5e8fd27b1a36",
+              "display": "Dr. Blossom971 Christiansen251"
+            }
           }
         ],
         "resourceType": "Procedure"
@@ -18900,10 +18909,12 @@
         "encounter": {
           "reference": "urn:uuid:9030cedd-7de1-9f69-89c5-9968cc4c2789"
         },
-        "performer": [{
-          "reference": "urn:uuid:618787f5-2588-3dca-b90e-5e8fd27b1a36",
-          "display": "Dr. Blossom971 Christiansen251"
-        }],
+        "performer": [
+          {
+            "reference": "urn:uuid:618787f5-2588-3dca-b90e-5e8fd27b1a36",
+            "display": "Dr. Blossom971 Christiansen251"
+          }
+        ],
         "effectivePeriod": {
           "start": "1994-05-19T19:33:18-04:00",
           "stop": "1994-05-19T20:33:18-04:00"
@@ -26254,10 +26265,12 @@
         "encounter": {
           "reference": "urn:uuid:9d4e1390-f9cb-097a-c28f-37d34f14fe83"
         },
-        "performer": [{
-          "reference": "urn:uuid:618787f5-2588-3dca-b90e-5e8fd27b1a36",
-          "display": "Dr. Blossom971 Christiansen251"
-        }],
+        "performer": [
+          {
+            "reference": "urn:uuid:618787f5-2588-3dca-b90e-5e8fd27b1a36",
+            "display": "Dr. Blossom971 Christiansen251"
+          }
+        ],
         "effectiveDateTime": "2013-09-05T19:33:18-04:00",
         "issued": "2013-09-05T19:33:18.715-04:00",
         "valueQuantity": {
@@ -32596,9 +32609,9 @@
             "dueDate": "2020-12-07"
           }
         ],
-        "expressedBy" : {
-            "reference": "urn:uuid:618787f5-2588-3dca-b90e-5e8fd27b1a36",
-            "display": "Dr. Blossom971 Christiansen251"
+        "expressedBy": {
+          "reference": "urn:uuid:618787f5-2588-3dca-b90e-5e8fd27b1a36",
+          "display": "Dr. Blossom971 Christiansen251"
         },
         "resourceType": "Goal"
       },
@@ -32906,10 +32919,12 @@
           ],
           "text": "Heart rate"
         },
-        "performer": [{
-          "reference": "urn:uuid:618787f5-2588-3dca-b90e-5e8fd27b1a36",
-          "display": "Dr. Blossom971 Christiansen251"
-        }],
+        "performer": [
+          {
+            "reference": "urn:uuid:618787f5-2588-3dca-b90e-5e8fd27b1a36",
+            "display": "Dr. Blossom971 Christiansen251"
+          }
+        ],
         "subject": {
           "reference": "urn:uuid:e91975f5-9445-c11f-cabf-c3c6dae161f2"
         },
@@ -32977,10 +32992,12 @@
         "encounter": {
           "reference": "urn:uuid:6883f6b3-07d1-f630-d287-b1fa3a3e0e13"
         },
-        "performer": [{
-          "reference": "urn:uuid:eb10a604-ac01-3975-ad58-4c34606af456",
-          "display": "Dr. Patricia625 Kilback373"
-        }],
+        "performer": [
+          {
+            "reference": "urn:uuid:eb10a604-ac01-3975-ad58-4c34606af456",
+            "display": "Dr. Patricia625 Kilback373"
+          }
+        ],
         "effectiveDateTime": "2009-08-19T19:33:18-04:00",
         "issued": "2009-08-19T19:33:18.715-04:00",
         "dataAbsentReason": {
@@ -33152,10 +33169,12 @@
         "encounter": {
           "reference": "urn:uuid:9030cedd-7de1-9f69-89c5-9968cc4c2789"
         },
-        "performer": [{
-          "reference": "urn:uuid:618787f5-2588-3dca-b90e-5e8fd27b1a36",
-          "display": "Dr. Blossom971 Christiansen251"
-        }],
+        "performer": [
+          {
+            "reference": "urn:uuid:618787f5-2588-3dca-b90e-5e8fd27b1a36",
+            "display": "Dr. Blossom971 Christiansen251"
+          }
+        ],
         "effectiveDateTime": "1994-05-19T19:33:18-04:00",
         "issued": "1994-05-19T19:33:18.715-04:00",
         "dataAbsentReason": {
@@ -33512,10 +33531,12 @@
         "encounter": {
           "reference": "urn:uuid:65abf8dc-d463-e590-71e7-dea000842f94"
         },
-        "performer": [{
-          "reference": "urn:uuid:618787f5-2588-3dca-b90e-5e8fd27b1a36",
-          "display": "Dr. Blossom971 Christiansen251"
-        }],
+        "performer": [
+          {
+            "reference": "urn:uuid:618787f5-2588-3dca-b90e-5e8fd27b1a36",
+            "display": "Dr. Blossom971 Christiansen251"
+          }
+        ],
         "effectivePeriod": {
           "start": "1940-09-05T19:33:18-04:00",
           "end": "1940-09-05T20:33:18-04:00"
@@ -33571,10 +33592,12 @@
         "encounter": {
           "reference": "urn:uuid:7b8b502d-2f00-f1da-3ada-9b4ee98476ba"
         },
-        "performer": [{
-          "reference": "urn:uuid:618787f5-2588-3dca-b90e-5e8fd27b1a36",
-          "display": "Dr. Blossom971 Christiansen251"
-        }],
+        "performer": [
+          {
+            "reference": "urn:uuid:618787f5-2588-3dca-b90e-5e8fd27b1a36",
+            "display": "Dr. Blossom971 Christiansen251"
+          }
+        ],
         "effectivePeriod": {
           "start": "1944-02-10T19:33:18-04:00",
           "end": "1944-02-10T20:33:18-04:00"
@@ -33627,10 +33650,12 @@
         "subject": {
           "reference": "urn:uuid:e91975f5-9445-c11f-cabf-c3c6dae161f2"
         },
-        "performer": [{
-          "reference": "urn:uuid:618787f5-2588-3dca-b90e-5e8fd27b1a36",
-          "display": "Dr. Blossom971 Christiansen251"
-        }],
+        "performer": [
+          {
+            "reference": "urn:uuid:618787f5-2588-3dca-b90e-5e8fd27b1a36",
+            "display": "Dr. Blossom971 Christiansen251"
+          }
+        ],
         "effectivePeriod": {
           "start": "1940-10-05T00:00:00+00:00",
           "end": "1940-10-05T01:00:00+00:00"
@@ -34637,7 +34662,11 @@
               }
             }
           }
-        ]
+        ],
+        "custodian": {
+          "reference": "urn:uuid:c7459800-e42b-3144-a934-59585c9eacff",
+          "display": "PCP170967"
+        }
       },
       "request": {
         "method": "POST",

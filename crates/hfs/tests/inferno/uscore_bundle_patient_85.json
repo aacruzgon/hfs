@@ -51,6 +51,10 @@
           {
             "url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-birthsex",
             "valueCode": "M"
+          },
+          {
+            "url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-sex",
+            "valueCode": "248153007"
           }
         ],
         "identifier": [
@@ -638,10 +642,12 @@
         "subject": {
           "reference": "urn:uuid:d831ec91-c7a3-4a61-9312-7ff0c4a32134"
         },
-        "performer": [{
-          "reference": "urn:uuid:c38e2d6b-b2d5-3f8e-acae-3044eeb5edbb",
-          "display": "Dr. Melvin857 Torp761"
-        }],
+        "performer": [
+          {
+            "reference": "urn:uuid:c38e2d6b-b2d5-3f8e-acae-3044eeb5edbb",
+            "display": "Dr. Melvin857 Torp761"
+          }
+        ],
         "effectiveDateTime": "2020-11-18T16:19:31-08:00",
         "valueQuantity": {
           "value": 51.2,
@@ -13836,10 +13842,12 @@
         "encounter": {
           "reference": "urn:uuid:73d083ce-bf6a-8a3a-d56b-2349f23049bc"
         },
-        "performer": [{
-          "reference": "urn:uuid:8bee2ee3-d401-3728-9791-d235cfa01ab9",
-          "display": "Dr. Willena258 Oberbrunner298"
-        }],
+        "performer": [
+          {
+            "reference": "urn:uuid:8bee2ee3-d401-3728-9791-d235cfa01ab9",
+            "display": "Dr. Willena258 Oberbrunner298"
+          }
+        ],
         "effectivePeriod": {
           "start": "1975-04-07T02:51:45-04:00",
           "end": "1975-04-07T03:51:45-04:00"
@@ -14346,10 +14354,12 @@
         "encounter": {
           "reference": "urn:uuid:d09874e2-0ea0-9a99-95b6-d7908e5acc35"
         },
-        "performer": [{
-          "reference": "urn:uuid:c38e2d6b-b2d5-3f8e-acae-3044eeb5edbb",
-          "display": "Dr. Melvin857 Torp761"
-        }],
+        "performer": [
+          {
+            "reference": "urn:uuid:c38e2d6b-b2d5-3f8e-acae-3044eeb5edbb",
+            "display": "Dr. Melvin857 Torp761"
+          }
+        ],
         "effectiveDateTime": "1975-05-02T01:11:45-04:00",
         "issued": "1975-05-02T01:11:45.131-04:00",
         "valueCodeableConcept": {
@@ -18979,7 +18989,11 @@
               "display": "ITI XDS-SD PDF"
             }
           }
-        ]
+        ],
+        "custodian": {
+          "reference": "urn:uuid:56090ab7-1f97-37ff-a434-194f9c6e5510",
+          "display": "PCP87052"
+        }
       },
       "request": {
         "method": "POST",
