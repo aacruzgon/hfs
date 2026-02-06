@@ -1170,6 +1170,7 @@ mod tests {
     use super::*;
     use crate::core::ResourceStorage;
     use crate::tenant::{TenantId, TenantPermissions};
+    use crate::types::SearchParameter;
     use serde_json::json;
 
     fn create_test_backend() -> SqliteBackend {
@@ -2217,5 +2218,304 @@ mod tests {
         );
         // Unknown param - capitalize first letter
         assert_eq!(backend.infer_target_type("Observation", "custom"), "Custom");
+    }
+
+    // ========================================================================
+    // Token Search with system|code Tests
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_token_search_system_and_code() {
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+        let tenant_id = tenant.tenant_id().as_str();
+
+        // Create two DocumentReferences with different type codes
+        backend
+            .create(
+                &tenant,
+                "DocumentReference",
+                json!({
+                    "resourceType": "DocumentReference",
+                    "id": "doc1",
+                    "status": "current",
+                    "type": {
+                        "coding": [{
+                            "system": "http://loinc.org",
+                            "code": "86533-7",
+                            "display": "Patient Living will"
+                        }]
+                    },
+                    "subject": {"reference": "Patient/p1"}
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        backend
+            .create(
+                &tenant,
+                "DocumentReference",
+                json!({
+                    "resourceType": "DocumentReference",
+                    "id": "doc2",
+                    "status": "current",
+                    "type": {
+                        "coding": [{
+                            "system": "http://loinc.org",
+                            "code": "34117-2",
+                            "display": "History and physical note"
+                        }]
+                    },
+                    "subject": {"reference": "Patient/p1"}
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        // Insert token search index entries for both documents
+        {
+            let conn = backend.get_connection().unwrap();
+            conn.execute(
+                "INSERT INTO search_index (tenant_id, resource_type, resource_id, param_name, value_token_system, value_token_code)
+                 VALUES (?1, 'DocumentReference', 'doc1', 'type', 'http://loinc.org', '86533-7')",
+                params![tenant_id],
+            ).unwrap();
+            conn.execute(
+                "INSERT INTO search_index (tenant_id, resource_type, resource_id, param_name, value_token_system, value_token_code)
+                 VALUES (?1, 'DocumentReference', 'doc2', 'type', 'http://loinc.org', '34117-2')",
+                params![tenant_id],
+            ).unwrap();
+        }
+
+        // Search with system|code: should find only doc1
+        let mut query = SearchQuery::new("DocumentReference");
+        query.parameters.push(SearchParameter {
+            name: "type".to_string(),
+            param_type: crate::types::SearchParamType::Token,
+            modifier: None,
+            values: vec![SearchValue::eq("http://loinc.org|86533-7")],
+            chain: vec![],
+            components: vec![],
+        });
+
+        let result = backend.search(&tenant, &query).await.unwrap();
+
+        assert_eq!(
+            result.resources.items.len(),
+            1,
+            "Should find exactly 1 DocumentReference with type http://loinc.org|86533-7"
+        );
+        assert_eq!(result.resources.items[0].id(), "doc1");
+    }
+
+    #[tokio::test]
+    async fn test_token_search_code_only() {
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+        let tenant_id = tenant.tenant_id().as_str();
+
+        // Create a DocumentReference
+        backend
+            .create(
+                &tenant,
+                "DocumentReference",
+                json!({
+                    "resourceType": "DocumentReference",
+                    "id": "doc1",
+                    "status": "current",
+                    "type": {
+                        "coding": [{
+                            "system": "http://loinc.org",
+                            "code": "86533-7"
+                        }]
+                    }
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        // Insert token search index entry
+        {
+            let conn = backend.get_connection().unwrap();
+            conn.execute(
+                "INSERT INTO search_index (tenant_id, resource_type, resource_id, param_name, value_token_system, value_token_code)
+                 VALUES (?1, 'DocumentReference', 'doc1', 'type', 'http://loinc.org', '86533-7')",
+                params![tenant_id],
+            ).unwrap();
+        }
+
+        // Search with code only (no system): should still find doc1
+        let mut query = SearchQuery::new("DocumentReference");
+        query.parameters.push(SearchParameter {
+            name: "type".to_string(),
+            param_type: crate::types::SearchParamType::Token,
+            modifier: None,
+            values: vec![SearchValue::eq("86533-7")],
+            chain: vec![],
+            components: vec![],
+        });
+
+        let result = backend.search(&tenant, &query).await.unwrap();
+
+        assert_eq!(
+            result.resources.items.len(),
+            1,
+            "Code-only search should find the document regardless of system"
+        );
+        assert_eq!(result.resources.items[0].id(), "doc1");
+    }
+
+    #[tokio::test]
+    async fn test_token_search_wrong_system() {
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+        let tenant_id = tenant.tenant_id().as_str();
+
+        // Create a DocumentReference
+        backend
+            .create(
+                &tenant,
+                "DocumentReference",
+                json!({
+                    "resourceType": "DocumentReference",
+                    "id": "doc1",
+                    "status": "current"
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        // Insert token with loinc.org system
+        {
+            let conn = backend.get_connection().unwrap();
+            conn.execute(
+                "INSERT INTO search_index (tenant_id, resource_type, resource_id, param_name, value_token_system, value_token_code)
+                 VALUES (?1, 'DocumentReference', 'doc1', 'type', 'http://loinc.org', '86533-7')",
+                params![tenant_id],
+            ).unwrap();
+        }
+
+        // Search with wrong system: should return 0
+        let mut query = SearchQuery::new("DocumentReference");
+        query.parameters.push(SearchParameter {
+            name: "type".to_string(),
+            param_type: crate::types::SearchParamType::Token,
+            modifier: None,
+            values: vec![SearchValue::eq("http://snomed.info/sct|86533-7")],
+            chain: vec![],
+            components: vec![],
+        });
+
+        let result = backend.search(&tenant, &query).await.unwrap();
+
+        assert_eq!(
+            result.resources.items.len(),
+            0,
+            "Search with wrong system should return no results"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_token_search_combined_with_reference() {
+        let backend = create_test_backend();
+        let tenant = create_test_tenant();
+        let tenant_id = tenant.tenant_id().as_str();
+
+        // Create two DocumentReferences for different patients
+        backend
+            .create(
+                &tenant,
+                "DocumentReference",
+                json!({
+                    "resourceType": "DocumentReference",
+                    "id": "doc1",
+                    "status": "current",
+                    "type": {
+                        "coding": [{"system": "http://loinc.org", "code": "86533-7"}]
+                    },
+                    "subject": {"reference": "Patient/p1"}
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        backend
+            .create(
+                &tenant,
+                "DocumentReference",
+                json!({
+                    "resourceType": "DocumentReference",
+                    "id": "doc2",
+                    "status": "current",
+                    "type": {
+                        "coding": [{"system": "http://loinc.org", "code": "86533-7"}]
+                    },
+                    "subject": {"reference": "Patient/p2"}
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        // Insert search index entries for both
+        {
+            let conn = backend.get_connection().unwrap();
+            // Type tokens
+            conn.execute(
+                "INSERT INTO search_index (tenant_id, resource_type, resource_id, param_name, value_token_system, value_token_code)
+                 VALUES (?1, 'DocumentReference', 'doc1', 'type', 'http://loinc.org', '86533-7')",
+                params![tenant_id],
+            ).unwrap();
+            conn.execute(
+                "INSERT INTO search_index (tenant_id, resource_type, resource_id, param_name, value_token_system, value_token_code)
+                 VALUES (?1, 'DocumentReference', 'doc2', 'type', 'http://loinc.org', '86533-7')",
+                params![tenant_id],
+            ).unwrap();
+            // Patient references
+            conn.execute(
+                "INSERT INTO search_index (tenant_id, resource_type, resource_id, param_name, value_reference)
+                 VALUES (?1, 'DocumentReference', 'doc1', 'patient', 'Patient/p1')",
+                params![tenant_id],
+            ).unwrap();
+            conn.execute(
+                "INSERT INTO search_index (tenant_id, resource_type, resource_id, param_name, value_reference)
+                 VALUES (?1, 'DocumentReference', 'doc2', 'patient', 'Patient/p2')",
+                params![tenant_id],
+            ).unwrap();
+        }
+
+        // Search with both patient AND type (system|code)
+        let mut query = SearchQuery::new("DocumentReference");
+        query.parameters.push(SearchParameter {
+            name: "patient".to_string(),
+            param_type: crate::types::SearchParamType::Reference,
+            modifier: None,
+            values: vec![SearchValue::eq("p1")],
+            chain: vec![],
+            components: vec![],
+        });
+        query.parameters.push(SearchParameter {
+            name: "type".to_string(),
+            param_type: crate::types::SearchParamType::Token,
+            modifier: None,
+            values: vec![SearchValue::eq("http://loinc.org|86533-7")],
+            chain: vec![],
+            components: vec![],
+        });
+
+        let result = backend.search(&tenant, &query).await.unwrap();
+
+        assert_eq!(
+            result.resources.items.len(),
+            1,
+            "Combined patient + type search should find exactly doc1"
+        );
+        assert_eq!(result.resources.items[0].id(), "doc1");
     }
 }
