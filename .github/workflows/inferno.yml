@@ -4,29 +4,18 @@ on:
   workflow_dispatch:  # Manual trigger only for initial implementation
 
 env:
-  COMPOSE_PROJECT_NAME: inferno-ci  # Isolate CI Docker resources from local development
   CARGO_TERM_COLOR: always
   RUST_MIN_STACK: 8388608
   CARGO_BUILD_JOBS: 1
   CARGO_PROFILE_DEV_DEBUG: 0
   HFS_PORT: 8088
   INFERNO_PORT: 4568
-  # Tests to omit from pass/fail evaluation (JSON array of test IDs)
-  # CapabilityStatement conformance: ViewDefinition is a custom resource type not in the R4 ValueSet
-  OMITTED_TESTS: '["us_core_v311-us_core_v311_fhir_api-us_core_v311_capability_statement-us_core_conformance_support"]'
 
 jobs:
-  inferno-test:
-    name: Inferno US Core v3.1.1 Tests
+  build:
+    name: Build HFS
     runs-on: [self-hosted, Linux, Docker]
     steps:
-      - name: Clean up Docker-owned files from previous run
-        run: |
-          # Remove root-owned files created by Docker containers
-          if [ -d us-core-test-kit ]; then
-            docker run --rm -v "$(pwd):/workspace" alpine rm -rf /workspace/us-core-test-kit
-          fi
-
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -45,6 +34,53 @@ jobs:
 
       - name: Build HFS
         run: cargo build -p helios-hfs --features R4,sqlite
+
+      - name: Upload HFS binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: hfs-binary
+          path: target/debug/hfs
+          retention-days: 1
+
+  inferno-test:
+    name: Inferno US Core ${{ matrix.version_label }} Tests
+    needs: build
+    runs-on: [self-hosted, Linux, Docker]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { suite_id: us_core_v311, version_label: "v3.1.1" }
+          - { suite_id: us_core_v400, version_label: "v4.0.0" }
+          - { suite_id: us_core_v501, version_label: "v5.0.1" }
+          - { suite_id: us_core_v610, version_label: "v6.1.0" }
+          - { suite_id: us_core_v700, version_label: "v7.0.0" }
+          - { suite_id: us_core_v800, version_label: "v8.0.0" }
+    steps:
+      - name: Clean up Docker-owned files from previous run
+        run: |
+          # Remove root-owned files created by Docker containers
+          if [ -d us-core-test-kit ]; then
+            docker run --rm -v "$(pwd):/workspace" alpine rm -rf /workspace/us-core-test-kit
+          fi
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download HFS binary
+        uses: actions/download-artifact@v4
+        with:
+          name: hfs-binary
+          path: target/debug
+
+      - name: Make HFS binary executable
+        run: chmod +x target/debug/hfs
+
+      - name: Set version-specific variables
+        run: |
+          echo "COMPOSE_PROJECT_NAME=inferno-ci-${{ matrix.suite_id }}" >> $GITHUB_ENV
+          echo "TEST_GROUP_ID=${{ matrix.suite_id }}-${{ matrix.suite_id }}_fhir_api" >> $GITHUB_ENV
+          echo 'OMITTED_TESTS=["${{ matrix.suite_id }}-${{ matrix.suite_id }}_fhir_api-${{ matrix.suite_id }}_capability_statement-us_core_conformance_support"]' >> $GITHUB_ENV
 
       - name: Start HFS server
         run: |
@@ -75,10 +111,10 @@ jobs:
           echo "Cleaning up any previous Inferno containers, volumes, and directories..."
           # Stop any running containers from previous runs (use explicit project name)
           if [ -d us-core-test-kit ]; then
-            docker compose -p inferno-ci -f us-core-test-kit/docker-compose.yml down -v --remove-orphans 2>/dev/null || true
+            docker compose -p $COMPOSE_PROJECT_NAME -f us-core-test-kit/docker-compose.yml down -v --remove-orphans 2>/dev/null || true
           fi
           # Remove any orphaned volumes (note: uses project name prefix)
-          docker volume rm inferno-ci_redis 2>/dev/null || true
+          docker volume rm ${COMPOSE_PROJECT_NAME}_redis 2>/dev/null || true
           # Remove directory (may contain root-owned files from Docker)
           rm -rf us-core-test-kit 2>/dev/null || sudo rm -rf us-core-test-kit 2>/dev/null || true
           echo "Cleanup complete"
@@ -133,7 +169,7 @@ jobs:
         working-directory: us-core-test-kit
         run: |
           echo "Stopping any orphan containers from previous runs..."
-          docker compose -p inferno-ci down -v --remove-orphans 2>/dev/null || true
+          docker compose -p $COMPOSE_PROJECT_NAME down -v --remove-orphans 2>/dev/null || true
 
       - name: Setup Inferno
         working-directory: us-core-test-kit
@@ -160,7 +196,7 @@ jobs:
             sleep 5
           done
           echo "Inferno failed to start"
-          docker compose -p inferno-ci -f us-core-test-kit/docker-compose.yml logs
+          docker compose -p $COMPOSE_PROJECT_NAME -f us-core-test-kit/docker-compose.yml logs
           exit 1
 
       - name: Create results directory
@@ -168,9 +204,9 @@ jobs:
 
       - name: Run Inferno tests
         run: |
-          # Create a test session for US Core v3.1.1
-          echo "Creating test session..."
-          SESSION_RESPONSE=$(curl -s -X POST "http://localhost:$INFERNO_PORT/api/test_sessions?test_suite_id=us_core_v311")
+          # Create a test session for US Core ${{ matrix.version_label }}
+          echo "Creating test session for ${{ matrix.suite_id }}..."
+          SESSION_RESPONSE=$(curl -s -X POST "http://localhost:$INFERNO_PORT/api/test_sessions?test_suite_id=${{ matrix.suite_id }}")
           SESSION_ID=$(echo "$SESSION_RESPONSE" | jq -r '.id')
 
           if [ -z "$SESSION_ID" ] || [ "$SESSION_ID" = "null" ]; then
@@ -190,7 +226,7 @@ jobs:
             -H "Content-Type: application/json" \
             -d "{
               \"test_session_id\": \"$SESSION_ID\",
-              \"test_group_id\": \"us_core_v311-us_core_v311_fhir_api\",
+              \"test_group_id\": \"$TEST_GROUP_ID\",
               \"inputs\": [
                 {\"name\": \"url\", \"value\": \"http://host.docker.internal:$HFS_PORT\"},
                 {\"name\": \"patient_ids\", \"value\": \"85,355,907,908,us-core-client-tests-patient\"},
@@ -274,7 +310,7 @@ jobs:
         if: always()
         run: |
           if [ -f inferno-results/results.json ]; then
-            echo "## Inferno US Core v3.1.1 Test Results" >> $GITHUB_STEP_SUMMARY
+            echo "## Inferno US Core ${{ matrix.version_label }} Test Results" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
 
             RESULTS=$(cat inferno-results/results.json)
@@ -319,7 +355,7 @@ jobs:
                 '.[] | select((.result == "fail" or .result == "error") and .test_id and (.test_id | IN($omit[]) | not)) | "- **\(.test_id)**: \(.result) - \(.result_message // "No message" | .[0:200])"' >> $GITHUB_STEP_SUMMARY
             fi
           else
-            echo "## Inferno Test Results" >> $GITHUB_STEP_SUMMARY
+            echo "## Inferno US Core ${{ matrix.version_label }} Test Results" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo ":warning: No results file found" >> $GITHUB_STEP_SUMMARY
           fi
@@ -328,7 +364,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: inferno-test-results
+          name: inferno-test-results-${{ matrix.suite_id }}
           path: inferno-results/
           retention-days: 30
 
@@ -343,7 +379,7 @@ jobs:
 
           echo "Stopping Inferno..."
           if [ -d us-core-test-kit ]; then
-            docker compose -p inferno-ci -f us-core-test-kit/docker-compose.yml down -v --remove-orphans 2>/dev/null || true
+            docker compose -p $COMPOSE_PROJECT_NAME -f us-core-test-kit/docker-compose.yml down -v --remove-orphans 2>/dev/null || true
             # Remove root-owned files created by Docker containers (e.g. Redis appendonlydir)
             docker run --rm -v "$(pwd):/workspace" alpine rm -rf /workspace/us-core-test-kit
           fi
