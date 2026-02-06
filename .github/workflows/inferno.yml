@@ -11,6 +11,9 @@ env:
   CARGO_PROFILE_DEV_DEBUG: 0
   HFS_PORT: 8088
   INFERNO_PORT: 4568
+  # Tests to omit from pass/fail evaluation (JSON array of test IDs)
+  # CapabilityStatement conformance: ViewDefinition is a custom resource type not in the R4 ValueSet
+  OMITTED_TESTS: '["us_core_v311-us_core_v311_fhir_api-us_core_v311_capability_statement-us_core_conformance_support"]'
 
 jobs:
   inferno-test:
@@ -241,6 +244,32 @@ jobs:
             sleep $POLL_INTERVAL
           done
 
+      - name: Check test results
+        run: |
+          if [ ! -f inferno-results/results.json ]; then
+            echo "No results file found"
+            exit 1
+          fi
+
+          RESULTS=$(cat inferno-results/results.json)
+
+          # Count failures excluding omitted tests
+          FAIL=$(echo "$RESULTS" | jq --argjson omit "$OMITTED_TESTS" \
+            '[.[] | select(.test_id and (.result == "fail" or .result == "error") and (.test_id | IN($omit[]) | not))] | length')
+          OMITTED_COUNT=$(echo "$RESULTS" | jq --argjson omit "$OMITTED_TESTS" \
+            '[.[] | select(.test_id and (.test_id | IN($omit[])))] | length')
+
+          echo "Failures (excluding $OMITTED_COUNT omitted tests): $FAIL"
+
+          if [ "$FAIL" -gt 0 ]; then
+            echo "::error::$FAIL test(s) failed (excluding omitted)"
+            echo "$RESULTS" | jq -r --argjson omit "$OMITTED_TESTS" \
+              '.[] | select(.test_id and (.result == "fail" or .result == "error") and (.test_id | IN($omit[]) | not)) | "  \(.test_id): \(.result) - \(.result_message // "No message" | .[0:200])"'
+            exit 1
+          fi
+
+          echo "All tests passed (with $OMITTED_COUNT omitted)"
+
       - name: Generate test summary
         if: always()
         run: |
@@ -253,10 +282,14 @@ jobs:
             # Count only individual tests (exclude group aggregations which have test_group_id instead of test_id)
             TOTAL=$(echo "$RESULTS" | jq '[.[] | select(.test_id)] | length')
             PASS=$(echo "$RESULTS" | jq '[.[] | select(.test_id and .result == "pass")] | length')
-            FAIL=$(echo "$RESULTS" | jq '[.[] | select(.test_id and .result == "fail")] | length')
+            FAIL=$(echo "$RESULTS" | jq --argjson omit "$OMITTED_TESTS" \
+              '[.[] | select(.test_id and .result == "fail" and (.test_id | IN($omit[]) | not))] | length')
             SKIP=$(echo "$RESULTS" | jq '[.[] | select(.test_id and .result == "skip")] | length')
-            ERROR=$(echo "$RESULTS" | jq '[.[] | select(.test_id and .result == "error")] | length')
+            ERROR=$(echo "$RESULTS" | jq --argjson omit "$OMITTED_TESTS" \
+              '[.[] | select(.test_id and .result == "error" and (.test_id | IN($omit[]) | not))] | length')
             OMIT=$(echo "$RESULTS" | jq '[.[] | select(.test_id and .result == "omit")] | length')
+            OMITTED_COUNT=$(echo "$RESULTS" | jq --argjson omit "$OMITTED_TESTS" \
+              '[.[] | select(.test_id and (.test_id | IN($omit[])))] | length')
 
             echo "| Status | Count |" >> $GITHUB_STEP_SUMMARY
             echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
@@ -265,14 +298,25 @@ jobs:
             echo "| :warning: Error | $ERROR |" >> $GITHUB_STEP_SUMMARY
             echo "| :fast_forward: Skip | $SKIP |" >> $GITHUB_STEP_SUMMARY
             echo "| :arrow_right: Omit | $OMIT |" >> $GITHUB_STEP_SUMMARY
+            echo "| :heavy_minus_sign: Omitted (known) | $OMITTED_COUNT |" >> $GITHUB_STEP_SUMMARY
             echo "| **Total** | **$TOTAL** |" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
 
-            # List failed tests (exclude group results which don't have result_message)
+            # List omitted tests
+            if [ "$OMITTED_COUNT" -gt 0 ]; then
+              echo "### Omitted Tests (known expected failures)" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "$RESULTS" | jq -r --argjson omit "$OMITTED_TESTS" \
+                '.[] | select(.test_id and (.test_id | IN($omit[]))) | "- **\(.test_id)**: \(.result) - \(.result_message // "No message" | .[0:200])"' >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
+
+            # List failed tests (excluding omitted)
             if [ "$FAIL" -gt 0 ] || [ "$ERROR" -gt 0 ]; then
               echo "### Failed/Error Tests" >> $GITHUB_STEP_SUMMARY
               echo "" >> $GITHUB_STEP_SUMMARY
-              echo "$RESULTS" | jq -r '.[] | select((.result == "fail" or .result == "error") and .test_id) | "- **\(.test_id)**: \(.result) - \(.result_message // "No message" | .[0:200])"' >> $GITHUB_STEP_SUMMARY
+              echo "$RESULTS" | jq -r --argjson omit "$OMITTED_TESTS" \
+                '.[] | select((.result == "fail" or .result == "error") and .test_id and (.test_id | IN($omit[]) | not)) | "- **\(.test_id)**: \(.result) - \(.result_message // "No message" | .[0:200])"' >> $GITHUB_STEP_SUMMARY
             fi
           else
             echo "## Inferno Test Results" >> $GITHUB_STEP_SUMMARY
