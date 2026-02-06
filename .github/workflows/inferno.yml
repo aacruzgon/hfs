@@ -344,6 +344,8 @@ jobs:
           echo "Stopping Inferno..."
           if [ -d us-core-test-kit ]; then
             docker compose -p inferno-ci -f us-core-test-kit/docker-compose.yml down -v --remove-orphans 2>/dev/null || true
+            # Remove root-owned files created by Docker containers (e.g. Redis appendonlydir)
+            docker run --rm -v "$(pwd):/workspace" alpine rm -rf /workspace/us-core-test-kit
           fi
 
           echo "Cleanup complete"
