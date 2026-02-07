@@ -94,6 +94,15 @@ jobs:
               ;;
           esac
 
+          case "$SUITE" in
+            us_core_v800)
+              # v8.0.0 changed us-core-sex extension type from code to Coding; shared test data uses valueCode (correct for v6.1.0/v7.0.0)
+              OMITTED="${OMITTED},\"${SUITE}-${SUITE}_fhir_api-${SUITE}_patient-${SUITE}_patient_validation_test\""
+              # QuestionnaireResponse linkId text must match referenced Questionnaire definition
+              OMITTED="${OMITTED},\"${SUITE}-${SUITE}_fhir_api-${SUITE}_questionnaire_response-${SUITE}_questionnaire_response_validation_test\""
+              ;;
+          esac
+
           echo "OMITTED_TESTS=[${OMITTED}]" >> $GITHUB_ENV
 
       - name: Start HFS server
