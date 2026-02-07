@@ -375,12 +375,35 @@ impl CompositeStorage {
     }
 
     /// Executes search on the primary backend.
+    ///
+    /// When a dedicated Search backend (e.g., Elasticsearch) is configured, all
+    /// searches are routed there. This is necessary because the primary backend
+    /// may have search indexing disabled (`search_offloaded = true`), leaving its
+    /// search index empty.
     async fn execute_primary_search(
         &self,
         tenant: &TenantContext,
         query: &SearchQuery,
     ) -> StorageResult<SearchResult> {
-        // Check if primary implements SearchProvider
+        // Prefer the Search backend when one is configured, since the primary
+        // may have offloaded search indexing to it.
+        if let Some(search_backend) = self
+            .config
+            .backends_with_role(super::config::BackendRole::Search)
+            .next()
+        {
+            if let Some(provider) = self.search_providers.get(&search_backend.id) {
+                let result = provider.search(tenant, query).await;
+                self.update_health(
+                    &search_backend.id,
+                    result.is_ok(),
+                    result.as_ref().err().map(|e| e.to_string()),
+                );
+                return result;
+            }
+        }
+
+        // Fall back to primary
         let primary_id = self.config.primary_id().unwrap_or("primary");
 
         if let Some(provider) = self.search_providers.get(primary_id) {
@@ -392,8 +415,6 @@ impl CompositeStorage {
             );
             result
         } else {
-            // Fallback: try to downcast primary to SearchProvider
-            // This won't work with trait objects, so we return an error
             Err(StorageError::Backend(BackendError::UnsupportedCapability {
                 backend_name: primary_id.to_string(),
                 capability: "SearchProvider".to_string(),
