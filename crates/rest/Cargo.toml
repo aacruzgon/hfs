@@ -23,6 +23,7 @@ R6 = ["helios-fhir/R6", "helios-persistence/R6"]
 sqlite = ["helios-persistence/sqlite"]
 postgres = ["helios-persistence/postgres"]
 mongodb = ["helios-persistence/mongodb"]
+elasticsearch = ["helios-persistence/elasticsearch"]
 
 [dependencies]
 # Core dependencies

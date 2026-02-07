@@ -79,6 +79,11 @@ pub struct SqliteBackendConfig {
     /// If None, defaults to "./data" or the directory containing the executable.
     #[serde(default)]
     pub data_dir: Option<PathBuf>,
+
+    /// When true, search indexing is offloaded to a secondary backend (e.g., Elasticsearch).
+    /// The SQLite search_index and resource_fts tables will not be populated.
+    #[serde(default)]
+    pub search_offloaded: bool,
 }
 
 fn default_max_connections() -> u32 {
@@ -112,6 +117,7 @@ impl Default for SqliteBackendConfig {
             enable_foreign_keys: true,
             fhir_version: FhirVersion::default(),
             data_dir: None,
+            search_offloaded: false,
         }
     }
 }
@@ -438,6 +444,20 @@ impl SqliteBackend {
     /// Returns a reference to the search parameter extractor.
     pub fn search_extractor(&self) -> &Arc<SearchParameterExtractor> {
         &self.search_extractor
+    }
+
+    /// Returns whether search indexing is offloaded to a secondary backend.
+    pub fn is_search_offloaded(&self) -> bool {
+        self.config.search_offloaded
+    }
+
+    /// Sets the search offloaded flag.
+    ///
+    /// When set to true, the SQLite backend will skip populating the
+    /// `search_index` and `resource_fts` tables, as search is handled
+    /// by a secondary backend (e.g., Elasticsearch).
+    pub fn set_search_offloaded(&mut self, offloaded: bool) {
+        self.config.search_offloaded = offloaded;
     }
 }
 

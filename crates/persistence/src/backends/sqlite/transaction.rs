@@ -43,6 +43,8 @@ pub struct SqliteTransaction {
     tenant: TenantContext,
     /// Search parameter extractor for indexing resources.
     search_extractor: Arc<SearchParameterExtractor>,
+    /// When true, search indexing is offloaded to a secondary backend.
+    search_offloaded: bool,
 }
 
 impl std::fmt::Debug for SqliteTransaction {
@@ -60,6 +62,7 @@ impl SqliteTransaction {
         conn: PooledConnection<SqliteConnectionManager>,
         tenant: TenantContext,
         search_extractor: Arc<SearchParameterExtractor>,
+        search_offloaded: bool,
     ) -> StorageResult<Self> {
         // Start the transaction
         conn.execute("BEGIN IMMEDIATE", []).map_err(|e| {
@@ -73,6 +76,7 @@ impl SqliteTransaction {
             active: true,
             tenant,
             search_extractor,
+            search_offloaded,
         })
     }
 
@@ -90,6 +94,11 @@ impl SqliteTransaction {
         resource_id: &str,
         resource: &Value,
     ) -> StorageResult<()> {
+        // When search is offloaded to a secondary backend, skip local indexing
+        if self.search_offloaded {
+            return Ok(());
+        }
+
         use super::search::writer::SqliteSearchIndexWriter;
         use rusqlite::ToSql;
 
@@ -538,7 +547,12 @@ impl TransactionProvider for SqliteBackend {
         _options: TransactionOptions,
     ) -> StorageResult<Self::Transaction> {
         let conn = self.get_connection()?;
-        SqliteTransaction::new(conn, tenant.clone(), self.search_extractor().clone())
+        SqliteTransaction::new(
+            conn,
+            tenant.clone(),
+            self.search_extractor().clone(),
+            self.is_search_offloaded(),
+        )
     }
 }
 

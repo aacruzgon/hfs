@@ -52,19 +52,19 @@ cargo build --release -p helios-hfs --features R4,R4B,R5,R6,sqlite
 Usage: hfs [OPTIONS]
 
 Options:
-      --port <PORT>              Server port [env: REST_SERVER_PORT=] [default: 8080]
-      --host <HOST>              Host to bind [env: REST_SERVER_HOST=] [default: 127.0.0.1]
+      --port <PORT>              Server port [env: HFS_SERVER_PORT=] [default: 8080]
+      --host <HOST>              Host to bind [env: HFS_SERVER_HOST=] [default: 127.0.0.1]
       --log-level <LOG_LEVEL>    Log level (error, warn, info, debug, trace)
-                                 [env: REST_LOG_LEVEL=] [default: info]
+                                 [env: HFS_LOG_LEVEL=] [default: info]
       --database-url <URL>       Database connection URL [env: DATABASE_URL=]
       --data-dir <PATH>          Path to FHIR data directory containing search parameter
-                                 definitions [env: REST_DATA_DIR=] [default: ./data]
-      --max-body-size <BYTES>    Maximum request body size [env: REST_MAX_BODY_SIZE=]
+                                 definitions [env: HFS_DATA_DIR=] [default: ./data]
+      --max-body-size <BYTES>    Maximum request body size [env: HFS_MAX_BODY_SIZE=]
                                  [default: 10485760]
-      --request-timeout <SECS>   Request timeout in seconds [env: REST_REQUEST_TIMEOUT=]
+      --request-timeout <SECS>   Request timeout in seconds [env: HFS_REQUEST_TIMEOUT=]
                                  [default: 30]
-      --enable-cors              Enable CORS [env: REST_ENABLE_CORS=] [default: true]
-      --cors-origins <ORIGINS>   Allowed CORS origins [env: REST_CORS_ORIGINS=] [default: *]
+      --enable-cors              Enable CORS [env: HFS_ENABLE_CORS=] [default: true]
+      --cors-origins <ORIGINS>   Allowed CORS origins [env: HFS_CORS_ORIGINS=] [default: *]
   -h, --help                     Print help
   -V, --version                  Print version
 ```
@@ -75,18 +75,18 @@ Options:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `REST_SERVER_PORT` | 8080 | Server port |
-| `REST_SERVER_HOST` | 127.0.0.1 | Host to bind |
-| `REST_LOG_LEVEL` | info | Log level (error, warn, info, debug, trace) |
+| `HFS_SERVER_PORT` | 8080 | Server port |
+| `HFS_SERVER_HOST` | 127.0.0.1 | Host to bind |
+| `HFS_LOG_LEVEL` | info | Log level (error, warn, info, debug, trace) |
 | `DATABASE_URL` | fhir.db | Database connection string |
-| `REST_DATA_DIR` | ./data | Path to FHIR data directory (search parameters) |
-| `REST_MAX_BODY_SIZE` | 10485760 | Max request body size (bytes) |
-| `REST_REQUEST_TIMEOUT` | 30 | Request timeout (seconds) |
-| `REST_ENABLE_CORS` | true | Enable CORS |
-| `REST_CORS_ORIGINS` | * | Allowed CORS origins |
-| `REST_CORS_METHODS` | GET,POST,PUT,DELETE,OPTIONS | Allowed HTTP methods |
-| `REST_CORS_HEADERS` | Content-Type,Authorization,X-Requested-With | Allowed headers |
-| `REST_DEFAULT_TENANT` | default | Default tenant ID |
+| `HFS_DATA_DIR` | ./data | Path to FHIR data directory (search parameters) |
+| `HFS_MAX_BODY_SIZE` | 10485760 | Max request body size (bytes) |
+| `HFS_REQUEST_TIMEOUT` | 30 | Request timeout (seconds) |
+| `HFS_ENABLE_CORS` | true | Enable CORS |
+| `HFS_CORS_ORIGINS` | * | Allowed CORS origins |
+| `HFS_CORS_METHODS` | GET,POST,PUT,DELETE,OPTIONS | Allowed HTTP methods |
+| `HFS_CORS_HEADERS` | Content-Type,Authorization,X-Requested-With | Allowed headers |
+| `HFS_DEFAULT_TENANT` | default | Default tenant ID |
 
 ## FHIR Version Support
 
@@ -333,7 +333,7 @@ Specify a custom location for the data files:
 ./target/release/hfs --data-dir /opt/hfs/data
 
 # Via environment variable
-REST_DATA_DIR=/opt/hfs/data ./target/release/hfs
+HFS_DATA_DIR=/opt/hfs/data ./target/release/hfs
 ```
 
 If the spec file is missing, HFS logs a warning and continues with minimal fallback parameters. This ensures the server can start even without the full spec files, though search functionality will be limited.

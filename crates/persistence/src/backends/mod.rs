@@ -48,8 +48,8 @@ pub mod sqlite;
 // #[cfg(feature = "neo4j")]
 // pub mod neo4j;
 //
-// #[cfg(feature = "elasticsearch")]
-// pub mod elasticsearch;
+#[cfg(feature = "elasticsearch")]
+pub mod elasticsearch;
 //
 // #[cfg(feature = "s3")]
 // pub mod s3;

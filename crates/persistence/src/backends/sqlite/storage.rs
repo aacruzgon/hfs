@@ -410,12 +410,14 @@ impl ResourceStorage for SqliteBackend {
         )
         .map_err(|e| internal_error(format!("Failed to insert deletion history: {}", e)))?;
 
-        // Delete search index entries
-        conn.execute(
-            "DELETE FROM search_index WHERE tenant_id = ?1 AND resource_type = ?2 AND resource_id = ?3",
-            params![tenant_id, resource_type, id],
-        )
-        .map_err(|e| internal_error(format!("Failed to delete search index: {}", e)))?;
+        // Delete search index entries (skip when search is offloaded)
+        if !self.is_search_offloaded() {
+            conn.execute(
+                "DELETE FROM search_index WHERE tenant_id = ?1 AND resource_type = ?2 AND resource_id = ?3",
+                params![tenant_id, resource_type, id],
+            )
+            .map_err(|e| internal_error(format!("Failed to delete search index: {}", e)))?;
+        }
 
         // Handle SearchParameter resources specially - update registry
         if resource_type == "SearchParameter" {
@@ -470,6 +472,11 @@ impl SqliteBackend {
         resource_id: &str,
         resource: &Value,
     ) -> StorageResult<()> {
+        // When search is offloaded to a secondary backend, skip local indexing
+        if self.is_search_offloaded() {
+            return Ok(());
+        }
+
         // Try dynamic extraction using the registry-driven extractor
         match self.index_resource_dynamic(conn, tenant_id, resource_type, resource_id, resource) {
             Ok(count) => {
@@ -664,6 +671,11 @@ impl SqliteBackend {
         resource_type: &str,
         resource_id: &str,
     ) -> StorageResult<()> {
+        // When search is offloaded to a secondary backend, skip local index cleanup
+        if self.is_search_offloaded() {
+            return Ok(());
+        }
+
         // Delete from main search index
         conn.execute(
             "DELETE FROM search_index WHERE tenant_id = ?1 AND resource_type = ?2 AND resource_id = ?3",

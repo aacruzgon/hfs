@@ -25,6 +25,7 @@ R6 = ["helios-fhir/R6", "helios-rest/R6"]
 sqlite = ["helios-rest/sqlite"]
 postgres = ["helios-rest/postgres"]
 mongodb = ["helios-rest/mongodb"]
+elasticsearch = ["helios-rest/elasticsearch"]
 
 [build-dependencies]
 reqwest = { version = "0.12", features = ["blocking"] }

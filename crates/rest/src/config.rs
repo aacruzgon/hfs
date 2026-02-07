@@ -7,21 +7,21 @@
 //!
 //! | Variable | Default | Description |
 //! |----------|---------|-------------|
-//! | `REST_SERVER_PORT` | 8080 | Server port |
-//! | `REST_SERVER_HOST` | 127.0.0.1 | Host to bind |
-//! | `REST_LOG_LEVEL` | info | Log level |
-//! | `REST_MAX_BODY_SIZE` | 10485760 | Max request body (bytes) |
-//! | `REST_REQUEST_TIMEOUT` | 30 | Request timeout (seconds) |
-//! | `REST_ENABLE_CORS` | true | Enable CORS |
-//! | `REST_CORS_ORIGINS` | * | Allowed origins |
-//! | `REST_CORS_METHODS` | GET,POST,PUT,PATCH,DELETE,OPTIONS | Allowed methods |
-//! | `REST_CORS_HEADERS` | Content-Type,Authorization,Accept,If-Match,If-None-Match,Prefer | Allowed headers |
-//! | `REST_DEFAULT_TENANT` | default | Default tenant ID |
-//! | `REST_BASE_URL` | http://localhost:8080 | Server base URL |
-//! | `REST_DEFAULT_FHIR_VERSION` | R4 | Default FHIR version (R4, R4B, R5, R6) |
-//! | `REST_TENANT_ROUTING_MODE` | header_only | Tenant routing mode (header_only, url_path, both) |
-//! | `REST_TENANT_STRICT_VALIDATION` | false | Error if URL and header tenant disagree |
-//! | `REST_JWT_TENANT_CLAIM` | tenant_id | JWT claim name for tenant (future use) |
+//! | `HFS_SERVER_PORT` | 8080 | Server port |
+//! | `HFS_SERVER_HOST` | 127.0.0.1 | Host to bind |
+//! | `HFS_LOG_LEVEL` | info | Log level |
+//! | `HFS_MAX_BODY_SIZE` | 10485760 | Max request body (bytes) |
+//! | `HFS_REQUEST_TIMEOUT` | 30 | Request timeout (seconds) |
+//! | `HFS_ENABLE_CORS` | true | Enable CORS |
+//! | `HFS_CORS_ORIGINS` | * | Allowed origins |
+//! | `HFS_CORS_METHODS` | GET,POST,PUT,PATCH,DELETE,OPTIONS | Allowed methods |
+//! | `HFS_CORS_HEADERS` | Content-Type,Authorization,Accept,If-Match,If-None-Match,Prefer | Allowed headers |
+//! | `HFS_DEFAULT_TENANT` | default | Default tenant ID |
+//! | `HFS_BASE_URL` | http://localhost:8080 | Server base URL |
+//! | `HFS_DEFAULT_FHIR_VERSION` | R4 | Default FHIR version (R4, R4B, R5, R6) |
+//! | `HFS_TENANT_ROUTING_MODE` | header_only | Tenant routing mode (header_only, url_path, both) |
+//! | `HFS_TENANT_STRICT_VALIDATION` | false | Error if URL and header tenant disagree |
+//! | `HFS_JWT_TENANT_CLAIM` | tenant_id | JWT claim name for tenant (future use) |
 //!
 //! # Example
 //!
@@ -46,6 +46,43 @@ use std::str::FromStr;
 
 use clap::Parser;
 use helios_fhir::FhirVersion;
+
+/// Storage backend mode.
+///
+/// Determines which backend configuration the server uses.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum StorageBackendMode {
+    /// SQLite only (default). Zero configuration required.
+    #[default]
+    Sqlite,
+    /// SQLite for CRUD + Elasticsearch for search.
+    /// Requires a running Elasticsearch instance.
+    SqliteElasticsearch,
+}
+
+impl fmt::Display for StorageBackendMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            StorageBackendMode::Sqlite => write!(f, "sqlite"),
+            StorageBackendMode::SqliteElasticsearch => write!(f, "sqlite-elasticsearch"),
+        }
+    }
+}
+
+impl FromStr for StorageBackendMode {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().replace('_', "-").as_str() {
+            "sqlite" => Ok(StorageBackendMode::Sqlite),
+            "sqlite-elasticsearch" | "sqlite-es" => Ok(StorageBackendMode::SqliteElasticsearch),
+            _ => Err(format!(
+                "Invalid storage backend '{}'. Valid values: sqlite, sqlite-elasticsearch",
+                s
+            )),
+        }
+    }
+}
 
 /// Tenant routing mode for multi-tenant deployments.
 ///
@@ -126,17 +163,17 @@ impl Default for MultitenancyConfig {
 impl MultitenancyConfig {
     /// Creates a new MultitenancyConfig from environment variables.
     pub fn from_env() -> Self {
-        let routing_mode = std::env::var("REST_TENANT_ROUTING_MODE")
+        let routing_mode = std::env::var("HFS_TENANT_ROUTING_MODE")
             .ok()
             .and_then(|s| s.parse().ok())
             .unwrap_or_default();
 
-        let strict_validation = std::env::var("REST_TENANT_STRICT_VALIDATION")
+        let strict_validation = std::env::var("HFS_TENANT_STRICT_VALIDATION")
             .map(|s| s.to_lowercase() == "true" || s == "1")
             .unwrap_or(false);
 
         let jwt_tenant_claim =
-            std::env::var("REST_JWT_TENANT_CLAIM").unwrap_or_else(|_| "tenant_id".to_string());
+            std::env::var("HFS_JWT_TENANT_CLAIM").unwrap_or_else(|_| "tenant_id".to_string());
 
         Self {
             routing_mode,
@@ -155,37 +192,37 @@ impl MultitenancyConfig {
 #[command(about = "FHIR RESTful API Server")]
 pub struct ServerConfig {
     /// Port to listen on.
-    #[arg(short, long, env = "REST_SERVER_PORT", default_value = "8080")]
+    #[arg(short, long, env = "HFS_SERVER_PORT", default_value = "8080")]
     pub port: u16,
 
     /// Host address to bind to.
-    #[arg(long, env = "REST_SERVER_HOST", default_value = "127.0.0.1")]
+    #[arg(long, env = "HFS_SERVER_HOST", default_value = "127.0.0.1")]
     pub host: String,
 
     /// Log level (error, warn, info, debug, trace).
-    #[arg(long, env = "REST_LOG_LEVEL", default_value = "info")]
+    #[arg(long, env = "HFS_LOG_LEVEL", default_value = "info")]
     pub log_level: String,
 
     /// Maximum request body size in bytes.
-    #[arg(long, env = "REST_MAX_BODY_SIZE", default_value = "10485760")]
+    #[arg(long, env = "HFS_MAX_BODY_SIZE", default_value = "10485760")]
     pub max_body_size: usize,
 
     /// Request timeout in seconds.
-    #[arg(long, env = "REST_REQUEST_TIMEOUT", default_value = "30")]
+    #[arg(long, env = "HFS_REQUEST_TIMEOUT", default_value = "30")]
     pub request_timeout: u64,
 
     /// Enable CORS.
-    #[arg(long, env = "REST_ENABLE_CORS", default_value = "true")]
+    #[arg(long, env = "HFS_ENABLE_CORS", default_value = "true")]
     pub enable_cors: bool,
 
     /// Allowed CORS origins (comma-separated, or * for all).
-    #[arg(long, env = "REST_CORS_ORIGINS", default_value = "*")]
+    #[arg(long, env = "HFS_CORS_ORIGINS", default_value = "*")]
     pub cors_origins: String,
 
     /// Allowed CORS methods (comma-separated, or * for all).
     #[arg(
         long,
-        env = "REST_CORS_METHODS",
+        env = "HFS_CORS_METHODS",
         default_value = "GET,POST,PUT,PATCH,DELETE,OPTIONS"
     )]
     pub cors_methods: String,
@@ -193,44 +230,44 @@ pub struct ServerConfig {
     /// Allowed CORS headers (comma-separated, or * for all).
     #[arg(
         long,
-        env = "REST_CORS_HEADERS",
+        env = "HFS_CORS_HEADERS",
         default_value = "Content-Type,Authorization,Accept,If-Match,If-None-Match,If-None-Exist,If-Modified-Since,Prefer,X-Tenant-ID"
     )]
     pub cors_headers: String,
 
     /// Default tenant ID for requests without X-Tenant-ID header.
-    #[arg(long, env = "REST_DEFAULT_TENANT", default_value = "default")]
+    #[arg(long, env = "HFS_DEFAULT_TENANT", default_value = "default")]
     pub default_tenant: String,
 
     /// Base URL for the server (used in Location headers and Bundle links).
-    #[arg(long, env = "REST_BASE_URL", default_value = "http://localhost:8080")]
+    #[arg(long, env = "HFS_BASE_URL", default_value = "http://localhost:8080")]
     pub base_url: String,
 
     /// Database connection string.
-    #[arg(long, env = "REST_DATABASE_URL")]
+    #[arg(long, env = "HFS_DATABASE_URL")]
     pub database_url: Option<String>,
 
     /// Enable request ID tracking.
-    #[arg(long, env = "REST_ENABLE_REQUEST_ID", default_value = "true")]
+    #[arg(long, env = "HFS_ENABLE_REQUEST_ID", default_value = "true")]
     pub enable_request_id: bool,
 
     /// Return deleted resources with 410 Gone instead of 404 Not Found.
-    #[arg(long, env = "REST_RETURN_GONE", default_value = "true")]
+    #[arg(long, env = "HFS_RETURN_GONE", default_value = "true")]
     pub return_gone: bool,
 
     /// Enable versioning (ETag support).
-    #[arg(long, env = "REST_ENABLE_VERSIONING", default_value = "true")]
+    #[arg(long, env = "HFS_ENABLE_VERSIONING", default_value = "true")]
     pub enable_versioning: bool,
 
     /// Require If-Match header for updates.
-    #[arg(long, env = "REST_REQUIRE_IF_MATCH", default_value = "false")]
+    #[arg(long, env = "HFS_REQUIRE_IF_MATCH", default_value = "false")]
     pub require_if_match: bool,
 
     /// Default FHIR version for operations that need it before request parsing
     /// (e.g., tenant resolution, resource type detection).
     #[arg(
         long,
-        env = "REST_DEFAULT_FHIR_VERSION",
+        env = "HFS_DEFAULT_FHIR_VERSION",
         value_enum,
         default_value = "R4"
     )]
@@ -238,20 +275,52 @@ pub struct ServerConfig {
 
     /// Directory containing FHIR data files (e.g., search-parameters-r4.json).
     /// Defaults to ./data or the directory containing the executable.
-    #[arg(long, env = "REST_DATA_DIR")]
+    #[arg(long, env = "HFS_DATA_DIR")]
     pub data_dir: Option<PathBuf>,
 
     /// Default page size for search results.
-    #[arg(long, env = "REST_DEFAULT_PAGE_SIZE", default_value = "20")]
+    #[arg(long, env = "HFS_DEFAULT_PAGE_SIZE", default_value = "20")]
     pub default_page_size: usize,
 
     /// Maximum page size for search results.
-    #[arg(long, env = "REST_MAX_PAGE_SIZE", default_value = "1000")]
+    #[arg(long, env = "HFS_MAX_PAGE_SIZE", default_value = "1000")]
     pub max_page_size: usize,
+
+    /// Storage backend mode: sqlite (default) or sqlite-elasticsearch.
+    #[arg(long, env = "HFS_STORAGE_BACKEND", default_value = "sqlite")]
+    pub storage_backend: String,
+
+    /// Elasticsearch node URLs (comma-separated).
+    /// Only used when storage_backend is sqlite-elasticsearch.
+    #[arg(
+        long,
+        env = "HFS_ELASTICSEARCH_NODES",
+        default_value = "http://localhost:9200"
+    )]
+    pub elasticsearch_nodes: String,
+
+    /// Elasticsearch index name prefix.
+    #[arg(long, env = "HFS_ELASTICSEARCH_INDEX_PREFIX", default_value = "hfs")]
+    pub elasticsearch_index_prefix: String,
+
+    /// Elasticsearch basic auth username (optional).
+    #[arg(long, env = "HFS_ELASTICSEARCH_USERNAME")]
+    pub elasticsearch_username: Option<String>,
+
+    /// Elasticsearch basic auth password (optional).
+    #[arg(long, env = "HFS_ELASTICSEARCH_PASSWORD")]
+    pub elasticsearch_password: Option<String>,
 
     /// Multitenancy configuration (loaded from environment variables).
     #[arg(skip)]
     pub multitenancy: MultitenancyConfig,
+}
+
+impl ServerConfig {
+    /// Parses the storage backend mode from the string field.
+    pub fn storage_backend_mode(&self) -> Result<StorageBackendMode, String> {
+        self.storage_backend.parse()
+    }
 }
 
 impl Default for ServerConfig {
@@ -277,6 +346,11 @@ impl Default for ServerConfig {
             data_dir: None,
             default_page_size: 20,
             max_page_size: 1000,
+            storage_backend: "sqlite".to_string(),
+            elasticsearch_nodes: "http://localhost:9200".to_string(),
+            elasticsearch_index_prefix: "hfs".to_string(),
+            elasticsearch_username: None,
+            elasticsearch_password: None,
             multitenancy: MultitenancyConfig::default(),
         }
     }
@@ -362,6 +436,11 @@ impl ServerConfig {
             data_dir: None,
             default_page_size: 10,
             max_page_size: 100,
+            storage_backend: "sqlite".to_string(),
+            elasticsearch_nodes: "http://localhost:9200".to_string(),
+            elasticsearch_index_prefix: "hfs".to_string(),
+            elasticsearch_username: None,
+            elasticsearch_password: None,
             multitenancy: MultitenancyConfig::default(),
         }
     }
@@ -468,6 +547,49 @@ mod tests {
 
         assert!(TenantRoutingMode::Both.supports_header());
         assert!(TenantRoutingMode::Both.supports_url_path());
+    }
+
+    #[test]
+    fn test_storage_backend_mode_parse() {
+        assert_eq!(
+            "sqlite".parse::<StorageBackendMode>().unwrap(),
+            StorageBackendMode::Sqlite
+        );
+        assert_eq!(
+            "sqlite-elasticsearch"
+                .parse::<StorageBackendMode>()
+                .unwrap(),
+            StorageBackendMode::SqliteElasticsearch
+        );
+        assert_eq!(
+            "sqlite-es".parse::<StorageBackendMode>().unwrap(),
+            StorageBackendMode::SqliteElasticsearch
+        );
+        assert_eq!(
+            "sqlite_elasticsearch"
+                .parse::<StorageBackendMode>()
+                .unwrap(),
+            StorageBackendMode::SqliteElasticsearch
+        );
+        assert!("invalid".parse::<StorageBackendMode>().is_err());
+    }
+
+    #[test]
+    fn test_storage_backend_mode_display() {
+        assert_eq!(StorageBackendMode::Sqlite.to_string(), "sqlite");
+        assert_eq!(
+            StorageBackendMode::SqliteElasticsearch.to_string(),
+            "sqlite-elasticsearch"
+        );
+    }
+
+    #[test]
+    fn test_storage_backend_mode_from_config() {
+        let config = ServerConfig::default();
+        assert_eq!(
+            config.storage_backend_mode().unwrap(),
+            StorageBackendMode::Sqlite
+        );
     }
 
     #[test]

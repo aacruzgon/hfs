@@ -42,12 +42,15 @@ use parking_lot::RwLock;
 use serde_json::Value;
 use tracing::{debug, instrument, warn};
 
+use crate::core::history::HistoryParams;
 use crate::core::{
-    CapabilityProvider, ChainedSearchProvider, IncludeProvider, ResourceStorage,
-    RevincludeProvider, SearchProvider, SearchResult, StorageCapabilities,
-    TerminologySearchProvider, TextSearchProvider,
+    BundleEntry, BundleProvider, BundleResult, CapabilityProvider, ChainedSearchProvider,
+    ConditionalCreateResult, ConditionalDeleteResult, ConditionalPatchResult, ConditionalStorage,
+    ConditionalUpdateResult, IncludeProvider, InstanceHistoryProvider, PatchFormat,
+    ResourceStorage, RevincludeProvider, SearchProvider, SearchResult, StorageCapabilities,
+    TerminologySearchProvider, TextSearchProvider, VersionedStorage,
 };
-use crate::error::{BackendError, StorageError, StorageResult};
+use crate::error::{BackendError, StorageError, StorageResult, TransactionError};
 use crate::tenant::TenantContext;
 use crate::types::{
     IncludeDirective, Pagination, ReverseChainedParameter, SearchQuery, StoredResource,
@@ -64,10 +67,28 @@ pub type DynStorage = Arc<dyn ResourceStorage + Send + Sync>;
 /// A dynamically typed search provider.
 pub type DynSearchProvider = Arc<dyn SearchProvider + Send + Sync>;
 
+/// A dynamically typed conditional storage provider.
+pub type DynConditionalStorage = Arc<dyn ConditionalStorage + Send + Sync>;
+
+/// A dynamically typed versioned storage provider.
+pub type DynVersionedStorage = Arc<dyn VersionedStorage + Send + Sync>;
+
+/// A dynamically typed instance history provider.
+pub type DynInstanceHistoryProvider = Arc<dyn InstanceHistoryProvider + Send + Sync>;
+
+/// A dynamically typed bundle provider.
+pub type DynBundleProvider = Arc<dyn BundleProvider + Send + Sync>;
+
 /// Composite storage that coordinates multiple backends.
 ///
 /// This is the main entry point for polyglot persistence. It implements
 /// all storage traits and routes operations to appropriate backends.
+///
+/// # Full Primary Support
+///
+/// When the primary backend supports advanced traits (versioning, conditional
+/// operations, history, bundles), use [`with_full_primary()`](Self::with_full_primary)
+/// to enable delegation of these operations through the composite layer.
 pub struct CompositeStorage {
     /// Configuration.
     config: CompositeConfig,
@@ -92,6 +113,20 @@ pub struct CompositeStorage {
 
     /// Backend health status.
     health_status: Arc<RwLock<HashMap<String, BackendHealth>>>,
+
+    // Typed trait objects for primary's advanced capabilities.
+    // These are set via `with_full_primary()` to support delegation.
+    /// Primary as ConditionalStorage (if supported).
+    conditional_storage: Option<DynConditionalStorage>,
+
+    /// Primary as VersionedStorage (if supported).
+    versioned_storage: Option<DynVersionedStorage>,
+
+    /// Primary as InstanceHistoryProvider (if supported).
+    history_provider: Option<DynInstanceHistoryProvider>,
+
+    /// Primary as BundleProvider (if supported).
+    bundle_provider: Option<DynBundleProvider>,
 }
 
 /// Health status for a backend.
@@ -183,6 +218,10 @@ impl CompositeStorage {
             merger,
             sync_manager,
             health_status: Arc::new(RwLock::new(health_status)),
+            conditional_storage: None,
+            versioned_storage: None,
+            history_provider: None,
+            bundle_provider: None,
         })
     }
 
@@ -191,6 +230,38 @@ impl CompositeStorage {
     /// Search providers allow specialized search backends like Elasticsearch.
     pub fn with_search_providers(mut self, providers: HashMap<String, DynSearchProvider>) -> Self {
         self.search_providers = providers;
+        self
+    }
+
+    /// Registers the primary backend's advanced capabilities for delegation.
+    ///
+    /// When the primary backend implements traits beyond `ResourceStorage`
+    /// (e.g., `ConditionalStorage`, `VersionedStorage`, `InstanceHistoryProvider`,
+    /// `BundleProvider`), this method stores typed references so that
+    /// `CompositeStorage` can delegate these operations to the primary.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let sqlite = Arc::new(SqliteBackend::new("fhir.db")?);
+    /// let composite = CompositeStorage::new(config, backends)?
+    ///     .with_full_primary(sqlite.clone());
+    /// ```
+    pub fn with_full_primary<T>(mut self, primary: Arc<T>) -> Self
+    where
+        T: ResourceStorage
+            + ConditionalStorage
+            + VersionedStorage
+            + InstanceHistoryProvider
+            + BundleProvider
+            + Send
+            + Sync
+            + 'static,
+    {
+        self.conditional_storage = Some(primary.clone() as DynConditionalStorage);
+        self.versioned_storage = Some(primary.clone() as DynVersionedStorage);
+        self.history_provider = Some(primary.clone() as DynInstanceHistoryProvider);
+        self.bundle_provider = Some(primary as DynBundleProvider);
         self
     }
 
@@ -419,6 +490,51 @@ impl CompositeStorage {
         })?;
 
         Ok((primary, auxiliary_results))
+    }
+
+    /// Syncs bundle results to secondaries by extracting resource info from responses.
+    async fn sync_bundle_results(&self, tenant: &TenantContext, result: &BundleResult) {
+        for entry_result in &result.entries {
+            // Only sync successful mutating operations that have a resource body
+            if let Some(ref resource_json) = entry_result.resource {
+                let resource_type = resource_json
+                    .get("resourceType")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default();
+                let resource_id = resource_json
+                    .get("id")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default();
+
+                if resource_type.is_empty() || resource_id.is_empty() {
+                    continue;
+                }
+
+                let fhir_version = resource_json
+                    .get("meta")
+                    .and_then(|m| m.get("profile"))
+                    .map(|_| FhirVersion::default())
+                    .unwrap_or_default();
+
+                if let Err(e) = self
+                    .sync_to_secondaries(SyncEvent::Create {
+                        resource_type: resource_type.to_string(),
+                        resource_id: resource_id.to_string(),
+                        content: resource_json.clone(),
+                        tenant_id: tenant.tenant_id().clone(),
+                        fhir_version,
+                    })
+                    .await
+                {
+                    warn!(
+                        error = %e,
+                        resource_type = resource_type,
+                        resource_id = resource_id,
+                        "Failed to sync bundle entry to secondaries"
+                    );
+                }
+            }
+        }
     }
 
     /// Converts a routing error to a storage error.
@@ -671,13 +787,361 @@ impl SearchProvider for CompositeStorage {
     }
 }
 
-// Note: VersionedStorage is not implemented for CompositeStorage by default
-// because it requires the primary backend to support versioned operations,
-// and we cannot downcast trait objects. Users should use the primary backend
-// directly for versioned operations, or wrap with a concrete type.
-//
-// A concrete implementation would be:
-// impl VersionedStorage for CompositeStorage<P: VersionedStorage> { ... }
+#[async_trait]
+impl ConditionalStorage for CompositeStorage {
+    async fn conditional_create(
+        &self,
+        tenant: &TenantContext,
+        resource_type: &str,
+        resource: Value,
+        search_params: &str,
+        fhir_version: FhirVersion,
+    ) -> StorageResult<ConditionalCreateResult> {
+        let storage = self.conditional_storage.as_ref().ok_or_else(|| {
+            StorageError::Backend(BackendError::UnsupportedCapability {
+                backend_name: "composite".to_string(),
+                capability: "ConditionalStorage".to_string(),
+            })
+        })?;
+
+        let result = storage
+            .conditional_create(tenant, resource_type, resource, search_params, fhir_version)
+            .await?;
+
+        // Sync created resource to secondaries
+        if let ConditionalCreateResult::Created(ref stored) = result {
+            if let Err(e) = self
+                .sync_to_secondaries(SyncEvent::Create {
+                    resource_type: resource_type.to_string(),
+                    resource_id: stored.id().to_string(),
+                    content: stored.content().clone(),
+                    tenant_id: tenant.tenant_id().clone(),
+                    fhir_version,
+                })
+                .await
+            {
+                warn!(error = %e, "Failed to sync conditional_create to secondaries");
+            }
+        }
+
+        Ok(result)
+    }
+
+    async fn conditional_update(
+        &self,
+        tenant: &TenantContext,
+        resource_type: &str,
+        resource: Value,
+        search_params: &str,
+        upsert: bool,
+        fhir_version: FhirVersion,
+    ) -> StorageResult<ConditionalUpdateResult> {
+        let storage = self.conditional_storage.as_ref().ok_or_else(|| {
+            StorageError::Backend(BackendError::UnsupportedCapability {
+                backend_name: "composite".to_string(),
+                capability: "ConditionalStorage".to_string(),
+            })
+        })?;
+
+        let result = storage
+            .conditional_update(
+                tenant,
+                resource_type,
+                resource,
+                search_params,
+                upsert,
+                fhir_version,
+            )
+            .await?;
+
+        // Sync to secondaries
+        match &result {
+            ConditionalUpdateResult::Created(stored) => {
+                if let Err(e) = self
+                    .sync_to_secondaries(SyncEvent::Create {
+                        resource_type: resource_type.to_string(),
+                        resource_id: stored.id().to_string(),
+                        content: stored.content().clone(),
+                        tenant_id: tenant.tenant_id().clone(),
+                        fhir_version,
+                    })
+                    .await
+                {
+                    warn!(error = %e, "Failed to sync conditional_update create to secondaries");
+                }
+            }
+            ConditionalUpdateResult::Updated(stored) => {
+                if let Err(e) = self
+                    .sync_to_secondaries(SyncEvent::Update {
+                        resource_type: resource_type.to_string(),
+                        resource_id: stored.id().to_string(),
+                        content: stored.content().clone(),
+                        tenant_id: tenant.tenant_id().clone(),
+                        version: stored.version_id().to_string(),
+                        fhir_version: stored.fhir_version(),
+                    })
+                    .await
+                {
+                    warn!(error = %e, "Failed to sync conditional_update to secondaries");
+                }
+            }
+            _ => {}
+        }
+
+        Ok(result)
+    }
+
+    async fn conditional_delete(
+        &self,
+        tenant: &TenantContext,
+        resource_type: &str,
+        search_params: &str,
+    ) -> StorageResult<ConditionalDeleteResult> {
+        let storage = self.conditional_storage.as_ref().ok_or_else(|| {
+            StorageError::Backend(BackendError::UnsupportedCapability {
+                backend_name: "composite".to_string(),
+                capability: "ConditionalStorage".to_string(),
+            })
+        })?;
+
+        let result = storage
+            .conditional_delete(tenant, resource_type, search_params)
+            .await?;
+
+        // Note: We don't have the resource ID for sync here — the primary already
+        // performed the delete. The sync_manager will handle it if configured.
+
+        Ok(result)
+    }
+
+    async fn conditional_patch(
+        &self,
+        tenant: &TenantContext,
+        resource_type: &str,
+        search_params: &str,
+        patch: &PatchFormat,
+    ) -> StorageResult<ConditionalPatchResult> {
+        let storage = self.conditional_storage.as_ref().ok_or_else(|| {
+            StorageError::Backend(BackendError::UnsupportedCapability {
+                backend_name: "composite".to_string(),
+                capability: "ConditionalStorage".to_string(),
+            })
+        })?;
+
+        let result = storage
+            .conditional_patch(tenant, resource_type, search_params, patch)
+            .await?;
+
+        // Sync patched resource to secondaries
+        if let ConditionalPatchResult::Patched(ref stored) = result {
+            if let Err(e) = self
+                .sync_to_secondaries(SyncEvent::Update {
+                    resource_type: resource_type.to_string(),
+                    resource_id: stored.id().to_string(),
+                    content: stored.content().clone(),
+                    tenant_id: tenant.tenant_id().clone(),
+                    version: stored.version_id().to_string(),
+                    fhir_version: stored.fhir_version(),
+                })
+                .await
+            {
+                warn!(error = %e, "Failed to sync conditional_patch to secondaries");
+            }
+        }
+
+        Ok(result)
+    }
+}
+
+#[async_trait]
+impl VersionedStorage for CompositeStorage {
+    async fn vread(
+        &self,
+        tenant: &TenantContext,
+        resource_type: &str,
+        id: &str,
+        version_id: &str,
+    ) -> StorageResult<Option<StoredResource>> {
+        let storage = self.versioned_storage.as_ref().ok_or_else(|| {
+            StorageError::Backend(BackendError::UnsupportedCapability {
+                backend_name: "composite".to_string(),
+                capability: "VersionedStorage".to_string(),
+            })
+        })?;
+
+        storage.vread(tenant, resource_type, id, version_id).await
+    }
+
+    async fn update_with_match(
+        &self,
+        tenant: &TenantContext,
+        resource_type: &str,
+        id: &str,
+        expected_version: &str,
+        resource: Value,
+    ) -> StorageResult<StoredResource> {
+        let storage = self.versioned_storage.as_ref().ok_or_else(|| {
+            StorageError::Backend(BackendError::UnsupportedCapability {
+                backend_name: "composite".to_string(),
+                capability: "VersionedStorage".to_string(),
+            })
+        })?;
+
+        let stored = storage
+            .update_with_match(tenant, resource_type, id, expected_version, resource)
+            .await?;
+
+        // Sync to secondaries
+        if let Err(e) = self
+            .sync_to_secondaries(SyncEvent::Update {
+                resource_type: resource_type.to_string(),
+                resource_id: id.to_string(),
+                content: stored.content().clone(),
+                tenant_id: tenant.tenant_id().clone(),
+                version: stored.version_id().to_string(),
+                fhir_version: stored.fhir_version(),
+            })
+            .await
+        {
+            warn!(error = %e, "Failed to sync update_with_match to secondaries");
+        }
+
+        Ok(stored)
+    }
+
+    async fn delete_with_match(
+        &self,
+        tenant: &TenantContext,
+        resource_type: &str,
+        id: &str,
+        expected_version: &str,
+    ) -> StorageResult<()> {
+        let storage = self.versioned_storage.as_ref().ok_or_else(|| {
+            StorageError::Backend(BackendError::UnsupportedCapability {
+                backend_name: "composite".to_string(),
+                capability: "VersionedStorage".to_string(),
+            })
+        })?;
+
+        storage
+            .delete_with_match(tenant, resource_type, id, expected_version)
+            .await?;
+
+        // Sync to secondaries
+        if let Err(e) = self
+            .sync_to_secondaries(SyncEvent::Delete {
+                resource_type: resource_type.to_string(),
+                resource_id: id.to_string(),
+                tenant_id: tenant.tenant_id().clone(),
+            })
+            .await
+        {
+            warn!(error = %e, "Failed to sync delete_with_match to secondaries");
+        }
+
+        Ok(())
+    }
+
+    async fn list_versions(
+        &self,
+        tenant: &TenantContext,
+        resource_type: &str,
+        id: &str,
+    ) -> StorageResult<Vec<String>> {
+        let storage = self.versioned_storage.as_ref().ok_or_else(|| {
+            StorageError::Backend(BackendError::UnsupportedCapability {
+                backend_name: "composite".to_string(),
+                capability: "VersionedStorage".to_string(),
+            })
+        })?;
+
+        storage.list_versions(tenant, resource_type, id).await
+    }
+}
+
+#[async_trait]
+impl InstanceHistoryProvider for CompositeStorage {
+    async fn history_instance(
+        &self,
+        tenant: &TenantContext,
+        resource_type: &str,
+        id: &str,
+        params: &HistoryParams,
+    ) -> StorageResult<crate::core::HistoryPage> {
+        let provider = self.history_provider.as_ref().ok_or_else(|| {
+            StorageError::Backend(BackendError::UnsupportedCapability {
+                backend_name: "composite".to_string(),
+                capability: "InstanceHistoryProvider".to_string(),
+            })
+        })?;
+
+        provider
+            .history_instance(tenant, resource_type, id, params)
+            .await
+    }
+
+    async fn history_instance_count(
+        &self,
+        tenant: &TenantContext,
+        resource_type: &str,
+        id: &str,
+    ) -> StorageResult<u64> {
+        let provider = self.history_provider.as_ref().ok_or_else(|| {
+            StorageError::Backend(BackendError::UnsupportedCapability {
+                backend_name: "composite".to_string(),
+                capability: "InstanceHistoryProvider".to_string(),
+            })
+        })?;
+
+        provider
+            .history_instance_count(tenant, resource_type, id)
+            .await
+    }
+}
+
+#[async_trait]
+impl BundleProvider for CompositeStorage {
+    async fn process_transaction(
+        &self,
+        tenant: &TenantContext,
+        entries: Vec<BundleEntry>,
+    ) -> Result<BundleResult, TransactionError> {
+        let provider =
+            self.bundle_provider
+                .as_ref()
+                .ok_or_else(|| TransactionError::BundleError {
+                    index: 0,
+                    message: "BundleProvider not available on composite primary".to_string(),
+                })?;
+
+        let result = provider.process_transaction(tenant, entries).await?;
+
+        // Sync successful entries to secondaries by reading resources from primary
+        self.sync_bundle_results(tenant, &result).await;
+
+        Ok(result)
+    }
+
+    async fn process_batch(
+        &self,
+        tenant: &TenantContext,
+        entries: Vec<BundleEntry>,
+    ) -> StorageResult<BundleResult> {
+        let provider = self.bundle_provider.as_ref().ok_or_else(|| {
+            StorageError::Backend(BackendError::UnsupportedCapability {
+                backend_name: "composite".to_string(),
+                capability: "BundleProvider".to_string(),
+            })
+        })?;
+
+        let result = provider.process_batch(tenant, entries).await?;
+
+        // Sync successful entries to secondaries
+        self.sync_bundle_results(tenant, &result).await;
+
+        Ok(result)
+    }
+}
 
 #[async_trait]
 impl IncludeProvider for CompositeStorage {
@@ -1092,23 +1556,6 @@ impl CapabilityProvider for CompositeStorage {
 
     // resource_capabilities uses the default implementation that returns Option<ResourceCapabilities>
 }
-
-/// Helper trait for downcasting trait objects.
-#[allow(dead_code)]
-trait AsAnyRef {
-    fn as_any_ref(&self) -> Option<&dyn std::any::Any>;
-}
-
-#[allow(dead_code)]
-impl<T: ResourceStorage + 'static> AsAnyRef for T {
-    fn as_any_ref(&self) -> Option<&dyn std::any::Any> {
-        Some(self)
-    }
-}
-
-// Note: The actual AsAnyRef implementation for dyn ResourceStorage would require
-// more complex trait object handling. For now, the versioned storage methods
-// will return UnsupportedCapability errors.
 
 #[cfg(test)]
 mod tests {

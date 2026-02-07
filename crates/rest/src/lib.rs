@@ -112,14 +112,14 @@
 //!
 //! | Variable | Default | Description |
 //! |----------|---------|-------------|
-//! | `REST_SERVER_PORT` | 8080 | Server port |
-//! | `REST_SERVER_HOST` | 127.0.0.1 | Host to bind |
-//! | `REST_LOG_LEVEL` | info | Log level (error, warn, info, debug, trace) |
-//! | `REST_MAX_BODY_SIZE` | 10485760 | Max request body size (bytes) |
-//! | `REST_REQUEST_TIMEOUT` | 30 | Request timeout (seconds) |
-//! | `REST_ENABLE_CORS` | true | Enable CORS |
-//! | `REST_CORS_ORIGINS` | * | Allowed CORS origins |
-//! | `REST_DEFAULT_TENANT` | default | Default tenant ID |
+//! | `HFS_SERVER_PORT` | 8080 | Server port |
+//! | `HFS_SERVER_HOST` | 127.0.0.1 | Host to bind |
+//! | `HFS_LOG_LEVEL` | info | Log level (error, warn, info, debug, trace) |
+//! | `HFS_MAX_BODY_SIZE` | 10485760 | Max request body size (bytes) |
+//! | `HFS_REQUEST_TIMEOUT` | 30 | Request timeout (seconds) |
+//! | `HFS_ENABLE_CORS` | true | Enable CORS |
+//! | `HFS_CORS_ORIGINS` | * | Allowed CORS origins |
+//! | `HFS_DEFAULT_TENANT` | default | Default tenant ID |
 //!
 //! ## Architecture
 //!
@@ -150,7 +150,7 @@ pub mod state;
 pub mod tenant;
 
 // Re-export commonly used types
-pub use config::{MultitenancyConfig, ServerConfig, TenantRoutingMode};
+pub use config::{MultitenancyConfig, ServerConfig, StorageBackendMode, TenantRoutingMode};
 pub use error::{RestError, RestResult};
 pub use state::AppState;
 pub use tenant::{ResolvedTenant, TenantResolver, TenantSource};

@@ -98,22 +98,34 @@ helios-persistence/
 │   │   ├── schema_per_tenant.rs   # PostgreSQL search_path isolation
 │   │   └── database_per_tenant.rs # Complete database isolation
 │   ├── backends/        # Backend implementations
-│   │   └── sqlite/      # Reference implementation (complete)
-│   │       ├── backend.rs      # SqliteBackend with connection pooling
-│   │       ├── storage.rs      # ResourceStorage implementation
-│   │       ├── transaction.rs  # TransactionProvider implementation
-│   │       ├── schema.rs       # Schema migrations (v1-v6)
-│   │       ├── search_impl.rs  # SearchProvider implementation
-│   │       ├── bulk_export.rs  # BulkExportStorage implementation
-│   │       ├── bulk_submit.rs  # BulkSubmitProvider implementation
-│   │       └── search/         # Search query building
-│   │           ├── query_builder.rs      # SQL query construction
-│   │           ├── chain_builder.rs      # Chained parameter resolution
-│   │           ├── filter_parser.rs      # _filter parameter parsing
-│   │           ├── fts.rs                # FTS5 full-text search
-│   │           ├── modifier_handlers.rs  # Search modifier logic
-│   │           ├── strategy.rs           # Query strategy selection
-│   │           ├── writer.rs             # Index writing
+│   │   ├── sqlite/      # Reference implementation (complete)
+│   │   │   ├── backend.rs      # SqliteBackend with connection pooling
+│   │   │   ├── storage.rs      # ResourceStorage implementation
+│   │   │   ├── transaction.rs  # TransactionProvider implementation
+│   │   │   ├── schema.rs       # Schema migrations (v1-v6)
+│   │   │   ├── search_impl.rs  # SearchProvider implementation
+│   │   │   ├── bulk_export.rs  # BulkExportStorage implementation
+│   │   │   ├── bulk_submit.rs  # BulkSubmitProvider implementation
+│   │   │   └── search/         # Search query building
+│   │   │       ├── query_builder.rs      # SQL query construction
+│   │   │       ├── chain_builder.rs      # Chained parameter resolution
+│   │   │       ├── filter_parser.rs      # _filter parameter parsing
+│   │   │       ├── fts.rs                # FTS5 full-text search
+│   │   │       ├── modifier_handlers.rs  # Search modifier logic
+│   │   │       ├── strategy.rs           # Query strategy selection
+│   │   │       ├── writer.rs             # Index writing
+│   │   │       └── parameter_handlers/   # Type-specific handlers
+│   │   │           ├── string.rs, token.rs, date.rs, number.rs
+│   │   │           ├── quantity.rs, reference.rs, uri.rs, composite.rs
+│   │   └── elasticsearch/  # Search-optimized secondary backend
+│   │       ├── backend.rs      # ElasticsearchBackend with config
+│   │       ├── storage.rs      # ResourceStorage for sync support
+│   │       ├── schema.rs       # Index mappings and templates
+│   │       ├── search_impl.rs  # SearchProvider, TextSearchProvider
+│   │       └── search/         # ES Query DSL translation
+│   │           ├── query_builder.rs      # FHIR SearchQuery → ES Query DSL
+│   │           ├── fts.rs                # Full-text search queries
+│   │           ├── modifier_handlers.rs  # :missing and other modifiers
 │   │           └── parameter_handlers/   # Type-specific handlers
 │   │               ├── string.rs, token.rs, date.rs, number.rs
 │   │               ├── quantity.rs, reference.rs, uri.rs, composite.rs
@@ -275,59 +287,76 @@ The matrix below shows which FHIR operations each backend supports. This reflect
 | Feature | SQLite | PostgreSQL | MongoDB | Cassandra | Neo4j | Elasticsearch | S3 |
 |---------|--------|------------|---------|-----------|-------|---------------|-----|
 | **Core Operations** |
-| [CRUD](https://build.fhir.org/http.html#crud) | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
+| [CRUD](https://build.fhir.org/http.html#crud) | ✓ | ○ | ○ | ○ | ○ | ✓ | ○ |
 | [Versioning (vread)](https://build.fhir.org/http.html#vread) | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
 | [Optimistic Locking](https://build.fhir.org/http.html#concurrency) | ✓ | ○ | ○ | ○ | ○ | ✗ | ✗ |
-| [Instance History](https://build.fhir.org/http.html#history) | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
-| [Type History](https://build.fhir.org/http.html#history) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
-| [System History](https://build.fhir.org/http.html#history) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
+| [Instance History](https://build.fhir.org/http.html#history) | ✓ | ○ | ○ | ○ | ○ | ✗ | ○ |
+| [Type History](https://build.fhir.org/http.html#history) | ✓ | ○ | ○ | ✗ | ○ | ✗ | ✗ |
+| [System History](https://build.fhir.org/http.html#history) | ✓ | ○ | ○ | ✗ | ○ | ✗ | ✗ |
 | [Batch Bundles](https://build.fhir.org/http.html#batch) | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
 | [Transaction Bundles](https://build.fhir.org/http.html#transaction) | ✓ | ○ | ○ | ✗ | ○ | ✗ | ✗ |
 | [Conditional Operations](https://build.fhir.org/http.html#cond-update) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
 | [Conditional Patch](https://build.fhir.org/http.html#patch) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
 | [Delete History](https://build.fhir.org/http.html#delete) | ✓ | ○ | ○ | ✗ | ○ | ✗ | ✗ |
 | **Multitenancy** |
-| Shared Schema | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
-| Schema-per-Tenant | ✗ | ○ | ○ | ✗ | ✗ | ○ | ✗ |
+| Shared Schema | ✓ | ○ | ○ | ○ | ○ | ✓ | ○ |
+| Schema-per-Tenant | ✗ | ○ | ○ | ✗ | ✗ | ✗ | ✗ |
 | Database-per-Tenant | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
 | Row-Level Security | ✗ | ○ | ✗ | ✗ | ✗ | ✗ | ✗ |
 | **[Search Parameters](https://build.fhir.org/search.html#ptypes)** |
-| [String](https://build.fhir.org/search.html#string) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
-| [Token](https://build.fhir.org/search.html#token) | ✓ | ○ | ○ | ○ | ○ | ○ | ✗ |
-| [Reference](https://build.fhir.org/search.html#reference) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
-| [Date](https://build.fhir.org/search.html#date) | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
-| [Number](https://build.fhir.org/search.html#number) | ✓ | ○ | ○ | ✗ | ○ | ○ | ○ |
-| [Quantity](https://build.fhir.org/search.html#quantity) | ✓ | ○ | ○ | ✗ | ✗ | ○ | ○ |
-| [URI](https://build.fhir.org/search.html#uri) | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
-| [Composite](https://build.fhir.org/search.html#composite) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
+| [String](https://build.fhir.org/search.html#string) | ✓ | ○ | ○ | ✗ | ○ | ✓ | ✗ |
+| [Token](https://build.fhir.org/search.html#token) | ✓ | ○ | ○ | ○ | ○ | ✓ | ✗ |
+| [Reference](https://build.fhir.org/search.html#reference) | ✓ | ○ | ○ | ✗ | ○ | ✓ | ✗ |
+| [Date](https://build.fhir.org/search.html#date) | ✓ | ○ | ○ | ○ | ○ | ✓ | ○ |
+| [Number](https://build.fhir.org/search.html#number) | ✓ | ○ | ○ | ✗ | ○ | ✓ | ○ |
+| [Quantity](https://build.fhir.org/search.html#quantity) | ✓ | ○ | ○ | ✗ | ✗ | ✓ | ○ |
+| [URI](https://build.fhir.org/search.html#uri) | ✓ | ○ | ○ | ○ | ○ | ✓ | ○ |
+| [Composite](https://build.fhir.org/search.html#composite) | ✓ | ○ | ○ | ✗ | ○ | ✓ | ✗ |
 | **[Search Modifiers](https://build.fhir.org/search.html#modifiers)** |
-| [:exact](https://build.fhir.org/search.html#modifiers) | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
-| [:contains](https://build.fhir.org/search.html#modifiers) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
-| [:text](https://build.fhir.org/search.html#modifiers) (full-text) | ✓ | ○ | ○ | ✗ | ✗ | ○ | ✗ |
-| [:not](https://build.fhir.org/search.html#modifiers) | ✓ | ○ | ○ | ✗ | ○ | ○ | ○ |
-| [:missing](https://build.fhir.org/search.html#modifiers) | ✓ | ○ | ○ | ✗ | ○ | ○ | ○ |
-| [:above / :below](https://build.fhir.org/search.html#modifiers) | ✗ | †○ | †○ | ✗ | ○ | †○ | ✗ |
+| [:exact](https://build.fhir.org/search.html#modifiers) | ✓ | ○ | ○ | ○ | ○ | ✓ | ○ |
+| [:contains](https://build.fhir.org/search.html#modifiers) | ✓ | ○ | ○ | ✗ | ○ | ✓ | ✗ |
+| [:text](https://build.fhir.org/search.html#modifiers) (full-text) | ✓ | ○ | ○ | ✗ | ✗ | ✓ | ✗ |
+| [:not](https://build.fhir.org/search.html#modifiers) | ✓ | ○ | ○ | ✗ | ○ | ✓ | ○ |
+| [:missing](https://build.fhir.org/search.html#modifiers) | ✓ | ○ | ○ | ✗ | ○ | ✓ | ○ |
+| [:above / :below](https://build.fhir.org/search.html#modifiers) | ✗ | †○ | †○ | ✗ | ○ | ✓ | ✗ |
 | [:in / :not-in](https://build.fhir.org/search.html#modifiers) | ✗ | †○ | †○ | ✗ | ○ | †○ | ✗ |
-| [:of-type](https://build.fhir.org/search.html#modifiers) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
-| [:text-advanced](https://build.fhir.org/search.html#modifiertextadvanced) | ✓ | †○ | †○ | ✗ | ✗ | †○ | ✗ |
+| [:of-type](https://build.fhir.org/search.html#modifiers) | ✓ | ○ | ○ | ✗ | ○ | ✓ | ✗ |
+| [:text-advanced](https://build.fhir.org/search.html#modifiertextadvanced) | ✓ | †○ | †○ | ✗ | ✗ | ✓ | ✗ |
 | **[Special Parameters](https://build.fhir.org/search.html#all)** |
-| [_text](https://build.fhir.org/search.html#_text) (narrative search) | ✓ | ○ | ○ | ✗ | ✗ | ○ | ✗ |
-| [_content](https://build.fhir.org/search.html#_content) (full content) | ✓ | ○ | ○ | ✗ | ✗ | ○ | ✗ |
+| [_text](https://build.fhir.org/search.html#_text) (narrative search) | ✓ | ○ | ○ | ✗ | ✗ | ✓ | ✗ |
+| [_content](https://build.fhir.org/search.html#_content) (full content) | ✓ | ○ | ○ | ✗ | ✗ | ✓ | ✗ |
 | [_filter](https://build.fhir.org/search.html#_filter) (advanced filtering) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
 | **Advanced Search** |
 | [Chained Parameters](https://build.fhir.org/search.html#chaining) | ✓ | ○ | ○ | ✗ | ○ | ✗ | ✗ |
 | [Reverse Chaining (_has)](https://build.fhir.org/search.html#has) | ✓ | ○ | ○ | ✗ | ○ | ✗ | ✗ |
-| [_include](https://build.fhir.org/search.html#include) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
-| [_revinclude](https://build.fhir.org/search.html#revinclude) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
+| [_include](https://build.fhir.org/search.html#include) | ✓ | ○ | ○ | ✗ | ○ | ✓ | ✗ |
+| [_revinclude](https://build.fhir.org/search.html#revinclude) | ✓ | ○ | ○ | ✗ | ○ | ✓ | ✗ |
 | **[Pagination](https://build.fhir.org/http.html#paging)** |
-| Offset | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
-| Cursor (keyset) | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
+| Offset | ✓ | ○ | ○ | ✗ | ○ | ✓ | ✗ |
+| Cursor (keyset) | ✓ | ○ | ○ | ○ | ○ | ✓ | ○ |
 | **[Sorting](https://build.fhir.org/search.html#sort)** |
-| Single field | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
-| Multiple fields | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
+| Single field | ✓ | ○ | ○ | ✗ | ○ | ✓ | ✗ |
+| Multiple fields | ✓ | ○ | ○ | ✗ | ○ | ✓ | ✗ |
 | **[Bulk Operations](https://hl7.org/fhir/uv/bulkdata/)** |
 | [Bulk Export](https://hl7.org/fhir/uv/bulkdata/export.html) | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
 | [Bulk Submit](https://hackmd.io/@argonaut/rJoqHZrPle) | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
+
+### Primary/Secondary Role Matrix
+
+Backends can serve as primary (CRUD, versioning, transactions) or secondary (optimized for specific query patterns). When a secondary search backend is configured, the primary backend's search indexing is automatically disabled to avoid data duplication.
+
+| Configuration | Primary | Secondary | Status | Use Case |
+|---|---|---|---|---|
+| SQLite alone | SQLite | — | ✓ Implemented | Development, testing, small deployments |
+| SQLite + Elasticsearch | SQLite | Elasticsearch (search) | ✓ Implemented | Small prod with robust search |
+| PostgreSQL alone | PostgreSQL | — | Planned | Production OLTP |
+| PostgreSQL + Elasticsearch | PostgreSQL | Elasticsearch (search) | Planned | OLTP + advanced search |
+| PostgreSQL + Neo4j | PostgreSQL | Neo4j (graph) | Planned | Graph-heavy queries |
+| Cassandra alone | Cassandra | — | Planned | High write throughput |
+| Cassandra + Elasticsearch | Cassandra | Elasticsearch (search) | Planned | Write-heavy + search |
+| MongoDB alone | MongoDB | — | Planned | Document-centric |
+| S3 alone | S3 | — | Planned | Archival/bulk storage |
+| S3 + Elasticsearch | S3 | Elasticsearch (search) | Planned | Large-scale + search |
 
 ### Backend Selection Guide
 
@@ -352,6 +381,103 @@ The matrix below shows which FHIR operations each backend supports. This reflect
 | `neo4j` | Neo4j graph database | neo4rs |
 | `elasticsearch` | Elasticsearch search | elasticsearch |
 | `s3` | AWS S3 object storage | object_store |
+
+## Elasticsearch Backend
+
+The Elasticsearch backend serves as a search-optimized secondary in the composite storage layer. It handles all search parameter indexing, full-text search, and query execution when configured alongside a primary backend.
+
+### Configuration
+
+```rust
+use helios_persistence::backends::elasticsearch::ElasticsearchConfig;
+
+let config = ElasticsearchConfig {
+    nodes: vec!["http://localhost:9200".to_string()],
+    index_prefix: "hfs".to_string(),
+    username: None,
+    password: None,
+    timeout: std::time::Duration::from_secs(30),
+    number_of_shards: 1,
+    number_of_replicas: 1,
+    max_result_window: 10000,
+    refresh_interval: "1s".to_string(),
+};
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `nodes` | `["http://localhost:9200"]` | Elasticsearch node URLs |
+| `index_prefix` | `"hfs"` | Prefix for all index names |
+| `username` / `password` | `None` | Basic authentication credentials |
+| `timeout` | `30s` | Request timeout |
+| `number_of_shards` | `1` | Number of primary shards per index |
+| `number_of_replicas` | `1` | Number of replica shards per index |
+| `max_result_window` | `10000` | Maximum `from + size` for offset pagination |
+| `refresh_interval` | `"1s"` | How often new documents become searchable |
+
+### Index Structure
+
+Each tenant + resource type combination gets its own index: `{prefix}_{tenant_id}_{resource_type}` (e.g., `hfs_acme_patient`).
+
+Documents contain:
+- **Metadata**: `resource_type`, `resource_id`, `tenant_id`, `version_id`, `last_updated`, `is_deleted`
+- **Content**: Raw FHIR JSON (stored but not indexed)
+- **Full-text fields**: `narrative_text` (from `text.div`), `content_text` (all string values)
+- **Search parameters**: Nested objects for each parameter type (`string`, `token`, `date`, `number`, `quantity`, `reference`, `uri`, `composite`)
+
+All search parameter fields use `"type": "nested"` to ensure correct multi-value matching (e.g., system and code must co-occur in the same token object).
+
+### Search Offloading
+
+When Elasticsearch is configured as a search secondary, the primary backend automatically disables its own search index population. For a SQLite + Elasticsearch configuration:
+
+- SQLite stores only the FHIR resource (the `resources` and `resource_history` tables)
+- SQLite does **not** populate `search_index` or `resource_fts` tables
+- Elasticsearch handles all search indexing and query execution
+- The composite storage layer routes search operations to Elasticsearch
+
+This is controlled by the `search_offloaded` flag on the primary backend, which the composite layer sets automatically when a search secondary is configured.
+
+### Composite Usage
+
+```rust
+use std::collections::HashMap;
+use std::sync::Arc;
+use helios_persistence::composite::{CompositeConfig, CompositeStorage, DynStorage, DynSearchProvider};
+use helios_persistence::core::BackendKind;
+use helios_persistence::backends::sqlite::SqliteBackend;
+use helios_persistence::backends::elasticsearch::{ElasticsearchBackend, ElasticsearchConfig};
+
+// Create backends
+let mut sqlite = SqliteBackend::new("fhir.db")?;
+sqlite.set_search_offloaded(true);  // Disable SQLite search indexing
+let sqlite = Arc::new(sqlite);
+
+let es = Arc::new(ElasticsearchBackend::with_shared_registry(
+    ElasticsearchConfig::default(),
+    sqlite.search_registry().clone(),
+)?);
+
+// Build composite
+let config = CompositeConfig::builder()
+    .primary("sqlite", BackendKind::Sqlite)
+    .search_backend("es", BackendKind::Elasticsearch)
+    .build()?;
+
+let mut backends = HashMap::new();
+backends.insert("sqlite".to_string(), sqlite.clone() as DynStorage);
+backends.insert("es".to_string(), es.clone() as DynStorage);
+
+let mut search_providers = HashMap::new();
+search_providers.insert("sqlite".to_string(), sqlite.clone() as DynSearchProvider);
+search_providers.insert("es".to_string(), es.clone() as DynSearchProvider);
+
+// with_full_primary() enables delegation of ConditionalStorage, VersionedStorage,
+// InstanceHistoryProvider, and BundleProvider through the composite layer.
+let composite = CompositeStorage::new(config, backends)?
+    .with_search_providers(search_providers)
+    .with_full_primary(sqlite);
+```
 
 ## Implementation Status
 
@@ -480,12 +606,24 @@ The SQLite backend includes a complete FHIR search implementation using pre-comp
   - Rollback support for failed submissions
 - [x] Schema migration v5 to v6 with 7 new tables for bulk operations
 
+### Phase 5: Elasticsearch Backend ✓
+- [x] Backend structure with connection management and health checks
+- [x] Index schema and mappings (nested objects for multi-value search params)
+- [x] ResourceStorage implementation for composite sync support
+- [x] Search query translation (FHIR SearchQuery → ES Query DSL)
+- [x] All 8 parameter type handlers (string, token, date, number, quantity, reference, URI, composite)
+- [x] Full-text search (`_text`, `_content`, `:text-advanced`)
+- [x] Modifier support (:exact, :contains, :text, :not, :missing, :above, :below, :of-type)
+- [x] `_include` and `_revinclude` resolution
+- [x] Cursor-based (`search_after`) and offset pagination
+- [x] Multi-field sorting
+- [x] Search offloading: when Elasticsearch is the search secondary, the primary backend skips search index population
+
 ### Phase 5+: Additional Backends (Planned)
 - [ ] PostgreSQL backend (JSONB, GIN indexes, RLS)
 - [ ] Cassandra backend (wide-column, partition keys)
 - [ ] MongoDB backend (document storage, aggregation)
 - [ ] Neo4j backend (graph queries, Cypher)
-- [ ] Elasticsearch backend (full-text, analyzers)
 - [ ] S3 backend (bulk export, object storage)
 
 ### Phase 6: Composite Storage ✓
@@ -496,6 +634,7 @@ The SQLite backend includes a complete FHIR search implementation using pre-comp
 - [x] Secondary backend synchronization
 - [x] Health monitoring
 - [x] Configuration Advisor HTTP API
+- [x] Full primary delegation via `with_full_primary()` — CompositeStorage now implements `ConditionalStorage`, `VersionedStorage`, `InstanceHistoryProvider`, and `BundleProvider` by delegating to the primary backend
 
 ## Composite Storage
 
