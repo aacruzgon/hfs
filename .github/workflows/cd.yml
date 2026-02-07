@@ -14,6 +14,7 @@ on:
         options:
           - fhirpath-server
           - sof-server
+          - hfs
         default: 'fhirpath-server'
 
 jobs:
@@ -77,10 +78,10 @@ jobs:
         
     - name: Deploy binary and create service
       env:
-        DEPLOY_HOST: ${{ inputs.server == 'fhirpath-server' && secrets.FHIRPATH_DEPLOY_HOST || secrets.SOF_DEPLOY_HOST }}
-        DEPLOY_USER: ${{ inputs.server == 'fhirpath-server' && secrets.FHIRPATH_DEPLOY_USER || secrets.SOF_DEPLOY_USER }}
-        DEPLOY_SSH_KEY: ${{ inputs.server == 'fhirpath-server' && secrets.FHIRPATH_DEPLOY_SSH_KEY || secrets.SOF_DEPLOY_SSH_KEY }}
-        DEPLOY_PORT: ${{ inputs.server == 'fhirpath-server' && secrets.FHIRPATH_DEPLOY_PORT || secrets.SOF_DEPLOY_PORT || 22 }}
+        DEPLOY_HOST: ${{ inputs.server == 'fhirpath-server' && secrets.FHIRPATH_DEPLOY_HOST || inputs.server == 'sof-server' && secrets.SOF_DEPLOY_HOST || secrets.HFS_DEPLOY_HOST }}
+        DEPLOY_USER: ${{ inputs.server == 'fhirpath-server' && secrets.FHIRPATH_DEPLOY_USER || inputs.server == 'sof-server' && secrets.SOF_DEPLOY_USER || secrets.HFS_DEPLOY_USER }}
+        DEPLOY_SSH_KEY: ${{ inputs.server == 'fhirpath-server' && secrets.FHIRPATH_DEPLOY_SSH_KEY || inputs.server == 'sof-server' && secrets.SOF_DEPLOY_SSH_KEY || secrets.HFS_DEPLOY_SSH_KEY }}
+        DEPLOY_PORT: ${{ inputs.server == 'fhirpath-server' && secrets.FHIRPATH_DEPLOY_PORT || inputs.server == 'sof-server' && secrets.SOF_DEPLOY_PORT || secrets.HFS_DEPLOY_PORT || 22 }}
         SERVER_NAME: ${{ inputs.server }}
       run: |
         # Create temporary SSH key file
@@ -115,8 +116,11 @@ jobs:
         if [ "$SERVER_NAME" = "fhirpath-server" ]; then
           SERVICE_DESCRIPTION="FHIRPath Server"
           SERVICE_EXEC_START="/opt/$SERVER_NAME/$SERVER_NAME --host 0.0.0.0"
-        else
+        elif [ "$SERVER_NAME" = "sof-server" ]; then
           SERVICE_DESCRIPTION="SQL-on-FHIR Server"
+          SERVICE_EXEC_START="/opt/$SERVER_NAME/$SERVER_NAME --host 0.0.0.0"
+        elif [ "$SERVER_NAME" = "hfs" ]; then
+          SERVICE_DESCRIPTION="Helios FHIR Server"
           SERVICE_EXEC_START="/opt/$SERVER_NAME/$SERVER_NAME --host 0.0.0.0"
         fi
         
