@@ -72,12 +72,7 @@
           },
           {
             "url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-sex",
-            "valueCoding": {
-              "system": "http://snomed.info/sct",
-              "version": "http://snomed.info/sct/731000124108",
-              "code": "248153007",
-              "display": "Male (finding)"
-            }
+            "valueCode": "248153007"
           }
         ],
         "identifier": [
@@ -34531,6 +34526,7 @@
           "reference": "urn:uuid:90a74c6c-a0e0-0cb3-157a-e38f35ca66b3"
         },
         "authoredOn": "2015-03-30",
+        "occurrenceDateTime": "2015-03-30",
         "requester": {
           "reference": "urn:uuid:618787f5-2588-3dca-b90e-5e8fd27b1a36"
         },
