@@ -14,3 +14,5 @@
 - We don't yet declare US Core profile support in Capability Statement - we need to figure out an approach to know if we can depending on the backend support features turned on/off
 
 - Data issues with some of the Inferno tests still
+
+- Add elasticsearch support
