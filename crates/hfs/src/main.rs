@@ -71,6 +71,9 @@ async fn main() -> anyhow::Result<()> {
         StorageBackendMode::SqliteElasticsearch => {
             start_sqlite_elasticsearch(config).await?;
         }
+        StorageBackendMode::Postgres => {
+            start_postgres(config).await?;
+        }
     }
 
     Ok(())
@@ -82,6 +85,15 @@ async fn start_sqlite(config: ServerConfig) -> anyhow::Result<()> {
     let backend = create_sqlite_backend(&config)?;
     let app = create_app_with_config(backend, config.clone());
     serve(app, &config).await
+}
+
+/// Fallback when sqlite feature is not enabled.
+#[cfg(not(feature = "sqlite"))]
+async fn start_sqlite(_config: ServerConfig) -> anyhow::Result<()> {
+    anyhow::bail!(
+        "The sqlite backend requires the 'sqlite' feature. \
+         Build with: cargo build -p helios-hfs --features sqlite"
+    )
 }
 
 /// Starts the server with SQLite + Elasticsearch composite backend.
@@ -186,6 +198,39 @@ async fn start_sqlite_elasticsearch(_config: ServerConfig) -> anyhow::Result<()>
     anyhow::bail!(
         "The sqlite-elasticsearch backend requires the 'elasticsearch' feature. \
          Build with: cargo build -p helios-hfs --features sqlite,elasticsearch"
+    )
+}
+
+/// Starts the server with PostgreSQL backend.
+#[cfg(feature = "postgres")]
+async fn start_postgres(config: ServerConfig) -> anyhow::Result<()> {
+    use helios_persistence::backends::postgres::PostgresBackend;
+
+    let backend = if let Some(ref url) = config.database_url {
+        if url.starts_with("postgres://") || url.starts_with("postgresql://") {
+            info!(url = %url, "Initializing PostgreSQL backend from connection string");
+            PostgresBackend::from_connection_string(url).await?
+        } else {
+            info!("Initializing PostgreSQL backend from environment variables");
+            PostgresBackend::from_env().await?
+        }
+    } else {
+        info!("Initializing PostgreSQL backend from environment variables");
+        PostgresBackend::from_env().await?
+    };
+
+    backend.init_schema().await?;
+
+    let app = create_app_with_config(backend, config.clone());
+    serve(app, &config).await
+}
+
+/// Fallback when postgres feature is not enabled.
+#[cfg(not(feature = "postgres"))]
+async fn start_postgres(_config: ServerConfig) -> anyhow::Result<()> {
+    anyhow::bail!(
+        "The postgres backend requires the 'postgres' feature. \
+         Build with: cargo build -p helios-hfs --features postgres"
     )
 }
 

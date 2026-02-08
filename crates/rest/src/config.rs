@@ -58,6 +58,8 @@ pub enum StorageBackendMode {
     /// SQLite for CRUD + Elasticsearch for search.
     /// Requires a running Elasticsearch instance.
     SqliteElasticsearch,
+    /// PostgreSQL only. Requires a running PostgreSQL instance.
+    Postgres,
 }
 
 impl fmt::Display for StorageBackendMode {
@@ -65,6 +67,7 @@ impl fmt::Display for StorageBackendMode {
         match self {
             StorageBackendMode::Sqlite => write!(f, "sqlite"),
             StorageBackendMode::SqliteElasticsearch => write!(f, "sqlite-elasticsearch"),
+            StorageBackendMode::Postgres => write!(f, "postgres"),
         }
     }
 }
@@ -76,8 +79,9 @@ impl FromStr for StorageBackendMode {
         match s.to_lowercase().replace('_', "-").as_str() {
             "sqlite" => Ok(StorageBackendMode::Sqlite),
             "sqlite-elasticsearch" | "sqlite-es" => Ok(StorageBackendMode::SqliteElasticsearch),
+            "postgres" | "pg" | "postgresql" => Ok(StorageBackendMode::Postgres),
             _ => Err(format!(
-                "Invalid storage backend '{}'. Valid values: sqlite, sqlite-elasticsearch",
+                "Invalid storage backend '{}'. Valid values: sqlite, sqlite-elasticsearch, postgres",
                 s
             )),
         }
@@ -286,7 +290,7 @@ pub struct ServerConfig {
     #[arg(long, env = "HFS_MAX_PAGE_SIZE", default_value = "1000")]
     pub max_page_size: usize,
 
-    /// Storage backend mode: sqlite (default) or sqlite-elasticsearch.
+    /// Storage backend mode: sqlite (default), sqlite-elasticsearch, or postgres.
     #[arg(long, env = "HFS_STORAGE_BACKEND", default_value = "sqlite")]
     pub storage_backend: String,
 
@@ -571,6 +575,22 @@ mod tests {
                 .unwrap(),
             StorageBackendMode::SqliteElasticsearch
         );
+        assert_eq!(
+            "postgres".parse::<StorageBackendMode>().unwrap(),
+            StorageBackendMode::Postgres
+        );
+        assert_eq!(
+            "pg".parse::<StorageBackendMode>().unwrap(),
+            StorageBackendMode::Postgres
+        );
+        assert_eq!(
+            "postgresql".parse::<StorageBackendMode>().unwrap(),
+            StorageBackendMode::Postgres
+        );
+        assert_eq!(
+            "POSTGRES".parse::<StorageBackendMode>().unwrap(),
+            StorageBackendMode::Postgres
+        );
         assert!("invalid".parse::<StorageBackendMode>().is_err());
     }
 
@@ -581,6 +601,7 @@ mod tests {
             StorageBackendMode::SqliteElasticsearch.to_string(),
             "sqlite-elasticsearch"
         );
+        assert_eq!(StorageBackendMode::Postgres.to_string(), "postgres");
     }
 
     #[test]

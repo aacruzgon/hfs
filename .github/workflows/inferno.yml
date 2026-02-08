@@ -34,7 +34,7 @@ jobs:
           echo 'rustflags = ["-C", "link-arg=-fuse-ld=lld", "-C", "link-arg=-Wl,-zstack-size=8388608"]' >> ~/.cargo/config.toml
 
       - name: Build HFS
-        run: cargo build -p helios-hfs --features R4,sqlite,elasticsearch
+        run: cargo build -p helios-hfs --features R4,sqlite,elasticsearch,postgres
 
       - name: Upload HFS binary
         uses: actions/upload-artifact@v4
@@ -51,7 +51,7 @@ jobs:
       fail-fast: false
       matrix:
         suite_id: [us_core_v311, us_core_v400, us_core_v501, us_core_v610, us_core_v700, us_core_v800]
-        backend: [sqlite, sqlite-elasticsearch]
+        backend: [sqlite, sqlite-elasticsearch, postgres]
         include:
           - { suite_id: us_core_v311, version_label: "v3.1.1" }
           - { suite_id: us_core_v400, version_label: "v4.0.0" }
@@ -137,12 +137,42 @@ jobs:
           docker logs elasticsearch
           exit 1
 
+      - name: Start PostgreSQL
+        if: matrix.backend == 'postgres'
+        run: |
+          docker run -d --name postgres -p 5432:5432 \
+            -e POSTGRES_USER=helios \
+            -e POSTGRES_PASSWORD=helios \
+            -e POSTGRES_DB=helios \
+            postgres:16
+
+          echo "Waiting for PostgreSQL to be ready..."
+          for i in {1..30}; do
+            if docker exec postgres pg_isready -U helios > /dev/null 2>&1; then
+              echo "PostgreSQL is ready"
+              exit 0
+            fi
+            echo "Attempt $i/30: PostgreSQL not ready yet..."
+            sleep 2
+          done
+          echo "PostgreSQL failed to start"
+          docker logs postgres
+          exit 1
+
       - name: Start HFS server
         run: |
           if [ "${{ matrix.backend }}" = "sqlite-elasticsearch" ]; then
             HFS_STORAGE_BACKEND=sqlite-elasticsearch \
             HFS_ELASTICSEARCH_NODES=http://localhost:$ES_PORT \
             ./target/debug/hfs --database-url :memory: --log-level info --port $HFS_PORT --host 0.0.0.0 &
+          elif [ "${{ matrix.backend }}" = "postgres" ]; then
+            HFS_STORAGE_BACKEND=postgres \
+            HFS_PG_HOST=localhost \
+            HFS_PG_PORT=5432 \
+            HFS_PG_DBNAME=helios \
+            HFS_PG_USER=helios \
+            HFS_PG_PASSWORD=helios \
+            ./target/debug/hfs --log-level info --port $HFS_PORT --host 0.0.0.0 &
           else
             ./target/debug/hfs --database-url :memory: --log-level info --port $HFS_PORT --host 0.0.0.0 &
           fi
@@ -440,6 +470,9 @@ jobs:
 
           echo "Stopping Elasticsearch..."
           docker rm -f elasticsearch 2>/dev/null || true
+
+          echo "Stopping PostgreSQL..."
+          docker rm -f postgres 2>/dev/null || true
 
           echo "Stopping Inferno..."
           if [ -d us-core-test-kit ]; then
