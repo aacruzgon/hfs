@@ -77,11 +77,7 @@ impl Pagination {
 
     /// Returns the current page number (0-indexed).
     pub fn page(&self) -> usize {
-        if self.count == 0 {
-            0
-        } else {
-            self.offset / self.count
-        }
+        self.offset.checked_div(self.count).unwrap_or(0)
     }
 
     /// Creates pagination for the next page.
