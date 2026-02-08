@@ -1171,4 +1171,1388 @@ mod postgres_integration {
         assert!(backend.supports(BackendCapability::Include));
         assert!(backend.supports(BackendCapability::Revinclude));
     }
+
+    // ========================================================================
+    // Additional Content Preservation Tests
+    // ========================================================================
+
+    #[tokio::test]
+    async fn postgres_integration_unicode_content() {
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        let patient = json!({
+            "resourceType": "Patient",
+            "name": [{"family": "日本語", "given": ["名前"]}]
+        });
+
+        let created = backend
+            .create(&tenant, "Patient", patient, FhirVersion::default())
+            .await
+            .unwrap();
+        let read = backend
+            .read(&tenant, "Patient", created.id())
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(read.content()["name"][0]["family"], "日本語");
+        assert_eq!(read.content()["name"][0]["given"][0], "名前");
+    }
+
+    // ========================================================================
+    // Additional Tenant Isolation Tests
+    // ========================================================================
+
+    #[tokio::test]
+    async fn postgres_integration_tenant_isolation_read() {
+        let (backend, _container) = create_backend().await;
+        let tenant_a = create_tenant("tenant-a");
+        let tenant_b = create_tenant("tenant-b");
+
+        let patient = json!({"resourceType": "Patient"});
+        let created = backend
+            .create(&tenant_a, "Patient", patient, FhirVersion::default())
+            .await
+            .unwrap();
+
+        // Tenant A can read
+        let read_a = backend
+            .read(&tenant_a, "Patient", created.id())
+            .await
+            .unwrap();
+        assert!(read_a.is_some());
+
+        // Tenant B cannot read
+        let read_b = backend
+            .read(&tenant_b, "Patient", created.id())
+            .await
+            .unwrap();
+        assert!(read_b.is_none());
+    }
+
+    #[tokio::test]
+    async fn postgres_integration_tenant_isolation_delete() {
+        let (backend, _container) = create_backend().await;
+        let tenant_a = create_tenant("tenant-a");
+        let tenant_b = create_tenant("tenant-b");
+
+        let patient = json!({"resourceType": "Patient"});
+        let created = backend
+            .create(&tenant_a, "Patient", patient, FhirVersion::default())
+            .await
+            .unwrap();
+
+        // Tenant B cannot delete tenant A's resource
+        let result = backend.delete(&tenant_b, "Patient", created.id()).await;
+        assert!(result.is_err());
+
+        // Resource still exists for tenant A
+        assert!(
+            backend
+                .exists(&tenant_a, "Patient", created.id())
+                .await
+                .unwrap()
+        );
+    }
+
+    // ========================================================================
+    // Additional Batch Tests
+    // ========================================================================
+
+    #[tokio::test]
+    async fn postgres_integration_read_batch_ignores_other_tenant() {
+        let (backend, _container) = create_backend().await;
+        let tenant_a = create_tenant("tenant-a");
+        let tenant_b = create_tenant("tenant-b");
+
+        backend
+            .create_or_update(
+                &tenant_a,
+                "Patient",
+                "a-patient",
+                json!({"resourceType": "Patient"}),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        backend
+            .create_or_update(
+                &tenant_b,
+                "Patient",
+                "b-patient",
+                json!({"resourceType": "Patient"}),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        let ids = ["a-patient", "b-patient"];
+        let batch = backend
+            .read_batch(&tenant_a, "Patient", &ids)
+            .await
+            .unwrap();
+
+        assert_eq!(batch.len(), 1);
+        assert_eq!(batch[0].id(), "a-patient");
+    }
+
+    // ========================================================================
+    // Detailed History Tests - Instance
+    // ========================================================================
+
+    #[tokio::test]
+    async fn postgres_integration_history_instance_detailed() {
+        use helios_persistence::core::history::HistoryMethod;
+
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        let patient = json!({"resourceType": "Patient", "name": [{"family": "Smith"}]});
+        let created = backend
+            .create(&tenant, "Patient", patient, FhirVersion::default())
+            .await
+            .unwrap();
+
+        let v2 = backend
+            .update(
+                &tenant,
+                &created,
+                json!({"resourceType": "Patient", "name": [{"family": "Jones"}]}),
+            )
+            .await
+            .unwrap();
+
+        let _v3 = backend
+            .update(
+                &tenant,
+                &v2,
+                json!({"resourceType": "Patient", "name": [{"family": "Brown"}]}),
+            )
+            .await
+            .unwrap();
+
+        let params = HistoryParams::new();
+        let history = backend
+            .history_instance(&tenant, "Patient", created.id(), &params)
+            .await
+            .unwrap();
+
+        // Should have 3 versions, newest first
+        assert_eq!(history.items.len(), 3);
+        assert_eq!(history.items[0].resource.version_id(), "3");
+        assert_eq!(history.items[1].resource.version_id(), "2");
+        assert_eq!(history.items[2].resource.version_id(), "1");
+
+        // Check methods
+        assert_eq!(history.items[0].method, HistoryMethod::Put);
+        assert_eq!(history.items[1].method, HistoryMethod::Put);
+        assert_eq!(history.items[2].method, HistoryMethod::Post);
+
+        // Check content
+        assert_eq!(
+            history.items[0].resource.content()["name"][0]["family"],
+            "Brown"
+        );
+        assert_eq!(
+            history.items[2].resource.content()["name"][0]["family"],
+            "Smith"
+        );
+    }
+
+    #[tokio::test]
+    async fn postgres_integration_history_instance_count() {
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        let patient = json!({"resourceType": "Patient"});
+        let created = backend
+            .create(&tenant, "Patient", patient, FhirVersion::default())
+            .await
+            .unwrap();
+        let v2 = backend
+            .update(&tenant, &created, json!({"resourceType": "Patient"}))
+            .await
+            .unwrap();
+        let _v3 = backend
+            .update(&tenant, &v2, json!({"resourceType": "Patient"}))
+            .await
+            .unwrap();
+
+        let count = backend
+            .history_instance_count(&tenant, "Patient", created.id())
+            .await
+            .unwrap();
+        assert_eq!(count, 3);
+    }
+
+    #[tokio::test]
+    async fn postgres_integration_history_with_delete() {
+        use helios_persistence::core::history::HistoryMethod;
+
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        let patient = json!({"resourceType": "Patient", "id": "hist-patient"});
+        let created = backend
+            .create(&tenant, "Patient", patient, FhirVersion::default())
+            .await
+            .unwrap();
+        let _v2 = backend
+            .update(
+                &tenant,
+                &created,
+                json!({"resourceType": "Patient", "id": "hist-patient"}),
+            )
+            .await
+            .unwrap();
+        backend
+            .delete(&tenant, "Patient", "hist-patient")
+            .await
+            .unwrap();
+
+        let params = HistoryParams::new().include_deleted(true);
+        let history = backend
+            .history_instance(&tenant, "Patient", "hist-patient", &params)
+            .await
+            .unwrap();
+
+        assert_eq!(history.items.len(), 3);
+        assert_eq!(history.items[0].method, HistoryMethod::Delete);
+        assert_eq!(history.items[0].resource.version_id(), "3");
+    }
+
+    #[tokio::test]
+    async fn postgres_integration_history_tenant_isolation() {
+        let (backend, _container) = create_backend().await;
+        let tenant_a = create_tenant("tenant-a");
+        let tenant_b = create_tenant("tenant-b");
+
+        let patient = json!({"resourceType": "Patient", "id": "hist-shared"});
+        let created = backend
+            .create(&tenant_a, "Patient", patient, FhirVersion::default())
+            .await
+            .unwrap();
+        let _v2 = backend
+            .update(
+                &tenant_a,
+                &created,
+                json!({"resourceType": "Patient", "id": "hist-shared"}),
+            )
+            .await
+            .unwrap();
+
+        // Tenant A sees history
+        let history_a = backend
+            .history_instance(&tenant_a, "Patient", "hist-shared", &HistoryParams::new())
+            .await
+            .unwrap();
+        assert_eq!(history_a.items.len(), 2);
+
+        // Tenant B sees nothing
+        let history_b = backend
+            .history_instance(&tenant_b, "Patient", "hist-shared", &HistoryParams::new())
+            .await
+            .unwrap();
+        assert!(history_b.items.is_empty());
+    }
+
+    // ========================================================================
+    // Type History Tests
+    // ========================================================================
+
+    #[tokio::test]
+    async fn postgres_integration_history_type() {
+        use helios_persistence::core::history::TypeHistoryProvider;
+
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        let p1 = backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({"resourceType": "Patient", "id": "tp1"}),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+        let _p2 = backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({"resourceType": "Patient", "id": "tp2"}),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        // Update p1
+        let _p1_v2 = backend
+            .update(
+                &tenant,
+                &p1,
+                json!({"resourceType": "Patient", "id": "tp1"}),
+            )
+            .await
+            .unwrap();
+
+        // Create an observation (different type)
+        backend
+            .create(
+                &tenant,
+                "Observation",
+                json!({"resourceType": "Observation"}),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        let history = backend
+            .history_type(&tenant, "Patient", &HistoryParams::new())
+            .await
+            .unwrap();
+
+        // Should have 3 entries for Patient (p1 v1, p1 v2, p2 v1)
+        assert_eq!(history.items.len(), 3);
+
+        for entry in &history.items {
+            assert_eq!(entry.resource.resource_type(), "Patient");
+        }
+    }
+
+    #[tokio::test]
+    async fn postgres_integration_history_type_count() {
+        use helios_persistence::core::history::TypeHistoryProvider;
+
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        let p1 = backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({"resourceType": "Patient"}),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+        let _p1_v2 = backend
+            .update(&tenant, &p1, json!({"resourceType": "Patient"}))
+            .await
+            .unwrap();
+        let _p2 = backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({"resourceType": "Patient"}),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        backend
+            .create(
+                &tenant,
+                "Observation",
+                json!({"resourceType": "Observation"}),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        let patient_count = backend
+            .history_type_count(&tenant, "Patient")
+            .await
+            .unwrap();
+        assert_eq!(patient_count, 3);
+
+        let obs_count = backend
+            .history_type_count(&tenant, "Observation")
+            .await
+            .unwrap();
+        assert_eq!(obs_count, 1);
+    }
+
+    #[tokio::test]
+    async fn postgres_integration_history_type_tenant_isolation() {
+        use helios_persistence::core::history::TypeHistoryProvider;
+
+        let (backend, _container) = create_backend().await;
+        let tenant_a = create_tenant("tenant-a");
+        let tenant_b = create_tenant("tenant-b");
+
+        backend
+            .create(
+                &tenant_a,
+                "Patient",
+                json!({"resourceType": "Patient"}),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+        backend
+            .create(
+                &tenant_a,
+                "Patient",
+                json!({"resourceType": "Patient"}),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        backend
+            .create(
+                &tenant_b,
+                "Patient",
+                json!({"resourceType": "Patient"}),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        let history_a = backend
+            .history_type(&tenant_a, "Patient", &HistoryParams::new())
+            .await
+            .unwrap();
+        assert_eq!(history_a.items.len(), 2);
+
+        let history_b = backend
+            .history_type(&tenant_b, "Patient", &HistoryParams::new())
+            .await
+            .unwrap();
+        assert_eq!(history_b.items.len(), 1);
+    }
+
+    // ========================================================================
+    // System History Tests
+    // ========================================================================
+
+    #[tokio::test]
+    async fn postgres_integration_history_system() {
+        use helios_persistence::core::history::SystemHistoryProvider;
+
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        let p1 = backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({"resourceType": "Patient", "id": "sp1"}),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+        backend
+            .create(
+                &tenant,
+                "Observation",
+                json!({"resourceType": "Observation", "id": "so1"}),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+        backend
+            .create(
+                &tenant,
+                "Encounter",
+                json!({"resourceType": "Encounter", "id": "se1"}),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        // Update patient
+        let _p1_v2 = backend
+            .update(
+                &tenant,
+                &p1,
+                json!({"resourceType": "Patient", "id": "sp1"}),
+            )
+            .await
+            .unwrap();
+
+        let history = backend
+            .history_system(&tenant, &HistoryParams::new())
+            .await
+            .unwrap();
+
+        // Should have 4 entries total
+        assert_eq!(history.items.len(), 4);
+
+        let types: std::collections::HashSet<_> = history
+            .items
+            .iter()
+            .map(|e| e.resource.resource_type())
+            .collect();
+        assert!(types.contains("Patient"));
+        assert!(types.contains("Observation"));
+        assert!(types.contains("Encounter"));
+    }
+
+    #[tokio::test]
+    async fn postgres_integration_history_system_count() {
+        use helios_persistence::core::history::SystemHistoryProvider;
+
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        let p1 = backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({"resourceType": "Patient"}),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+        let _p1_v2 = backend
+            .update(&tenant, &p1, json!({"resourceType": "Patient"}))
+            .await
+            .unwrap();
+        backend
+            .create(
+                &tenant,
+                "Observation",
+                json!({"resourceType": "Observation"}),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        let count = backend.history_system_count(&tenant).await.unwrap();
+        assert_eq!(count, 3);
+    }
+
+    #[tokio::test]
+    async fn postgres_integration_history_system_tenant_isolation() {
+        use helios_persistence::core::history::SystemHistoryProvider;
+
+        let (backend, _container) = create_backend().await;
+        let tenant_a = create_tenant("tenant-a");
+        let tenant_b = create_tenant("tenant-b");
+
+        backend
+            .create(
+                &tenant_a,
+                "Patient",
+                json!({"resourceType": "Patient"}),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+        backend
+            .create(
+                &tenant_a,
+                "Observation",
+                json!({"resourceType": "Observation"}),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        backend
+            .create(
+                &tenant_b,
+                "Encounter",
+                json!({"resourceType": "Encounter"}),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        let history_a = backend
+            .history_system(&tenant_a, &HistoryParams::new())
+            .await
+            .unwrap();
+        assert_eq!(history_a.items.len(), 2);
+
+        let history_b = backend
+            .history_system(&tenant_b, &HistoryParams::new())
+            .await
+            .unwrap();
+        assert_eq!(history_b.items.len(), 1);
+
+        assert_eq!(backend.history_system_count(&tenant_a).await.unwrap(), 2);
+        assert_eq!(backend.history_system_count(&tenant_b).await.unwrap(), 1);
+    }
+
+    // ========================================================================
+    // Additional Search Tests
+    // ========================================================================
+
+    #[tokio::test]
+    async fn postgres_integration_search_index_on_create() {
+        use helios_persistence::core::SearchProvider;
+        use helios_persistence::types::{
+            SearchParamType, SearchParameter, SearchQuery, SearchValue,
+        };
+
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        let patient = json!({
+            "resourceType": "Patient",
+            "id": "search-test-1",
+            "identifier": [{
+                "system": "http://example.org/mrn",
+                "value": "MRN12345"
+            }],
+            "name": [{"family": "TestFamily", "given": ["TestGiven"]}],
+            "birthDate": "1990-01-15"
+        });
+
+        backend
+            .create(&tenant, "Patient", patient, FhirVersion::default())
+            .await
+            .unwrap();
+
+        let query = SearchQuery::new("Patient").with_parameter(SearchParameter {
+            name: "identifier".to_string(),
+            param_type: SearchParamType::Token,
+            modifier: None,
+            values: vec![SearchValue::eq("http://example.org/mrn|MRN12345")],
+            chain: vec![],
+            components: vec![],
+        });
+
+        let result = backend.search(&tenant, &query).await.unwrap();
+        assert_eq!(result.resources.items.len(), 1);
+        assert_eq!(result.resources.items[0].id(), "search-test-1");
+    }
+
+    #[tokio::test]
+    async fn postgres_integration_search_index_on_delete() {
+        use helios_persistence::core::SearchProvider;
+        use helios_persistence::types::{
+            SearchParamType, SearchParameter, SearchQuery, SearchValue,
+        };
+
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        let patient = json!({
+            "resourceType": "Patient",
+            "id": "search-delete-1",
+            "identifier": [{"system": "http://example.org", "value": "DEL123"}]
+        });
+
+        backend
+            .create(&tenant, "Patient", patient, FhirVersion::default())
+            .await
+            .unwrap();
+
+        let query = SearchQuery::new("Patient").with_parameter(SearchParameter {
+            name: "identifier".to_string(),
+            param_type: SearchParamType::Token,
+            modifier: None,
+            values: vec![SearchValue::eq("DEL123")],
+            chain: vec![],
+            components: vec![],
+        });
+
+        let result_before = backend.search(&tenant, &query).await.unwrap();
+        assert_eq!(result_before.resources.items.len(), 1);
+
+        backend
+            .delete(&tenant, "Patient", "search-delete-1")
+            .await
+            .unwrap();
+
+        let result_after = backend.search(&tenant, &query).await.unwrap();
+        assert_eq!(
+            result_after.resources.items.len(),
+            0,
+            "Deleted resource should not be searchable"
+        );
+    }
+
+    #[tokio::test]
+    async fn postgres_integration_search_string_prefix() {
+        use helios_persistence::core::SearchProvider;
+        use helios_persistence::types::{
+            SearchParamType, SearchParameter, SearchQuery, SearchValue,
+        };
+
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({
+                    "resourceType": "Patient",
+                    "id": "name-1",
+                    "name": [{"family": "Smith", "given": ["John"]}]
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({
+                    "resourceType": "Patient",
+                    "id": "name-2",
+                    "name": [{"family": "Smithson", "given": ["Jane"]}]
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({
+                    "resourceType": "Patient",
+                    "id": "name-3",
+                    "name": [{"family": "Johnson", "given": ["Bob"]}]
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        let query = SearchQuery::new("Patient").with_parameter(SearchParameter {
+            name: "name".to_string(),
+            param_type: SearchParamType::String,
+            modifier: None,
+            values: vec![SearchValue::eq("Smith")],
+            chain: vec![],
+            components: vec![],
+        });
+
+        let result = backend.search(&tenant, &query).await.unwrap();
+        assert_eq!(
+            result.resources.items.len(),
+            2,
+            "Should find 2 patients with name starting with Smith"
+        );
+
+        let ids: Vec<&str> = result.resources.items.iter().map(|r| r.id()).collect();
+        assert!(ids.contains(&"name-1"));
+        assert!(ids.contains(&"name-2"));
+    }
+
+    #[tokio::test]
+    async fn postgres_integration_search_date() {
+        use helios_persistence::core::SearchProvider;
+        use helios_persistence::types::{
+            SearchParamType, SearchParameter, SearchQuery, SearchValue,
+        };
+
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({
+                    "resourceType": "Patient",
+                    "id": "date-1",
+                    "birthDate": "1990-01-15"
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({
+                    "resourceType": "Patient",
+                    "id": "date-2",
+                    "birthDate": "2000-06-20"
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        let query = SearchQuery::new("Patient").with_parameter(SearchParameter {
+            name: "birthdate".to_string(),
+            param_type: SearchParamType::Date,
+            modifier: None,
+            values: vec![SearchValue::eq("1990-01-15")],
+            chain: vec![],
+            components: vec![],
+        });
+
+        let result = backend.search(&tenant, &query).await.unwrap();
+        assert_eq!(result.resources.items.len(), 1);
+        assert_eq!(result.resources.items[0].id(), "date-1");
+    }
+
+    #[tokio::test]
+    async fn postgres_integration_search_reference() {
+        use helios_persistence::core::SearchProvider;
+        use helios_persistence::types::{
+            SearchParamType, SearchParameter, SearchQuery, SearchValue,
+        };
+
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        backend
+            .create(
+                &tenant,
+                "Observation",
+                json!({
+                    "resourceType": "Observation",
+                    "id": "obs-1",
+                    "subject": {"reference": "Patient/patient-1"},
+                    "code": {"coding": [{"code": "8867-4"}]},
+                    "status": "final"
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        backend
+            .create(
+                &tenant,
+                "Observation",
+                json!({
+                    "resourceType": "Observation",
+                    "id": "obs-2",
+                    "subject": {"reference": "Patient/patient-1"},
+                    "code": {"coding": [{"code": "9279-1"}]},
+                    "status": "final"
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        backend
+            .create(
+                &tenant,
+                "Observation",
+                json!({
+                    "resourceType": "Observation",
+                    "id": "obs-3",
+                    "subject": {"reference": "Patient/patient-2"},
+                    "code": {"coding": [{"code": "8867-4"}]},
+                    "status": "final"
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        let query = SearchQuery::new("Observation").with_parameter(SearchParameter {
+            name: "subject".to_string(),
+            param_type: SearchParamType::Reference,
+            modifier: None,
+            values: vec![SearchValue::eq("Patient/patient-1")],
+            chain: vec![],
+            components: vec![],
+        });
+
+        let result = backend.search(&tenant, &query).await.unwrap();
+        assert_eq!(result.resources.items.len(), 2);
+
+        let ids: Vec<&str> = result.resources.items.iter().map(|r| r.id()).collect();
+        assert!(ids.contains(&"obs-1"));
+        assert!(ids.contains(&"obs-2"));
+    }
+
+    #[tokio::test]
+    async fn postgres_integration_search_tenant_isolation() {
+        use helios_persistence::core::SearchProvider;
+        use helios_persistence::types::{
+            SearchParamType, SearchParameter, SearchQuery, SearchValue,
+        };
+
+        let (backend, _container) = create_backend().await;
+        let tenant_a = create_tenant("tenant-a");
+        let tenant_b = create_tenant("tenant-b");
+
+        backend
+            .create(
+                &tenant_a,
+                "Patient",
+                json!({
+                    "resourceType": "Patient",
+                    "id": "tenant-iso-1",
+                    "identifier": [{"system": "http://example.org", "value": "UNIQUE123"}]
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        let query = SearchQuery::new("Patient").with_parameter(SearchParameter {
+            name: "identifier".to_string(),
+            param_type: SearchParamType::Token,
+            modifier: None,
+            values: vec![SearchValue::eq("UNIQUE123")],
+            chain: vec![],
+            components: vec![],
+        });
+
+        let result_a = backend.search(&tenant_a, &query).await.unwrap();
+        assert_eq!(result_a.resources.items.len(), 1);
+
+        let result_b = backend.search(&tenant_b, &query).await.unwrap();
+        assert_eq!(
+            result_b.resources.items.len(),
+            0,
+            "Tenant B should not see tenant A's resources"
+        );
+    }
+
+    #[tokio::test]
+    async fn postgres_integration_search_multiple_parameters() {
+        use helios_persistence::core::SearchProvider;
+        use helios_persistence::types::{
+            SearchParamType, SearchParameter, SearchQuery, SearchValue,
+        };
+
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({
+                    "resourceType": "Patient",
+                    "id": "multi-1",
+                    "name": [{"family": "Smith"}],
+                    "gender": "male"
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({
+                    "resourceType": "Patient",
+                    "id": "multi-2",
+                    "name": [{"family": "Smith"}],
+                    "gender": "female"
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        let query = SearchQuery::new("Patient")
+            .with_parameter(SearchParameter {
+                name: "name".to_string(),
+                param_type: SearchParamType::String,
+                modifier: None,
+                values: vec![SearchValue::eq("Smith")],
+                chain: vec![],
+                components: vec![],
+            })
+            .with_parameter(SearchParameter {
+                name: "gender".to_string(),
+                param_type: SearchParamType::Token,
+                modifier: None,
+                values: vec![SearchValue::eq("male")],
+                chain: vec![],
+                components: vec![],
+            });
+
+        let result = backend.search(&tenant, &query).await.unwrap();
+        assert_eq!(
+            result.resources.items.len(),
+            1,
+            "AND across params should find only 1 patient"
+        );
+        assert_eq!(result.resources.items[0].id(), "multi-1");
+    }
+
+    // ========================================================================
+    // Conditional Operations Tests
+    // ========================================================================
+
+    #[tokio::test]
+    async fn postgres_integration_conditional_create() {
+        use helios_persistence::core::{ConditionalCreateResult, ConditionalStorage};
+
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        let patient = json!({
+            "resourceType": "Patient",
+            "identifier": [{"system": "http://hospital.org/mrn", "value": "MRN-12345"}],
+            "name": [{"family": "Original"}]
+        });
+
+        let result = backend
+            .conditional_create(
+                &tenant,
+                "Patient",
+                patient,
+                "identifier=http://hospital.org/mrn|MRN-12345",
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        assert!(
+            matches!(result, ConditionalCreateResult::Created(_)),
+            "First conditional create should succeed"
+        );
+    }
+
+    #[tokio::test]
+    async fn postgres_integration_conditional_create_exists() {
+        use helios_persistence::core::{ConditionalCreateResult, ConditionalStorage};
+
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        let patient = json!({
+            "resourceType": "Patient",
+            "identifier": [{"system": "http://hospital.org/mrn", "value": "MRN-EXISTS"}],
+            "name": [{"family": "Original"}]
+        });
+
+        // First create
+        backend
+            .conditional_create(
+                &tenant,
+                "Patient",
+                patient.clone(),
+                "identifier=http://hospital.org/mrn|MRN-EXISTS",
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        // Second conditional create - should return existing
+        let patient2 = json!({
+            "resourceType": "Patient",
+            "identifier": [{"system": "http://hospital.org/mrn", "value": "MRN-EXISTS"}],
+            "name": [{"family": "Duplicate"}]
+        });
+
+        let result2 = backend
+            .conditional_create(
+                &tenant,
+                "Patient",
+                patient2,
+                "identifier=http://hospital.org/mrn|MRN-EXISTS",
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        assert!(
+            matches!(result2, ConditionalCreateResult::Exists(_)),
+            "Second conditional create should return existing resource"
+        );
+    }
+
+    #[tokio::test]
+    async fn postgres_integration_conditional_create_multiple_matches() {
+        use helios_persistence::core::{ConditionalCreateResult, ConditionalStorage};
+
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({
+                    "resourceType": "Patient",
+                    "identifier": [{"system": "http://system-a.org", "value": "SHARED-VALUE"}]
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({
+                    "resourceType": "Patient",
+                    "identifier": [{"system": "http://system-b.org", "value": "SHARED-VALUE"}]
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        let result = backend
+            .conditional_create(
+                &tenant,
+                "Patient",
+                json!({
+                    "resourceType": "Patient",
+                    "identifier": [{"value": "SHARED-VALUE"}]
+                }),
+                "identifier=SHARED-VALUE",
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        assert!(
+            matches!(result, ConditionalCreateResult::MultipleMatches(_)),
+            "Should report multiple matches"
+        );
+    }
+
+    #[tokio::test]
+    async fn postgres_integration_conditional_update() {
+        use helios_persistence::core::{ConditionalStorage, ConditionalUpdateResult};
+
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({
+                    "resourceType": "Patient",
+                    "identifier": [{"system": "http://hospital.org/mrn", "value": "MRN-UPDATE-1"}],
+                    "name": [{"family": "Original"}]
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        let updated_patient = json!({
+            "resourceType": "Patient",
+            "identifier": [{"system": "http://hospital.org/mrn", "value": "MRN-UPDATE-1"}],
+            "name": [{"family": "Updated"}]
+        });
+
+        let result = backend
+            .conditional_update(
+                &tenant,
+                "Patient",
+                updated_patient,
+                "identifier=http://hospital.org/mrn|MRN-UPDATE-1",
+                false,
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        assert!(
+            matches!(result, ConditionalUpdateResult::Updated(_)),
+            "Conditional update should find and update resource"
+        );
+
+        if let ConditionalUpdateResult::Updated(updated) = result {
+            assert_eq!(
+                updated.content()["name"][0]["family"].as_str(),
+                Some("Updated")
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn postgres_integration_conditional_delete() {
+        use helios_persistence::core::{
+            ConditionalDeleteResult, ConditionalStorage, SearchProvider,
+        };
+        use helios_persistence::types::{
+            SearchParamType, SearchParameter, SearchQuery, SearchValue,
+        };
+
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({
+                    "resourceType": "Patient",
+                    "identifier": [{"system": "http://hospital.org/mrn", "value": "MRN-DELETE-1"}]
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        let result = backend
+            .conditional_delete(
+                &tenant,
+                "Patient",
+                "identifier=http://hospital.org/mrn|MRN-DELETE-1",
+            )
+            .await
+            .unwrap();
+
+        assert!(
+            matches!(result, ConditionalDeleteResult::Deleted),
+            "Conditional delete should find and delete resource"
+        );
+
+        // Verify deletion by searching
+        let query = SearchQuery::new("Patient").with_parameter(SearchParameter {
+            name: "identifier".to_string(),
+            param_type: SearchParamType::Token,
+            modifier: None,
+            values: vec![SearchValue::eq("http://hospital.org/mrn|MRN-DELETE-1")],
+            chain: vec![],
+            components: vec![],
+        });
+
+        let search_result = backend.search(&tenant, &query).await.unwrap();
+        assert!(
+            search_result.resources.items.is_empty(),
+            "Resource should be deleted"
+        );
+    }
+
+    // ========================================================================
+    // Reindex Tests
+    // ========================================================================
+
+    #[tokio::test]
+    async fn postgres_integration_reindex_list_types() {
+        use helios_persistence::search::ReindexableStorage;
+
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({"resourceType": "Patient", "id": "p1"}),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        backend
+            .create(
+                &tenant,
+                "Observation",
+                json!({"resourceType": "Observation", "id": "o1", "status": "final"}),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({"resourceType": "Patient", "id": "p2"}),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        let types = backend.list_resource_types(&tenant).await.unwrap();
+        assert!(types.contains(&"Patient".to_string()));
+        assert!(types.contains(&"Observation".to_string()));
+        assert_eq!(types.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn postgres_integration_reindex_count() {
+        use helios_persistence::search::ReindexableStorage;
+
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        for i in 1..=5 {
+            backend
+                .create(
+                    &tenant,
+                    "Patient",
+                    json!({
+                        "resourceType": "Patient",
+                        "id": format!("patient-{}", i)
+                    }),
+                    FhirVersion::default(),
+                )
+                .await
+                .unwrap();
+        }
+
+        let count = backend.count_resources(&tenant, "Patient").await.unwrap();
+        assert_eq!(count, 5);
+
+        let count = backend
+            .count_resources(&tenant, "Observation")
+            .await
+            .unwrap();
+        assert_eq!(count, 0);
+    }
+
+    #[tokio::test]
+    async fn postgres_integration_reindex_fetch_page() {
+        use helios_persistence::search::ReindexableStorage;
+
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        for i in 1..=10 {
+            backend
+                .create(
+                    &tenant,
+                    "Patient",
+                    json!({
+                        "resourceType": "Patient",
+                        "id": format!("patient-{:02}", i)
+                    }),
+                    FhirVersion::default(),
+                )
+                .await
+                .unwrap();
+        }
+
+        // Fetch first page (5 resources)
+        let page1 = backend
+            .fetch_resources_page(&tenant, "Patient", None, 5)
+            .await
+            .unwrap();
+        assert_eq!(page1.resources.len(), 5);
+        assert!(page1.next_cursor.is_some());
+
+        // Fetch second page using cursor
+        let page2 = backend
+            .fetch_resources_page(&tenant, "Patient", page1.next_cursor.as_deref(), 5)
+            .await
+            .unwrap();
+        assert_eq!(page2.resources.len(), 5);
+
+        // Ensure no duplicates between pages
+        let page1_ids: Vec<&str> = page1.resources.iter().map(|r| r.id()).collect();
+        let page2_ids: Vec<&str> = page2.resources.iter().map(|r| r.id()).collect();
+        for id in &page1_ids {
+            assert!(!page2_ids.contains(id), "Duplicate ID found: {}", id);
+        }
+
+        // Fetch third page (should be empty or have no more cursor)
+        let page3 = backend
+            .fetch_resources_page(&tenant, "Patient", page2.next_cursor.as_deref(), 5)
+            .await
+            .unwrap();
+        assert!(page3.resources.is_empty() || page3.next_cursor.is_none());
+    }
 }

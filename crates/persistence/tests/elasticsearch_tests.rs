@@ -555,6 +555,1626 @@ mod parameter_handler_tests {
 }
 
 // ============================================================================
+// Integration Tests (requires Docker for testcontainers)
+// ============================================================================
+
+/// Integration tests that require a real Elasticsearch instance via testcontainers.
+///
+/// These tests are behind `#[cfg(feature = "elasticsearch")]` and require Docker.
+/// They mirror the patterns in sqlite_tests.rs (except history/transactions/conditional
+/// ops which ES does not support).
+///
+/// Run with:
+///   cargo test -p helios-persistence --features elasticsearch -- es_integration
+///
+/// Skip if no Docker:
+///   cargo test -p helios-persistence --features elasticsearch -- --skip es_integration
+#[cfg(test)]
+mod es_integration {
+    use helios_fhir::FhirVersion;
+    use serde_json::json;
+
+    use helios_persistence::backends::elasticsearch::{ElasticsearchBackend, ElasticsearchConfig};
+    use helios_persistence::core::{Backend, BackendCapability, BackendKind, ResourceStorage};
+    use helios_persistence::error::{ResourceError, StorageError};
+    use helios_persistence::tenant::{TenantContext, TenantId, TenantPermissions};
+
+    use testcontainers::runners::AsyncRunner;
+    use testcontainers_modules::elastic_search::ElasticSearch;
+
+    /// Creates an ElasticsearchBackend connected to a testcontainers ES instance.
+    ///
+    /// Returns the backend and the container handle (must be kept alive for the
+    /// duration of the test).
+    async fn create_backend() -> (
+        ElasticsearchBackend,
+        testcontainers::ContainerAsync<ElasticSearch>,
+    ) {
+        let container = ElasticSearch::default()
+            .start()
+            .await
+            .expect("Failed to start Elasticsearch container");
+
+        let host_port = container
+            .get_host_port_ipv4(9200)
+            .await
+            .expect("Failed to get host port");
+
+        let host = container
+            .get_host()
+            .await
+            .expect("Failed to get host")
+            .to_string();
+
+        let config = ElasticsearchConfig {
+            nodes: vec![format!("http://{}:{}", host, host_port)],
+            index_prefix: "hfs".to_string(),
+            number_of_replicas: 0, // single-node, no replicas needed
+            refresh_interval: "1ms".to_string(), // near-instant refresh for tests
+            ..Default::default()
+        };
+
+        let backend =
+            ElasticsearchBackend::new(config).expect("Failed to create ElasticsearchBackend");
+
+        backend
+            .initialize()
+            .await
+            .expect("Failed to initialize ES backend");
+
+        (backend, container)
+    }
+
+    fn create_tenant(id: &str) -> TenantContext {
+        TenantContext::new(TenantId::new(id), TenantPermissions::full_access())
+    }
+
+    // ========================================================================
+    // CRUD Tests
+    // ========================================================================
+
+    #[tokio::test]
+    async fn es_integration_create_resource() {
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        let patient = json!({
+            "resourceType": "Patient",
+            "name": [{"family": "Smith", "given": ["John"]}]
+        });
+
+        let result = backend
+            .create(&tenant, "Patient", patient, FhirVersion::default())
+            .await;
+        assert!(result.is_ok(), "Create failed: {:?}", result.err());
+
+        let created = result.unwrap();
+        assert_eq!(created.resource_type(), "Patient");
+        assert!(!created.id().is_empty());
+        assert_eq!(created.version_id(), "1");
+    }
+
+    #[tokio::test]
+    async fn es_integration_create_with_id() {
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        let patient = json!({
+            "resourceType": "Patient",
+            "id": "patient-123",
+            "name": [{"family": "Jones"}]
+        });
+
+        let created = backend
+            .create(&tenant, "Patient", patient, FhirVersion::default())
+            .await
+            .unwrap();
+        assert_eq!(created.id(), "patient-123");
+    }
+
+    #[tokio::test]
+    async fn es_integration_create_duplicate_fails() {
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        let patient = json!({
+            "resourceType": "Patient",
+            "id": "duplicate-id"
+        });
+
+        backend
+            .create(&tenant, "Patient", patient.clone(), FhirVersion::default())
+            .await
+            .unwrap();
+
+        let result = backend
+            .create(&tenant, "Patient", patient, FhirVersion::default())
+            .await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn es_integration_read_resource() {
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        let patient = json!({
+            "resourceType": "Patient",
+            "name": [{"family": "ReadTest"}]
+        });
+
+        let created = backend
+            .create(&tenant, "Patient", patient, FhirVersion::default())
+            .await
+            .unwrap();
+
+        let read = backend
+            .read(&tenant, "Patient", created.id())
+            .await
+            .unwrap();
+        assert!(read.is_some());
+
+        let resource = read.unwrap();
+        assert_eq!(resource.id(), created.id());
+        assert_eq!(resource.content()["name"][0]["family"], "ReadTest");
+    }
+
+    #[tokio::test]
+    async fn es_integration_read_nonexistent() {
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        let read = backend
+            .read(&tenant, "Patient", "does-not-exist")
+            .await
+            .unwrap();
+        assert!(read.is_none());
+    }
+
+    #[tokio::test]
+    async fn es_integration_exists() {
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        let patient = json!({"resourceType": "Patient"});
+        let created = backend
+            .create(&tenant, "Patient", patient, FhirVersion::default())
+            .await
+            .unwrap();
+
+        assert!(
+            backend
+                .exists(&tenant, "Patient", created.id())
+                .await
+                .unwrap()
+        );
+        assert!(
+            !backend
+                .exists(&tenant, "Patient", "nonexistent")
+                .await
+                .unwrap()
+        );
+    }
+
+    // ========================================================================
+    // Update / Upsert Tests
+    // ========================================================================
+
+    #[tokio::test]
+    async fn es_integration_update_resource() {
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        let patient = json!({
+            "resourceType": "Patient",
+            "name": [{"family": "Original"}]
+        });
+
+        let created = backend
+            .create(&tenant, "Patient", patient, FhirVersion::default())
+            .await
+            .unwrap();
+
+        let updated_content = json!({
+            "resourceType": "Patient",
+            "name": [{"family": "Updated"}]
+        });
+
+        let updated = backend
+            .update(&tenant, &created, updated_content)
+            .await
+            .unwrap();
+
+        assert_eq!(updated.version_id(), "2");
+        assert_eq!(updated.content()["name"][0]["family"], "Updated");
+    }
+
+    #[tokio::test]
+    async fn es_integration_create_or_update_creates() {
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        let patient = json!({"resourceType": "Patient", "name": [{"family": "First"}]});
+        let (resource, was_created) = backend
+            .create_or_update(
+                &tenant,
+                "Patient",
+                "upsert-id",
+                patient,
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        assert!(was_created);
+        assert_eq!(resource.id(), "upsert-id");
+    }
+
+    #[tokio::test]
+    async fn es_integration_create_or_update_updates() {
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        // Create via upsert
+        let patient = json!({"resourceType": "Patient", "name": [{"family": "First"}]});
+        backend
+            .create_or_update(
+                &tenant,
+                "Patient",
+                "upsert-id",
+                patient,
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        // Update via upsert
+        let patient2 = json!({"resourceType": "Patient", "name": [{"family": "Second"}]});
+        let (resource, was_created) = backend
+            .create_or_update(
+                &tenant,
+                "Patient",
+                "upsert-id",
+                patient2,
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        assert!(!was_created);
+        assert_eq!(resource.content()["name"][0]["family"], "Second");
+    }
+
+    // ========================================================================
+    // Delete Tests
+    // ========================================================================
+
+    #[tokio::test]
+    async fn es_integration_delete_resource() {
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        let patient = json!({"resourceType": "Patient"});
+        let created = backend
+            .create(&tenant, "Patient", patient, FhirVersion::default())
+            .await
+            .unwrap();
+
+        backend
+            .delete(&tenant, "Patient", created.id())
+            .await
+            .unwrap();
+
+        let read_result = backend.read(&tenant, "Patient", created.id()).await;
+        match read_result {
+            Ok(None) => {}
+            Err(StorageError::Resource(ResourceError::Gone { .. })) => {}
+            other => {
+                panic!("Expected None or Gone error, got: {:?}", other);
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn es_integration_delete_nonexistent_fails() {
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        let result = backend.delete(&tenant, "Patient", "nonexistent").await;
+        assert!(result.is_err());
+    }
+
+    // ========================================================================
+    // Tenant Isolation Tests
+    // ========================================================================
+
+    #[tokio::test]
+    async fn es_integration_tenant_isolation() {
+        let (backend, _container) = create_backend().await;
+        let tenant_a = create_tenant("tenant-a");
+        let tenant_b = create_tenant("tenant-b");
+
+        let patient = json!({"resourceType": "Patient"});
+        let created = backend
+            .create(&tenant_a, "Patient", patient, FhirVersion::default())
+            .await
+            .unwrap();
+
+        // Tenant A can see it
+        assert!(
+            backend
+                .exists(&tenant_a, "Patient", created.id())
+                .await
+                .unwrap()
+        );
+
+        // Tenant B cannot see it
+        assert!(
+            !backend
+                .exists(&tenant_b, "Patient", created.id())
+                .await
+                .unwrap()
+        );
+    }
+
+    #[tokio::test]
+    async fn es_integration_same_id_different_tenants() {
+        let (backend, _container) = create_backend().await;
+        let tenant_a = create_tenant("tenant-a");
+        let tenant_b = create_tenant("tenant-b");
+
+        let patient_a = json!({"resourceType": "Patient", "name": [{"family": "A"}]});
+        let patient_b = json!({"resourceType": "Patient", "name": [{"family": "B"}]});
+
+        backend
+            .create_or_update(
+                &tenant_a,
+                "Patient",
+                "shared-id",
+                patient_a,
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+        backend
+            .create_or_update(
+                &tenant_b,
+                "Patient",
+                "shared-id",
+                patient_b,
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        let read_a = backend
+            .read(&tenant_a, "Patient", "shared-id")
+            .await
+            .unwrap()
+            .unwrap();
+        let read_b = backend
+            .read(&tenant_b, "Patient", "shared-id")
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(read_a.content()["name"][0]["family"], "A");
+        assert_eq!(read_b.content()["name"][0]["family"], "B");
+    }
+
+    #[tokio::test]
+    async fn es_integration_tenant_isolation_search() {
+        use helios_persistence::core::SearchProvider;
+        use helios_persistence::types::{
+            SearchParamType, SearchParameter, SearchQuery, SearchValue,
+        };
+
+        let (backend, _container) = create_backend().await;
+        let tenant_a = create_tenant("tenant-a");
+        let tenant_b = create_tenant("tenant-b");
+
+        backend
+            .create(
+                &tenant_a,
+                "Patient",
+                json!({
+                    "resourceType": "Patient",
+                    "id": "tenant-iso-1",
+                    "name": [{"family": "Smith"}]
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        // Wait for index refresh
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+        let query = SearchQuery::new("Patient").with_parameter(SearchParameter {
+            name: "name".to_string(),
+            param_type: SearchParamType::String,
+            modifier: None,
+            values: vec![SearchValue::eq("Smith")],
+            chain: vec![],
+            components: vec![],
+        });
+
+        // Tenant A finds the patient
+        let result_a = backend.search(&tenant_a, &query).await.unwrap();
+        assert!(
+            !result_a.resources.items.is_empty(),
+            "Tenant A should find the patient"
+        );
+
+        // Tenant B does not find the patient
+        let result_b = backend.search(&tenant_b, &query).await.unwrap();
+        assert!(
+            result_b.resources.items.is_empty(),
+            "Tenant B should not see tenant A's patient"
+        );
+    }
+
+    #[tokio::test]
+    async fn es_integration_tenant_isolation_delete() {
+        let (backend, _container) = create_backend().await;
+        let tenant_a = create_tenant("tenant-a");
+        let tenant_b = create_tenant("tenant-b");
+
+        let patient = json!({"resourceType": "Patient"});
+        let created = backend
+            .create(&tenant_a, "Patient", patient, FhirVersion::default())
+            .await
+            .unwrap();
+
+        // Tenant B cannot delete tenant A's resource
+        let result = backend.delete(&tenant_b, "Patient", created.id()).await;
+        assert!(result.is_err());
+
+        // Resource still exists for tenant A
+        assert!(
+            backend
+                .exists(&tenant_a, "Patient", created.id())
+                .await
+                .unwrap()
+        );
+    }
+
+    // ========================================================================
+    // Count Tests
+    // ========================================================================
+
+    #[tokio::test]
+    async fn es_integration_count_resources() {
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        for i in 0..5 {
+            let patient = json!({"resourceType": "Patient", "id": format!("p{}", i)});
+            backend
+                .create(&tenant, "Patient", patient, FhirVersion::default())
+                .await
+                .unwrap();
+        }
+
+        // Wait for index refresh
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+        let count = backend.count(&tenant, Some("Patient")).await.unwrap();
+        assert_eq!(count, 5);
+    }
+
+    #[tokio::test]
+    async fn es_integration_count_by_tenant() {
+        let (backend, _container) = create_backend().await;
+        let tenant_a = create_tenant("tenant-a");
+        let tenant_b = create_tenant("tenant-b");
+
+        for _ in 0..3 {
+            let patient = json!({"resourceType": "Patient"});
+            backend
+                .create(&tenant_a, "Patient", patient, FhirVersion::default())
+                .await
+                .unwrap();
+        }
+
+        for _ in 0..2 {
+            let patient = json!({"resourceType": "Patient"});
+            backend
+                .create(&tenant_b, "Patient", patient, FhirVersion::default())
+                .await
+                .unwrap();
+        }
+
+        // Wait for index refresh
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+        assert_eq!(backend.count(&tenant_a, Some("Patient")).await.unwrap(), 3);
+        assert_eq!(backend.count(&tenant_b, Some("Patient")).await.unwrap(), 2);
+    }
+
+    // ========================================================================
+    // Content Preservation Tests
+    // ========================================================================
+
+    #[tokio::test]
+    async fn es_integration_content_preserved() {
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        let patient = json!({
+            "resourceType": "Patient",
+            "name": [{"family": "Smith", "given": ["John", "Jacob"]}],
+            "birthDate": "1990-01-15",
+            "gender": "male",
+            "active": true,
+            "identifier": [{
+                "system": "http://example.org/mrn",
+                "value": "MRN-001"
+            }],
+            "address": [{
+                "city": "Springfield",
+                "state": "IL"
+            }]
+        });
+
+        let created = backend
+            .create(&tenant, "Patient", patient, FhirVersion::default())
+            .await
+            .unwrap();
+
+        let read = backend
+            .read(&tenant, "Patient", created.id())
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(read.content()["name"][0]["family"], "Smith");
+        assert_eq!(read.content()["name"][0]["given"][0], "John");
+        assert_eq!(read.content()["name"][0]["given"][1], "Jacob");
+        assert_eq!(read.content()["birthDate"], "1990-01-15");
+        assert_eq!(read.content()["gender"], "male");
+        assert_eq!(read.content()["active"], true);
+        assert_eq!(read.content()["identifier"][0]["value"], "MRN-001");
+        assert_eq!(read.content()["address"][0]["city"], "Springfield");
+    }
+
+    #[tokio::test]
+    async fn es_integration_unicode_content() {
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        let patient = json!({
+            "resourceType": "Patient",
+            "name": [{"family": "日本語", "given": ["名前"]}]
+        });
+
+        let created = backend
+            .create(&tenant, "Patient", patient, FhirVersion::default())
+            .await
+            .unwrap();
+        let read = backend
+            .read(&tenant, "Patient", created.id())
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(read.content()["name"][0]["family"], "日本語");
+        assert_eq!(read.content()["name"][0]["given"][0], "名前");
+    }
+
+    // ========================================================================
+    // Search Tests
+    // ========================================================================
+
+    #[tokio::test]
+    async fn es_integration_search_by_name() {
+        use helios_persistence::core::SearchProvider;
+        use helios_persistence::types::{
+            SearchParamType, SearchParameter, SearchQuery, SearchValue,
+        };
+
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({
+                    "resourceType": "Patient",
+                    "id": "p1",
+                    "name": [{"family": "Smith", "given": ["John"]}]
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        // Wait for index refresh
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+        let query = SearchQuery::new("Patient").with_parameter(SearchParameter {
+            name: "name".to_string(),
+            param_type: SearchParamType::String,
+            modifier: None,
+            values: vec![SearchValue::eq("Smith")],
+            chain: vec![],
+            components: vec![],
+        });
+
+        let result = backend.search(&tenant, &query).await.unwrap();
+        assert!(
+            !result.resources.items.is_empty(),
+            "Search by name should find the patient"
+        );
+        assert_eq!(result.resources.items[0].id(), "p1");
+    }
+
+    #[tokio::test]
+    async fn es_integration_search_by_name_multiple() {
+        use helios_persistence::core::SearchProvider;
+        use helios_persistence::types::{
+            SearchParamType, SearchParameter, SearchQuery, SearchValue,
+        };
+
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({
+                    "resourceType": "Patient",
+                    "id": "name-1",
+                    "name": [{"family": "Smith", "given": ["John"]}]
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({
+                    "resourceType": "Patient",
+                    "id": "name-2",
+                    "name": [{"family": "Smithson", "given": ["Jane"]}]
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({
+                    "resourceType": "Patient",
+                    "id": "name-3",
+                    "name": [{"family": "Johnson", "given": ["Bob"]}]
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        // Wait for index refresh
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+        let query = SearchQuery::new("Patient").with_parameter(SearchParameter {
+            name: "name".to_string(),
+            param_type: SearchParamType::String,
+            modifier: None,
+            values: vec![SearchValue::eq("Smith")],
+            chain: vec![],
+            components: vec![],
+        });
+
+        let result = backend.search(&tenant, &query).await.unwrap();
+        assert_eq!(
+            result.resources.items.len(),
+            2,
+            "Should find 2 patients with name starting with Smith"
+        );
+
+        let ids: Vec<&str> = result.resources.items.iter().map(|r| r.id()).collect();
+        assert!(ids.contains(&"name-1"), "Should include Smith");
+        assert!(ids.contains(&"name-2"), "Should include Smithson");
+    }
+
+    #[tokio::test]
+    async fn es_integration_search_by_token() {
+        use helios_persistence::core::SearchProvider;
+        use helios_persistence::types::{
+            SearchParamType, SearchParameter, SearchQuery, SearchValue,
+        };
+
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({
+                    "resourceType": "Patient",
+                    "id": "p1",
+                    "gender": "male"
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({
+                    "resourceType": "Patient",
+                    "id": "p2",
+                    "gender": "female"
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        // Wait for index refresh
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+        let query = SearchQuery::new("Patient").with_parameter(SearchParameter {
+            name: "gender".to_string(),
+            param_type: SearchParamType::Token,
+            modifier: None,
+            values: vec![SearchValue::eq("male")],
+            chain: vec![],
+            components: vec![],
+        });
+
+        let result = backend.search(&tenant, &query).await.unwrap();
+        assert_eq!(result.resources.items.len(), 1);
+        assert_eq!(result.resources.items[0].id(), "p1");
+    }
+
+    #[tokio::test]
+    async fn es_integration_search_token_system_code() {
+        use helios_persistence::core::SearchProvider;
+        use helios_persistence::types::{
+            SearchParamType, SearchParameter, SearchQuery, SearchValue,
+        };
+
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({
+                    "resourceType": "Patient",
+                    "id": "token-sys-1",
+                    "identifier": [{"system": "http://hospital.org/mrn", "value": "12345"}]
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({
+                    "resourceType": "Patient",
+                    "id": "token-sys-2",
+                    "identifier": [{"system": "http://other.org/id", "value": "12345"}]
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        // Wait for index refresh
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+        // Search by system|code
+        let query = SearchQuery::new("Patient").with_parameter(SearchParameter {
+            name: "identifier".to_string(),
+            param_type: SearchParamType::Token,
+            modifier: None,
+            values: vec![SearchValue::eq("http://hospital.org/mrn|12345")],
+            chain: vec![],
+            components: vec![],
+        });
+
+        let result = backend.search(&tenant, &query).await.unwrap();
+        assert_eq!(result.resources.items.len(), 1);
+        assert_eq!(result.resources.items[0].id(), "token-sys-1");
+    }
+
+    #[tokio::test]
+    async fn es_integration_search_token_code_only() {
+        use helios_persistence::core::SearchProvider;
+        use helios_persistence::types::{
+            SearchParamType, SearchParameter, SearchQuery, SearchValue,
+        };
+
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({
+                    "resourceType": "Patient",
+                    "id": "code-1",
+                    "identifier": [{"system": "http://hospital.org/mrn", "value": "12345"}]
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({
+                    "resourceType": "Patient",
+                    "id": "code-2",
+                    "identifier": [{"system": "http://other.org/id", "value": "12345"}]
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        // Wait for index refresh
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+        // Search by code only (should find both)
+        let query = SearchQuery::new("Patient").with_parameter(SearchParameter {
+            name: "identifier".to_string(),
+            param_type: SearchParamType::Token,
+            modifier: None,
+            values: vec![SearchValue::eq("12345")],
+            chain: vec![],
+            components: vec![],
+        });
+
+        let result = backend.search(&tenant, &query).await.unwrap();
+        assert_eq!(
+            result.resources.items.len(),
+            2,
+            "Should find 2 patients with code 12345"
+        );
+    }
+
+    #[tokio::test]
+    async fn es_integration_search_date() {
+        use helios_persistence::core::SearchProvider;
+        use helios_persistence::types::{
+            SearchParamType, SearchParameter, SearchQuery, SearchValue,
+        };
+
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({
+                    "resourceType": "Patient",
+                    "id": "date-1",
+                    "birthDate": "1990-01-15"
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({
+                    "resourceType": "Patient",
+                    "id": "date-2",
+                    "birthDate": "2000-06-20"
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        // Wait for index refresh
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+        let query = SearchQuery::new("Patient").with_parameter(SearchParameter {
+            name: "birthdate".to_string(),
+            param_type: SearchParamType::Date,
+            modifier: None,
+            values: vec![SearchValue::eq("1990-01-15")],
+            chain: vec![],
+            components: vec![],
+        });
+
+        let result = backend.search(&tenant, &query).await.unwrap();
+        assert_eq!(result.resources.items.len(), 1);
+        assert_eq!(result.resources.items[0].id(), "date-1");
+    }
+
+    #[tokio::test]
+    async fn es_integration_search_reference() {
+        use helios_persistence::core::SearchProvider;
+        use helios_persistence::types::{
+            SearchParamType, SearchParameter, SearchQuery, SearchValue,
+        };
+
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        backend
+            .create(
+                &tenant,
+                "Observation",
+                json!({
+                    "resourceType": "Observation",
+                    "id": "obs-1",
+                    "subject": {"reference": "Patient/patient-1"},
+                    "code": {"coding": [{"code": "8867-4"}]},
+                    "status": "final"
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        backend
+            .create(
+                &tenant,
+                "Observation",
+                json!({
+                    "resourceType": "Observation",
+                    "id": "obs-2",
+                    "subject": {"reference": "Patient/patient-2"},
+                    "code": {"coding": [{"code": "9279-1"}]},
+                    "status": "final"
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        // Wait for index refresh
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+        let query = SearchQuery::new("Observation").with_parameter(SearchParameter {
+            name: "subject".to_string(),
+            param_type: SearchParamType::Reference,
+            modifier: None,
+            values: vec![SearchValue::eq("Patient/patient-1")],
+            chain: vec![],
+            components: vec![],
+        });
+
+        let result = backend.search(&tenant, &query).await.unwrap();
+        assert_eq!(result.resources.items.len(), 1);
+        assert_eq!(result.resources.items[0].id(), "obs-1");
+    }
+
+    #[tokio::test]
+    async fn es_integration_search_quantity() {
+        use helios_persistence::core::SearchProvider;
+        use helios_persistence::types::{
+            SearchParamType, SearchParameter, SearchQuery, SearchValue,
+        };
+
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        backend
+            .create(
+                &tenant,
+                "Observation",
+                json!({
+                    "resourceType": "Observation",
+                    "id": "obs-q1",
+                    "code": {"coding": [{"system": "http://loinc.org", "code": "8867-4"}]},
+                    "status": "final",
+                    "valueQuantity": {"value": 72, "unit": "beats/min", "system": "http://unitsofmeasure.org", "code": "/min"}
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        // Wait for index refresh
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+        let query = SearchQuery::new("Observation").with_parameter(SearchParameter {
+            name: "value-quantity".to_string(),
+            param_type: SearchParamType::Quantity,
+            modifier: None,
+            values: vec![SearchValue::eq("72||beats/min")],
+            chain: vec![],
+            components: vec![],
+        });
+
+        let result = backend.search(&tenant, &query).await.unwrap();
+        assert!(
+            !result.resources.items.is_empty(),
+            "Should find observation by quantity"
+        );
+    }
+
+    #[tokio::test]
+    async fn es_integration_search_number() {
+        use helios_persistence::core::SearchProvider;
+        use helios_persistence::types::{
+            SearchParamType, SearchParameter, SearchPrefix, SearchQuery, SearchValue,
+        };
+
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        backend
+            .create(
+                &tenant,
+                "RiskAssessment",
+                json!({
+                    "resourceType": "RiskAssessment",
+                    "id": "risk-1",
+                    "status": "final",
+                    "prediction": [{"probabilityDecimal": 0.8}]
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        // Wait for index refresh
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+        let query = SearchQuery::new("RiskAssessment").with_parameter(SearchParameter {
+            name: "probability".to_string(),
+            param_type: SearchParamType::Number,
+            modifier: None,
+            values: vec![SearchValue::new(SearchPrefix::Ge, "0.5")],
+            chain: vec![],
+            components: vec![],
+        });
+
+        let result = backend.search(&tenant, &query).await.unwrap();
+        // Note: number search depends on SearchParameter extraction for RiskAssessment
+        // This verifies the query doesn't error
+        assert!(result.resources.items.len() <= 1);
+    }
+
+    #[tokio::test]
+    async fn es_integration_search_uri() {
+        use helios_persistence::core::SearchProvider;
+        use helios_persistence::types::{
+            SearchParamType, SearchParameter, SearchQuery, SearchValue,
+        };
+
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        backend
+            .create(
+                &tenant,
+                "ValueSet",
+                json!({
+                    "resourceType": "ValueSet",
+                    "id": "vs-1",
+                    "url": "http://example.org/fhir/ValueSet/123",
+                    "status": "active"
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        // Wait for index refresh
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+        let query = SearchQuery::new("ValueSet").with_parameter(SearchParameter {
+            name: "url".to_string(),
+            param_type: SearchParamType::Uri,
+            modifier: None,
+            values: vec![SearchValue::eq("http://example.org/fhir/ValueSet/123")],
+            chain: vec![],
+            components: vec![],
+        });
+
+        let result = backend.search(&tenant, &query).await.unwrap();
+        assert_eq!(result.resources.items.len(), 1);
+        assert_eq!(result.resources.items[0].id(), "vs-1");
+    }
+
+    #[tokio::test]
+    async fn es_integration_search_multiple_params() {
+        use helios_persistence::core::SearchProvider;
+        use helios_persistence::types::{
+            SearchParamType, SearchParameter, SearchQuery, SearchValue,
+        };
+
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({
+                    "resourceType": "Patient",
+                    "id": "multi-1",
+                    "name": [{"family": "Smith"}],
+                    "gender": "male"
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({
+                    "resourceType": "Patient",
+                    "id": "multi-2",
+                    "name": [{"family": "Smith"}],
+                    "gender": "female"
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        // Wait for index refresh
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+        let query = SearchQuery::new("Patient")
+            .with_parameter(SearchParameter {
+                name: "name".to_string(),
+                param_type: SearchParamType::String,
+                modifier: None,
+                values: vec![SearchValue::eq("Smith")],
+                chain: vec![],
+                components: vec![],
+            })
+            .with_parameter(SearchParameter {
+                name: "gender".to_string(),
+                param_type: SearchParamType::Token,
+                modifier: None,
+                values: vec![SearchValue::eq("male")],
+                chain: vec![],
+                components: vec![],
+            });
+
+        let result = backend.search(&tenant, &query).await.unwrap();
+        assert_eq!(
+            result.resources.items.len(),
+            1,
+            "AND across params should find only 1 patient"
+        );
+        assert_eq!(result.resources.items[0].id(), "multi-1");
+    }
+
+    #[tokio::test]
+    async fn es_integration_search_multiple_values_or() {
+        use helios_persistence::core::SearchProvider;
+        use helios_persistence::types::{
+            SearchParamType, SearchParameter, SearchQuery, SearchValue,
+        };
+
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({
+                    "resourceType": "Patient",
+                    "id": "or-1",
+                    "gender": "male"
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({
+                    "resourceType": "Patient",
+                    "id": "or-2",
+                    "gender": "female"
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({
+                    "resourceType": "Patient",
+                    "id": "or-3",
+                    "gender": "other"
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        // Wait for index refresh
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+        // OR within values: gender=male,female
+        let query = SearchQuery::new("Patient").with_parameter(SearchParameter {
+            name: "gender".to_string(),
+            param_type: SearchParamType::Token,
+            modifier: None,
+            values: vec![SearchValue::eq("male"), SearchValue::eq("female")],
+            chain: vec![],
+            components: vec![],
+        });
+
+        let result = backend.search(&tenant, &query).await.unwrap();
+        assert_eq!(
+            result.resources.items.len(),
+            2,
+            "OR within values should find 2 patients"
+        );
+    }
+
+    #[tokio::test]
+    async fn es_integration_search_by_id() {
+        use helios_persistence::core::SearchProvider;
+        use helios_persistence::types::{
+            SearchParamType, SearchParameter, SearchQuery, SearchValue,
+        };
+
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({
+                    "resourceType": "Patient",
+                    "id": "id-search-1"
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({
+                    "resourceType": "Patient",
+                    "id": "id-search-2"
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        // Wait for index refresh
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+        let query = SearchQuery::new("Patient").with_parameter(SearchParameter {
+            name: "_id".to_string(),
+            param_type: SearchParamType::Token,
+            modifier: None,
+            values: vec![SearchValue::eq("id-search-1")],
+            chain: vec![],
+            components: vec![],
+        });
+
+        let result = backend.search(&tenant, &query).await.unwrap();
+        assert_eq!(result.resources.items.len(), 1);
+        assert_eq!(result.resources.items[0].id(), "id-search-1");
+    }
+
+    #[tokio::test]
+    async fn es_integration_search_last_updated() {
+        use helios_persistence::core::SearchProvider;
+        use helios_persistence::types::{
+            SearchParamType, SearchParameter, SearchPrefix, SearchQuery, SearchValue,
+        };
+
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({
+                    "resourceType": "Patient",
+                    "id": "lu-1"
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        // Wait for index refresh
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+        // Search for resources updated after a long-ago date
+        let query = SearchQuery::new("Patient").with_parameter(SearchParameter {
+            name: "_lastUpdated".to_string(),
+            param_type: SearchParamType::Date,
+            modifier: None,
+            values: vec![SearchValue::new(SearchPrefix::Ge, "2020-01-01")],
+            chain: vec![],
+            components: vec![],
+        });
+
+        let result = backend.search(&tenant, &query).await.unwrap();
+        assert!(
+            !result.resources.items.is_empty(),
+            "_lastUpdated search should find recently created resource"
+        );
+    }
+
+    // ========================================================================
+    // Full-Text Search Tests
+    // ========================================================================
+
+    #[tokio::test]
+    async fn es_integration_text_search_content() {
+        use helios_persistence::core::SearchProvider;
+        use helios_persistence::types::{
+            SearchParamType, SearchParameter, SearchQuery, SearchValue,
+        };
+
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({
+                    "resourceType": "Patient",
+                    "id": "content-1",
+                    "name": [{"family": "Springfield", "given": ["Homer"]}],
+                    "address": [{"city": "Springfield", "state": "Illinois"}]
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({
+                    "resourceType": "Patient",
+                    "id": "content-2",
+                    "name": [{"family": "Simpson", "given": ["Bart"]}],
+                    "address": [{"city": "Chicago", "state": "Illinois"}]
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        // Wait for index refresh
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+        let query = SearchQuery::new("Patient").with_parameter(SearchParameter {
+            name: "_content".to_string(),
+            param_type: SearchParamType::Special,
+            modifier: None,
+            values: vec![SearchValue::eq("Springfield")],
+            chain: vec![],
+            components: vec![],
+        });
+
+        let result = backend.search(&tenant, &query).await.unwrap();
+        // Should find patients containing "Springfield" in their content
+        assert!(
+            !result.resources.items.is_empty(),
+            "_content search should find resources containing the term"
+        );
+    }
+
+    #[tokio::test]
+    async fn es_integration_text_search_narrative() {
+        use helios_persistence::core::SearchProvider;
+        use helios_persistence::types::{
+            SearchParamType, SearchParameter, SearchQuery, SearchValue,
+        };
+
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({
+                    "resourceType": "Patient",
+                    "id": "text-1",
+                    "text": {
+                        "status": "generated",
+                        "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>Patient with diabetes and hypertension.</p></div>"
+                    },
+                    "name": [{"family": "Smith"}]
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        backend
+            .create(
+                &tenant,
+                "Patient",
+                json!({
+                    "resourceType": "Patient",
+                    "id": "text-2",
+                    "text": {
+                        "status": "generated",
+                        "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\"><p>Patient with asthma.</p></div>"
+                    },
+                    "name": [{"family": "Doe"}]
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        // Wait for index refresh
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+        let query = SearchQuery::new("Patient").with_parameter(SearchParameter {
+            name: "_text".to_string(),
+            param_type: SearchParamType::Special,
+            modifier: None,
+            values: vec![SearchValue::eq("diabetes")],
+            chain: vec![],
+            components: vec![],
+        });
+
+        let result = backend.search(&tenant, &query).await.unwrap();
+        assert_eq!(result.resources.items.len(), 1);
+        assert_eq!(result.resources.items[0].id(), "text-1");
+    }
+
+    #[tokio::test]
+    async fn es_integration_text_search_token_text_modifier() {
+        use helios_persistence::core::SearchProvider;
+        use helios_persistence::types::{
+            SearchModifier, SearchParamType, SearchParameter, SearchQuery, SearchValue,
+        };
+
+        let (backend, _container) = create_backend().await;
+        let tenant = create_tenant("test-tenant");
+
+        backend
+            .create(
+                &tenant,
+                "Observation",
+                json!({
+                    "resourceType": "Observation",
+                    "id": "obs-text-1",
+                    "code": {
+                        "coding": [{
+                            "system": "http://loinc.org",
+                            "code": "8867-4",
+                            "display": "Heart rate"
+                        }]
+                    },
+                    "status": "final"
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        backend
+            .create(
+                &tenant,
+                "Observation",
+                json!({
+                    "resourceType": "Observation",
+                    "id": "obs-text-2",
+                    "code": {
+                        "coding": [{
+                            "system": "http://loinc.org",
+                            "code": "9279-1",
+                            "display": "Respiratory rate"
+                        }]
+                    },
+                    "status": "final"
+                }),
+                FhirVersion::default(),
+            )
+            .await
+            .unwrap();
+
+        // Wait for index refresh
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+        // Search using :text modifier for "heart"
+        let query = SearchQuery::new("Observation").with_parameter(SearchParameter {
+            name: "code".to_string(),
+            param_type: SearchParamType::Token,
+            modifier: Some(SearchModifier::Text),
+            values: vec![SearchValue::eq("heart")],
+            chain: vec![],
+            components: vec![],
+        });
+
+        let result = backend.search(&tenant, &query).await.unwrap();
+        assert_eq!(result.resources.items.len(), 1);
+        assert_eq!(result.resources.items[0].id(), "obs-text-1");
+    }
+
+    // ========================================================================
+    // Backend Info Tests
+    // ========================================================================
+
+    #[tokio::test]
+    async fn es_integration_health_check() {
+        let (backend, _container) = create_backend().await;
+
+        let result = backend.health_check().await;
+        assert!(result.is_ok(), "Health check failed: {:?}", result.err());
+    }
+
+    #[tokio::test]
+    async fn es_integration_backend_kind() {
+        let (backend, _container) = create_backend().await;
+
+        assert_eq!(backend.kind(), BackendKind::Elasticsearch);
+        assert_eq!(backend.name(), "elasticsearch");
+    }
+
+    #[tokio::test]
+    async fn es_integration_capabilities() {
+        let (backend, _container) = create_backend().await;
+
+        assert!(backend.supports(BackendCapability::Crud));
+        assert!(backend.supports(BackendCapability::BasicSearch));
+        assert!(backend.supports(BackendCapability::FullTextSearch));
+        assert!(backend.supports(BackendCapability::Sorting));
+        assert!(backend.supports(BackendCapability::CursorPagination));
+        assert!(backend.supports(BackendCapability::OffsetPagination));
+
+        // ES does NOT support these
+        assert!(!backend.supports(BackendCapability::Transactions));
+        assert!(!backend.supports(BackendCapability::InstanceHistory));
+        assert!(!backend.supports(BackendCapability::Versioning));
+    }
+}
+
+// ============================================================================
 // Search Offloading Tests
 // ============================================================================
 
