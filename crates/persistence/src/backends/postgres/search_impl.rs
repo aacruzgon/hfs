@@ -75,7 +75,7 @@ impl SearchProvider for PostgresBackend {
                         format!(
                             "SELECT id, version_id, data, last_updated, fhir_version FROM resources
                              WHERE tenant_id = $1 AND resource_type = $2 AND is_deleted = FALSE
-                             AND id IN ({})
+                             AND ({})
                              AND (last_updated < $3 OR (last_updated = $3 AND id < $4))
                              ORDER BY last_updated DESC, id DESC
                              LIMIT {}",
@@ -103,7 +103,7 @@ impl SearchProvider for PostgresBackend {
                         format!(
                             "SELECT id, version_id, data, last_updated, fhir_version FROM resources
                              WHERE tenant_id = $1 AND resource_type = $2 AND is_deleted = FALSE
-                             AND id IN ({})
+                             AND ({})
                              AND (last_updated > $3 OR (last_updated = $3 AND id > $4))
                              ORDER BY last_updated ASC, id ASC
                              LIMIT {}",
@@ -133,7 +133,7 @@ impl SearchProvider for PostgresBackend {
                 format!(
                     "SELECT id, version_id, data, last_updated, fhir_version FROM resources
                      WHERE tenant_id = $1 AND resource_type = $2 AND is_deleted = FALSE
-                     AND id IN ({})
+                     AND ({})
                      ORDER BY last_updated DESC, id DESC
                      LIMIT {} OFFSET {}",
                     filter.sql,
@@ -161,7 +161,7 @@ impl SearchProvider for PostgresBackend {
                 format!(
                     "SELECT id, version_id, data, last_updated, fhir_version FROM resources
                      WHERE tenant_id = $1 AND resource_type = $2 AND is_deleted = FALSE
-                     AND id IN ({})
+                     AND ({})
                      ORDER BY last_updated DESC, id DESC
                      LIMIT {}",
                     filter.sql,
@@ -356,7 +356,7 @@ impl SearchProvider for PostgresBackend {
                 }
 
                 let sql = format!(
-                    "SELECT COUNT(*) FROM resources WHERE tenant_id = $1 AND resource_type = $2 AND is_deleted = FALSE AND id IN ({})",
+                    "SELECT COUNT(*) FROM resources WHERE tenant_id = $1 AND resource_type = $2 AND is_deleted = FALSE AND ({})",
                     fragment.sql
                 );
                 (sql, params)

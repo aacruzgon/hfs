@@ -185,14 +185,14 @@ impl PostgresQueryBuilder {
             let condition = match modifier {
                 Some(SearchModifier::Exact) => SqlFragment::with_params(
                     format!(
-                        "resource_id IN (SELECT resource_id FROM search_index WHERE tenant_id = $1 AND resource_type = $2 AND param_name = '{}' AND value_string = ${})",
+                        "id IN (SELECT resource_id FROM search_index WHERE tenant_id = $1 AND resource_type = $2 AND param_name = '{}' AND value_string = ${})",
                         param.name, param_num
                     ),
                     vec![SqlParam::text(&value.value)],
                 ),
                 Some(SearchModifier::Contains) => SqlFragment::with_params(
                     format!(
-                        "resource_id IN (SELECT resource_id FROM search_index WHERE tenant_id = $1 AND resource_type = $2 AND param_name = '{}' AND value_string ILIKE ${})",
+                        "id IN (SELECT resource_id FROM search_index WHERE tenant_id = $1 AND resource_type = $2 AND param_name = '{}' AND value_string ILIKE ${})",
                         param.name, param_num
                     ),
                     vec![SqlParam::text(&format!("%{}%", value.value))],
@@ -201,7 +201,7 @@ impl PostgresQueryBuilder {
                     // Default: starts-with (case-insensitive)
                     SqlFragment::with_params(
                         format!(
-                            "resource_id IN (SELECT resource_id FROM search_index WHERE tenant_id = $1 AND resource_type = $2 AND param_name = '{}' AND value_string ILIKE ${})",
+                            "id IN (SELECT resource_id FROM search_index WHERE tenant_id = $1 AND resource_type = $2 AND param_name = '{}' AND value_string ILIKE ${})",
                             param.name, param_num
                         ),
                         vec![SqlParam::text(&format!("{}%", value.value))],
@@ -231,7 +231,7 @@ impl PostgresQueryBuilder {
                     // |code - match any system
                     SqlFragment::with_params(
                         format!(
-                            "resource_id IN (SELECT resource_id FROM search_index WHERE tenant_id = $1 AND resource_type = $2 AND param_name = '{}' AND value_token_code = ${})",
+                            "id IN (SELECT resource_id FROM search_index WHERE tenant_id = $1 AND resource_type = $2 AND param_name = '{}' AND value_token_code = ${})",
                             param.name,
                             base_offset + 1
                         ),
@@ -241,7 +241,7 @@ impl PostgresQueryBuilder {
                     // system| - match any code in system
                     SqlFragment::with_params(
                         format!(
-                            "resource_id IN (SELECT resource_id FROM search_index WHERE tenant_id = $1 AND resource_type = $2 AND param_name = '{}' AND value_token_system = ${})",
+                            "id IN (SELECT resource_id FROM search_index WHERE tenant_id = $1 AND resource_type = $2 AND param_name = '{}' AND value_token_system = ${})",
                             param.name,
                             base_offset + 1
                         ),
@@ -251,7 +251,7 @@ impl PostgresQueryBuilder {
                     // system|code - exact match
                     SqlFragment::with_params(
                         format!(
-                            "resource_id IN (SELECT resource_id FROM search_index WHERE tenant_id = $1 AND resource_type = $2 AND param_name = '{}' AND value_token_system = ${} AND value_token_code = ${})",
+                            "id IN (SELECT resource_id FROM search_index WHERE tenant_id = $1 AND resource_type = $2 AND param_name = '{}' AND value_token_system = ${} AND value_token_code = ${})",
                             param.name,
                             base_offset + 1,
                             base_offset + 2
@@ -263,7 +263,7 @@ impl PostgresQueryBuilder {
                 // code only - match any system
                 SqlFragment::with_params(
                     format!(
-                        "resource_id IN (SELECT resource_id FROM search_index WHERE tenant_id = $1 AND resource_type = $2 AND param_name = '{}' AND value_token_code = ${})",
+                        "id IN (SELECT resource_id FROM search_index WHERE tenant_id = $1 AND resource_type = $2 AND param_name = '{}' AND value_token_code = ${})",
                         param.name,
                         base_offset + 1
                     ),
@@ -291,7 +291,7 @@ impl PostgresQueryBuilder {
             let op = Self::prefix_to_operator(&value.prefix);
             conditions.push(SqlFragment::with_params(
                 format!(
-                    "resource_id IN (SELECT resource_id FROM search_index WHERE tenant_id = $1 AND resource_type = $2 AND param_name = '{}' AND value_date {} ${}::timestamptz)",
+                    "id IN (SELECT resource_id FROM search_index WHERE tenant_id = $1 AND resource_type = $2 AND param_name = '{}' AND value_date {} ${}::timestamptz)",
                     param.name, op, param_num
                 ),
                 vec![SqlParam::text(&value.value)],
@@ -317,7 +317,7 @@ impl PostgresQueryBuilder {
             if let Ok(num) = value.value.parse::<f64>() {
                 conditions.push(SqlFragment::with_params(
                     format!(
-                        "resource_id IN (SELECT resource_id FROM search_index WHERE tenant_id = $1 AND resource_type = $2 AND param_name = '{}' AND value_number {} ${})",
+                        "id IN (SELECT resource_id FROM search_index WHERE tenant_id = $1 AND resource_type = $2 AND param_name = '{}' AND value_number {} ${})",
                         param.name, op, param_num
                     ),
                     vec![SqlParam::Float(num)],
@@ -348,7 +348,7 @@ impl PostgresQueryBuilder {
                     if parts.len() >= 3 {
                         conditions.push(SqlFragment::with_params(
                             format!(
-                                "resource_id IN (SELECT resource_id FROM search_index WHERE tenant_id = $1 AND resource_type = $2 AND param_name = '{}' AND value_quantity_value {} ${} AND value_quantity_unit = ${})",
+                                "id IN (SELECT resource_id FROM search_index WHERE tenant_id = $1 AND resource_type = $2 AND param_name = '{}' AND value_quantity_value {} ${} AND value_quantity_unit = ${})",
                                 param.name, op, base_offset + 1, base_offset + 2
                             ),
                             vec![SqlParam::Float(num), SqlParam::text(parts[2])],
@@ -356,7 +356,7 @@ impl PostgresQueryBuilder {
                     } else {
                         conditions.push(SqlFragment::with_params(
                             format!(
-                                "resource_id IN (SELECT resource_id FROM search_index WHERE tenant_id = $1 AND resource_type = $2 AND param_name = '{}' AND value_quantity_value {} ${})",
+                                "id IN (SELECT resource_id FROM search_index WHERE tenant_id = $1 AND resource_type = $2 AND param_name = '{}' AND value_quantity_value {} ${})",
                                 param.name, op, base_offset + 1
                             ),
                             vec![SqlParam::Float(num)],
@@ -383,7 +383,7 @@ impl PostgresQueryBuilder {
             let param_num = offset + i + 1;
             conditions.push(SqlFragment::with_params(
                 format!(
-                    "resource_id IN (SELECT resource_id FROM search_index WHERE tenant_id = $1 AND resource_type = $2 AND param_name = '{}' AND value_reference = ${})",
+                    "id IN (SELECT resource_id FROM search_index WHERE tenant_id = $1 AND resource_type = $2 AND param_name = '{}' AND value_reference = ${})",
                     param.name, param_num
                 ),
                 vec![SqlParam::text(&value.value)],
@@ -409,21 +409,21 @@ impl PostgresQueryBuilder {
             let condition = match modifier {
                 Some(SearchModifier::Below) => SqlFragment::with_params(
                     format!(
-                        "resource_id IN (SELECT resource_id FROM search_index WHERE tenant_id = $1 AND resource_type = $2 AND param_name = '{}' AND value_uri LIKE ${} || '%')",
+                        "id IN (SELECT resource_id FROM search_index WHERE tenant_id = $1 AND resource_type = $2 AND param_name = '{}' AND value_uri LIKE ${} || '%')",
                         param.name, param_num
                     ),
                     vec![SqlParam::text(&value.value)],
                 ),
                 Some(SearchModifier::Above) => SqlFragment::with_params(
                     format!(
-                        "resource_id IN (SELECT resource_id FROM search_index WHERE tenant_id = $1 AND resource_type = $2 AND param_name = '{}' AND ${} LIKE value_uri || '%')",
+                        "id IN (SELECT resource_id FROM search_index WHERE tenant_id = $1 AND resource_type = $2 AND param_name = '{}' AND ${} LIKE value_uri || '%')",
                         param.name, param_num
                     ),
                     vec![SqlParam::text(&value.value)],
                 ),
                 _ => SqlFragment::with_params(
                     format!(
-                        "resource_id IN (SELECT resource_id FROM search_index WHERE tenant_id = $1 AND resource_type = $2 AND param_name = '{}' AND value_uri = ${})",
+                        "id IN (SELECT resource_id FROM search_index WHERE tenant_id = $1 AND resource_type = $2 AND param_name = '{}' AND value_uri = ${})",
                         param.name, param_num
                     ),
                     vec![SqlParam::text(&value.value)],

@@ -1,5 +1,7 @@
 //! PostgreSQL search index writer implementation.
 
+use chrono::{DateTime, Utc};
+
 use crate::error::{BackendError, StorageResult};
 use crate::search::{converters::IndexValue, extractor::ExtractedValue};
 
@@ -84,19 +86,24 @@ impl PostgresSearchIndexWriter {
             }
             IndexValue::Date { value, precision } => {
                 let precision_str = precision.to_string();
+                let normalized = normalize_date_for_pg(value);
+                let timestamp: DateTime<Utc> = DateTime::parse_from_rfc3339(&normalized)
+                    .map(|dt| dt.with_timezone(&Utc))
+                    .or_else(|_| normalized.parse::<DateTime<Utc>>())
+                    .unwrap_or_else(|_| Utc::now());
                 client
                     .execute(
                         "INSERT INTO search_index (
                             tenant_id, resource_type, resource_id, param_name, param_url,
                             value_date, value_date_precision, composite_group
-                        ) VALUES ($1, $2, $3, $4, $5, $6::timestamptz, $7, $8)",
+                        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
                         &[
                             &tenant_id,
                             &resource_type,
                             &resource_id,
                             &extracted.param_name.as_str(),
                             &extracted.param_url.as_str(),
-                            &normalize_date_for_pg(value),
+                            &timestamp,
                             &precision_str.as_str(),
                             &extracted.composite_group.map(|g| g as i32),
                         ],

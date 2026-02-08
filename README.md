@@ -350,12 +350,18 @@ cargo build --workspace --exclude pysof
 ```
 
 ## Running Tests
+
+**Docker Required:** PostgreSQL and Elasticsearch integration tests use [testcontainers](https://testcontainers.com/) to spin up real database instances in Docker. Make sure Docker is installed and running to execute the full test suite. To skip these tests (e.g., if Docker is unavailable), add `-- --skip postgres_integration --skip es_integration` to your test command.
+
 ```bash
 # Run all tests (R4 only by default)
 cargo test
 
 # Run tests for all FHIR versions
 cargo test --all-features
+
+# Run tests without Docker (skips PostgreSQL and Elasticsearch integration tests)
+cargo test --all-features -- --skip postgres_integration --skip es_integration
 
 # Run specific test
 cargo test test_name_pattern
