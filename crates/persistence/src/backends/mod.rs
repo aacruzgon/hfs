@@ -35,9 +35,8 @@
 #[cfg(feature = "sqlite")]
 pub mod sqlite;
 
-// Future backends (gated by features)
-// #[cfg(feature = "postgres")]
-// pub mod postgres;
+#[cfg(feature = "postgres")]
+pub mod postgres;
 //
 // #[cfg(feature = "cassandra")]
 // pub mod cassandra;

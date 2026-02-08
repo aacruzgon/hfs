@@ -117,6 +117,17 @@ helios-persistence/
 │   │   │       └── parameter_handlers/   # Type-specific handlers
 │   │   │           ├── string.rs, token.rs, date.rs, number.rs
 │   │   │           ├── quantity.rs, reference.rs, uri.rs, composite.rs
+│   │   ├── postgres/       # PostgreSQL primary backend
+│   │   │   ├── backend.rs      # PostgresBackend with connection pooling
+│   │   │   ├── storage.rs      # ResourceStorage implementation
+│   │   │   ├── transaction.rs  # TransactionProvider implementation
+│   │   │   ├── schema.rs       # Schema DDL with migrations
+│   │   │   ├── search_impl.rs  # SearchProvider implementation
+│   │   │   ├── bulk_export.rs  # BulkExportStorage implementation
+│   │   │   ├── bulk_submit.rs  # BulkSubmitProvider implementation
+│   │   │   └── search/         # Search query building
+│   │   │       ├── query_builder.rs  # SQL with $N params, ILIKE, TIMESTAMPTZ
+│   │   │       └── writer.rs        # Search index writer
 │   │   └── elasticsearch/  # Search-optimized secondary backend
 │   │       ├── backend.rs      # ElasticsearchBackend with config
 │   │       ├── storage.rs      # ResourceStorage for sync support
@@ -167,7 +178,9 @@ helios-persistence/
     │   ├── isolation_tests.rs, cross_tenant_tests.rs
     ├── composite_routing_tests.rs   # Query routing tests
     ├── composite_polyglot_tests.rs  # Multi-backend tests
-    └── sqlite_tests.rs              # SQLite backend tests
+    ├── sqlite_tests.rs              # SQLite backend tests
+    ├── postgres_tests.rs            # PostgreSQL backend tests
+    └── elasticsearch_tests.rs       # Elasticsearch backend tests
 ```
 
 ### Trait Hierarchy
@@ -287,35 +300,35 @@ The matrix below shows which FHIR operations each backend supports. This reflect
 | Feature | SQLite | PostgreSQL | MongoDB | Cassandra | Neo4j | Elasticsearch | S3 |
 |---------|--------|------------|---------|-----------|-------|---------------|-----|
 | **Core Operations** |
-| [CRUD](https://build.fhir.org/http.html#crud) | ✓ | ○ | ○ | ○ | ○ | ✓ | ○ |
-| [Versioning (vread)](https://build.fhir.org/http.html#vread) | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
-| [Optimistic Locking](https://build.fhir.org/http.html#concurrency) | ✓ | ○ | ○ | ○ | ○ | ✗ | ✗ |
-| [Instance History](https://build.fhir.org/http.html#history) | ✓ | ○ | ○ | ○ | ○ | ✗ | ○ |
-| [Type History](https://build.fhir.org/http.html#history) | ✓ | ○ | ○ | ✗ | ○ | ✗ | ✗ |
-| [System History](https://build.fhir.org/http.html#history) | ✓ | ○ | ○ | ✗ | ○ | ✗ | ✗ |
-| [Batch Bundles](https://build.fhir.org/http.html#batch) | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
-| [Transaction Bundles](https://build.fhir.org/http.html#transaction) | ✓ | ○ | ○ | ✗ | ○ | ✗ | ✗ |
-| [Conditional Operations](https://build.fhir.org/http.html#cond-update) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
-| [Conditional Patch](https://build.fhir.org/http.html#patch) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
-| [Delete History](https://build.fhir.org/http.html#delete) | ✓ | ○ | ○ | ✗ | ○ | ✗ | ✗ |
+| [CRUD](https://build.fhir.org/http.html#crud) | ✓ | ✓ | ○ | ○ | ○ | ✓ | ○ |
+| [Versioning (vread)](https://build.fhir.org/http.html#vread) | ✓ | ✓ | ○ | ○ | ○ | ○ | ○ |
+| [Optimistic Locking](https://build.fhir.org/http.html#concurrency) | ✓ | ✓ | ○ | ○ | ○ | ✗ | ✗ |
+| [Instance History](https://build.fhir.org/http.html#history) | ✓ | ✓ | ○ | ○ | ○ | ✗ | ○ |
+| [Type History](https://build.fhir.org/http.html#history) | ✓ | ✓ | ○ | ✗ | ○ | ✗ | ✗ |
+| [System History](https://build.fhir.org/http.html#history) | ✓ | ✓ | ○ | ✗ | ○ | ✗ | ✗ |
+| [Batch Bundles](https://build.fhir.org/http.html#batch) | ✓ | ✓ | ○ | ○ | ○ | ○ | ○ |
+| [Transaction Bundles](https://build.fhir.org/http.html#transaction) | ✓ | ✓ | ○ | ✗ | ○ | ✗ | ✗ |
+| [Conditional Operations](https://build.fhir.org/http.html#cond-update) | ✓ | ✓ | ○ | ✗ | ○ | ○ | ✗ |
+| [Conditional Patch](https://build.fhir.org/http.html#patch) | ✓ | ✓ | ○ | ✗ | ○ | ○ | ✗ |
+| [Delete History](https://build.fhir.org/http.html#delete) | ✓ | ✓ | ○ | ✗ | ○ | ✗ | ✗ |
 | **Multitenancy** |
-| Shared Schema | ✓ | ○ | ○ | ○ | ○ | ✓ | ○ |
+| Shared Schema | ✓ | ✓ | ○ | ○ | ○ | ✓ | ○ |
 | Schema-per-Tenant | ✗ | ○ | ○ | ✗ | ✗ | ✗ | ✗ |
 | Database-per-Tenant | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
 | Row-Level Security | ✗ | ○ | ✗ | ✗ | ✗ | ✗ | ✗ |
 | **[Search Parameters](https://build.fhir.org/search.html#ptypes)** |
-| [String](https://build.fhir.org/search.html#string) | ✓ | ○ | ○ | ✗ | ○ | ✓ | ✗ |
-| [Token](https://build.fhir.org/search.html#token) | ✓ | ○ | ○ | ○ | ○ | ✓ | ✗ |
-| [Reference](https://build.fhir.org/search.html#reference) | ✓ | ○ | ○ | ✗ | ○ | ✓ | ✗ |
-| [Date](https://build.fhir.org/search.html#date) | ✓ | ○ | ○ | ○ | ○ | ✓ | ○ |
-| [Number](https://build.fhir.org/search.html#number) | ✓ | ○ | ○ | ✗ | ○ | ✓ | ○ |
-| [Quantity](https://build.fhir.org/search.html#quantity) | ✓ | ○ | ○ | ✗ | ✗ | ✓ | ○ |
-| [URI](https://build.fhir.org/search.html#uri) | ✓ | ○ | ○ | ○ | ○ | ✓ | ○ |
+| [String](https://build.fhir.org/search.html#string) | ✓ | ✓ | ○ | ✗ | ○ | ✓ | ✗ |
+| [Token](https://build.fhir.org/search.html#token) | ✓ | ✓ | ○ | ○ | ○ | ✓ | ✗ |
+| [Reference](https://build.fhir.org/search.html#reference) | ✓ | ✓ | ○ | ✗ | ○ | ✓ | ✗ |
+| [Date](https://build.fhir.org/search.html#date) | ✓ | ✓ | ○ | ○ | ○ | ✓ | ○ |
+| [Number](https://build.fhir.org/search.html#number) | ✓ | ✓ | ○ | ✗ | ○ | ✓ | ○ |
+| [Quantity](https://build.fhir.org/search.html#quantity) | ✓ | ✓ | ○ | ✗ | ✗ | ✓ | ○ |
+| [URI](https://build.fhir.org/search.html#uri) | ✓ | ✓ | ○ | ○ | ○ | ✓ | ○ |
 | [Composite](https://build.fhir.org/search.html#composite) | ✓ | ○ | ○ | ✗ | ○ | ✓ | ✗ |
 | **[Search Modifiers](https://build.fhir.org/search.html#modifiers)** |
-| [:exact](https://build.fhir.org/search.html#modifiers) | ✓ | ○ | ○ | ○ | ○ | ✓ | ○ |
-| [:contains](https://build.fhir.org/search.html#modifiers) | ✓ | ○ | ○ | ✗ | ○ | ✓ | ✗ |
-| [:text](https://build.fhir.org/search.html#modifiers) (full-text) | ✓ | ○ | ○ | ✗ | ✗ | ✓ | ✗ |
+| [:exact](https://build.fhir.org/search.html#modifiers) | ✓ | ✓ | ○ | ○ | ○ | ✓ | ○ |
+| [:contains](https://build.fhir.org/search.html#modifiers) | ✓ | ✓ | ○ | ✗ | ○ | ✓ | ✗ |
+| [:text](https://build.fhir.org/search.html#modifiers) (full-text) | ✓ | ◐ | ○ | ✗ | ✗ | ✓ | ✗ |
 | [:not](https://build.fhir.org/search.html#modifiers) | ✓ | ○ | ○ | ✗ | ○ | ✓ | ○ |
 | [:missing](https://build.fhir.org/search.html#modifiers) | ✓ | ○ | ○ | ✗ | ○ | ✓ | ○ |
 | [:above / :below](https://build.fhir.org/search.html#modifiers) | ✗ | †○ | †○ | ✗ | ○ | ✓ | ✗ |
@@ -323,20 +336,20 @@ The matrix below shows which FHIR operations each backend supports. This reflect
 | [:of-type](https://build.fhir.org/search.html#modifiers) | ✓ | ○ | ○ | ✗ | ○ | ✓ | ✗ |
 | [:text-advanced](https://build.fhir.org/search.html#modifiertextadvanced) | ✓ | †○ | †○ | ✗ | ✗ | ✓ | ✗ |
 | **[Special Parameters](https://build.fhir.org/search.html#all)** |
-| [_text](https://build.fhir.org/search.html#_text) (narrative search) | ✓ | ○ | ○ | ✗ | ✗ | ✓ | ✗ |
-| [_content](https://build.fhir.org/search.html#_content) (full content) | ✓ | ○ | ○ | ✗ | ✗ | ✓ | ✗ |
+| [_text](https://build.fhir.org/search.html#_text) (narrative search) | ✓ | ◐ | ○ | ✗ | ✗ | ✓ | ✗ |
+| [_content](https://build.fhir.org/search.html#_content) (full content) | ✓ | ◐ | ○ | ✗ | ✗ | ✓ | ✗ |
 | [_filter](https://build.fhir.org/search.html#_filter) (advanced filtering) | ✓ | ○ | ○ | ✗ | ○ | ○ | ✗ |
 | **Advanced Search** |
-| [Chained Parameters](https://build.fhir.org/search.html#chaining) | ✓ | ○ | ○ | ✗ | ○ | ✗ | ✗ |
-| [Reverse Chaining (_has)](https://build.fhir.org/search.html#has) | ✓ | ○ | ○ | ✗ | ○ | ✗ | ✗ |
-| [_include](https://build.fhir.org/search.html#include) | ✓ | ○ | ○ | ✗ | ○ | ✓ | ✗ |
-| [_revinclude](https://build.fhir.org/search.html#revinclude) | ✓ | ○ | ○ | ✗ | ○ | ✓ | ✗ |
+| [Chained Parameters](https://build.fhir.org/search.html#chaining) | ✓ | ◐ | ○ | ✗ | ○ | ✗ | ✗ |
+| [Reverse Chaining (_has)](https://build.fhir.org/search.html#has) | ✓ | ◐ | ○ | ✗ | ○ | ✗ | ✗ |
+| [_include](https://build.fhir.org/search.html#include) | ✓ | ✓ | ○ | ✗ | ○ | ✓ | ✗ |
+| [_revinclude](https://build.fhir.org/search.html#revinclude) | ✓ | ✓ | ○ | ✗ | ○ | ✓ | ✗ |
 | **[Pagination](https://build.fhir.org/http.html#paging)** |
-| Offset | ✓ | ○ | ○ | ✗ | ○ | ✓ | ✗ |
+| Offset | ✓ | ✓ | ○ | ✗ | ○ | ✓ | ✗ |
 | Cursor (keyset) | ✓ | ○ | ○ | ○ | ○ | ✓ | ○ |
 | **[Sorting](https://build.fhir.org/search.html#sort)** |
-| Single field | ✓ | ○ | ○ | ✗ | ○ | ✓ | ✗ |
-| Multiple fields | ✓ | ○ | ○ | ✗ | ○ | ✓ | ✗ |
+| Single field | ✓ | ✓ | ○ | ✗ | ○ | ✓ | ✗ |
+| Multiple fields | ✓ | ✓ | ○ | ✗ | ○ | ✓ | ✗ |
 | **[Bulk Operations](https://hl7.org/fhir/uv/bulkdata/)** |
 | [Bulk Export](https://hl7.org/fhir/uv/bulkdata/export.html) | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
 | [Bulk Submit](https://hackmd.io/@argonaut/rJoqHZrPle) | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
@@ -349,7 +362,7 @@ Backends can serve as primary (CRUD, versioning, transactions) or secondary (opt
 |---|---|---|---|---|
 | SQLite alone | SQLite | — | ✓ Implemented | Development, testing, small deployments |
 | SQLite + Elasticsearch | SQLite | Elasticsearch (search) | ✓ Implemented | Small prod with robust search |
-| PostgreSQL alone | PostgreSQL | — | Planned | Production OLTP |
+| PostgreSQL alone | PostgreSQL | — | ✓ Implemented | Production OLTP |
 | PostgreSQL + Elasticsearch | PostgreSQL | Elasticsearch (search) | Planned | OLTP + advanced search |
 | PostgreSQL + Neo4j | PostgreSQL | Neo4j (graph) | Planned | Graph-heavy queries |
 | Cassandra alone | Cassandra | — | Planned | High write throughput |
