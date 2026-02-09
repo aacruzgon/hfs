@@ -2640,7 +2640,10 @@ impl ReindexableStorage for PostgresBackend {
         let (cursor_ts, cursor_id) = if let Some(c) = cursor {
             let parts: Vec<&str> = c.split('|').collect();
             if parts.len() == 2 {
-                (Some(parts[0].to_string()), Some(parts[1].to_string()))
+                let ts = DateTime::parse_from_rfc3339(parts[0])
+                    .map(|dt| dt.with_timezone(&Utc))
+                    .map_err(|e| internal_error(format!("Invalid cursor timestamp: {}", e)))?;
+                (Some(ts), Some(parts[1].to_string()))
             } else {
                 (None, None)
             }
@@ -2653,12 +2656,12 @@ impl ReindexableStorage for PostgresBackend {
                 .query(
                     "SELECT id, version_id, data, last_updated, fhir_version FROM resources
                      WHERE tenant_id = $1 AND resource_type = $2 AND is_deleted = FALSE
-                     AND (last_updated > $3::timestamptz OR (last_updated = $3::timestamptz AND id > $4))
+                     AND (last_updated > $3 OR (last_updated = $3 AND id > $4))
                      ORDER BY last_updated ASC, id ASC LIMIT $5",
                     &[
                         &tenant_id,
                         &resource_type,
-                        &ts.as_str(),
+                        ts,
                         &id.as_str(),
                         &(limit as i64),
                     ],

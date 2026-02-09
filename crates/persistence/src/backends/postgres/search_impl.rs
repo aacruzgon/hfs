@@ -201,6 +201,7 @@ impl SearchProvider for PostgresBackend {
                     SqlParam::Float(f) => params.push(Box::new(*f)),
                     SqlParam::Integer(i) => params.push(Box::new(*i)),
                     SqlParam::Bool(b) => params.push(Box::new(*b)),
+                    SqlParam::Timestamp(dt) => params.push(Box::new(*dt)),
                     SqlParam::Null => params.push(Box::new(Option::<String>::None)),
                 }
             }
@@ -227,6 +228,7 @@ impl SearchProvider for PostgresBackend {
                     SqlParam::Float(f) => params.push(Box::new(*f)),
                     SqlParam::Integer(i) => params.push(Box::new(*i)),
                     SqlParam::Bool(b) => params.push(Box::new(*b)),
+                    SqlParam::Timestamp(dt) => params.push(Box::new(*dt)),
                     SqlParam::Null => params.push(Box::new(Option::<String>::None)),
                 }
             }
@@ -351,6 +353,7 @@ impl SearchProvider for PostgresBackend {
                         SqlParam::Float(f) => params.push(Box::new(*f)),
                         SqlParam::Integer(i) => params.push(Box::new(*i)),
                         SqlParam::Bool(b) => params.push(Box::new(*b)),
+                        SqlParam::Timestamp(dt) => params.push(Box::new(*dt)),
                         SqlParam::Null => params.push(Box::new(Option::<String>::None)),
                     }
                 }

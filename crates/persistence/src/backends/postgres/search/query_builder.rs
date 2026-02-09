@@ -4,6 +4,8 @@
 //! with $N parameter placeholders, ILIKE for case-insensitive matching,
 //! and native TIMESTAMPTZ comparisons.
 
+use chrono::{DateTime, Utc};
+
 use crate::types::{
     SearchModifier, SearchParamType, SearchParameter, SearchPrefix, SearchQuery, SearchValue,
 };
@@ -28,6 +30,8 @@ pub enum SqlParam {
     Integer(i64),
     /// Boolean parameter.
     Bool(bool),
+    /// Timestamp parameter.
+    Timestamp(DateTime<Utc>),
     /// Null parameter.
     Null,
 }
@@ -289,12 +293,13 @@ impl PostgresQueryBuilder {
         for (i, value) in param.values.iter().enumerate() {
             let param_num = offset + i + 1;
             let op = Self::prefix_to_operator(&value.prefix);
+            let timestamp = Self::parse_date_value(&value.value);
             conditions.push(SqlFragment::with_params(
                 format!(
-                    "id IN (SELECT resource_id FROM search_index WHERE tenant_id = $1 AND resource_type = $2 AND param_name = '{}' AND value_date {} ${}::timestamptz)",
+                    "id IN (SELECT resource_id FROM search_index WHERE tenant_id = $1 AND resource_type = $2 AND param_name = '{}' AND value_date {} ${})",
                     param.name, op, param_num
                 ),
-                vec![SqlParam::text(&value.value)],
+                vec![SqlParam::Timestamp(timestamp)],
             ));
         }
 
@@ -455,5 +460,31 @@ impl PostgresQueryBuilder {
             SearchPrefix::Eb => "<", // ends before
             SearchPrefix::Ap => "=", // approximately (simplified)
         }
+    }
+
+    /// Parses a FHIR date search value into a `DateTime<Utc>`.
+    ///
+    /// Handles partial dates (year, year-month, date) and full date-times.
+    fn parse_date_value(value: &str) -> DateTime<Utc> {
+        let normalized = if value.contains('T') {
+            if value.contains('+') || value.contains('Z') || value.ends_with("-00:00") {
+                value.to_string()
+            } else {
+                format!("{}+00:00", value)
+            }
+        } else if value.len() == 10 {
+            format!("{}T00:00:00+00:00", value)
+        } else if value.len() == 7 {
+            format!("{}-01T00:00:00+00:00", value)
+        } else if value.len() == 4 {
+            format!("{}-01-01T00:00:00+00:00", value)
+        } else {
+            value.to_string()
+        };
+
+        DateTime::parse_from_rfc3339(&normalized)
+            .map(|dt| dt.with_timezone(&Utc))
+            .or_else(|_| normalized.parse::<DateTime<Utc>>())
+            .unwrap_or_else(|_| Utc::now())
     }
 }
