@@ -571,12 +571,17 @@ mod parameter_handler_tests {
 ///   cargo test -p helios-persistence --features elasticsearch -- --skip es_integration
 #[cfg(test)]
 mod es_integration {
+    use std::path::PathBuf;
+    use std::sync::Arc;
+
     use helios_fhir::FhirVersion;
+    use parking_lot::RwLock;
     use serde_json::json;
 
     use helios_persistence::backends::elasticsearch::{ElasticsearchBackend, ElasticsearchConfig};
     use helios_persistence::core::{Backend, BackendCapability, BackendKind, ResourceStorage};
     use helios_persistence::error::{ResourceError, StorageError};
+    use helios_persistence::search::{SearchParameterLoader, SearchParameterRegistry};
     use helios_persistence::tenant::{TenantContext, TenantId, TenantPermissions};
 
     use testcontainers::ImageExt;
@@ -623,6 +628,34 @@ mod es_integration {
             .await
     }
 
+    /// Builds a search parameter registry loaded from the FHIR spec data files.
+    fn build_search_registry() -> Arc<RwLock<SearchParameterRegistry>> {
+        let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .and_then(|p| p.parent())
+            .map(|p| p.join("data"))
+            .unwrap_or_else(|| PathBuf::from("data"));
+
+        let loader = SearchParameterLoader::new(FhirVersion::default());
+        let mut registry = SearchParameterRegistry::new();
+
+        // Load embedded (minimal) params first
+        if let Ok(params) = loader.load_embedded() {
+            for param in params {
+                let _ = registry.register(param);
+            }
+        }
+
+        // Load full search parameter definitions from spec file
+        if let Ok(params) = loader.load_from_spec_file(&data_dir) {
+            for param in params {
+                let _ = registry.register(param);
+            }
+        }
+
+        Arc::new(RwLock::new(registry))
+    }
+
     /// Creates an ElasticsearchBackend connected to the shared testcontainers ES instance.
     ///
     /// Each call uses a unique index prefix (via UUID) so tests are fully isolated
@@ -639,8 +672,9 @@ mod es_integration {
             ..Default::default()
         };
 
-        let backend =
-            ElasticsearchBackend::new(config).expect("Failed to create ElasticsearchBackend");
+        let search_registry = build_search_registry();
+        let backend = ElasticsearchBackend::with_shared_registry(config, search_registry)
+            .expect("Failed to create ElasticsearchBackend");
 
         backend
             .initialize()
@@ -698,24 +732,40 @@ mod es_integration {
     }
 
     #[tokio::test]
-    async fn es_integration_create_duplicate_fails() {
+    async fn es_integration_create_duplicate_overwrites() {
         let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         let patient = json!({
             "resourceType": "Patient",
-            "id": "duplicate-id"
+            "id": "duplicate-id",
+            "name": [{"family": "Original"}]
         });
 
         backend
-            .create(&tenant, "Patient", patient.clone(), FhirVersion::default())
+            .create(&tenant, "Patient", patient, FhirVersion::default())
             .await
             .unwrap();
 
+        // ES create uses the index API (upsert), so a second create with the
+        // same ID overwrites the document rather than failing.
+        let patient2 = json!({
+            "resourceType": "Patient",
+            "id": "duplicate-id",
+            "name": [{"family": "Overwritten"}]
+        });
+
         let result = backend
-            .create(&tenant, "Patient", patient, FhirVersion::default())
+            .create(&tenant, "Patient", patient2, FhirVersion::default())
             .await;
-        assert!(result.is_err());
+        assert!(result.is_ok(), "ES create is an upsert and should succeed");
+
+        let read = backend
+            .read(&tenant, "Patient", "duplicate-id")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(read.content()["name"][0]["family"], "Overwritten");
     }
 
     #[tokio::test]
