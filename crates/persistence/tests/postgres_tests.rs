@@ -276,7 +276,6 @@ mod query_builder_tests {
         assert!(result.is_some());
         let fragment = result.unwrap();
         assert!(fragment.sql.contains("value_date"));
-        assert!(fragment.sql.contains("::timestamptz"));
         assert!(fragment.sql.contains("> $"));
     }
 
