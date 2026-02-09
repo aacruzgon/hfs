@@ -504,27 +504,79 @@ mod postgres_integration {
 
     use testcontainers::runners::AsyncRunner;
     use testcontainers_modules::postgres::Postgres;
+    use tokio::sync::OnceCell;
 
-    /// Creates a PostgresBackend connected to a testcontainers PostgreSQL instance.
+    /// Shared PostgreSQL container reused across all tests in this module.
+    struct SharedPg {
+        host: String,
+        port: u16,
+        /// Kept alive for the duration of the test binary; dropped at process exit.
+        _container: testcontainers::ContainerAsync<Postgres>,
+    }
+
+    static SHARED_PG: OnceCell<SharedPg> = OnceCell::const_new();
+
+    async fn shared_pg() -> &'static SharedPg {
+        SHARED_PG
+            .get_or_init(|| async {
+                let container = Postgres::default()
+                    .start()
+                    .await
+                    .expect("Failed to start PostgreSQL container");
+
+                let port = container
+                    .get_host_port_ipv4(5432)
+                    .await
+                    .expect("Failed to get host port");
+
+                let host = container
+                    .get_host()
+                    .await
+                    .expect("Failed to get host")
+                    .to_string();
+
+                // Initialize schema once on the shared container.
+                let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                    .parent()
+                    .and_then(|p| p.parent())
+                    .map(|p| p.join("data"))
+                    .unwrap_or_else(|| PathBuf::from("data"));
+
+                let config = PostgresConfig {
+                    host: host.clone(),
+                    port,
+                    dbname: "postgres".to_string(),
+                    user: "postgres".to_string(),
+                    password: Some("postgres".to_string()),
+                    max_connections: 5,
+                    data_dir: Some(data_dir),
+                    ..Default::default()
+                };
+
+                let backend = PostgresBackend::new(config)
+                    .await
+                    .expect("Failed to create PostgresBackend");
+
+                backend
+                    .init_schema()
+                    .await
+                    .expect("Failed to initialize schema");
+
+                SharedPg {
+                    host,
+                    port,
+                    _container: container,
+                }
+            })
+            .await
+    }
+
+    /// Creates a PostgresBackend connected to the shared testcontainers PostgreSQL instance.
     ///
-    /// Returns the backend and the container handle (must be kept alive for the
-    /// duration of the test).
-    async fn create_backend() -> (PostgresBackend, testcontainers::ContainerAsync<Postgres>) {
-        let container = Postgres::default()
-            .start()
-            .await
-            .expect("Failed to start PostgreSQL container");
-
-        let host_port = container
-            .get_host_port_ipv4(5432)
-            .await
-            .expect("Failed to get host port");
-
-        let host = container
-            .get_host()
-            .await
-            .expect("Failed to get host")
-            .to_string();
+    /// Schema is initialized once when the shared container starts; `init_schema()` is
+    /// idempotent (uses CREATE TABLE IF NOT EXISTS).
+    async fn create_backend() -> PostgresBackend {
+        let pg = shared_pg().await;
 
         let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .parent()
@@ -533,8 +585,8 @@ mod postgres_integration {
             .unwrap_or_else(|| PathBuf::from("data"));
 
         let config = PostgresConfig {
-            host,
-            port: host_port,
+            host: pg.host.clone(),
+            port: pg.port,
             dbname: "postgres".to_string(),
             user: "postgres".to_string(),
             password: Some("postgres".to_string()),
@@ -543,20 +595,15 @@ mod postgres_integration {
             ..Default::default()
         };
 
-        let backend = PostgresBackend::new(config)
+        PostgresBackend::new(config)
             .await
-            .expect("Failed to create PostgresBackend");
-
-        backend
-            .init_schema()
-            .await
-            .expect("Failed to initialize schema");
-
-        (backend, container)
+            .expect("Failed to create PostgresBackend")
     }
 
+    /// Creates a tenant with a unique ID suffix to isolate tests sharing the same database.
     fn create_tenant(id: &str) -> TenantContext {
-        TenantContext::new(TenantId::new(id), TenantPermissions::full_access())
+        let unique_id = format!("{}_{}", id, uuid::Uuid::new_v4().simple());
+        TenantContext::new(TenantId::new(&unique_id), TenantPermissions::full_access())
     }
 
     // ========================================================================
@@ -565,7 +612,7 @@ mod postgres_integration {
 
     #[tokio::test]
     async fn postgres_integration_create_resource() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         let patient = json!({
@@ -586,7 +633,7 @@ mod postgres_integration {
 
     #[tokio::test]
     async fn postgres_integration_create_with_id() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         let patient = json!({
@@ -604,7 +651,7 @@ mod postgres_integration {
 
     #[tokio::test]
     async fn postgres_integration_create_duplicate_fails() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         let patient = json!({
@@ -625,7 +672,7 @@ mod postgres_integration {
 
     #[tokio::test]
     async fn postgres_integration_read_resource() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         let patient = json!({
@@ -651,7 +698,7 @@ mod postgres_integration {
 
     #[tokio::test]
     async fn postgres_integration_read_nonexistent() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         let read = backend
@@ -663,7 +710,7 @@ mod postgres_integration {
 
     #[tokio::test]
     async fn postgres_integration_exists() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         let patient = json!({"resourceType": "Patient"});
@@ -688,7 +735,7 @@ mod postgres_integration {
 
     #[tokio::test]
     async fn postgres_integration_update_resource() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         let patient = json!({
@@ -717,7 +764,7 @@ mod postgres_integration {
 
     #[tokio::test]
     async fn postgres_integration_create_or_update() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         // Create via upsert
@@ -755,7 +802,7 @@ mod postgres_integration {
 
     #[tokio::test]
     async fn postgres_integration_delete_resource() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         let patient = json!({"resourceType": "Patient"});
@@ -781,7 +828,7 @@ mod postgres_integration {
 
     #[tokio::test]
     async fn postgres_integration_delete_nonexistent_fails() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         let result = backend.delete(&tenant, "Patient", "nonexistent").await;
@@ -794,7 +841,7 @@ mod postgres_integration {
 
     #[tokio::test]
     async fn postgres_integration_tenant_isolation() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant_a = create_tenant("tenant-a");
         let tenant_b = create_tenant("tenant-b");
 
@@ -823,7 +870,7 @@ mod postgres_integration {
 
     #[tokio::test]
     async fn postgres_integration_same_id_different_tenants() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant_a = create_tenant("tenant-a");
         let tenant_b = create_tenant("tenant-b");
 
@@ -872,7 +919,7 @@ mod postgres_integration {
 
     #[tokio::test]
     async fn postgres_integration_version_increments() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         let patient = json!({"resourceType": "Patient"});
@@ -901,7 +948,7 @@ mod postgres_integration {
 
     #[tokio::test]
     async fn postgres_integration_count_resources() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         for i in 0..5 {
@@ -918,7 +965,7 @@ mod postgres_integration {
 
     #[tokio::test]
     async fn postgres_integration_count_by_tenant() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant_a = create_tenant("tenant-a");
         let tenant_b = create_tenant("tenant-b");
 
@@ -948,7 +995,7 @@ mod postgres_integration {
 
     #[tokio::test]
     async fn postgres_integration_read_batch() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         let ids: Vec<String> = (0..3).map(|i| format!("batch-{}", i)).collect();
@@ -975,7 +1022,7 @@ mod postgres_integration {
 
     #[tokio::test]
     async fn postgres_integration_instance_history() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         let patient = json!({"resourceType": "Patient", "name": [{"family": "V1"}]});
@@ -1020,7 +1067,7 @@ mod postgres_integration {
 
     #[tokio::test]
     async fn postgres_integration_content_preserved() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         let patient = json!({
@@ -1071,7 +1118,7 @@ mod postgres_integration {
             SearchParamType, SearchParameter, SearchQuery, SearchValue,
         };
 
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         let patient = json!({
@@ -1109,7 +1156,7 @@ mod postgres_integration {
             SearchParamType, SearchParameter, SearchQuery, SearchValue,
         };
 
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         let patient = json!({
@@ -1145,7 +1192,7 @@ mod postgres_integration {
 
     #[tokio::test]
     async fn postgres_integration_health_check() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
 
         let result = backend.health_check().await;
         assert!(result.is_ok(), "Health check failed: {:?}", result.err());
@@ -1153,7 +1200,7 @@ mod postgres_integration {
 
     #[tokio::test]
     async fn postgres_integration_backend_kind() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
 
         assert_eq!(backend.kind(), BackendKind::Postgres);
         assert_eq!(backend.name(), "postgres");
@@ -1161,7 +1208,7 @@ mod postgres_integration {
 
     #[tokio::test]
     async fn postgres_integration_capabilities() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
 
         assert!(backend.supports(BackendCapability::Crud));
         assert!(backend.supports(BackendCapability::Versioning));
@@ -1178,7 +1225,7 @@ mod postgres_integration {
 
     #[tokio::test]
     async fn postgres_integration_unicode_content() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         let patient = json!({
@@ -1206,7 +1253,7 @@ mod postgres_integration {
 
     #[tokio::test]
     async fn postgres_integration_tenant_isolation_read() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant_a = create_tenant("tenant-a");
         let tenant_b = create_tenant("tenant-b");
 
@@ -1233,7 +1280,7 @@ mod postgres_integration {
 
     #[tokio::test]
     async fn postgres_integration_tenant_isolation_delete() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant_a = create_tenant("tenant-a");
         let tenant_b = create_tenant("tenant-b");
 
@@ -1262,7 +1309,7 @@ mod postgres_integration {
 
     #[tokio::test]
     async fn postgres_integration_read_batch_ignores_other_tenant() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant_a = create_tenant("tenant-a");
         let tenant_b = create_tenant("tenant-b");
 
@@ -1306,7 +1353,7 @@ mod postgres_integration {
     async fn postgres_integration_history_instance_detailed() {
         use helios_persistence::core::history::HistoryMethod;
 
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         let patient = json!({"resourceType": "Patient", "name": [{"family": "Smith"}]});
@@ -1363,7 +1410,7 @@ mod postgres_integration {
 
     #[tokio::test]
     async fn postgres_integration_history_instance_count() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         let patient = json!({"resourceType": "Patient"});
@@ -1391,7 +1438,7 @@ mod postgres_integration {
     async fn postgres_integration_history_with_delete() {
         use helios_persistence::core::history::HistoryMethod;
 
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         let patient = json!({"resourceType": "Patient", "id": "hist-patient"});
@@ -1425,7 +1472,7 @@ mod postgres_integration {
 
     #[tokio::test]
     async fn postgres_integration_history_tenant_isolation() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant_a = create_tenant("tenant-a");
         let tenant_b = create_tenant("tenant-b");
 
@@ -1466,7 +1513,7 @@ mod postgres_integration {
     async fn postgres_integration_history_type() {
         use helios_persistence::core::history::TypeHistoryProvider;
 
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         let p1 = backend
@@ -1526,7 +1573,7 @@ mod postgres_integration {
     async fn postgres_integration_history_type_count() {
         use helios_persistence::core::history::TypeHistoryProvider;
 
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         let p1 = backend
@@ -1579,7 +1626,7 @@ mod postgres_integration {
     async fn postgres_integration_history_type_tenant_isolation() {
         use helios_persistence::core::history::TypeHistoryProvider;
 
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant_a = create_tenant("tenant-a");
         let tenant_b = create_tenant("tenant-b");
 
@@ -1633,7 +1680,7 @@ mod postgres_integration {
     async fn postgres_integration_history_system() {
         use helios_persistence::core::history::SystemHistoryProvider;
 
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         let p1 = backend
@@ -1696,7 +1743,7 @@ mod postgres_integration {
     async fn postgres_integration_history_system_count() {
         use helios_persistence::core::history::SystemHistoryProvider;
 
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         let p1 = backend
@@ -1730,7 +1777,7 @@ mod postgres_integration {
     async fn postgres_integration_history_system_tenant_isolation() {
         use helios_persistence::core::history::SystemHistoryProvider;
 
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant_a = create_tenant("tenant-a");
         let tenant_b = create_tenant("tenant-b");
 
@@ -1790,7 +1837,7 @@ mod postgres_integration {
             SearchParamType, SearchParameter, SearchQuery, SearchValue,
         };
 
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         let patient = json!({
@@ -1830,7 +1877,7 @@ mod postgres_integration {
             SearchParamType, SearchParameter, SearchQuery, SearchValue,
         };
 
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         let patient = json!({
@@ -1876,7 +1923,7 @@ mod postgres_integration {
             SearchParamType, SearchParameter, SearchQuery, SearchValue,
         };
 
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         backend
@@ -1949,7 +1996,7 @@ mod postgres_integration {
             SearchParamType, SearchParameter, SearchQuery, SearchValue,
         };
 
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         backend
@@ -2001,7 +2048,7 @@ mod postgres_integration {
             SearchParamType, SearchParameter, SearchQuery, SearchValue,
         };
 
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         backend
@@ -2076,7 +2123,7 @@ mod postgres_integration {
             SearchParamType, SearchParameter, SearchQuery, SearchValue,
         };
 
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant_a = create_tenant("tenant-a");
         let tenant_b = create_tenant("tenant-b");
 
@@ -2121,7 +2168,7 @@ mod postgres_integration {
             SearchParamType, SearchParameter, SearchQuery, SearchValue,
         };
 
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         backend
@@ -2189,7 +2236,7 @@ mod postgres_integration {
     async fn postgres_integration_conditional_create() {
         use helios_persistence::core::{ConditionalCreateResult, ConditionalStorage};
 
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         let patient = json!({
@@ -2219,7 +2266,7 @@ mod postgres_integration {
     async fn postgres_integration_conditional_create_exists() {
         use helios_persistence::core::{ConditionalCreateResult, ConditionalStorage};
 
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         let patient = json!({
@@ -2268,7 +2315,7 @@ mod postgres_integration {
     async fn postgres_integration_conditional_create_multiple_matches() {
         use helios_persistence::core::{ConditionalCreateResult, ConditionalStorage};
 
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         backend
@@ -2321,7 +2368,7 @@ mod postgres_integration {
     async fn postgres_integration_conditional_update() {
         use helios_persistence::core::{ConditionalStorage, ConditionalUpdateResult};
 
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         backend
@@ -2378,7 +2425,7 @@ mod postgres_integration {
             SearchParamType, SearchParameter, SearchQuery, SearchValue,
         };
 
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         backend
@@ -2433,7 +2480,7 @@ mod postgres_integration {
     async fn postgres_integration_reindex_list_types() {
         use helios_persistence::search::ReindexableStorage;
 
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         backend
@@ -2476,7 +2523,7 @@ mod postgres_integration {
     async fn postgres_integration_reindex_count() {
         use helios_persistence::search::ReindexableStorage;
 
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         for i in 1..=5 {
@@ -2508,7 +2555,7 @@ mod postgres_integration {
     async fn postgres_integration_reindex_fetch_page() {
         use helios_persistence::search::ReindexableStorage;
 
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         for i in 1..=10 {

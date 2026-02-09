@@ -579,36 +579,61 @@ mod es_integration {
     use helios_persistence::error::{ResourceError, StorageError};
     use helios_persistence::tenant::{TenantContext, TenantId, TenantPermissions};
 
+    use testcontainers::ImageExt;
     use testcontainers::runners::AsyncRunner;
     use testcontainers_modules::elastic_search::ElasticSearch;
+    use tokio::sync::OnceCell;
 
-    /// Creates an ElasticsearchBackend connected to a testcontainers ES instance.
+    /// Shared Elasticsearch container reused across all tests in this module.
+    struct SharedEs {
+        host: String,
+        port: u16,
+        /// Kept alive for the duration of the test binary; dropped at process exit.
+        _container: testcontainers::ContainerAsync<ElasticSearch>,
+    }
+
+    static SHARED_ES: OnceCell<SharedEs> = OnceCell::const_new();
+
+    async fn shared_es() -> &'static SharedEs {
+        SHARED_ES
+            .get_or_init(|| async {
+                let container = ElasticSearch::default()
+                    .with_env_var("ES_JAVA_OPTS", "-Xms256m -Xmx256m")
+                    .start()
+                    .await
+                    .expect("Failed to start Elasticsearch container");
+
+                let port = container
+                    .get_host_port_ipv4(9200)
+                    .await
+                    .expect("Failed to get host port");
+
+                let host = container
+                    .get_host()
+                    .await
+                    .expect("Failed to get host")
+                    .to_string();
+
+                SharedEs {
+                    host,
+                    port,
+                    _container: container,
+                }
+            })
+            .await
+    }
+
+    /// Creates an ElasticsearchBackend connected to the shared testcontainers ES instance.
     ///
-    /// Returns the backend and the container handle (must be kept alive for the
-    /// duration of the test).
-    async fn create_backend() -> (
-        ElasticsearchBackend,
-        testcontainers::ContainerAsync<ElasticSearch>,
-    ) {
-        let container = ElasticSearch::default()
-            .start()
-            .await
-            .expect("Failed to start Elasticsearch container");
-
-        let host_port = container
-            .get_host_port_ipv4(9200)
-            .await
-            .expect("Failed to get host port");
-
-        let host = container
-            .get_host()
-            .await
-            .expect("Failed to get host")
-            .to_string();
+    /// Each call uses a unique index prefix (via UUID) so tests are fully isolated
+    /// without needing separate containers.
+    async fn create_backend() -> ElasticsearchBackend {
+        let es = shared_es().await;
+        let unique_prefix = format!("hfs_{}", uuid::Uuid::new_v4().simple());
 
         let config = ElasticsearchConfig {
-            nodes: vec![format!("http://{}:{}", host, host_port)],
-            index_prefix: "hfs".to_string(),
+            nodes: vec![format!("http://{}:{}", es.host, es.port)],
+            index_prefix: unique_prefix,
             number_of_replicas: 0, // single-node, no replicas needed
             refresh_interval: "1ms".to_string(), // near-instant refresh for tests
             ..Default::default()
@@ -622,7 +647,7 @@ mod es_integration {
             .await
             .expect("Failed to initialize ES backend");
 
-        (backend, container)
+        backend
     }
 
     fn create_tenant(id: &str) -> TenantContext {
@@ -635,7 +660,7 @@ mod es_integration {
 
     #[tokio::test]
     async fn es_integration_create_resource() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         let patient = json!({
@@ -656,7 +681,7 @@ mod es_integration {
 
     #[tokio::test]
     async fn es_integration_create_with_id() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         let patient = json!({
@@ -674,7 +699,7 @@ mod es_integration {
 
     #[tokio::test]
     async fn es_integration_create_duplicate_fails() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         let patient = json!({
@@ -695,7 +720,7 @@ mod es_integration {
 
     #[tokio::test]
     async fn es_integration_read_resource() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         let patient = json!({
@@ -721,7 +746,7 @@ mod es_integration {
 
     #[tokio::test]
     async fn es_integration_read_nonexistent() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         let read = backend
@@ -733,7 +758,7 @@ mod es_integration {
 
     #[tokio::test]
     async fn es_integration_exists() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         let patient = json!({"resourceType": "Patient"});
@@ -762,7 +787,7 @@ mod es_integration {
 
     #[tokio::test]
     async fn es_integration_update_resource() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         let patient = json!({
@@ -791,7 +816,7 @@ mod es_integration {
 
     #[tokio::test]
     async fn es_integration_create_or_update_creates() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         let patient = json!({"resourceType": "Patient", "name": [{"family": "First"}]});
@@ -812,7 +837,7 @@ mod es_integration {
 
     #[tokio::test]
     async fn es_integration_create_or_update_updates() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         // Create via upsert
@@ -851,7 +876,7 @@ mod es_integration {
 
     #[tokio::test]
     async fn es_integration_delete_resource() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         let patient = json!({"resourceType": "Patient"});
@@ -877,7 +902,7 @@ mod es_integration {
 
     #[tokio::test]
     async fn es_integration_delete_nonexistent_fails() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         let result = backend.delete(&tenant, "Patient", "nonexistent").await;
@@ -890,7 +915,7 @@ mod es_integration {
 
     #[tokio::test]
     async fn es_integration_tenant_isolation() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant_a = create_tenant("tenant-a");
         let tenant_b = create_tenant("tenant-b");
 
@@ -919,7 +944,7 @@ mod es_integration {
 
     #[tokio::test]
     async fn es_integration_same_id_different_tenants() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant_a = create_tenant("tenant-a");
         let tenant_b = create_tenant("tenant-b");
 
@@ -969,7 +994,7 @@ mod es_integration {
             SearchParamType, SearchParameter, SearchQuery, SearchValue,
         };
 
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant_a = create_tenant("tenant-a");
         let tenant_b = create_tenant("tenant-b");
 
@@ -1016,7 +1041,7 @@ mod es_integration {
 
     #[tokio::test]
     async fn es_integration_tenant_isolation_delete() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant_a = create_tenant("tenant-a");
         let tenant_b = create_tenant("tenant-b");
 
@@ -1045,7 +1070,7 @@ mod es_integration {
 
     #[tokio::test]
     async fn es_integration_count_resources() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         for i in 0..5 {
@@ -1065,7 +1090,7 @@ mod es_integration {
 
     #[tokio::test]
     async fn es_integration_count_by_tenant() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant_a = create_tenant("tenant-a");
         let tenant_b = create_tenant("tenant-b");
 
@@ -1098,7 +1123,7 @@ mod es_integration {
 
     #[tokio::test]
     async fn es_integration_content_preserved() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         let patient = json!({
@@ -1140,7 +1165,7 @@ mod es_integration {
 
     #[tokio::test]
     async fn es_integration_unicode_content() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         let patient = json!({
@@ -1173,7 +1198,7 @@ mod es_integration {
             SearchParamType, SearchParameter, SearchQuery, SearchValue,
         };
 
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         backend
@@ -1217,7 +1242,7 @@ mod es_integration {
             SearchParamType, SearchParameter, SearchQuery, SearchValue,
         };
 
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         backend
@@ -1293,7 +1318,7 @@ mod es_integration {
             SearchParamType, SearchParameter, SearchQuery, SearchValue,
         };
 
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         backend
@@ -1348,7 +1373,7 @@ mod es_integration {
             SearchParamType, SearchParameter, SearchQuery, SearchValue,
         };
 
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         backend
@@ -1404,7 +1429,7 @@ mod es_integration {
             SearchParamType, SearchParameter, SearchQuery, SearchValue,
         };
 
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         backend
@@ -1463,7 +1488,7 @@ mod es_integration {
             SearchParamType, SearchParameter, SearchQuery, SearchValue,
         };
 
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         backend
@@ -1518,7 +1543,7 @@ mod es_integration {
             SearchParamType, SearchParameter, SearchQuery, SearchValue,
         };
 
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         backend
@@ -1577,7 +1602,7 @@ mod es_integration {
             SearchParamType, SearchParameter, SearchQuery, SearchValue,
         };
 
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         backend
@@ -1622,7 +1647,7 @@ mod es_integration {
             SearchParamType, SearchParameter, SearchPrefix, SearchQuery, SearchValue,
         };
 
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         backend
@@ -1665,7 +1690,7 @@ mod es_integration {
             SearchParamType, SearchParameter, SearchQuery, SearchValue,
         };
 
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         backend
@@ -1707,7 +1732,7 @@ mod es_integration {
             SearchParamType, SearchParameter, SearchQuery, SearchValue,
         };
 
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         backend
@@ -1777,7 +1802,7 @@ mod es_integration {
             SearchParamType, SearchParameter, SearchQuery, SearchValue,
         };
 
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         backend
@@ -1850,7 +1875,7 @@ mod es_integration {
             SearchParamType, SearchParameter, SearchQuery, SearchValue,
         };
 
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         backend
@@ -1903,7 +1928,7 @@ mod es_integration {
             SearchParamType, SearchParameter, SearchPrefix, SearchQuery, SearchValue,
         };
 
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         backend
@@ -1950,7 +1975,7 @@ mod es_integration {
             SearchParamType, SearchParameter, SearchQuery, SearchValue,
         };
 
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         backend
@@ -2010,7 +2035,7 @@ mod es_integration {
             SearchParamType, SearchParameter, SearchQuery, SearchValue,
         };
 
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         backend
@@ -2073,7 +2098,7 @@ mod es_integration {
             SearchModifier, SearchParamType, SearchParameter, SearchQuery, SearchValue,
         };
 
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
         let tenant = create_tenant("test-tenant");
 
         backend
@@ -2142,7 +2167,7 @@ mod es_integration {
 
     #[tokio::test]
     async fn es_integration_health_check() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
 
         let result = backend.health_check().await;
         assert!(result.is_ok(), "Health check failed: {:?}", result.err());
@@ -2150,7 +2175,7 @@ mod es_integration {
 
     #[tokio::test]
     async fn es_integration_backend_kind() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
 
         assert_eq!(backend.kind(), BackendKind::Elasticsearch);
         assert_eq!(backend.name(), "elasticsearch");
@@ -2158,7 +2183,7 @@ mod es_integration {
 
     #[tokio::test]
     async fn es_integration_capabilities() {
-        let (backend, _container) = create_backend().await;
+        let backend = create_backend().await;
 
         assert!(backend.supports(BackendCapability::Crud));
         assert!(backend.supports(BackendCapability::BasicSearch));
