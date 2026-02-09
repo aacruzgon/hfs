@@ -17,7 +17,7 @@ env:
 jobs:
   test-rust:
     name: Test Rust
-    runs-on: [self-hosted, Docker]
+    runs-on: [self-hosted]
     strategy:
       fail-fast: false
       matrix:
