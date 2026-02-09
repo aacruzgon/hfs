@@ -581,7 +581,10 @@ mod es_integration {
     use helios_persistence::backends::elasticsearch::{ElasticsearchBackend, ElasticsearchConfig};
     use helios_persistence::core::{Backend, BackendCapability, BackendKind, ResourceStorage};
     use helios_persistence::error::{ResourceError, StorageError};
-    use helios_persistence::search::{SearchParameterLoader, SearchParameterRegistry};
+    use helios_persistence::search::{
+        SearchParameterDefinition, SearchParameterLoader, SearchParameterRegistry,
+        SearchParameterSource, SearchParameterStatus,
+    };
     use helios_persistence::tenant::{TenantContext, TenantId, TenantPermissions};
 
     use testcontainers::ImageExt;
@@ -652,6 +655,29 @@ mod es_integration {
                 let _ = registry.register(param);
             }
         }
+
+        // Override value-quantity with a direct-path expression.
+        // The spec's expression uses FHIRPath `as` operator and choice-type resolution
+        // (e.g., `Observation.value as Quantity`) which the extractor can't evaluate
+        // against raw JSON. Use the concrete JSON field name instead.
+        let _ = registry.register(SearchParameterDefinition {
+            url: "http://test.local/SearchParameter/Observation-value-quantity".to_string(),
+            code: "value-quantity".to_string(),
+            name: Some("value-quantity".to_string()),
+            description: None,
+            param_type: helios_persistence::types::SearchParamType::Quantity,
+            expression: "Observation.valueQuantity".to_string(),
+            base: vec!["Observation".to_string()],
+            target: None,
+            component: None,
+            status: SearchParameterStatus::Active,
+            source: SearchParameterSource::Config,
+            modifier: None,
+            multiple_or: None,
+            multiple_and: None,
+            comparator: None,
+            xpath: None,
+        });
 
         Arc::new(RwLock::new(registry))
     }
@@ -1678,7 +1704,7 @@ mod es_integration {
             name: "value-quantity".to_string(),
             param_type: SearchParamType::Quantity,
             modifier: None,
-            values: vec![SearchValue::eq("72||beats/min")],
+            values: vec![SearchValue::eq("72|http://unitsofmeasure.org|/min")],
             chain: vec![],
             components: vec![],
         });
