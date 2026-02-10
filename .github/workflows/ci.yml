@@ -68,7 +68,7 @@ jobs:
 
       - name: Cleanup stale test containers (Windows)
         if: runner.os == 'Windows'
-        shell: pwsh
+        shell: powershell
         run: |
           $ids = docker ps -q --filter "label=org.testcontainers.managed-by=testcontainers"
           if ($ids) { docker rm -f $ids }
@@ -84,7 +84,7 @@ jobs:
 
       - name: Cleanup test containers (Windows)
         if: always() && runner.os == 'Windows'
-        shell: pwsh
+        shell: powershell
         run: |
           $ids = docker ps -q --filter "label=org.testcontainers.managed-by=testcontainers"
           if ($ids) { docker rm -f $ids }
