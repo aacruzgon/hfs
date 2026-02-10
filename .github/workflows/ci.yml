@@ -61,9 +61,20 @@ jobs:
           echo 'linker = "clang"' >> ~/.cargo/config.toml
           echo 'rustflags = ["-C", "link-arg=-Wl,-dead_strip", "-C", "link-arg=-undefined", "-C", "link-arg=dynamic_lookup"]' >> ~/.cargo/config.toml
 
+      - name: Cleanup stale test containers
+        shell: bash
+        run: |
+          docker rm -f $(docker ps -q --filter "label=org.testcontainers.managed-by=testcontainers") 2>/dev/null || true
+
       - name: Run tests with all features
         run: |
           cargo test --workspace --all-features
+
+      - name: Cleanup test containers
+        if: always()
+        shell: bash
+        run: |
+          docker rm -f $(docker ps -q --filter "label=org.testcontainers.managed-by=testcontainers") 2>/dev/null || true
 
   test-python:
     name: Test Python
