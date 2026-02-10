@@ -607,6 +607,7 @@ mod es_integration {
             .get_or_init(|| async {
                 let container = ElasticSearch::default()
                     .with_env_var("ES_JAVA_OPTS", "-Xms256m -Xmx256m")
+                    .with_startup_timeout(std::time::Duration::from_secs(120))
                     .start()
                     .await
                     .expect("Failed to start Elasticsearch container");
