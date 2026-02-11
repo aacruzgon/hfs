@@ -15,7 +15,7 @@ env:
 jobs:
   build:
     name: Build HFS
-    runs-on: [self-hosted, Linux, Docker]
+    runs-on: [self-hosted, Linux]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -46,7 +46,7 @@ jobs:
   inferno-test:
     name: Inferno US Core ${{ matrix.version_label }} Tests (${{ matrix.backend }})
     needs: build
-    runs-on: [self-hosted, Linux, Docker]
+    runs-on: [self-hosted, Linux]
     strategy:
       fail-fast: false
       matrix:
