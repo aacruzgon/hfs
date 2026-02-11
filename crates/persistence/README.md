@@ -346,13 +346,13 @@ The matrix below shows which FHIR operations each backend supports. This reflect
 | [_revinclude](https://build.fhir.org/search.html#revinclude) | ✓ | ✓ | ○ | ✗ | ○ | ✓ | ✗ |
 | **[Pagination](https://build.fhir.org/http.html#paging)** |
 | Offset | ✓ | ✓ | ○ | ✗ | ○ | ✓ | ✗ |
-| Cursor (keyset) | ✓ | ○ | ○ | ○ | ○ | ✓ | ○ |
+| Cursor (keyset) | ✓ | ✓ | ○ | ○ | ○ | ✓ | ○ |
 | **[Sorting](https://build.fhir.org/search.html#sort)** |
 | Single field | ✓ | ✓ | ○ | ✗ | ○ | ✓ | ✗ |
 | Multiple fields | ✓ | ✓ | ○ | ✗ | ○ | ✓ | ✗ |
 | **[Bulk Operations](https://hl7.org/fhir/uv/bulkdata/)** |
-| [Bulk Export](https://hl7.org/fhir/uv/bulkdata/export.html) | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
-| [Bulk Submit](https://hackmd.io/@argonaut/rJoqHZrPle) | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
+| [Bulk Export](https://hl7.org/fhir/uv/bulkdata/export.html) | ✓ | ✓ | ○ | ○ | ○ | ○ | ○ |
+| [Bulk Submit](https://hackmd.io/@argonaut/rJoqHZrPle) | ✓ | ✓ | ○ | ○ | ○ | ○ | ○ |
 
 ### Primary/Secondary Role Matrix
 
@@ -363,7 +363,7 @@ Backends can serve as primary (CRUD, versioning, transactions) or secondary (opt
 | SQLite alone | SQLite | — | ✓ Implemented | Development, testing, small deployments |
 | SQLite + Elasticsearch | SQLite | Elasticsearch (search) | ✓ Implemented | Small prod with robust search |
 | PostgreSQL alone | PostgreSQL | — | ✓ Implemented | Production OLTP |
-| PostgreSQL + Elasticsearch | PostgreSQL | Elasticsearch (search) | Planned | OLTP + advanced search |
+| PostgreSQL + Elasticsearch | PostgreSQL | Elasticsearch (search) | ✓ Implemented | OLTP + advanced search |
 | PostgreSQL + Neo4j | PostgreSQL | Neo4j (graph) | Planned | Graph-heavy queries |
 | Cassandra alone | Cassandra | — | Planned | High write throughput |
 | Cassandra + Elasticsearch | Cassandra | Elasticsearch (search) | Planned | Write-heavy + search |
@@ -632,8 +632,23 @@ The SQLite backend includes a complete FHIR search implementation using pre-comp
 - [x] Multi-field sorting
 - [x] Search offloading: when Elasticsearch is the search secondary, the primary backend skips search index population
 
+### Phase 5b: PostgreSQL Backend ✓
+- [x] Connection pooling (deadpool-postgres)
+- [x] Schema migrations with JSONB storage
+- [x] ResourceStorage implementation (CRUD)
+- [x] VersionedStorage implementation (vread, If-Match)
+- [x] History providers (instance, type, system)
+- [x] TransactionProvider with configurable isolation levels
+- [x] Conditional operations (conditional create/update/delete)
+- [x] SearchProvider with all parameter types
+- [x] ChainedSearchProvider and reverse chaining (_has)
+- [x] Full-text search (tsvector/tsquery)
+- [x] `_include` and `_revinclude` resolution
+- [x] BulkExportStorage and BulkSubmitProvider
+- [x] Search offloading support
+- [x] ReindexableStorage implementation
+
 ### Phase 5+: Additional Backends (Planned)
-- [ ] PostgreSQL backend (JSONB, GIN indexes, RLS)
 - [ ] Cassandra backend (wide-column, partition keys)
 - [ ] MongoDB backend (document storage, aggregation)
 - [ ] Neo4j backend (graph queries, Cypher)
@@ -665,12 +680,14 @@ The composite storage layer enables polyglot persistence by coordinating multipl
 
 ### Valid Backend Configurations
 
-| Configuration | Primary | Secondary(s) | Use Case |
-|---------------|---------|--------------|----------|
-| SQLite-only | SQLite | None | Development, small deployments |
-| SQLite + ES | SQLite | Elasticsearch | Production with robust text search |
-| S3 + ES | S3 | Elasticsearch | Large-scale, cheap storage |
-| PostgreSQL + Neo4j | PostgreSQL | Neo4j | Graph-heavy queries |
+| Configuration | Primary | Secondary(s) | Status | Use Case |
+|---------------|---------|--------------|--------|----------|
+| SQLite-only | SQLite | None | ✓ Implemented | Development, small deployments |
+| SQLite + ES | SQLite | Elasticsearch | ✓ Implemented | Small prod with robust search |
+| PostgreSQL-only | PostgreSQL | None | ✓ Implemented | Production OLTP |
+| PostgreSQL + ES | PostgreSQL | Elasticsearch | ✓ Implemented | OLTP + advanced search |
+| PostgreSQL + Neo4j | PostgreSQL | Neo4j | Planned | Graph-heavy queries |
+| S3 + ES | S3 | Elasticsearch | Planned | Large-scale, cheap storage |
 
 ### Quick Start
 
