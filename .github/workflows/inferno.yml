@@ -9,6 +9,7 @@ env:
   CARGO_BUILD_JOBS: 1
   CARGO_PROFILE_DEV_DEBUG: 0
   HFS_PORT: 8088
+  INFERNO_PORT: ${{ vars.INFERNO_PORT || '4568' }}
   # Remote Docker host (set via GitHub repository variables; leave unset for local Docker)
   DOCKER_HOST: ${{ vars.DOCKER_HOST || '' }}
   DOCKER_HOST_IP: ${{ vars.DOCKER_HOST_IP || 'localhost' }}
@@ -61,10 +62,6 @@ jobs:
           - { suite_id: us_core_v700, version_label: "v7.0.0" }
           - { suite_id: us_core_v800, version_label: "v8.0.0" }
     steps:
-      - name: Clean up files from previous run
-        run: |
-          rm -rf us-core-test-kit 2>/dev/null || sudo rm -rf us-core-test-kit 2>/dev/null || true
-
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -79,22 +76,14 @@ jobs:
 
       - name: Determine runner IP
         run: |
-          # Get the runner's IP reachable from the Docker host network.
-          # For local Docker, host-gateway is Docker's built-in alias for the host IP.
-          # For remote Docker, we need the actual IP so containers can reach HFS on this runner.
-          if [ -n "$DOCKER_HOST" ]; then
-            RUNNER_IP=$(hostname -I | awk '{print $1}')
-          else
-            RUNNER_IP="host-gateway"
-          fi
+          # Get the runner's IP so the persistent Inferno container can reach HFS on this runner.
+          RUNNER_IP=$(hostname -I | awk '{print $1}')
           echo "RUNNER_IP=$RUNNER_IP" >> $GITHUB_ENV
           echo "Runner IP: $RUNNER_IP"
 
       - name: Set version-specific variables
         run: |
           SUITE=${{ matrix.suite_id }}
-          BACKEND=${{ matrix.backend }}
-          echo "COMPOSE_PROJECT_NAME=inferno-ci-${SUITE}-${BACKEND}" >> $GITHUB_ENV
           echo "TEST_GROUP_ID=${SUITE}-${SUITE}_fhir_api" >> $GITHUB_ENV
 
           # CapabilityStatement tests: server doesn't yet declare US Core profiles/instantiates
@@ -221,98 +210,18 @@ jobs:
         run: |
           ./crates/hfs/tests/inferno/install.sh
 
-      - name: Clean up any previous Inferno state
-        run: |
-          echo "Cleaning up any previous Inferno containers, volumes, and directories..."
-          # Stop any running containers from previous runs (use explicit project name)
-          if [ -d us-core-test-kit ]; then
-            docker compose -p $COMPOSE_PROJECT_NAME -f us-core-test-kit/docker-compose.yml down -v --remove-orphans 2>/dev/null || true
-          fi
-          # Remove any orphaned volumes (note: uses project name prefix)
-          docker volume rm ${COMPOSE_PROJECT_NAME}_redis 2>/dev/null || true
-          docker volume rm ${COMPOSE_PROJECT_NAME}_redis-data 2>/dev/null || true
-          rm -rf us-core-test-kit 2>/dev/null || sudo rm -rf us-core-test-kit 2>/dev/null || true
-          echo "Cleanup complete"
-
-      - name: Clone Inferno US Core Test Kit
-        run: |
-          git clone --depth 1 https://github.com/inferno-framework/us-core-test-kit.git us-core-test-kit
-
-      - name: Configure Inferno port and networking
-        run: |
-          # Create docker-compose.override.yml to:
-          # 1. Use a random host port for nginx (avoids clashes with parallel jobs)
-          # 2. Map host.docker.internal to the runner's IP (works with both local and remote Docker)
-          # 3. Disable TLS tests (HFS runs HTTP in CI; TLS would require nginx/certs)
-          printf '%s\n' \
-            'services:' \
-            '  nginx:' \
-            '    ports:' \
-            '      - "0:80"' \
-            '  inferno:' \
-            '    extra_hosts:' \
-            "      - \"host.docker.internal:${RUNNER_IP}\"" \
-            '    environment:' \
-            '      - INFERNO_DISABLE_TLS_TEST=true' \
-            '  worker:' \
-            '    extra_hosts:' \
-            "      - \"host.docker.internal:${RUNNER_IP}\"" \
-            '    environment:' \
-            '      - INFERNO_DISABLE_TLS_TEST=true' \
-            > us-core-test-kit/docker-compose.override.yml
-          echo "Configured Inferno with random nginx port, host.docker.internal=${RUNNER_IP}"
-          echo "TLS tests disabled (INFERNO_DISABLE_TLS_TEST=true)"
-
-      - name: Fix port bindings and volumes in compose files
-        run: |
-          # Docker Compose merges port arrays, so overrides add rather than replace.
-          # Modify the background file directly instead.
-          # 1. Remove Redis ports (internal network is sufficient)
-          sed -i -n '/ports:/{N;/6379:6379/d;P;D};p' us-core-test-kit/docker-compose.background.yml
-          # 2. Change nginx port to 0 (random) to avoid conflicts with parallel jobs
-          sed -i 's/"80:80"/"0:80"/' us-core-test-kit/docker-compose.background.yml
-          # 3. Remove Redis bind mounts (avoids path issues with remote Docker; not needed in CI)
-          sed -i '/\.\/data\/redis/d' us-core-test-kit/docker-compose.yml 2>/dev/null || true
-          sed -i '/\.\/data\/redis/d' us-core-test-kit/docker-compose.background.yml 2>/dev/null || true
-          echo "Fixed port bindings and removed Redis bind mounts"
-
-      - name: Clean up orphan containers from previous runs
-        working-directory: us-core-test-kit
-        run: |
-          echo "Stopping any orphan containers from previous runs..."
-          docker compose -p $COMPOSE_PROJECT_NAME down -v --remove-orphans 2>/dev/null || true
-
-      - name: Setup Inferno
-        working-directory: us-core-test-kit
-        run: |
-          echo "Running Inferno setup..."
-          ./setup.sh
-
-      - name: Start Inferno
-        working-directory: us-core-test-kit
-        run: |
-          echo "Starting Inferno..."
-          ./run.sh &
-          echo "Inferno starting in background..."
-
       - name: Wait for Inferno to be ready
         run: |
-          echo "Waiting for Inferno to start..."
-          for i in {1..60}; do
-            # Discover the random nginx port (may not be available until container starts)
-            INFERNO_PORT=$(docker port ${COMPOSE_PROJECT_NAME}-nginx-1 80 2>/dev/null | head -1 | sed 's/.*://')
-            if [ -n "$INFERNO_PORT" ]; then
-              if curl -sf http://$DOCKER_HOST_IP:$INFERNO_PORT/api/test_suites > /dev/null 2>&1; then
-                echo "Inferno is ready on port $INFERNO_PORT"
-                echo "INFERNO_PORT=$INFERNO_PORT" >> $GITHUB_ENV
-                exit 0
-              fi
+          echo "Waiting for persistent Inferno container to respond..."
+          for i in {1..30}; do
+            if curl -sf "http://$DOCKER_HOST_IP:$INFERNO_PORT/api/test_suites" > /dev/null 2>&1; then
+              echo "Inferno is ready on $DOCKER_HOST_IP:$INFERNO_PORT"
+              exit 0
             fi
-            echo "Attempt $i/60: Inferno not ready yet..."
-            sleep 5
+            echo "Attempt $i/30: Inferno not ready yet..."
+            sleep 2
           done
-          echo "Inferno failed to start"
-          docker compose -p $COMPOSE_PROJECT_NAME -f us-core-test-kit/docker-compose.yml logs
+          echo "Inferno is not reachable at http://$DOCKER_HOST_IP:$INFERNO_PORT"
           exit 1
 
       - name: Create results directory
@@ -335,7 +244,7 @@ jobs:
           echo "$SESSION_RESPONSE" > inferno-results/session.json
 
           # Start the test run
-          # Note: host.docker.internal is used so Docker containers can reach the host
+          # Note: RUNNER_IP is used so the Inferno container can reach HFS on the runner
           # Note: smart_auth_info with auth_type=public allows testing without SMART OAuth
           echo "Starting test run..."
           RUN_RESPONSE=$(curl -s -X POST "http://$DOCKER_HOST_IP:$INFERNO_PORT/api/test_runs" \
@@ -344,7 +253,7 @@ jobs:
               \"test_session_id\": \"$SESSION_ID\",
               \"test_group_id\": \"$TEST_GROUP_ID\",
               \"inputs\": [
-                {\"name\": \"url\", \"value\": \"http://host.docker.internal:$HFS_PORT\"},
+                {\"name\": \"url\", \"value\": \"http://$RUNNER_IP:$HFS_PORT\"},
                 {\"name\": \"patient_ids\", \"value\": \"85,355,907,908,us-core-client-tests-patient\"},
                 {\"name\": \"smart_auth_info\", \"value\": \"{\\\"auth_type\\\":\\\"public\\\"}\"}
               ]
@@ -498,11 +407,5 @@ jobs:
 
           echo "Stopping PostgreSQL..."
           docker rm -f "${PG_CONTAINER:-none}" 2>/dev/null || true
-
-          echo "Stopping Inferno..."
-          if [ -d us-core-test-kit ]; then
-            docker compose -p $COMPOSE_PROJECT_NAME -f us-core-test-kit/docker-compose.yml down -v --remove-orphans 2>/dev/null || true
-          fi
-          rm -rf us-core-test-kit 2>/dev/null || sudo rm -rf us-core-test-kit 2>/dev/null || true
 
           echo "Cleanup complete"
