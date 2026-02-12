@@ -90,11 +90,24 @@ jobs:
           OMITTED="\"${SUITE}-${SUITE}_fhir_api-${SUITE}_capability_statement-us_core_conformance_support\""
           OMITTED="${OMITTED},\"${SUITE}-${SUITE}_fhir_api-${SUITE}_capability_statement-us_core_profile_support\""
           OMITTED="${OMITTED},\"${SUITE}-${SUITE}_fhir_api-${SUITE}_capability_statement-us_core_instantiate\""
+          # TLS test: HFS does not serve HTTPS
+          OMITTED="${OMITTED},\"${SUITE}-${SUITE}_fhir_api-${SUITE}_capability_statement-standalone_auth_tls\""
+          # DataAbsentReason: test data does not include DAR extensions/code systems
+          # Note: Inferno uses "us_core_311" naming for this group across all US Core versions
+          OMITTED="${OMITTED},\"${SUITE}-${SUITE}_fhir_api-us_core_311_data_absent_reason-us_core_311_data_absent_reason_extension\""
+          OMITTED="${OMITTED},\"${SUITE}-${SUITE}_fhir_api-us_core_311_data_absent_reason-us_core_311_data_absent_reason_code_system\""
 
           case "$SUITE" in
             us_core_v501|us_core_v610|us_core_v700|us_core_v800)
               # ServiceRequest uses US-edition SNOMED code (467771000124109) not in International Edition; Inferno validator can't resolve it
               OMITTED="${OMITTED},\"${SUITE}-${SUITE}_fhir_api-${SUITE}_service_request-${SUITE}_service_request_validation_test\""
+              ;;
+          esac
+
+          case "$SUITE" in
+            us_core_v610|us_core_v700)
+              # No Practitioner references found in test data for these versions
+              OMITTED="${OMITTED},\"${SUITE}-${SUITE}_fhir_api-${SUITE}_practitioner-${SUITE}_practitioner_address_test\""
               ;;
           esac
 
