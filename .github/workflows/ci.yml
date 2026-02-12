@@ -13,10 +13,10 @@ env:
   RUST_MIN_STACK: 8388608
   CARGO_BUILD_JOBS: 1
   CARGO_PROFILE_DEV_DEBUG: 0
-  # Remote Docker host (set via GitHub repository variables; leave unset for local Docker)
+  # Remote Docker host (set via GitHub repository secrets or variables; leave unset for local Docker)
   # Testcontainers Ryuk sidecar handles container cleanup automatically
-  DOCKER_HOST: ${{ vars.DOCKER_HOST || '' }}
-  TESTCONTAINERS_HOST_OVERRIDE: ${{ vars.DOCKER_HOST_IP || 'localhost' }}
+  DOCKER_HOST: ${{ secrets.DOCKER_HOST || vars.DOCKER_HOST || '' }}
+  TESTCONTAINERS_HOST_OVERRIDE: ${{ secrets.DOCKER_HOST_IP || vars.DOCKER_HOST_IP || 'localhost' }}
 
 jobs:
   test-rust:
