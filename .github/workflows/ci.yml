@@ -13,6 +13,10 @@ env:
   RUST_MIN_STACK: 8388608
   CARGO_BUILD_JOBS: 1
   CARGO_PROFILE_DEV_DEBUG: 0
+  # Remote Docker host (set via GitHub repository variables; leave unset for local Docker)
+  # Testcontainers Ryuk sidecar handles container cleanup automatically
+  DOCKER_HOST: ${{ vars.DOCKER_HOST || '' }}
+  TESTCONTAINERS_HOST_OVERRIDE: ${{ vars.DOCKER_HOST_IP || 'localhost' }}
 
 jobs:
   test-rust:
@@ -61,33 +65,9 @@ jobs:
           echo 'linker = "clang"' >> ~/.cargo/config.toml
           echo 'rustflags = ["-C", "link-arg=-Wl,-dead_strip", "-C", "link-arg=-undefined", "-C", "link-arg=dynamic_lookup"]' >> ~/.cargo/config.toml
 
-      - name: Cleanup stale test containers (Unix)
-        if: runner.os != 'Windows'
-        run: |
-          docker rm -f $(docker ps -q --filter "label=org.testcontainers.managed-by=testcontainers") 2>/dev/null || true
-
-      - name: Cleanup stale test containers (Windows)
-        if: runner.os == 'Windows'
-        shell: powershell
-        run: |
-          $ids = docker ps -q --filter "label=org.testcontainers.managed-by=testcontainers"
-          if ($ids) { docker rm -f $ids }
-
       - name: Run tests with all features
         run: |
           cargo test --workspace --all-features
-
-      - name: Cleanup test containers (Unix)
-        if: always() && runner.os != 'Windows'
-        run: |
-          docker rm -f $(docker ps -q --filter "label=org.testcontainers.managed-by=testcontainers") 2>/dev/null || true
-
-      - name: Cleanup test containers (Windows)
-        if: always() && runner.os == 'Windows'
-        shell: powershell
-        run: |
-          $ids = docker ps -q --filter "label=org.testcontainers.managed-by=testcontainers"
-          if ($ids) { docker rm -f $ids }
 
   test-python:
     name: Test Python
