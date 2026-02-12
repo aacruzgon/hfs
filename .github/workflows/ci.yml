@@ -69,8 +69,13 @@ jobs:
         run: |
           cargo test --workspace --all-features
 
-      - name: Cleanup test containers
-        if: always()
+  cleanup-test-containers:
+    name: Cleanup Test Containers
+    runs-on: [self-hosted]
+    needs: [test-rust]
+    if: always()
+    steps:
+      - name: Remove orphaned testcontainers
         run: |
           docker ps -aq --filter "label=org.testcontainers.managed-by=testcontainers" | xargs -r docker rm -f || true
 
