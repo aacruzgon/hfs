@@ -69,6 +69,11 @@ jobs:
         run: |
           cargo test --workspace --all-features
 
+      - name: Cleanup test containers
+        if: always()
+        run: |
+          docker ps -aq --filter "label=org.testcontainers.managed-by=testcontainers" | xargs -r docker rm -f || true
+
   test-python:
     name: Test Python
     runs-on: [self-hosted]
