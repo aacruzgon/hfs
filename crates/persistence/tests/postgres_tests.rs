@@ -501,6 +501,7 @@ mod postgres_integration {
     use helios_persistence::error::{ResourceError, StorageError};
     use helios_persistence::tenant::{TenantContext, TenantId, TenantPermissions};
 
+    use testcontainers::ImageExt;
     use testcontainers::runners::AsyncRunner;
     use testcontainers_modules::postgres::Postgres;
     use tokio::sync::OnceCell;
@@ -518,7 +519,9 @@ mod postgres_integration {
     async fn shared_pg() -> &'static SharedPg {
         SHARED_PG
             .get_or_init(|| async {
+                let run_id = std::env::var("GITHUB_RUN_ID").unwrap_or_default();
                 let container = Postgres::default()
+                    .with_label("github.run_id", &run_id)
                     .start()
                     .await
                     .expect("Failed to start PostgreSQL container");

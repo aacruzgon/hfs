@@ -605,8 +605,10 @@ mod es_integration {
     async fn shared_es() -> &'static SharedEs {
         SHARED_ES
             .get_or_init(|| async {
+                let run_id = std::env::var("GITHUB_RUN_ID").unwrap_or_default();
                 let container = ElasticSearch::default()
                     .with_env_var("ES_JAVA_OPTS", "-Xms256m -Xmx256m")
+                    .with_label("github.run_id", &run_id)
                     .with_startup_timeout(std::time::Duration::from_secs(120))
                     .start()
                     .await
