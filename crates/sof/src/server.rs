@@ -282,7 +282,6 @@ pub fn create_app() -> Router {
 
 fn create_app_with_config(config: &ServerConfig) -> Router {
     use axum::extract::DefaultBodyLimit;
-    use http::StatusCode;
     use std::time::Duration;
     use tower::ServiceBuilder;
     use tower_http::timeout::TimeoutLayer;
