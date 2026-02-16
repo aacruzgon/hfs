@@ -134,6 +134,7 @@ jobs:
         if: matrix.backend == 'sqlite-elasticsearch'
         run: |
           ES_CONTAINER="es-${{ matrix.suite_id }}-${{ matrix.backend }}"
+          docker rm -f $ES_CONTAINER 2>/dev/null || true
           docker run -d --name $ES_CONTAINER -p 0:9200 \
             -e "discovery.type=single-node" \
             -e "xpack.security.enabled=false" \
@@ -163,6 +164,7 @@ jobs:
         if: matrix.backend == 'postgres'
         run: |
           PG_CONTAINER="pg-${{ matrix.suite_id }}"
+          docker rm -f $PG_CONTAINER 2>/dev/null || true
           docker run -d --name $PG_CONTAINER -p 0:5432 \
             -e POSTGRES_USER=helios \
             -e POSTGRES_PASSWORD=helios \
