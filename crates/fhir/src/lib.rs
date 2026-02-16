@@ -1623,7 +1623,7 @@ impl FhirResource {
 ///     version: FhirVersion,
 /// }
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum FhirVersion {
     /// FHIR 4.0.1 (normative) - The current normative version
     #[cfg(feature = "R4")]
@@ -1678,6 +1678,155 @@ impl FhirVersion {
             #[cfg(feature = "R6")]
             FhirVersion::R6 => "R6",
         }
+    }
+
+    /// Parse from MIME-type parameter value (e.g., "4.0", "5.0").
+    ///
+    /// Per FHIR spec: <https://hl7.org/fhir/http.html#version-parameter>
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - The MIME-type parameter value (e.g., "4.0", "4.3", "5.0", "6.0")
+    ///
+    /// # Returns
+    ///
+    /// The corresponding `FhirVersion` if the value matches an enabled version,
+    /// or `None` if not recognized or the version feature is not enabled.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use helios_fhir::FhirVersion;
+    ///
+    /// # #[cfg(feature = "R4")]
+    /// assert_eq!(FhirVersion::from_mime_param("4.0"), Some(FhirVersion::R4));
+    /// # #[cfg(feature = "R5")]
+    /// assert_eq!(FhirVersion::from_mime_param("5.0"), Some(FhirVersion::R5));
+    /// assert_eq!(FhirVersion::from_mime_param("invalid"), None);
+    /// ```
+    pub fn from_mime_param(value: &str) -> Option<Self> {
+        match value.trim() {
+            #[cfg(feature = "R4")]
+            "4.0" => Some(FhirVersion::R4),
+            #[cfg(feature = "R4B")]
+            "4.3" => Some(FhirVersion::R4B),
+            #[cfg(feature = "R5")]
+            "5.0" => Some(FhirVersion::R5),
+            #[cfg(feature = "R6")]
+            "6.0" => Some(FhirVersion::R6),
+            _ => None,
+        }
+    }
+
+    /// Returns the MIME-type parameter value for this version.
+    ///
+    /// This value is used in Content-Type and Accept headers per FHIR spec.
+    /// Example: `application/fhir+json; fhirVersion=4.0`
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use helios_fhir::FhirVersion;
+    ///
+    /// # #[cfg(feature = "R4")]
+    /// assert_eq!(FhirVersion::R4.as_mime_param(), "4.0");
+    /// # #[cfg(feature = "R5")]
+    /// assert_eq!(FhirVersion::R5.as_mime_param(), "5.0");
+    /// ```
+    pub fn as_mime_param(&self) -> &'static str {
+        match self {
+            #[cfg(feature = "R4")]
+            FhirVersion::R4 => "4.0",
+            #[cfg(feature = "R4B")]
+            FhirVersion::R4B => "4.3",
+            #[cfg(feature = "R5")]
+            FhirVersion::R5 => "5.0",
+            #[cfg(feature = "R6")]
+            FhirVersion::R6 => "6.0",
+        }
+    }
+
+    /// Returns the full version string (e.g., "4.0.1", "5.0.0").
+    ///
+    /// This is the complete version identifier used in CapabilityStatement.fhirVersion.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use helios_fhir::FhirVersion;
+    ///
+    /// # #[cfg(feature = "R4")]
+    /// assert_eq!(FhirVersion::R4.full_version(), "4.0.1");
+    /// # #[cfg(feature = "R5")]
+    /// assert_eq!(FhirVersion::R5.full_version(), "5.0.0");
+    /// ```
+    pub fn full_version(&self) -> &'static str {
+        match self {
+            #[cfg(feature = "R4")]
+            FhirVersion::R4 => "4.0.1",
+            #[cfg(feature = "R4B")]
+            FhirVersion::R4B => "4.3.0",
+            #[cfg(feature = "R5")]
+            FhirVersion::R5 => "5.0.0",
+            #[cfg(feature = "R6")]
+            FhirVersion::R6 => "6.0.0",
+        }
+    }
+
+    /// Parse from database storage string.
+    ///
+    /// Accepts both MIME format ("4.0") and short format ("R4") for flexibility.
+    /// This is useful when loading version information from the database.
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - The storage value (e.g., "4.0", "R4", "r4")
+    ///
+    /// # Returns
+    ///
+    /// The corresponding `FhirVersion` if recognized, or `None` otherwise.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use helios_fhir::FhirVersion;
+    ///
+    /// # #[cfg(feature = "R4")]
+    /// {
+    /// assert_eq!(FhirVersion::from_storage("4.0"), Some(FhirVersion::R4));
+    /// assert_eq!(FhirVersion::from_storage("R4"), Some(FhirVersion::R4));
+    /// assert_eq!(FhirVersion::from_storage("r4"), Some(FhirVersion::R4));
+    /// }
+    /// ```
+    pub fn from_storage(value: &str) -> Option<Self> {
+        // Try MIME format first
+        Self::from_mime_param(value).or_else(|| match value.to_uppercase().as_str() {
+            #[cfg(feature = "R4")]
+            "R4" => Some(FhirVersion::R4),
+            #[cfg(feature = "R4B")]
+            "R4B" => Some(FhirVersion::R4B),
+            #[cfg(feature = "R5")]
+            "R5" => Some(FhirVersion::R5),
+            #[cfg(feature = "R6")]
+            "R6" => Some(FhirVersion::R6),
+            _ => None,
+        })
+    }
+
+    /// Returns all enabled FHIR versions.
+    ///
+    /// This is useful for listing supported versions (e.g., in `$versions` operation).
+    pub fn enabled_versions() -> &'static [FhirVersion] {
+        &[
+            #[cfg(feature = "R4")]
+            FhirVersion::R4,
+            #[cfg(feature = "R4B")]
+            FhirVersion::R4B,
+            #[cfg(feature = "R5")]
+            FhirVersion::R5,
+            #[cfg(feature = "R6")]
+            FhirVersion::R6,
+        ]
     }
 }
 

@@ -2,11 +2,20 @@
   - Add R6 support in fhirpath-lab.com
   - FHIRPath Lab Debugger support
 
+- Add new hfs test server
+
 - SQL On FHIR
   - Support the group parameter on $run
 
 - My CapabilityStatement for $run needs help - name, and unsure about operation vs. resource
 
 - Test to see if invalid attributes in the FHIR JSON model are allowed/disallowed?
+
+- Async index for transactions
+
+- We don't yet declare US Core profile support in Capability Statement - we need to figure out an approach to know if we can depending on the backend support features turned on/off
+
+
+no change
 
 

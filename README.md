@@ -114,6 +114,86 @@ cargo run --bin fhirpath-server
 # Then POST expressions to http://localhost:3000/fhirpath
 ```
 
+## Storage Backends
+
+The Helios FHIR Server supports multiple storage backend configurations. Choose a configuration based on your search requirements and deployment scale.
+
+### Available Configurations
+
+| Configuration | Search Capability | Use Case |
+|---|---|---|
+| **SQLite** (default) | Built-in FTS5 full-text search | Development, testing, small deployments |
+| **SQLite + Elasticsearch** | Elasticsearch-powered search with relevance scoring | Production deployments needing robust search |
+
+### SQLite (Default)
+
+Zero-configuration setup. Just run:
+
+```bash
+cargo run --bin hfs
+```
+
+SQLite handles all CRUD operations, versioning, history, and search using its built-in FTS5 full-text search engine. Data is stored in `fhir.db` by default.
+
+### SQLite + Elasticsearch
+
+SQLite handles CRUD, versioning, history, and transactions. Elasticsearch handles all search operations with:
+
+- Full-text search with relevance scoring (`_text`, `_content`)
+- All FHIR search parameter types (string, token, date, number, quantity, reference, URI, composite)
+- Advanced text search with stemming, boolean operators, and proximity matching (`:text-advanced`)
+- Cursor-based pagination via `search_after`
+
+**Prerequisites:** A running Elasticsearch 8.x instance.
+
+**Quick start:**
+
+```bash
+# Build with Elasticsearch support
+cargo build --bin hfs --features sqlite,elasticsearch --release
+
+# Start Elasticsearch (example using Docker)
+docker run -d --name es -p 9200:9200 \
+  -e "discovery.type=single-node" \
+  -e "xpack.security.enabled=false" \
+  elasticsearch:8.15.0
+
+# Start the server
+HFS_STORAGE_BACKEND=sqlite-elasticsearch \
+HFS_ELASTICSEARCH_NODES=http://localhost:9200 \
+  ./target/release/hfs
+```
+
+### Environment Variables
+
+All server configuration is done via environment variables:
+
+| Variable | Default | Description |
+|---|---|---|
+| `HFS_STORAGE_BACKEND` | `sqlite` | Backend mode: `sqlite` or `sqlite-elasticsearch` |
+| `HFS_SERVER_PORT` | `8080` | Server port |
+| `HFS_SERVER_HOST` | `127.0.0.1` | Host to bind |
+| `HFS_DATABASE_URL` | `fhir.db` | SQLite database path (`:memory:` for in-memory) |
+| `HFS_DEFAULT_FHIR_VERSION` | `R4` | FHIR version (R4, R4B, R5, R6) |
+| `HFS_LOG_LEVEL` | `info` | Log level (error, warn, info, debug, trace) |
+| `HFS_ELASTICSEARCH_NODES` | `http://localhost:9200` | Comma-separated ES node URLs |
+| `HFS_ELASTICSEARCH_INDEX_PREFIX` | `hfs` | ES index name prefix |
+| `HFS_ELASTICSEARCH_USERNAME` | *(none)* | ES basic auth username |
+| `HFS_ELASTICSEARCH_PASSWORD` | *(none)* | ES basic auth password |
+
+### How Search Offloading Works
+
+When `HFS_STORAGE_BACKEND=sqlite-elasticsearch`, the server:
+
+1. Creates a SQLite backend with search indexing **disabled** (no `search_index` or `resource_fts` table population)
+2. Creates an Elasticsearch backend sharing SQLite's search parameter registry
+3. Wraps both in a `CompositeStorage` that routes:
+   - All **writes** (create, update, delete, conditional ops, transactions) → SQLite, then syncs to ES
+   - All **reads** (read, vread, history) → SQLite
+   - All **search** operations → Elasticsearch
+
+This avoids data duplication in SQLite's search tables while providing Elasticsearch's superior search capabilities.
+
 # Architecture Overview
 
 The Helios FHIR Server is organized as a Rust workspace with modular components that can be used independently or together. Each component is designed for high performance and can be embedded directly into your data analytics pipeline.
@@ -189,7 +269,10 @@ Helper macros for code generation used by other components.
 ### 7. [`helios-fhirpath-support`](crates/fhirpath-support) - Shared Utilities
 Common types and traits for FHIRPath evaluation.
 
-### 8. [`helios-hfs`](crates/hfs) - Main Server Application
+### 8. [`helios-persistence`](crates/persistence) - Polyglot Persistence Layer
+Storage backend abstraction supporting multiple database technologies optimized for different FHIR workloads.
+
+### 9. [`helios-hfs`](crates/hfs) - Main Server Application
 The main Helios FHIR Server application (coming soon).
 
 ## Design Principles
@@ -264,12 +347,18 @@ cargo build --workspace --exclude pysof
 ```
 
 ## Running Tests
+
+**Docker Required:** PostgreSQL and Elasticsearch integration tests use [testcontainers](https://testcontainers.com/) to spin up real database instances in Docker. Make sure Docker is installed and running to execute the full test suite. To skip these tests (e.g., if Docker is unavailable), add `-- --skip postgres_integration --skip es_integration` to your test command.
+
 ```bash
 # Run all tests (R4 only by default)
 cargo test
 
 # Run tests for all FHIR versions
 cargo test --all-features
+
+# Run tests without Docker (skips PostgreSQL and Elasticsearch integration tests)
+cargo test --all-features -- --skip postgres_integration --skip es_integration
 
 # Run specific test
 cargo test test_name_pattern

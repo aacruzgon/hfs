@@ -1,3 +1,238 @@
-fn main() {
-    println!("HFS placeholder");
+//! Helios FHIR Server (HFS)
+//!
+//! A high-performance FHIR R4/R4B/R5/R6 server.
+
+use clap::Parser;
+use helios_rest::{ServerConfig, StorageBackendMode, create_app_with_config, init_logging};
+use tracing::info;
+
+#[cfg(feature = "sqlite")]
+use helios_persistence::backends::sqlite::{SqliteBackend, SqliteBackendConfig};
+
+/// Creates and initializes a SQLite backend from the server configuration.
+#[cfg(feature = "sqlite")]
+fn create_sqlite_backend(config: &ServerConfig) -> anyhow::Result<SqliteBackend> {
+    let db_path = config.database_url.as_deref().unwrap_or("fhir.db");
+    info!(database = %db_path, "Initializing SQLite backend");
+
+    let backend_config = SqliteBackendConfig {
+        fhir_version: config.default_fhir_version,
+        data_dir: config.data_dir.clone(),
+        ..Default::default()
+    };
+
+    let backend = if db_path == ":memory:" {
+        SqliteBackend::with_config(":memory:", backend_config)?
+    } else {
+        SqliteBackend::with_config(db_path, backend_config)?
+    };
+    backend.init_schema()?;
+
+    Ok(backend)
 }
+
+/// Starts the Axum HTTP server.
+async fn serve(app: axum::Router, config: &ServerConfig) -> anyhow::Result<()> {
+    let addr = config.socket_addr();
+    info!(address = %addr, "Server listening");
+    let listener = tokio::net::TcpListener::bind(&addr).await?;
+    axum::serve(listener, app).await?;
+    Ok(())
+}
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let config = ServerConfig::parse();
+    init_logging(&config.log_level);
+
+    if let Err(errors) = config.validate() {
+        for error in &errors {
+            eprintln!("Configuration error: {}", error);
+        }
+        std::process::exit(1);
+    }
+
+    let backend_mode = config
+        .storage_backend_mode()
+        .map_err(|e| anyhow::anyhow!("Invalid storage backend configuration: {}", e))?;
+
+    info!(
+        port = config.port,
+        host = %config.host,
+        fhir_version = ?config.default_fhir_version,
+        storage_backend = %backend_mode,
+        "Starting Helios FHIR Server"
+    );
+
+    match backend_mode {
+        StorageBackendMode::Sqlite => {
+            start_sqlite(config).await?;
+        }
+        StorageBackendMode::SqliteElasticsearch => {
+            start_sqlite_elasticsearch(config).await?;
+        }
+        StorageBackendMode::Postgres => {
+            start_postgres(config).await?;
+        }
+    }
+
+    Ok(())
+}
+
+/// Starts the server with SQLite-only backend.
+#[cfg(feature = "sqlite")]
+async fn start_sqlite(config: ServerConfig) -> anyhow::Result<()> {
+    let backend = create_sqlite_backend(&config)?;
+    let app = create_app_with_config(backend, config.clone());
+    serve(app, &config).await
+}
+
+/// Fallback when sqlite feature is not enabled.
+#[cfg(not(feature = "sqlite"))]
+async fn start_sqlite(_config: ServerConfig) -> anyhow::Result<()> {
+    anyhow::bail!(
+        "The sqlite backend requires the 'sqlite' feature. \
+         Build with: cargo build -p helios-hfs --features sqlite"
+    )
+}
+
+/// Starts the server with SQLite + Elasticsearch composite backend.
+#[cfg(all(feature = "sqlite", feature = "elasticsearch"))]
+async fn start_sqlite_elasticsearch(config: ServerConfig) -> anyhow::Result<()> {
+    use std::collections::HashMap;
+    use std::sync::Arc;
+
+    use helios_persistence::backends::elasticsearch::{
+        ElasticsearchAuth, ElasticsearchBackend, ElasticsearchConfig,
+    };
+    use helios_persistence::composite::{CompositeConfig, CompositeStorage};
+    use helios_persistence::core::BackendKind;
+
+    // Create SQLite backend with search offloaded to Elasticsearch
+    let mut sqlite = create_sqlite_backend(&config)?;
+    sqlite.set_search_offloaded(true);
+    let sqlite = Arc::new(sqlite);
+    info!("SQLite search indexing disabled (offloaded to Elasticsearch)");
+
+    // Build Elasticsearch configuration from server config
+    let es_nodes: Vec<String> = config
+        .elasticsearch_nodes
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    let es_auth = match (
+        &config.elasticsearch_username,
+        &config.elasticsearch_password,
+    ) {
+        (Some(username), Some(password)) => Some(ElasticsearchAuth::Basic {
+            username: username.clone(),
+            password: password.clone(),
+        }),
+        _ => None,
+    };
+
+    let es_config = ElasticsearchConfig {
+        nodes: es_nodes.clone(),
+        index_prefix: config.elasticsearch_index_prefix.clone(),
+        auth: es_auth,
+        fhir_version: config.default_fhir_version,
+        ..Default::default()
+    };
+
+    info!(
+        nodes = ?es_nodes,
+        index_prefix = %config.elasticsearch_index_prefix,
+        "Initializing Elasticsearch backend"
+    );
+
+    // Create ES backend sharing SQLite's search parameter registry
+    let es = Arc::new(ElasticsearchBackend::with_shared_registry(
+        es_config,
+        sqlite.search_registry().clone(),
+    )?);
+
+    // Build composite configuration
+    let composite_config = CompositeConfig::builder()
+        .primary("sqlite", BackendKind::Sqlite)
+        .search_backend("es", BackendKind::Elasticsearch)
+        .build()?;
+
+    // Build backends map for CompositeStorage
+    let mut backends = HashMap::new();
+    backends.insert(
+        "sqlite".to_string(),
+        sqlite.clone() as helios_persistence::composite::DynStorage,
+    );
+    backends.insert(
+        "es".to_string(),
+        es.clone() as helios_persistence::composite::DynStorage,
+    );
+
+    // Build search providers map
+    let mut search_providers = HashMap::new();
+    search_providers.insert(
+        "sqlite".to_string(),
+        sqlite.clone() as helios_persistence::composite::DynSearchProvider,
+    );
+    search_providers.insert(
+        "es".to_string(),
+        es.clone() as helios_persistence::composite::DynSearchProvider,
+    );
+
+    // Create composite storage with full primary capabilities
+    let composite = CompositeStorage::new(composite_config, backends)?
+        .with_search_providers(search_providers)
+        .with_full_primary(sqlite);
+
+    info!("Composite storage initialized: SQLite (primary) + Elasticsearch (search)");
+
+    let app = create_app_with_config(composite, config.clone());
+    serve(app, &config).await
+}
+
+/// Fallback when elasticsearch feature is not enabled.
+#[cfg(not(all(feature = "sqlite", feature = "elasticsearch")))]
+async fn start_sqlite_elasticsearch(_config: ServerConfig) -> anyhow::Result<()> {
+    anyhow::bail!(
+        "The sqlite-elasticsearch backend requires the 'elasticsearch' feature. \
+         Build with: cargo build -p helios-hfs --features sqlite,elasticsearch"
+    )
+}
+
+/// Starts the server with PostgreSQL backend.
+#[cfg(feature = "postgres")]
+async fn start_postgres(config: ServerConfig) -> anyhow::Result<()> {
+    use helios_persistence::backends::postgres::PostgresBackend;
+
+    let backend = if let Some(ref url) = config.database_url {
+        if url.starts_with("postgres://") || url.starts_with("postgresql://") {
+            info!(url = %url, "Initializing PostgreSQL backend from connection string");
+            PostgresBackend::from_connection_string(url).await?
+        } else {
+            info!("Initializing PostgreSQL backend from environment variables");
+            PostgresBackend::from_env().await?
+        }
+    } else {
+        info!("Initializing PostgreSQL backend from environment variables");
+        PostgresBackend::from_env().await?
+    };
+
+    backend.init_schema().await?;
+
+    let app = create_app_with_config(backend, config.clone());
+    serve(app, &config).await
+}
+
+/// Fallback when postgres feature is not enabled.
+#[cfg(not(feature = "postgres"))]
+async fn start_postgres(_config: ServerConfig) -> anyhow::Result<()> {
+    anyhow::bail!(
+        "The postgres backend requires the 'postgres' feature. \
+         Build with: cargo build -p helios-hfs --features postgres"
+    )
+}
+
+#[cfg(not(any(feature = "sqlite", feature = "postgres", feature = "mongodb")))]
+compile_error!("At least one database backend feature must be enabled");

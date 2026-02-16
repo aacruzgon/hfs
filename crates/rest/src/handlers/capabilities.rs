@@ -1,0 +1,229 @@
+//! Capabilities (CapabilityStatement) handler.
+//!
+//! Implements the FHIR [capabilities interaction](https://hl7.org/fhir/http.html#capabilities):
+//! `GET [base]/metadata`
+//!
+//! Per FHIR spec, the CapabilityStatement.fhirVersion is 1..1 (single value).
+//! Multi-version servers return a version-specific CapabilityStatement based on the
+//! `fhirVersion` parameter in the Accept header.
+//!
+//! # Tenant-Aware Base URL
+//!
+//! When using URL-based tenant routing, the CapabilityStatement's implementation.url
+//! includes the tenant prefix. For example:
+//! - Header-based: `http://fhir.example.com/`
+//! - URL-based: `http://fhir.example.com/acme/`
+
+use axum::{
+    Json,
+    extract::State,
+    http::{StatusCode, header},
+    response::{IntoResponse, Response},
+};
+use helios_fhir::FhirVersion;
+use helios_persistence::core::ResourceStorage;
+use tracing::debug;
+
+use crate::error::RestResult;
+use crate::extractors::{FhirVersionExtractor, TenantExtractor};
+use crate::fhir_types::get_resource_type_names_for_version;
+use crate::middleware::content_type::{FhirContentType, FhirFormat};
+use crate::state::AppState;
+
+/// Handler for the capabilities interaction.
+///
+/// Returns a CapabilityStatement describing the server's capabilities.
+///
+/// Per FHIR spec, the CapabilityStatement.fhirVersion is a single value.
+/// If the Accept header includes a `fhirVersion` parameter, the server returns
+/// a CapabilityStatement for that specific version. Otherwise, the default
+/// FHIR version is used.
+///
+/// # Tenant-Aware Base URL
+///
+/// When the tenant is resolved from a URL path (e.g., `/acme/metadata`), the
+/// CapabilityStatement's `implementation.url` includes the tenant prefix to
+/// ensure clients use the correct base URL for subsequent requests.
+///
+/// # HTTP Request
+///
+/// `GET [base]/metadata`
+///
+/// # Headers
+///
+/// - `Accept: application/fhir+json; fhirVersion=4.0` - Request R4 capabilities
+/// - `Accept: application/fhir+json; fhirVersion=5.0` - Request R5 capabilities
+///
+/// # Response
+///
+/// Returns a CapabilityStatement resource (200 OK) with Content-Type including
+/// the fhirVersion parameter.
+pub async fn capabilities_handler<S>(
+    State(state): State<AppState<S>>,
+    tenant: TenantExtractor,
+    version: FhirVersionExtractor,
+) -> RestResult<Response>
+where
+    S: ResourceStorage + Send + Sync,
+{
+    // Determine which version to describe (from Accept header or default)
+    let fhir_version = version.accept_version().unwrap_or_default();
+
+    debug!(
+        fhir_version = %fhir_version,
+        tenant = %tenant.tenant_id(),
+        tenant_source = %tenant.source(),
+        "Processing capabilities request"
+    );
+
+    // Build tenant-aware base URL
+    let base_url = if tenant.is_url_based() {
+        format!(
+            "{}/{}",
+            state.base_url().trim_end_matches('/'),
+            tenant.tenant_id()
+        )
+    } else {
+        state.base_url().to_string()
+    };
+
+    let capability_statement = build_capability_statement(&state, fhir_version, &base_url);
+
+    // Build response with fhirVersion in Content-Type
+    let content_type = FhirContentType::with_version(FhirFormat::Json, fhir_version);
+    let mut headers = axum::http::HeaderMap::new();
+    headers.insert(
+        header::CONTENT_TYPE,
+        content_type.to_header_value().parse().unwrap(),
+    );
+
+    Ok((StatusCode::OK, headers, Json(capability_statement)).into_response())
+}
+
+/// Builds a CapabilityStatement describing server capabilities for a specific FHIR version.
+fn build_capability_statement<S>(
+    state: &AppState<S>,
+    version: FhirVersion,
+    base_url: &str,
+) -> serde_json::Value
+where
+    S: ResourceStorage,
+{
+    let backend_name = state.storage().backend_name();
+
+    // Get resource types for the requested FHIR version
+    let resource_types = get_resource_type_names_for_version(version);
+
+    let resources: Vec<serde_json::Value> = resource_types
+        .iter()
+        .map(|rt| build_resource_capability(rt))
+        .collect();
+
+    serde_json::json!({
+        "resourceType": "CapabilityStatement",
+        "status": "active",
+        "date": chrono::Utc::now().to_rfc3339(),
+        "kind": "instance",
+        "fhirVersion": version.full_version(),
+        "format": ["json", "application/fhir+json"],
+        "implementation": {
+            "description": format!("Helios FHIR Server ({})", backend_name),
+            "url": base_url
+        },
+        "rest": [{
+            "mode": "server",
+            "documentation": "Helios FHIR RESTful API",
+            "security": {
+                "cors": state.config().enable_cors,
+                "description": "This server supports CORS for cross-origin requests"
+            },
+            "resource": resources,
+            "interaction": [
+                { "code": "transaction" },
+                { "code": "batch" },
+                { "code": "history-system" },
+                { "code": "search-system" }
+            ],
+            "operation": [
+                {
+                    "name": "validate",
+                    "definition": "http://hl7.org/fhir/OperationDefinition/Resource-validate"
+                },
+                {
+                    "name": "versions",
+                    "definition": "http://hl7.org/fhir/OperationDefinition/CapabilityStatement-versions"
+                }
+            ]
+        }]
+    })
+}
+
+/// Builds the capability entry for a resource type.
+fn build_resource_capability(resource_type: &str) -> serde_json::Value {
+    serde_json::json!({
+        "type": resource_type,
+        "profile": format!("http://hl7.org/fhir/StructureDefinition/{}", resource_type),
+        "interaction": [
+            { "code": "read" },
+            { "code": "vread" },
+            { "code": "update" },
+            { "code": "patch" },
+            { "code": "delete" },
+            { "code": "history-instance" },
+            { "code": "history-type" },
+            { "code": "create" },
+            { "code": "search-type" }
+        ],
+        "versioning": "versioned",
+        "readHistory": true,
+        "updateCreate": true,
+        "conditionalCreate": true,
+        "conditionalRead": "full-support",
+        "conditionalUpdate": true,
+        "conditionalDelete": "single",
+        "searchInclude": ["*"],
+        "searchRevInclude": ["*"],
+        "searchParam": build_common_search_params()
+    })
+}
+
+/// Builds common search parameters supported by all resources.
+fn build_common_search_params() -> Vec<serde_json::Value> {
+    vec![
+        serde_json::json!({
+            "name": "_id",
+            "type": "token",
+            "documentation": "Logical id of this artifact"
+        }),
+        serde_json::json!({
+            "name": "_lastUpdated",
+            "type": "date",
+            "documentation": "When the resource version last changed"
+        }),
+        serde_json::json!({
+            "name": "_tag",
+            "type": "token",
+            "documentation": "Tags applied to this resource"
+        }),
+        serde_json::json!({
+            "name": "_profile",
+            "type": "uri",
+            "documentation": "Profiles this resource claims to conform to"
+        }),
+        serde_json::json!({
+            "name": "_security",
+            "type": "token",
+            "documentation": "Security Labels applied to this resource"
+        }),
+        serde_json::json!({
+            "name": "_text",
+            "type": "string",
+            "documentation": "Search on the narrative of the resource"
+        }),
+        serde_json::json!({
+            "name": "_content",
+            "type": "string",
+            "documentation": "Search on the entire content of the resource"
+        }),
+    ]
+}
