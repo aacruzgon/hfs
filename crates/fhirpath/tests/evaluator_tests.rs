@@ -601,8 +601,8 @@ fn test_function_filtering_of_type() {
         ..Default::default()
     };
     let resources = vec![
-        FhirResource::R4(Box::new(r4::Resource::Patient(patient))),
-        FhirResource::R4(Box::new(r4::Resource::Observation(observation))),
+        FhirResource::R4(Box::new(r4::Resource::Patient(Box::new(patient)))),
+        FhirResource::R4(Box::new(r4::Resource::Observation(Box::new(observation)))),
     ];
     let ctx_res = EvaluationContext::new(resources);
 
@@ -3715,7 +3715,7 @@ fn test_environment_variables() {
         ..Default::default()
     };
     let ctx_res = EvaluationContext::new(vec![FhirResource::R4(Box::new(
-        r4::Resource::Patient(patient.clone()), // Wrap in Resource enum
+        r4::Resource::Patient(Box::new(patient.clone())), // Wrap in Resource enum
     ))]); // Pass resource vec
 
     // Evaluate the %context variable using the eval function
@@ -3851,7 +3851,7 @@ fn patient_context() -> EvaluationContext {
     };
     EvaluationContext::new(vec![FhirResource::R4(Box::new(r4::Resource::Patient(
         // Wrap in Resource::Patient
-        patient,
+        Box::new(patient),
     )))])
 }
 
@@ -4071,8 +4071,8 @@ fn test_resource_oftype() {
         ..Default::default()
     };
     let resources = vec![
-        FhirResource::R4(Box::new(r4::Resource::Patient(patient))),
-        FhirResource::R4(Box::new(r4::Resource::Observation(observation))),
+        FhirResource::R4(Box::new(r4::Resource::Patient(Box::new(patient)))),
+        FhirResource::R4(Box::new(r4::Resource::Observation(Box::new(observation)))),
     ];
     let context = EvaluationContext::new(resources);
 
@@ -4523,7 +4523,7 @@ fn test_resource_access() {
     // Remove duplicate imports, they are already at the top level
     use helios_fhir::r4::{Account, Code}; // Import only needed types locally if preferred, or rely on top-level
     // Create a dummy R4 resource for testing
-    let dummy_resource = r4::Resource::Account(Account {
+    let dummy_resource = r4::Resource::Account(Box::new(Account {
         // Use imported Account
         id: Some("theid".to_string().into()), // Convert String to Id
         meta: None,
@@ -4549,7 +4549,7 @@ fn test_resource_access() {
         description: None,
         guarantor: None,
         part_of: None,
-    });
+    }));
 
     // Create a context with a resource
     let resources = vec![FhirResource::R4(Box::new(dummy_resource))]; // No need for mut

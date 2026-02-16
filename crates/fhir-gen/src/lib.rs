@@ -213,7 +213,7 @@ fn generate_version_header(version: &FhirVersion) -> String {
 //! use helios_fhir::{}::{{Resource, Patient}};
 //!
 //! let patient = Patient::default();
-//! let resource = Resource::Patient(patient);
+//! let resource = Resource::Patient(Box::new(patient));
 //!
 //! // Pattern matching on resource type
 //! match resource {{
@@ -741,7 +741,7 @@ fn generate_resource_enum(resources: Vec<String>) -> String {
     output.push_str("pub enum Resource {\n");
 
     for resource in &resources {
-        output.push_str(&format!("    {}({}),\n", resource, resource));
+        output.push_str(&format!("    {}(Box<{}>),\n", resource, resource));
     }
 
     output.push_str("}\n\n");

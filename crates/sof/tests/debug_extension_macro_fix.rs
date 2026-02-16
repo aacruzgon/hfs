@@ -23,7 +23,7 @@ fn debug_extension_macro_fix() {
 
     // Create context with the patient
     let context = EvaluationContext::new(vec![helios_fhir::FhirResource::R4(Box::new(
-        helios_fhir::r4::Resource::Patient(patient),
+        helios_fhir::r4::Resource::Patient(Box::new(patient)),
     ))]);
 
     println!("Context created");

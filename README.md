@@ -68,10 +68,7 @@ The Helios FHIR Server is an implementation of the [HL7® FHIR®](https://hl7.or
     rustflags = ["-C", "link-arg=/STACK:8388608"]
     ```
 
-4. **Set stack size and parallel build count** (add to `~/.bashrc` or `~/.zshrc`):
-    ```bash
-    export RUST_MIN_STACK=8388608
-    ```
+4. **Memory-constrained builds** (optional):
 
 💡 **Tip**: If you run out of memory during compilation on Linux, especially on high CPU core count machines, limit parallel jobs to 4 (or less):
     ```bash

@@ -20,7 +20,9 @@ fn test_instant_constant_debug() {
     bundle.r#type.value = Some("collection".to_string());
 
     let mut entry = BundleEntry::default();
-    entry.resource = Some(helios_fhir::r4::Resource::Observation(observation));
+    entry.resource = Some(helios_fhir::r4::Resource::Observation(Box::new(
+        observation,
+    )));
     bundle.entry = Some(vec![entry]);
 
     // Test with instant constant comparison

@@ -38,7 +38,9 @@ fn test_fhir_types_detailed() {
     });
 
     let patient: helios_fhir::r4::Patient = serde_json::from_value(patient_json).unwrap();
-    let resource = FhirResource::R4(Box::new(helios_fhir::r4::Resource::Patient(patient)));
+    let resource = FhirResource::R4(Box::new(helios_fhir::r4::Resource::Patient(Box::new(
+        patient,
+    ))));
     let context = EvaluationContext::new(vec![resource]);
 
     // Test type operations
