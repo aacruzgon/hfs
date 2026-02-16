@@ -137,7 +137,6 @@ jobs:
         ExecStart=$SERVICE_EXEC_START
         Restart=always
         RestartSec=5
-        Environment=\"RUST_MIN_STACK=8388608\"
         Environment=\"SOF_SERVER_HOST=0.0.0.0\"
         
         [Install]

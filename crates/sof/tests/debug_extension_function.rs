@@ -82,7 +82,7 @@ fn test_extension_function_debug() {
     let patient: helios_fhir::r4::Patient =
         serde_json::from_value(patient_json).expect("Failed to parse patient");
     let resources = vec![helios_fhir::FhirResource::R4(Box::new(
-        helios_fhir::r4::Resource::Patient(patient),
+        helios_fhir::r4::Resource::Patient(Box::new(patient)),
     ))];
     let context = EvaluationContext::new(resources);
 

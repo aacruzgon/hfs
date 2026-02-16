@@ -1471,7 +1471,7 @@ pub use parameters::{ParameterValueAccessor, VersionIndependentParameters};
 ///     };
 ///
 ///     // Wrap in version-agnostic container
-///     let resource = FhirResource::R4(Box::new(helios_fhir::r4::Resource::Patient(patient)));
+///     let resource = FhirResource::R4(Box::new(helios_fhir::r4::Resource::Patient(Box::new(patient))));
 ///     assert_eq!(resource.version(), FhirVersion::R4);
 /// }
 /// ```

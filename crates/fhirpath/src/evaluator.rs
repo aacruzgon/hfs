@@ -48,7 +48,7 @@
 //!
 //! // Create an evaluation context with the resource
 //! let resources = vec![FhirResource::R4(Box::new(
-//!     r4::Resource::Patient(patient)
+//!     r4::Resource::Patient(Box::new(patient))
 //! ))];
 //! let context = EvaluationContext::new(resources);
 //!

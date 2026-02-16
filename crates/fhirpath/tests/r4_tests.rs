@@ -177,8 +177,9 @@ fn test_real_fhir_patient_type() {
     }"#;
 
     let patient: r4::Patient = serde_json::from_str(patient_json).unwrap();
-    let fhir_resource =
-        helios_fhir::FhirResource::R4(Box::new(helios_fhir::r4::Resource::Patient(patient)));
+    let fhir_resource = helios_fhir::FhirResource::R4(Box::new(
+        helios_fhir::r4::Resource::Patient(Box::new(patient)),
+    ));
     let context = EvaluationContext::new(vec![fhir_resource]);
 
     // First, let's see what the context contains
