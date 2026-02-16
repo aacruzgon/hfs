@@ -2,7 +2,7 @@ name: HFS Continuous Integration
 
 on:
   push:
-    branches: [main, develop, initial-persistence-design]
+    branches: [main, develop]
     tags:
       - "v*"
   pull_request:
