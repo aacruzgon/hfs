@@ -15,7 +15,7 @@ fn debug_inequality_operators() {
 
     // Create context with the observation
     let context = EvaluationContext::new(vec![helios_fhir::FhirResource::R4(Box::new(
-        helios_fhir::r4::Resource::Observation(observation),
+        helios_fhir::r4::Resource::Observation(Box::new(observation)),
     ))]);
 
     // Test parsing and evaluating the expressions

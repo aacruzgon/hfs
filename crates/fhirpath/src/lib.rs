@@ -60,7 +60,7 @@
 //! # // Create a patient resource
 //! # let patient = Patient::default();
 //! # let context = EvaluationContext::new(vec![
-//! #     helios_fhir::FhirResource::R4(Box::new(helios_fhir::r4::Resource::Patient(patient)))
+//! #     helios_fhir::FhirResource::R4(Box::new(helios_fhir::r4::Resource::Patient(Box::new(patient))))
 //! # ]);
 //!
 //! // Navigate to family name
@@ -83,7 +83,7 @@
 //! # use helios_fhirpath::{evaluate_expression, EvaluationContext};
 //! # use helios_fhir::r4::Patient;
 //! # let patient = Patient::default();
-//! # let context = EvaluationContext::new(vec![helios_fhir::FhirResource::R4(Box::new(helios_fhir::r4::Resource::Patient(patient)))]);
+//! # let context = EvaluationContext::new(vec![helios_fhir::FhirResource::R4(Box::new(helios_fhir::r4::Resource::Patient(Box::new(patient))))]);
 //!
 //! // Filter email addresses
 //! let result = evaluate_expression(
@@ -111,7 +111,7 @@
 //! # use helios_fhirpath::{evaluate_expression, EvaluationContext};
 //! # use helios_fhir::r4::Observation;
 //! # let observation = Observation::default();
-//! # let context = EvaluationContext::new(vec![helios_fhir::FhirResource::R4(Box::new(helios_fhir::r4::Resource::Observation(observation)))]);
+//! # let context = EvaluationContext::new(vec![helios_fhir::FhirResource::R4(Box::new(helios_fhir::r4::Resource::Observation(Box::new(observation))))]);
 //!
 //! // Check if observation value is a Quantity
 //! let result = evaluate_expression(
@@ -223,7 +223,6 @@
 //! - **Parsing**: Expression parsing is relatively expensive; consider caching parsed expressions for repeated use
 //! - **Evaluation**: Evaluation performance depends on resource size and expression complexity
 //! - **Memory**: Large collections in FHIR resources may consume significant memory during evaluation
-//! - **Stack Usage**: Deep expression nesting may require increased stack size (`RUST_MIN_STACK=8388608`)
 //!
 //! ## Specification Compliance
 //!
@@ -332,7 +331,7 @@ pub use helios_fhirpath_support::EvaluationResult;
 ///
 /// // Create a context with a FHIR resource
 /// # let observation = Observation::default();
-/// let context = EvaluationContext::new(vec![helios_fhir::FhirResource::R4(Box::new(helios_fhir::r4::Resource::Observation(observation)))]);
+/// let context = EvaluationContext::new(vec![helios_fhir::FhirResource::R4(Box::new(helios_fhir::r4::Resource::Observation(Box::new(observation))))]);
 ///
 /// // Evaluate a simple expression
 /// let result = evaluate_expression("value.unit", &context)?;

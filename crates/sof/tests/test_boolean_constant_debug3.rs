@@ -18,7 +18,7 @@ fn test_boolean_constant_debug3() {
     bundle.r#type.value = Some("collection".to_string());
 
     let mut entry = BundleEntry::default();
-    entry.resource = Some(helios_fhir::r4::Resource::Patient(patient));
+    entry.resource = Some(helios_fhir::r4::Resource::Patient(Box::new(patient)));
     bundle.entry = Some(vec![entry]);
 
     // Now test with deceased field access

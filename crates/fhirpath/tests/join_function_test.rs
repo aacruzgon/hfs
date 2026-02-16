@@ -13,7 +13,9 @@ fn test_join_function_basic() {
     });
 
     let patient: helios_fhir::r4::Patient = serde_json::from_value(patient_json).unwrap();
-    let fhir_resource = FhirResource::R4(Box::new(helios_fhir::r4::Resource::Patient(patient)));
+    let fhir_resource = FhirResource::R4(Box::new(helios_fhir::r4::Resource::Patient(Box::new(
+        patient,
+    ))));
     let context = EvaluationContext::new(vec![fhir_resource]);
 
     // Test joining given names with comma
@@ -39,7 +41,9 @@ fn test_join_function_with_space() {
     });
 
     let patient: helios_fhir::r4::Patient = serde_json::from_value(patient_json).unwrap();
-    let fhir_resource = FhirResource::R4(Box::new(helios_fhir::r4::Resource::Patient(patient)));
+    let fhir_resource = FhirResource::R4(Box::new(helios_fhir::r4::Resource::Patient(Box::new(
+        patient,
+    ))));
     let context = EvaluationContext::new(vec![fhir_resource]);
 
     // Test joining given names with space
@@ -65,7 +69,9 @@ fn test_join_function_empty_separator() {
     });
 
     let patient: helios_fhir::r4::Patient = serde_json::from_value(patient_json).unwrap();
-    let fhir_resource = FhirResource::R4(Box::new(helios_fhir::r4::Resource::Patient(patient)));
+    let fhir_resource = FhirResource::R4(Box::new(helios_fhir::r4::Resource::Patient(Box::new(
+        patient,
+    ))));
     let context = EvaluationContext::new(vec![fhir_resource]);
 
     // Test joining given names with no separator
@@ -89,7 +95,9 @@ fn test_join_function_empty_collection() {
     });
 
     let patient: helios_fhir::r4::Patient = serde_json::from_value(patient_json).unwrap();
-    let fhir_resource = FhirResource::R4(Box::new(helios_fhir::r4::Resource::Patient(patient)));
+    let fhir_resource = FhirResource::R4(Box::new(helios_fhir::r4::Resource::Patient(Box::new(
+        patient,
+    ))));
     let context = EvaluationContext::new(vec![fhir_resource]);
 
     // Test joining non-existent given names
@@ -115,7 +123,9 @@ fn test_join_function_no_separator() {
     });
 
     let patient: helios_fhir::r4::Patient = serde_json::from_value(patient_json).unwrap();
-    let fhir_resource = FhirResource::R4(Box::new(helios_fhir::r4::Resource::Patient(patient)));
+    let fhir_resource = FhirResource::R4(Box::new(helios_fhir::r4::Resource::Patient(Box::new(
+        patient,
+    ))));
     let context = EvaluationContext::new(vec![fhir_resource]);
 
     // Test joining given names with no separator (should default to empty separator)
