@@ -29,7 +29,9 @@ mod tests {
         }
 
         // Convert patient to FhirResource and EvaluationContext
-        let fhir_resource = FhirResource::R4(Box::new(helios_fhir::r4::Resource::Patient(patient)));
+        let fhir_resource = FhirResource::R4(Box::new(helios_fhir::r4::Resource::Patient(
+            Box::new(patient),
+        )));
         let mut context = EvaluationContext::new(vec![fhir_resource]);
 
         // Add the boolean constant
