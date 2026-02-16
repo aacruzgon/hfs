@@ -1515,12 +1515,12 @@ dependencies = [
 
 [[package]]
 name = "helios-serde"
-version = "0.1.32"
+version = "0.1.33"
 dependencies = [
  "helios-fhir",
  "helios-fhir-macro",
  "helios-serde-support",
- "quick-xml 0.38.3",
+ "quick-xml 0.38.4",
  "reqwest",
  "rust_decimal",
  "rust_decimal_macros",

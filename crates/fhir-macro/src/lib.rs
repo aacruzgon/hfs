@@ -75,7 +75,7 @@
 
 extern crate proc_macro;
 
-use heck::{ToLowerCamelCase, ToSnakeCase};
+use heck::ToLowerCamelCase;
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
@@ -1629,11 +1629,6 @@ fn generate_deserialize_impl(data: &Data, name: &Ident) -> proc_macro2::TokenStr
         quote! { ::helios_serde_support::SingleOrVec };
     let primitive_or_element_ident: proc_macro2::TokenStream =
         quote! { ::helios_serde_support::PrimitiveOrElement };
-    let convert_fn_ident = format_ident!(
-        "convert_xml_primitive_for_{}",
-        name.to_string().to_snake_case()
-    );
-
     match *data {
         Data::Enum(ref data) => {
             // For enums, we need to deserialize from a map with a single key-value pair
@@ -1976,7 +1971,14 @@ fn generate_deserialize_impl(data: &Data, name: &Ident) -> proc_macro2::TokenStr
                                     };
                                     let vec_inner_type = get_vec_inner_type(vec_type)
                                         .expect("Vec inner type not found");
-                                    let entry_type = quote! { Option<#primitive_or_element_ident<serde_json::Value, #vec_inner_type>> };
+                                    let entry_type = if is_decimal_element {
+                                        quote! { Option<#primitive_or_element_ident<serde_json::Value, #vec_inner_type>> }
+                                    } else {
+                                        let prim_type = primitive_value_type
+                                            .as_ref()
+                                            .expect("non-decimal element missing primitive type");
+                                        quote! { Option<#primitive_or_element_ident<#prim_type, #vec_inner_type>> }
+                                    };
                                     let holder = quote! { #single_or_vec_path<#entry_type> };
                                     if is_option {
                                         quote! { Option<#holder> }
@@ -2007,7 +2009,14 @@ fn generate_deserialize_impl(data: &Data, name: &Ident) -> proc_macro2::TokenStr
                                 } else {
                                     field_ty
                                 };
-                                quote! { Option<#primitive_or_element_ident<serde_json::Value, #element_type>> }
+                                if is_decimal_element {
+                                    quote! { Option<#primitive_or_element_ident<serde_json::Value, #element_type>> }
+                                } else {
+                                    let prim_type = primitive_value_type
+                                        .as_ref()
+                                        .expect("non-decimal element missing primitive type");
+                                    quote! { Option<#primitive_or_element_ident<#prim_type, #element_type>> }
+                                }
                             } else {
                                 // Not an element, use the original type
                                 quote! { #field_ty }
@@ -2128,9 +2137,6 @@ fn generate_deserialize_impl(data: &Data, name: &Ident) -> proc_macro2::TokenStr
                                         }
                                     }
                                 } else {
-                                    let primitive_type_ident = primitive_value_type
-                                        .as_ref()
-                                        .expect("non-decimal element missing primitive type");
                                     quote! {
                                         match helper_opt {
                                             Some(#primitive_or_element_ident::Element(mut element)) => {
@@ -2149,28 +2155,14 @@ fn generate_deserialize_impl(data: &Data, name: &Ident) -> proc_macro2::TokenStr
                                                 }
                                                 Some(element)
                                             }
-                                            Some(#primitive_or_element_ident::Primitive(json_val)) => {
-                                                if json_val.is_null() && ext_helper_opt.is_none() {
-                                                    None
-                                                } else {
-                                                    let primitive_value = if json_val.is_null() {
-                                                        None
-                                                    } else {
-                                                        Some(#convert_fn_ident::<#primitive_type_ident>(json_val)
-                                                            .map_err(serde::de::Error::custom)?)
-                                                    };
-                                                    if primitive_value.is_none() && ext_helper_opt.is_none() {
-                                                        None
-                                                    } else {
-                                                        let mut element = #element_type::default();
-                                                        element.value = primitive_value;
-                                                        if let Some(ext_helper) = ext_helper_opt {
-                                                            element.id = ext_helper.id;
-                                                            element.extension = ext_helper.extension;
-                                                        }
-                                                        Some(element)
-                                                    }
+                                            Some(#primitive_or_element_ident::Primitive(primitive_value)) => {
+                                                let mut element = #element_type::default();
+                                                element.value = Some(primitive_value);
+                                                if let Some(ext_helper) = ext_helper_opt {
+                                                    element.id = ext_helper.id;
+                                                    element.extension = ext_helper.extension;
                                                 }
+                                                Some(element)
                                             }
                                             None => {
                                                 ext_helper_opt.map(|ext_helper| {
@@ -2296,9 +2288,6 @@ fn generate_deserialize_impl(data: &Data, name: &Ident) -> proc_macro2::TokenStr
                                         }
                                     }
                                 } else {
-                                    let primitive_type_ident = primitive_value_type
-                                        .as_ref()
-                                        .expect("non-decimal element missing primitive type");
                                     quote! {
                                         match helper_opt {
                                             Some(#primitive_or_element_ident::Element(mut element)) => {
@@ -2317,28 +2306,14 @@ fn generate_deserialize_impl(data: &Data, name: &Ident) -> proc_macro2::TokenStr
                                                 }
                                                 Some(element)
                                             }
-                                            Some(#primitive_or_element_ident::Primitive(json_val)) => {
-                                                if json_val.is_null() && ext_helper_opt.is_none() {
-                                                    None
-                                                } else {
-                                                    let primitive_value = if json_val.is_null() {
-                                                        None
-                                                    } else {
-                                                        Some(#convert_fn_ident::<#primitive_type_ident>(json_val)
-                                                            .map_err(serde::de::Error::custom)?)
-                                                    };
-                                                    if primitive_value.is_none() && ext_helper_opt.is_none() {
-                                                        None
-                                                    } else {
-                                                        let mut element = #element_type::default();
-                                                        element.value = primitive_value;
-                                                        if let Some(ext_helper) = ext_helper_opt {
-                                                            element.id = ext_helper.id;
-                                                            element.extension = ext_helper.extension;
-                                                        }
-                                                        Some(element)
-                                                    }
+                                            Some(#primitive_or_element_ident::Primitive(primitive_value)) => {
+                                                let mut element = #element_type::default();
+                                                element.value = Some(primitive_value);
+                                                if let Some(ext_helper) = ext_helper_opt {
+                                                    element.id = ext_helper.id;
+                                                    element.extension = ext_helper.extension;
                                                 }
+                                                Some(element)
                                             }
                                             None => {
                                                 ext_helper_opt.map(|ext_helper| {
@@ -2417,47 +2392,7 @@ fn generate_deserialize_impl(data: &Data, name: &Ident) -> proc_macro2::TokenStr
         }
     };
 
-    let convert_helper_fn = quote! {
-        fn #convert_fn_ident<T>(
-            value: serde_json::Value,
-        ) -> Result<T, serde::de::value::Error>
-        where
-            T: serde::de::DeserializeOwned,
-        {
-            match serde_json::from_value::<T>(value.clone()) {
-                Ok(v) => Ok(v),
-                Err(_) => {
-                    if let serde_json::Value::String(s) = value {
-                        if let Ok(b) = s.parse::<bool>() {
-                            return serde_json::from_value(serde_json::Value::Bool(b))
-                                .map_err(|err| <serde::de::value::Error as serde::de::Error>::custom(err));
-                        }
-                        if let Ok(n) = s.parse::<i64>() {
-                            return serde_json::from_value(serde_json::Value::Number(n.into()))
-                                .map_err(|err| <serde::de::value::Error as serde::de::Error>::custom(err));
-                        }
-                        if let Ok(f) = s.parse::<f64>() {
-                            if let Some(num) = serde_json::Number::from_f64(f) {
-                                return serde_json::from_value(serde_json::Value::Number(num))
-                                    .map_err(|err| <serde::de::value::Error as serde::de::Error>::custom(err));
-                            }
-                        }
-                        serde_json::from_value(serde_json::Value::String(s))
-                            .map_err(|err| <serde::de::value::Error as serde::de::Error>::custom(err))
-                    } else {
-                        Err(<serde::de::value::Error as serde::de::Error>::custom(format!(
-                            "unexpected primitive value type {:?} for {}",
-                            value,
-                            ::std::any::type_name::<T>()
-                        )))
-                    }
-                }
-            }
-        }
-    };
-
     quote! {
-        #convert_helper_fn
         // Define the helper struct at the top level of the deserialize function
         #id_extension_helper_def
 

@@ -82,7 +82,7 @@ where
             where
                 E: serde::de::Error,
             {
-                let value = deserialize_single_value(serde::de::value::StrDeserializer::new(v))?;
+                let value = deserialize_from_str(v).map_err(serde::de::Error::custom)?;
                 Ok(SingleOrVec(vec![value]))
             }
 
@@ -201,8 +201,7 @@ where
             where
                 E2: serde::de::Error,
             {
-                let primitive =
-                    deserialize_single_value(serde::de::value::StrDeserializer::new(v))?;
+                let primitive = deserialize_from_str(v).map_err(serde::de::Error::custom)?;
                 Ok(PrimitiveOrElement::Primitive(primitive))
             }
 
@@ -211,8 +210,7 @@ where
             where
                 E2: serde::de::Error,
             {
-                let primitive =
-                    deserialize_single_value(serde::de::value::StringDeserializer::new(v))?;
+                let primitive = deserialize_from_str(&v).map_err(serde::de::Error::custom)?;
                 Ok(PrimitiveOrElement::Primitive(primitive))
             }
 
@@ -368,6 +366,238 @@ where
         }
     }
     T::deserialize(OptionFriendlyDeserializer(deserializer))
+}
+
+/// Deserializer that wraps a string value and tries to parse it as the requested type.
+///
+/// XML sends all primitive values as strings. This deserializer enables transparent
+/// conversion from strings to bool, integer, and float types during deserialization.
+/// It first tries the string directly (works for String targets), and if the target
+/// type requests a specific numeric or boolean type, it parses the string accordingly.
+struct StringParsingDeserializer<'a>(&'a str);
+
+impl<'de, 'a> serde::Deserializer<'de> for StringParsingDeserializer<'a> {
+    type Error = serde::de::value::Error;
+
+    #[inline]
+    fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: serde::de::Visitor<'de>,
+    {
+        // Try string first (works for String, &str targets)
+        visitor.visit_str(self.0)
+    }
+
+    #[inline]
+    fn deserialize_bool<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: serde::de::Visitor<'de>,
+    {
+        match self.0 {
+            "true" => visitor.visit_bool(true),
+            "false" => visitor.visit_bool(false),
+            _ => Err(serde::de::Error::invalid_value(
+                serde::de::Unexpected::Str(self.0),
+                &"true or false",
+            )),
+        }
+    }
+
+    #[inline]
+    fn deserialize_i8<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: serde::de::Visitor<'de>,
+    {
+        match self.0.parse::<i8>() {
+            Ok(v) => visitor.visit_i8(v),
+            Err(_) => Err(serde::de::Error::invalid_value(
+                serde::de::Unexpected::Str(self.0),
+                &"an i8 integer",
+            )),
+        }
+    }
+
+    #[inline]
+    fn deserialize_i16<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: serde::de::Visitor<'de>,
+    {
+        match self.0.parse::<i16>() {
+            Ok(v) => visitor.visit_i16(v),
+            Err(_) => Err(serde::de::Error::invalid_value(
+                serde::de::Unexpected::Str(self.0),
+                &"an i16 integer",
+            )),
+        }
+    }
+
+    #[inline]
+    fn deserialize_i32<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: serde::de::Visitor<'de>,
+    {
+        match self.0.parse::<i32>() {
+            Ok(v) => visitor.visit_i32(v),
+            Err(_) => Err(serde::de::Error::invalid_value(
+                serde::de::Unexpected::Str(self.0),
+                &"an i32 integer",
+            )),
+        }
+    }
+
+    #[inline]
+    fn deserialize_i64<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: serde::de::Visitor<'de>,
+    {
+        match self.0.parse::<i64>() {
+            Ok(v) => visitor.visit_i64(v),
+            Err(_) => Err(serde::de::Error::invalid_value(
+                serde::de::Unexpected::Str(self.0),
+                &"an i64 integer",
+            )),
+        }
+    }
+
+    #[inline]
+    fn deserialize_u8<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: serde::de::Visitor<'de>,
+    {
+        match self.0.parse::<u8>() {
+            Ok(v) => visitor.visit_u8(v),
+            Err(_) => Err(serde::de::Error::invalid_value(
+                serde::de::Unexpected::Str(self.0),
+                &"a u8 integer",
+            )),
+        }
+    }
+
+    #[inline]
+    fn deserialize_u16<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: serde::de::Visitor<'de>,
+    {
+        match self.0.parse::<u16>() {
+            Ok(v) => visitor.visit_u16(v),
+            Err(_) => Err(serde::de::Error::invalid_value(
+                serde::de::Unexpected::Str(self.0),
+                &"a u16 integer",
+            )),
+        }
+    }
+
+    #[inline]
+    fn deserialize_u32<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: serde::de::Visitor<'de>,
+    {
+        match self.0.parse::<u32>() {
+            Ok(v) => visitor.visit_u32(v),
+            Err(_) => Err(serde::de::Error::invalid_value(
+                serde::de::Unexpected::Str(self.0),
+                &"a u32 integer",
+            )),
+        }
+    }
+
+    #[inline]
+    fn deserialize_u64<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: serde::de::Visitor<'de>,
+    {
+        match self.0.parse::<u64>() {
+            Ok(v) => visitor.visit_u64(v),
+            Err(_) => Err(serde::de::Error::invalid_value(
+                serde::de::Unexpected::Str(self.0),
+                &"a u64 integer",
+            )),
+        }
+    }
+
+    #[inline]
+    fn deserialize_f32<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: serde::de::Visitor<'de>,
+    {
+        match self.0.parse::<f32>() {
+            Ok(v) => visitor.visit_f32(v),
+            Err(_) => Err(serde::de::Error::invalid_value(
+                serde::de::Unexpected::Str(self.0),
+                &"an f32 float",
+            )),
+        }
+    }
+
+    #[inline]
+    fn deserialize_f64<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: serde::de::Visitor<'de>,
+    {
+        match self.0.parse::<f64>() {
+            Ok(v) => visitor.visit_f64(v),
+            Err(_) => Err(serde::de::Error::invalid_value(
+                serde::de::Unexpected::Str(self.0),
+                &"an f64 float",
+            )),
+        }
+    }
+
+    #[inline]
+    fn deserialize_option<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: serde::de::Visitor<'de>,
+    {
+        visitor.visit_some(self)
+    }
+
+    serde::forward_to_deserialize_any! {
+        char str string bytes byte_buf unit unit_struct newtype_struct
+        seq tuple tuple_struct map struct enum identifier ignored_any
+    }
+
+    #[inline]
+    fn deserialize_i128<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: serde::de::Visitor<'de>,
+    {
+        match self.0.parse::<i128>() {
+            Ok(v) => visitor.visit_i128(v),
+            Err(_) => Err(serde::de::Error::invalid_value(
+                serde::de::Unexpected::Str(self.0),
+                &"an i128 integer",
+            )),
+        }
+    }
+
+    #[inline]
+    fn deserialize_u128<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: serde::de::Visitor<'de>,
+    {
+        match self.0.parse::<u128>() {
+            Ok(v) => visitor.visit_u128(v),
+            Err(_) => Err(serde::de::Error::invalid_value(
+                serde::de::Unexpected::Str(self.0),
+                &"a u128 integer",
+            )),
+        }
+    }
+}
+
+/// Deserializes a value from a string, trying type-specific parsing.
+///
+/// Used by `PrimitiveOrElement` and `SingleOrVec` when receiving string values
+/// from the XML deserializer to convert them into concrete primitive types.
+/// Uses `StringParsingDeserializer` directly (not `deserialize_single_value`)
+/// because the `OptionFriendlyDeserializer` wrapper would forward type-specific
+/// methods like `deserialize_i32` back to `deserialize_any`, losing the parsing.
+#[inline]
+fn deserialize_from_str<'de, T>(s: &str) -> Result<T, serde::de::value::Error>
+where
+    T: serde::Deserialize<'de>,
+{
+    T::deserialize(StringParsingDeserializer(s))
 }
 
 /// Helper struct for serializing id and extension metadata for FHIR primitives.
