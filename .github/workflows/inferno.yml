@@ -105,7 +105,7 @@ jobs:
           esac
 
           case "$SUITE" in
-            us_core_v610|us_core_v700)
+            us_core_v610|us_core_v700|us_core_v800)
               # No Practitioner references found in test data for these versions
               OMITTED="${OMITTED},\"${SUITE}-${SUITE}_fhir_api-${SUITE}_practitioner-${SUITE}_practitioner_address_test\""
               ;;
@@ -259,12 +259,21 @@ jobs:
       - name: Run Inferno tests
         run: |
           # Create a test session for US Core ${{ matrix.version_label }}
+          # Retry to handle Inferno's SQLite "database is locked" errors under concurrent load
           echo "Creating test session for ${{ matrix.suite_id }}..."
-          SESSION_RESPONSE=$(curl -s -X POST "http://$DOCKER_HOST_IP:$INFERNO_PORT/api/test_sessions?test_suite_id=${{ matrix.suite_id }}")
-          SESSION_ID=$(echo "$SESSION_RESPONSE" | jq -r '.id')
+          for attempt in $(seq 1 5); do
+            SESSION_RESPONSE=$(curl -s -X POST "http://$DOCKER_HOST_IP:$INFERNO_PORT/api/test_sessions?test_suite_id=${{ matrix.suite_id }}")
+            SESSION_ID=$(echo "$SESSION_RESPONSE" | jq -r '.id' 2>/dev/null) || true
+
+            if [ -n "$SESSION_ID" ] && [ "$SESSION_ID" != "null" ]; then
+              break
+            fi
+            echo "Attempt $attempt/5: Failed to create test session: $SESSION_RESPONSE"
+            sleep $((attempt * 3))
+          done
 
           if [ -z "$SESSION_ID" ] || [ "$SESSION_ID" = "null" ]; then
-            echo "Failed to create test session"
+            echo "Failed to create test session after 5 attempts"
             echo "$SESSION_RESPONSE"
             exit 1
           fi
@@ -276,22 +285,30 @@ jobs:
           # Note: RUNNER_IP is used so the Inferno container can reach HFS on the runner
           # Note: smart_auth_info with auth_type=public allows testing without SMART OAuth
           echo "Starting test run..."
-          RUN_RESPONSE=$(curl -s -X POST "http://$DOCKER_HOST_IP:$INFERNO_PORT/api/test_runs" \
-            -H "Content-Type: application/json" \
-            -d "{
-              \"test_session_id\": \"$SESSION_ID\",
-              \"test_group_id\": \"$TEST_GROUP_ID\",
-              \"inputs\": [
-                {\"name\": \"url\", \"value\": \"http://$RUNNER_IP:$HFS_PORT\"},
-                {\"name\": \"patient_ids\", \"value\": \"85,355,907,908,us-core-client-tests-patient\"},
-                {\"name\": \"smart_auth_info\", \"value\": \"{\\\"auth_type\\\":\\\"public\\\"}\"}
-              ]
-            }")
+          for attempt in $(seq 1 5); do
+            RUN_RESPONSE=$(curl -s -X POST "http://$DOCKER_HOST_IP:$INFERNO_PORT/api/test_runs" \
+              -H "Content-Type: application/json" \
+              -d "{
+                \"test_session_id\": \"$SESSION_ID\",
+                \"test_group_id\": \"$TEST_GROUP_ID\",
+                \"inputs\": [
+                  {\"name\": \"url\", \"value\": \"http://$RUNNER_IP:$HFS_PORT\"},
+                  {\"name\": \"patient_ids\", \"value\": \"85,355,907,908,us-core-client-tests-patient\"},
+                  {\"name\": \"smart_auth_info\", \"value\": \"{\\\"auth_type\\\":\\\"public\\\"}\"}
+                ]
+              }")
 
-          RUN_ID=$(echo "$RUN_RESPONSE" | jq -r '.id')
+            RUN_ID=$(echo "$RUN_RESPONSE" | jq -r '.id' 2>/dev/null) || true
+
+            if [ -n "$RUN_ID" ] && [ "$RUN_ID" != "null" ]; then
+              break
+            fi
+            echo "Attempt $attempt/5: Failed to start test run: $RUN_RESPONSE"
+            sleep $((attempt * 3))
+          done
 
           if [ -z "$RUN_ID" ] || [ "$RUN_ID" = "null" ]; then
-            echo "Failed to start test run"
+            echo "Failed to start test run after 5 attempts"
             echo "$RUN_RESPONSE"
             exit 1
           fi
