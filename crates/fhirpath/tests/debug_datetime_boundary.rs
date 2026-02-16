@@ -16,9 +16,9 @@ fn debug_datetime_boundary_issue() {
 
     let observation: helios_fhir::r4::Observation =
         serde_json::from_value(observation_json).unwrap();
-    let resource = FhirResource::R4(Box::new(helios_fhir::r4::Resource::Observation(
+    let resource = FhirResource::R4(Box::new(helios_fhir::r4::Resource::Observation(Box::new(
         observation,
-    )));
+    ))));
     let context = EvaluationContext::new(vec![resource]);
 
     // Debug the step-by-step evaluation

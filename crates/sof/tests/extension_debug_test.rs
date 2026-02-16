@@ -46,7 +46,7 @@ fn test_extension_function_debug() {
         id: Some("test-bundle".to_string().into()),
         entry: Some(vec![helios_fhir::r4::BundleEntry {
             full_url: Some("urn:uuid:pt1".to_string().into()),
-            resource: Some(helios_fhir::r4::Resource::Patient(patient)),
+            resource: Some(helios_fhir::r4::Resource::Patient(Box::new(patient))),
             ..Default::default()
         }]),
         ..Default::default()

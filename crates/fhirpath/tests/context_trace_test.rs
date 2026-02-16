@@ -103,7 +103,8 @@ fn test_trace_with_context_full_expression() {
     });
 
     let patient: Patient = serde_json::from_value(patient_json.clone()).unwrap();
-    let patient_resource: helios_fhir::r4::Resource = helios_fhir::r4::Resource::Patient(patient);
+    let patient_resource: helios_fhir::r4::Resource =
+        helios_fhir::r4::Resource::Patient(Box::new(patient));
     let resource = FhirResource::R4(Box::new(patient_resource));
 
     let context = EvaluationContext::new(vec![resource]);
@@ -166,7 +167,8 @@ fn test_trace_with_context_simple() {
     });
 
     let patient: Patient = serde_json::from_value(patient_json.clone()).unwrap();
-    let patient_resource: helios_fhir::r4::Resource = helios_fhir::r4::Resource::Patient(patient);
+    let patient_resource: helios_fhir::r4::Resource =
+        helios_fhir::r4::Resource::Patient(Box::new(patient));
     let resource = FhirResource::R4(Box::new(patient_resource));
 
     let context = EvaluationContext::new(vec![resource]);
