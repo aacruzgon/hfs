@@ -1,0 +1,248 @@
+name: Inferno US Core Test Suite
+
+on:
+  workflow_dispatch:  # Manual trigger only for initial implementation
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_BUILD_JOBS: 1
+  CARGO_PROFILE_DEV_DEBUG: 0
+  HFS_PORT: 8080
+  INFERNO_PORT: 80
+
+jobs:
+  inferno-test:
+    name: Inferno US Core v3.1.1 Tests
+    runs-on: [self-hosted, Linux, Docker]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
+      - name: Configure Rust to use LLD
+        run: |
+          mkdir -p ~/.cargo
+          rm -f ~/.cargo/config.toml
+          echo '[target.x86_64-unknown-linux-gnu]' >> ~/.cargo/config.toml
+          echo 'linker = "clang"' >> ~/.cargo/config.toml
+          echo 'rustflags = ["-C", "link-arg=-fuse-ld=lld", "-C", "link-arg=-Wl,-zstack-size=8388608"]' >> ~/.cargo/config.toml
+
+      - name: Build HFS
+        run: cargo build -p helios-hfs --features R4,sqlite
+
+      - name: Start HFS server
+        run: |
+          ./target/release/hfs --database-url :memory: --log-level info --port $HFS_PORT --host 0.0.0.0 &
+          echo $! > /tmp/hfs.pid
+          echo "HFS_PID=$(cat /tmp/hfs.pid)" >> $GITHUB_ENV
+
+      - name: Wait for HFS to be ready
+        run: |
+          echo "Waiting for HFS to start..."
+          for i in {1..30}; do
+            if curl -sf http://localhost:$HFS_PORT/health > /dev/null 2>&1; then
+              echo "HFS is ready"
+              exit 0
+            fi
+            echo "Attempt $i/30: HFS not ready yet..."
+            sleep 2
+          done
+          echo "HFS failed to start"
+          exit 1
+
+      - name: Load US Core test data into HFS
+        run: |
+          echo "Loading US Core test data from data/inferno/uscore_bundle_patient_355.json..."
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST http://localhost:$HFS_PORT/ \
+            -H "Content-Type: application/fhir+json" \
+            -d @data/inferno/uscore_bundle_patient_355.json)
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+
+          echo "HTTP Status: $HTTP_CODE"
+
+          if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+            echo "Test data loaded successfully"
+            echo "$BODY" | head -c 1000
+          else
+            echo "Failed to load test data"
+            echo "$BODY"
+            exit 1
+          fi
+
+      - name: Clone Inferno US Core Test Kit
+        run: |
+          git clone --depth 1 https://github.com/inferno-framework/us-core-test-kit.git /tmp/us-core-test-kit
+
+      - name: Setup Inferno
+        working-directory: /tmp/us-core-test-kit
+        run: |
+          echo "Running Inferno setup..."
+          ./setup.sh
+
+      - name: Start Inferno
+        working-directory: /tmp/us-core-test-kit
+        run: |
+          echo "Starting Inferno..."
+          ./run.sh &
+          echo "Inferno starting in background..."
+
+      - name: Wait for Inferno to be ready
+        run: |
+          echo "Waiting for Inferno to start..."
+          for i in {1..60}; do
+            if curl -sf http://localhost:$INFERNO_PORT/api/test_suites > /dev/null 2>&1; then
+              echo "Inferno is ready"
+              exit 0
+            fi
+            echo "Attempt $i/60: Inferno not ready yet..."
+            sleep 5
+          done
+          echo "Inferno failed to start"
+          docker compose -f /tmp/us-core-test-kit/docker-compose.yml logs
+          exit 1
+
+      - name: Create results directory
+        run: mkdir -p inferno-results
+
+      - name: Run Inferno tests
+        run: |
+          # Create a test session for US Core v3.1.1
+          echo "Creating test session..."
+          SESSION_RESPONSE=$(curl -s -X POST "http://localhost:$INFERNO_PORT/api/test_sessions?test_suite_id=us_core_v311")
+          SESSION_ID=$(echo "$SESSION_RESPONSE" | jq -r '.id')
+
+          if [ -z "$SESSION_ID" ] || [ "$SESSION_ID" = "null" ]; then
+            echo "Failed to create test session"
+            echo "$SESSION_RESPONSE"
+            exit 1
+          fi
+
+          echo "Test session created: $SESSION_ID"
+          echo "$SESSION_RESPONSE" > inferno-results/session.json
+
+          # Start the test run
+          # Note: host.docker.internal is used so Docker containers can reach the host
+          echo "Starting test run..."
+          RUN_RESPONSE=$(curl -s -X POST "http://localhost:$INFERNO_PORT/api/test_runs" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"test_session_id\": \"$SESSION_ID\",
+              \"inputs\": [
+                {\"name\": \"url\", \"value\": \"http://host.docker.internal:$HFS_PORT\"},
+                {\"name\": \"patient_id\", \"value\": \"355\"}
+              ]
+            }")
+
+          RUN_ID=$(echo "$RUN_RESPONSE" | jq -r '.id')
+
+          if [ -z "$RUN_ID" ] || [ "$RUN_ID" = "null" ]; then
+            echo "Failed to start test run"
+            echo "$RUN_RESPONSE"
+            exit 1
+          fi
+
+          echo "Test run started: $RUN_ID"
+          echo "$RUN_RESPONSE" > inferno-results/run.json
+
+          # Poll for results
+          echo "Polling for results..."
+          MAX_POLLS=120
+          POLL_INTERVAL=10
+
+          for i in $(seq 1 $MAX_POLLS); do
+            RESULTS=$(curl -s "http://localhost:$INFERNO_PORT/api/test_runs/$RUN_ID/results")
+            STATUS=$(echo "$RESULTS" | jq -r '.[0].result // "running"')
+
+            # Count results
+            TOTAL=$(echo "$RESULTS" | jq 'length')
+            PASS=$(echo "$RESULTS" | jq '[.[] | select(.result == "pass")] | length')
+            FAIL=$(echo "$RESULTS" | jq '[.[] | select(.result == "fail")] | length')
+            SKIP=$(echo "$RESULTS" | jq '[.[] | select(.result == "skip")] | length')
+            ERROR=$(echo "$RESULTS" | jq '[.[] | select(.result == "error")] | length')
+            RUNNING=$(echo "$RESULTS" | jq '[.[] | select(.result == null or .result == "running")] | length')
+
+            echo "Poll $i/$MAX_POLLS: Total=$TOTAL Pass=$PASS Fail=$FAIL Skip=$SKIP Error=$ERROR Running=$RUNNING"
+
+            # Check if test run is complete (no more running tests)
+            if [ "$RUNNING" -eq 0 ] && [ "$TOTAL" -gt 0 ]; then
+              echo "Test run complete!"
+              echo "$RESULTS" > inferno-results/results.json
+              break
+            fi
+
+            if [ $i -eq $MAX_POLLS ]; then
+              echo "Test run timed out"
+              echo "$RESULTS" > inferno-results/results.json
+            fi
+
+            sleep $POLL_INTERVAL
+          done
+
+      - name: Generate test summary
+        if: always()
+        run: |
+          if [ -f inferno-results/results.json ]; then
+            echo "## Inferno US Core v3.1.1 Test Results" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+
+            RESULTS=$(cat inferno-results/results.json)
+
+            TOTAL=$(echo "$RESULTS" | jq 'length')
+            PASS=$(echo "$RESULTS" | jq '[.[] | select(.result == "pass")] | length')
+            FAIL=$(echo "$RESULTS" | jq '[.[] | select(.result == "fail")] | length')
+            SKIP=$(echo "$RESULTS" | jq '[.[] | select(.result == "skip")] | length')
+            ERROR=$(echo "$RESULTS" | jq '[.[] | select(.result == "error")] | length')
+
+            echo "| Status | Count |" >> $GITHUB_STEP_SUMMARY
+            echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| :white_check_mark: Pass | $PASS |" >> $GITHUB_STEP_SUMMARY
+            echo "| :x: Fail | $FAIL |" >> $GITHUB_STEP_SUMMARY
+            echo "| :warning: Error | $ERROR |" >> $GITHUB_STEP_SUMMARY
+            echo "| :fast_forward: Skip | $SKIP |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Total** | **$TOTAL** |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+
+            # List failed tests
+            if [ "$FAIL" -gt 0 ] || [ "$ERROR" -gt 0 ]; then
+              echo "### Failed/Error Tests" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "$RESULTS" | jq -r '.[] | select(.result == "fail" or .result == "error") | "- **\(.test_id // .id)**: \(.result) - \(.output_message // "No message" | .[0:200])"' >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "## Inferno Test Results" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo ":warning: No results file found" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: inferno-test-results
+          path: inferno-results/
+          retention-days: 30
+
+      - name: Cleanup
+        if: always()
+        run: |
+          echo "Stopping HFS..."
+          if [ -f /tmp/hfs.pid ]; then
+            kill $(cat /tmp/hfs.pid) 2>/dev/null || true
+            rm -f /tmp/hfs.pid
+          fi
+
+          echo "Stopping Inferno..."
+          if [ -d /tmp/us-core-test-kit ]; then
+            docker compose -f /tmp/us-core-test-kit/docker-compose.yml down -v 2>/dev/null || true
+          fi
+
+          echo "Removing cloned directory..."
+          rm -rf /tmp/us-core-test-kit
+
+          echo "Cleanup complete"

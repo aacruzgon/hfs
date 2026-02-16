@@ -300,9 +300,10 @@ fn create_app_with_config(config: &ServerConfig) -> Router {
         // Add request timeout
         .layer(
             ServiceBuilder::new()
-                .layer(TimeoutLayer::new(Duration::from_secs(
-                    config.request_timeout,
-                )))
+                .layer(TimeoutLayer::with_status_code(
+                    http::StatusCode::REQUEST_TIMEOUT,
+                    Duration::from_secs(config.request_timeout),
+                ))
                 .into_inner(),
         );
 

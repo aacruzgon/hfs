@@ -19,7 +19,9 @@ fn test_datetime_constant_debug() {
     bundle.r#type.value = Some("collection".to_string());
 
     let mut entry = BundleEntry::default();
-    entry.resource = Some(helios_fhir::r4::Resource::DetectedIssue(detected_issue));
+    entry.resource = Some(helios_fhir::r4::Resource::DetectedIssue(Box::new(
+        detected_issue,
+    )));
     bundle.entry = Some(vec![entry]);
 
     // Test with dateTime constant comparison

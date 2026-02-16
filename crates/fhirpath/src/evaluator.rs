@@ -48,7 +48,7 @@
 //!
 //! // Create an evaluation context with the resource
 //! let resources = vec![FhirResource::R4(Box::new(
-//!     r4::Resource::Patient(patient)
+//!     r4::Resource::Patient(Box::new(patient))
 //! ))];
 //! let context = EvaluationContext::new(resources);
 //!
@@ -4017,17 +4017,35 @@ fn call_function(
                 ));
             }
 
+            // Helper to convert Integer/Decimal to Quantity with unit '1' (implicit conversion)
+            fn to_quantity_unit(result: &EvaluationResult) -> Option<String> {
+                match result {
+                    EvaluationResult::Quantity(_, unit, _) => Some(unit.clone()),
+                    EvaluationResult::Integer(_, _) | EvaluationResult::Decimal(_, _) => {
+                        Some("1".to_string())
+                    }
+                    _ => None,
+                }
+            }
+
             Ok(match (invocation_base, &args[0]) {
                 (EvaluationResult::Empty, _) | (_, EvaluationResult::Empty) => {
                     EvaluationResult::Empty
                 }
-                (
-                    EvaluationResult::Quantity(_, unit1, _),
-                    EvaluationResult::Quantity(_, unit2, _),
-                ) => EvaluationResult::boolean(crate::ucum::units_are_comparable(unit1, unit2)),
                 _ => {
-                    // Non-quantity types are not comparable in the UCUM sense
-                    EvaluationResult::boolean(false)
+                    // Try to get units from both operands (with implicit conversion for Integer/Decimal)
+                    match (
+                        to_quantity_unit(invocation_base),
+                        to_quantity_unit(&args[0]),
+                    ) {
+                        (Some(unit1), Some(unit2)) => EvaluationResult::boolean(
+                            crate::ucum::units_are_comparable(&unit1, &unit2),
+                        ),
+                        _ => {
+                            // Non-quantity types that can't be implicitly converted are not comparable
+                            EvaluationResult::boolean(false)
+                        }
+                    }
                 }
             })
         }
@@ -7122,6 +7140,38 @@ fn apply_additive(
                         EvaluationResult::Empty
                     }
                 }
+                // Quantity + Integer (implicit conversion: Integer becomes Quantity with unit '1')
+                (EvaluationResult::Quantity(val, unit, _), EvaluationResult::Integer(n, _)) => {
+                    if crate::ucum::units_are_comparable(unit, "1") {
+                        EvaluationResult::quantity(*val + Decimal::from(*n), unit.clone())
+                    } else {
+                        EvaluationResult::Empty
+                    }
+                }
+                // Integer + Quantity (implicit conversion: Integer becomes Quantity with unit '1')
+                (EvaluationResult::Integer(n, _), EvaluationResult::Quantity(val, unit, _)) => {
+                    if crate::ucum::units_are_comparable("1", unit) {
+                        EvaluationResult::quantity(Decimal::from(*n) + *val, unit.clone())
+                    } else {
+                        EvaluationResult::Empty
+                    }
+                }
+                // Quantity + Decimal (implicit conversion: Decimal becomes Quantity with unit '1')
+                (EvaluationResult::Quantity(val, unit, _), EvaluationResult::Decimal(d, _)) => {
+                    if crate::ucum::units_are_comparable(unit, "1") {
+                        EvaluationResult::quantity(*val + *d, unit.clone())
+                    } else {
+                        EvaluationResult::Empty
+                    }
+                }
+                // Decimal + Quantity (implicit conversion: Decimal becomes Quantity with unit '1')
+                (EvaluationResult::Decimal(d, _), EvaluationResult::Quantity(val, unit, _)) => {
+                    if crate::ucum::units_are_comparable("1", unit) {
+                        EvaluationResult::quantity(*d + *val, unit.clone())
+                    } else {
+                        EvaluationResult::Empty
+                    }
+                }
                 // Date/DateTime + Quantity (time duration)
                 (EvaluationResult::Date(date_str, _), EvaluationResult::Quantity(val, unit, _)) => {
                     if crate::ucum::is_time_unit(unit) {
@@ -7332,6 +7382,38 @@ fn apply_additive(
                     } else {
                         // Incompatible units for now, return empty
                         // TODO: Implement UCUM conversion if needed
+                        EvaluationResult::Empty
+                    }
+                }
+                // Quantity - Integer (implicit conversion: Integer becomes Quantity with unit '1')
+                (EvaluationResult::Quantity(val, unit, _), EvaluationResult::Integer(n, _)) => {
+                    if crate::ucum::units_are_comparable(unit, "1") {
+                        EvaluationResult::quantity(*val - Decimal::from(*n), unit.clone())
+                    } else {
+                        EvaluationResult::Empty
+                    }
+                }
+                // Integer - Quantity (implicit conversion: Integer becomes Quantity with unit '1')
+                (EvaluationResult::Integer(n, _), EvaluationResult::Quantity(val, unit, _)) => {
+                    if crate::ucum::units_are_comparable("1", unit) {
+                        EvaluationResult::quantity(Decimal::from(*n) - *val, unit.clone())
+                    } else {
+                        EvaluationResult::Empty
+                    }
+                }
+                // Quantity - Decimal (implicit conversion: Decimal becomes Quantity with unit '1')
+                (EvaluationResult::Quantity(val, unit, _), EvaluationResult::Decimal(d, _)) => {
+                    if crate::ucum::units_are_comparable(unit, "1") {
+                        EvaluationResult::quantity(*val - *d, unit.clone())
+                    } else {
+                        EvaluationResult::Empty
+                    }
+                }
+                // Decimal - Quantity (implicit conversion: Decimal becomes Quantity with unit '1')
+                (EvaluationResult::Decimal(d, _), EvaluationResult::Quantity(val, unit, _)) => {
+                    if crate::ucum::units_are_comparable("1", unit) {
+                        EvaluationResult::quantity(*d - *val, unit.clone())
+                    } else {
                         EvaluationResult::Empty
                     }
                 }
@@ -7807,6 +7889,42 @@ fn compare_inequality(
                 }
             }
         }
+        // Quantity vs Integer (implicit conversion: Integer becomes Quantity with unit '1')
+        (EvaluationResult::Quantity(val, unit, _), EvaluationResult::Integer(n, _)) => {
+            if crate::ucum::units_are_comparable(unit, "1") {
+                Some(val.cmp(&Decimal::from(*n)))
+            } else {
+                // Incompatible units - return Empty per FHIRPath spec
+                return Ok(EvaluationResult::Empty);
+            }
+        }
+        // Integer vs Quantity (implicit conversion: Integer becomes Quantity with unit '1')
+        (EvaluationResult::Integer(n, _), EvaluationResult::Quantity(val, unit, _)) => {
+            if crate::ucum::units_are_comparable("1", unit) {
+                Some(Decimal::from(*n).cmp(val))
+            } else {
+                // Incompatible units - return Empty per FHIRPath spec
+                return Ok(EvaluationResult::Empty);
+            }
+        }
+        // Quantity vs Decimal (implicit conversion: Decimal becomes Quantity with unit '1')
+        (EvaluationResult::Quantity(val, unit, _), EvaluationResult::Decimal(d, _)) => {
+            if crate::ucum::units_are_comparable(unit, "1") {
+                Some(val.cmp(d))
+            } else {
+                // Incompatible units - return Empty per FHIRPath spec
+                return Ok(EvaluationResult::Empty);
+            }
+        }
+        // Decimal vs Quantity (implicit conversion: Decimal becomes Quantity with unit '1')
+        (EvaluationResult::Decimal(d, _), EvaluationResult::Quantity(val, unit, _)) => {
+            if crate::ucum::units_are_comparable("1", unit) {
+                Some(d.cmp(val))
+            } else {
+                // Incompatible units - return Empty per FHIRPath spec
+                return Ok(EvaluationResult::Empty);
+            }
+        }
         // Object vs Quantity
         (
             EvaluationResult::Object { map: obj_l, .. },
@@ -8011,6 +8129,42 @@ fn compare_equality(
                         }
                     } else {
                         // Incompatible units, not equal
+                        EvaluationResult::boolean(false)
+                    }
+                }
+                // Quantity vs Integer (implicit conversion: Integer becomes Quantity with unit '1')
+                (EvaluationResult::Quantity(val, unit, _), EvaluationResult::Integer(n, _)) => {
+                    if crate::ucum::units_are_comparable(unit, "1") {
+                        EvaluationResult::boolean(*val == Decimal::from(*n))
+                    } else {
+                        // Incompatible units - return false (not equal)
+                        EvaluationResult::boolean(false)
+                    }
+                }
+                // Integer vs Quantity (implicit conversion: Integer becomes Quantity with unit '1')
+                (EvaluationResult::Integer(n, _), EvaluationResult::Quantity(val, unit, _)) => {
+                    if crate::ucum::units_are_comparable("1", unit) {
+                        EvaluationResult::boolean(Decimal::from(*n) == *val)
+                    } else {
+                        // Incompatible units - return false (not equal)
+                        EvaluationResult::boolean(false)
+                    }
+                }
+                // Quantity vs Decimal (implicit conversion: Decimal becomes Quantity with unit '1')
+                (EvaluationResult::Quantity(val, unit, _), EvaluationResult::Decimal(d, _)) => {
+                    if crate::ucum::units_are_comparable(unit, "1") {
+                        EvaluationResult::boolean(*val == *d)
+                    } else {
+                        // Incompatible units - return false (not equal)
+                        EvaluationResult::boolean(false)
+                    }
+                }
+                // Decimal vs Quantity (implicit conversion: Decimal becomes Quantity with unit '1')
+                (EvaluationResult::Decimal(d, _), EvaluationResult::Quantity(val, unit, _)) => {
+                    if crate::ucum::units_are_comparable("1", unit) {
+                        EvaluationResult::boolean(*d == *val)
+                    } else {
+                        // Incompatible units - return false (not equal)
                         EvaluationResult::boolean(false)
                     }
                 }

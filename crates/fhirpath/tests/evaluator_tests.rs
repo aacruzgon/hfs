@@ -601,8 +601,8 @@ fn test_function_filtering_of_type() {
         ..Default::default()
     };
     let resources = vec![
-        FhirResource::R4(Box::new(r4::Resource::Patient(patient))),
-        FhirResource::R4(Box::new(r4::Resource::Observation(observation))),
+        FhirResource::R4(Box::new(r4::Resource::Patient(Box::new(patient)))),
+        FhirResource::R4(Box::new(r4::Resource::Observation(Box::new(observation)))),
     ];
     let ctx_res = EvaluationContext::new(resources);
 
@@ -1946,6 +1946,76 @@ fn test_function_conversion_converts_to_quantity() {
     );
     // Test multi-item collection - should error
     assert!(eval("(1 | 2).convertsToQuantity()", &context).is_err()); // This assertion is now correct
+}
+
+// Spec: https://hl7.org/fhirpath/2025Jan/#comparableother--quantity--boolean
+// Related: https://jira.hl7.org/browse/FHIR-53957 (implicit conversion from integer to quantity)
+#[test]
+fn test_function_comparable() {
+    let context = EvaluationContext::new_empty_with_default_version();
+
+    // Basic quantity comparisons
+    assert_eq!(
+        eval("1 'cm'.comparable(1 '[in_i]')", &context).unwrap(),
+        EvaluationResult::boolean(true)
+    );
+    assert_eq!(
+        eval("1 'cm'.comparable(1 's')", &context).unwrap(),
+        EvaluationResult::boolean(false)
+    );
+    assert_eq!(
+        eval("1 'mg'.comparable(1 'g')", &context).unwrap(),
+        EvaluationResult::boolean(true)
+    );
+
+    // Implicit conversion from integer to quantity (FHIR-53957)
+    // Integer is implicitly converted to quantity with unit '1'
+    assert_eq!(
+        eval("1 '1'.comparable(2)", &context).unwrap(),
+        EvaluationResult::boolean(true)
+    );
+    assert_eq!(
+        eval("2.comparable(1 '1')", &context).unwrap(),
+        EvaluationResult::boolean(true)
+    );
+    assert_eq!(
+        eval("1.comparable(2)", &context).unwrap(),
+        EvaluationResult::boolean(true)
+    );
+
+    // Implicit conversion from decimal to quantity
+    assert_eq!(
+        eval("1.5 '1'.comparable(2.5)", &context).unwrap(),
+        EvaluationResult::boolean(true)
+    );
+    assert_eq!(
+        eval("2.5.comparable(1.5 '1')", &context).unwrap(),
+        EvaluationResult::boolean(true)
+    );
+
+    // Integer/Decimal not comparable with units other than '1'
+    assert_eq!(
+        eval("1 'cm'.comparable(2)", &context).unwrap(),
+        EvaluationResult::boolean(false)
+    );
+    assert_eq!(
+        eval("2.comparable(1 'cm')", &context).unwrap(),
+        EvaluationResult::boolean(false)
+    );
+
+    // Empty propagation
+    assert_eq!(
+        eval("{}.comparable(1 'cm')", &context).unwrap(),
+        EvaluationResult::Empty
+    );
+    assert_eq!(
+        eval("1 'cm'.comparable({})", &context).unwrap(),
+        EvaluationResult::Empty
+    );
+
+    // Multi-item collections should error
+    assert!(eval("(1 'cm' | 2 'cm').comparable(1 'm')", &context).is_err());
+    assert!(eval("1 'cm'.comparable((1 'm' | 2 'm'))", &context).is_err());
 }
 
 // --- String Manipulation ---
@@ -3645,7 +3715,7 @@ fn test_environment_variables() {
         ..Default::default()
     };
     let ctx_res = EvaluationContext::new(vec![FhirResource::R4(Box::new(
-        r4::Resource::Patient(patient.clone()), // Wrap in Resource enum
+        r4::Resource::Patient(Box::new(patient.clone())), // Wrap in Resource enum
     ))]); // Pass resource vec
 
     // Evaluate the %context variable using the eval function
@@ -3781,7 +3851,7 @@ fn patient_context() -> EvaluationContext {
     };
     EvaluationContext::new(vec![FhirResource::R4(Box::new(r4::Resource::Patient(
         // Wrap in Resource::Patient
-        patient,
+        Box::new(patient),
     )))])
 }
 
@@ -4001,8 +4071,8 @@ fn test_resource_oftype() {
         ..Default::default()
     };
     let resources = vec![
-        FhirResource::R4(Box::new(r4::Resource::Patient(patient))),
-        FhirResource::R4(Box::new(r4::Resource::Observation(observation))),
+        FhirResource::R4(Box::new(r4::Resource::Patient(Box::new(patient)))),
+        FhirResource::R4(Box::new(r4::Resource::Observation(Box::new(observation)))),
     ];
     let context = EvaluationContext::new(resources);
 
@@ -4453,7 +4523,7 @@ fn test_resource_access() {
     // Remove duplicate imports, they are already at the top level
     use helios_fhir::r4::{Account, Code}; // Import only needed types locally if preferred, or rely on top-level
     // Create a dummy R4 resource for testing
-    let dummy_resource = r4::Resource::Account(Account {
+    let dummy_resource = r4::Resource::Account(Box::new(Account {
         // Use imported Account
         id: Some("theid".to_string().into()), // Convert String to Id
         meta: None,
@@ -4479,7 +4549,7 @@ fn test_resource_access() {
         description: None,
         guarantor: None,
         part_of: None,
-    });
+    }));
 
     // Create a context with a resource
     let resources = vec![FhirResource::R4(Box::new(dummy_resource))]; // No need for mut
@@ -5280,6 +5350,178 @@ fn test_type_operations_with_precedence() {
     // Test type checking with union operations using parentheses
     assert_eq!(
         eval("(1 | 1) is Integer", &context).unwrap(),
+        EvaluationResult::boolean(true)
+    );
+}
+
+// FHIRPath spec: Integer/Decimal implicitly convert to Quantity with unit '1' for arithmetic and comparisons
+#[test]
+fn test_quantity_implicit_conversion_operations() {
+    let context = EvaluationContext::new_empty_with_default_version();
+
+    // --- Addition ---
+    // Quantity '1' + Integer
+    assert_eq!(
+        eval("5 '1' + 3", &context).unwrap(),
+        EvaluationResult::quantity(dec!(8), "1".to_string())
+    );
+    // Integer + Quantity '1'
+    assert_eq!(
+        eval("3 + 5 '1'", &context).unwrap(),
+        EvaluationResult::quantity(dec!(8), "1".to_string())
+    );
+    // Quantity '1' + Decimal
+    assert_eq!(
+        eval("5 '1' + 3.5", &context).unwrap(),
+        EvaluationResult::quantity(dec!(8.5), "1".to_string())
+    );
+    // Decimal + Quantity '1'
+    assert_eq!(
+        eval("3.5 + 5 '1'", &context).unwrap(),
+        EvaluationResult::quantity(dec!(8.5), "1".to_string())
+    );
+    // Incompatible units should return Empty
+    assert_eq!(
+        eval("5 'mg' + 3", &context).unwrap(),
+        EvaluationResult::Empty
+    );
+    assert_eq!(
+        eval("3 + 5 'mg'", &context).unwrap(),
+        EvaluationResult::Empty
+    );
+
+    // --- Subtraction ---
+    // Quantity '1' - Integer
+    assert_eq!(
+        eval("5 '1' - 3", &context).unwrap(),
+        EvaluationResult::quantity(dec!(2), "1".to_string())
+    );
+    // Integer - Quantity '1'
+    assert_eq!(
+        eval("3 - 5 '1'", &context).unwrap(),
+        EvaluationResult::quantity(dec!(-2), "1".to_string())
+    );
+    // Quantity '1' - Decimal
+    assert_eq!(
+        eval("5 '1' - 2.5", &context).unwrap(),
+        EvaluationResult::quantity(dec!(2.5), "1".to_string())
+    );
+    // Decimal - Quantity '1'
+    assert_eq!(
+        eval("2.5 - 5 '1'", &context).unwrap(),
+        EvaluationResult::quantity(dec!(-2.5), "1".to_string())
+    );
+    // Incompatible units should return Empty
+    assert_eq!(
+        eval("5 'mg' - 3", &context).unwrap(),
+        EvaluationResult::Empty
+    );
+
+    // --- Comparisons ---
+    // Quantity '1' > Integer
+    assert_eq!(
+        eval("5 '1' > 3", &context).unwrap(),
+        EvaluationResult::boolean(true)
+    );
+    assert_eq!(
+        eval("5 '1' > 5", &context).unwrap(),
+        EvaluationResult::boolean(false)
+    );
+    assert_eq!(
+        eval("5 '1' > 7", &context).unwrap(),
+        EvaluationResult::boolean(false)
+    );
+    // Integer > Quantity '1'
+    assert_eq!(
+        eval("7 > 5 '1'", &context).unwrap(),
+        EvaluationResult::boolean(true)
+    );
+    assert_eq!(
+        eval("3 > 5 '1'", &context).unwrap(),
+        EvaluationResult::boolean(false)
+    );
+    // Quantity '1' < Decimal
+    assert_eq!(
+        eval("5 '1' < 5.5", &context).unwrap(),
+        EvaluationResult::boolean(true)
+    );
+    assert_eq!(
+        eval("5 '1' < 4.5", &context).unwrap(),
+        EvaluationResult::boolean(false)
+    );
+    // Quantity '1' >= Integer
+    assert_eq!(
+        eval("5 '1' >= 5", &context).unwrap(),
+        EvaluationResult::boolean(true)
+    );
+    assert_eq!(
+        eval("5 '1' >= 6", &context).unwrap(),
+        EvaluationResult::boolean(false)
+    );
+    // Quantity '1' <= Decimal
+    assert_eq!(
+        eval("5 '1' <= 5.0", &context).unwrap(),
+        EvaluationResult::boolean(true)
+    );
+    assert_eq!(
+        eval("5 '1' <= 4.9", &context).unwrap(),
+        EvaluationResult::boolean(false)
+    );
+    // Incompatible units should return Empty
+    assert_eq!(
+        eval("5 'mg' > 3", &context).unwrap(),
+        EvaluationResult::Empty
+    );
+    assert_eq!(
+        eval("3 < 5 'mg'", &context).unwrap(),
+        EvaluationResult::Empty
+    );
+
+    // --- Equality ---
+    // Quantity '1' = Integer
+    assert_eq!(
+        eval("5 '1' = 5", &context).unwrap(),
+        EvaluationResult::boolean(true)
+    );
+    assert_eq!(
+        eval("5 '1' = 3", &context).unwrap(),
+        EvaluationResult::boolean(false)
+    );
+    // Integer = Quantity '1'
+    assert_eq!(
+        eval("5 = 5 '1'", &context).unwrap(),
+        EvaluationResult::boolean(true)
+    );
+    assert_eq!(
+        eval("3 = 5 '1'", &context).unwrap(),
+        EvaluationResult::boolean(false)
+    );
+    // Quantity '1' = Decimal
+    assert_eq!(
+        eval("5 '1' = 5.0", &context).unwrap(),
+        EvaluationResult::boolean(true)
+    );
+    assert_eq!(
+        eval("5 '1' = 5.5", &context).unwrap(),
+        EvaluationResult::boolean(false)
+    );
+    // Incompatible units should return false (not equal)
+    assert_eq!(
+        eval("5 'mg' = 5", &context).unwrap(),
+        EvaluationResult::boolean(false)
+    );
+    assert_eq!(
+        eval("5 = 5 'mg'", &context).unwrap(),
+        EvaluationResult::boolean(false)
+    );
+
+    // --- Not Equals ---
+    assert_eq!(
+        eval("5 '1' != 5", &context).unwrap(),
+        EvaluationResult::boolean(false)
+    );
+    assert_eq!(
+        eval("5 '1' != 3", &context).unwrap(),
         EvaluationResult::boolean(true)
     );
 }

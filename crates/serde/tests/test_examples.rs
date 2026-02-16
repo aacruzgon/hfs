@@ -356,8 +356,10 @@ fn test_json_examples_in_dir<R: DeserializeOwned + Serialize>(dir: &Path, fhir_v
                                         continue;
                                     }
 
+                                    // Skip other missing R6 resources (not yet implemented or removed from spec)
                                     let missing_r6_resources = [
                                         "MolecularSequence",
+                                        "Permission",
                                         "SubstanceNucleicAcid",
                                         "SubstancePolymer",
                                         "SubstanceProtein",

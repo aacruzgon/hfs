@@ -154,7 +154,6 @@ Add to your build script or Makefile:
 
 ```bash
 # Complete build process
-export RUST_MIN_STACK=8388608
 cargo run -p helios-fhir-gen -- --all
 cargo build --features R4,R4B,R5,R6
 cargo test --features R4,R4B,R5,R6

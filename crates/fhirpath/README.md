@@ -22,6 +22,7 @@ This implementation is available for testing in Brian Postlethwaite's [FHIRPath 
    - [Environment Variables](#environment-variables)
    - [Types and Reflection](#types-and-reflection)
    - [Type Safety and Strict Evaluation](#type-safety-and-strict-evaluation)
+   - [FHIR-Specific Functions](#fhir-specific-functions)
  - [Architecture](#architecture)
    - [Overview](#overview)
    - [FHIR Version Support](#fhir-version-support)
@@ -285,8 +286,11 @@ The SQL on FHIR specification leverages FHIRPath to define flattened tabular vie
 *   [Filtering and Projection](https://hl7.org/fhirpath/2025Jan/#filtering-and-projection)
     *   [where()](https://hl7.org/fhirpath/2025Jan/#wherecriteria--expression--collection): ✅
     *   [select()](https://hl7.org/fhirpath/2025Jan/#selectprojection-expression--collection): ✅
+    *   [sort()](https://hl7.org/fhirpath/2025Jan/#sortkeyselector-expression-asc--desc----collection) (STU): ✅ (Sort with optional key selector)
     *   [repeat()](https://hl7.org/fhirpath/2025Jan/#repeatprojection-expression--collection): ✅ (With cycle detection)
+    *   [repeatAll()](https://hl7.org/fhirpath/2025Jan/#repeatallprojection-expression--collection) (STU): ❌ Not Implemented
     *   [ofType()](https://hl7.org/fhirpath/2025Jan/#oftypetype--type-specifier--collection): ✅ (Full namespace qualification support)
+    *   [coalesce()](https://hl7.org/fhirpath/2025Jan/#coalescevalue--collection----collection) (STU): ❌ Not Implemented
 *   [Subsetting](https://hl7.org/fhirpath/2025Jan/#subsetting)
     *   [Indexer `[]`](https://hl7.org/fhirpath/2025Jan/#-index--integer---collection): ✅
     *   [single()](https://hl7.org/fhirpath/2025Jan/#single--collection): ✅
@@ -299,7 +303,7 @@ The SQL on FHIR specification leverages FHIRPath to define flattened tabular vie
     *   [exclude()](https://hl7.org/fhirpath/2025Jan/#excludeother-collection--collection): ✅
 *   [Combining](https://hl7.org/fhirpath/2025Jan/#combining)
     *   [union()](https://hl7.org/fhirpath/2025Jan/#unionother--collection): ✅
-    *   [combine()](https://hl7.org/fhirpath/2025Jan/#combineother--collection--collection): ✅
+    *   [combine()](https://hl7.org/fhirpath/2025Jan/#combineother--collection--collection): 🟡 (Basic implementation; `preserveOrder` parameter not yet supported)
 *   [Conversion](https://hl7.org/fhirpath/2025Jan/#conversion)
     *   [Implicit Conversions](https://hl7.org/fhirpath/2025Jan/#conversion): ✅ (Integer/Decimal)
     *   [iif()](https://hl7.org/fhirpath/2025Jan/#iifcriterion-expression-true-result-collection--otherwise-result-collection--collection): ✅
@@ -331,9 +335,9 @@ The SQL on FHIR specification leverages FHIRPath to define flattened tabular vie
     *   [upper()](https://hl7.org/fhirpath/2025Jan/#upper--string): ✅
     *   [lower()](https://hl7.org/fhirpath/2025Jan/#lower--string): ✅
     *   [replace()](https://hl7.org/fhirpath/2025Jan/#replacepattern--string-substitution--string--string): ✅
-    *   [matches()](https://hl7.org/fhirpath/2025Jan/#matchesregex--string--boolean): ✅
-    *   [matchesFull()](https://hl7.org/fhirpath/2025Jan/#matchesfullregex--string--boolean) (STU): ✅
-    *   [replaceMatches()](https://hl7.org/fhirpath/2025Jan/#replacematchesregex--string-substitution-string--string): ✅
+    *   [matches()](https://hl7.org/fhirpath/2025Jan/#matchesregex--string--boolean): 🟡 (Basic implementation; optional `flags` parameter not yet supported)
+    *   [matchesFull()](https://hl7.org/fhirpath/2025Jan/#matchesfullregex--string--boolean) (STU): 🟡 (Basic implementation; optional `flags` parameter not yet supported)
+    *   [replaceMatches()](https://hl7.org/fhirpath/2025Jan/#replacematchesregex--string-substitution-string--string): 🟡 (Basic implementation; optional `flags` parameter not yet supported)
     *   [length()](https://hl7.org/fhirpath/2025Jan/#length--integer): ✅
     *   [toChars()](https://hl7.org/fhirpath/2025Jan/#tochars--collection): ✅
     *   [encode()](https://hl7.org/fhirpath/2025Jan/#encodeformat--string--string): ✅
@@ -342,6 +346,7 @@ The SQL on FHIR specification leverages FHIRPath to define flattened tabular vie
     *   [escape()](https://hl7.org/fhirpath/2025Jan/#escapetarget--string--string): ✅ (html, json targets)
     *   [unescape()](https://hl7.org/fhirpath/2025Jan/#unescapetarget--string--string): ✅ (html, json targets)
     *   [split()](https://hl7.org/fhirpath/2025Jan/#splitseparator--string--collection): ✅
+    *   [join()](https://hl7.org/fhirpath/2025Jan/#joinseparator--string--string): ✅
     *   [trim()](https://hl7.org/fhirpath/2025Jan/#trim--string): ✅
 *   [Math](https://hl7.org/fhirpath/2025Jan/#math) (STU): ✅
     *   [round()](https://hl7.org/fhirpath/2025Jan/#round-precision--integer--decimal): ✅
@@ -407,8 +412,12 @@ The SQL on FHIR specification leverages FHIRPath to define flattened tabular vie
 *   [Operator Precedence](https://hl7.org/fhirpath/2025Jan/#operator-precedence): ✅
     
 ### [Aggregates](https://hl7.org/fhirpath/2025Jan/#aggregates)
-    
+
 *   [aggregate()](https://hl7.org/fhirpath/2025Jan/#aggregateaggregator--expression--init--value--value) (STU): ✅ (Full accumulator support)
+*   [sum()](https://hl7.org/fhirpath/2025Jan/#sum--integer--long--decimal--quantity) (STU): ❌ Not Implemented (can be done via `aggregate($this + $total, 0)`)
+*   [min()](https://hl7.org/fhirpath/2025Jan/#min--integer--long--decimal--quantity--date--datetime--time--string) (STU): ❌ Not Implemented
+*   [max()](https://hl7.org/fhirpath/2025Jan/#max--integer--long--decimal--quantity--date--datetime--time--string) (STU): ❌ Not Implemented
+*   [avg()](https://hl7.org/fhirpath/2025Jan/#avg--decimal--quantity) (STU): ❌ Not Implemented
 
 ### [Lexical Elements](https://hl7.org/fhirpath/2025Jan/#lexical-elements)
 
@@ -428,6 +437,55 @@ The SQL on FHIR specification leverages FHIRPath to define flattened tabular vie
 ### [Type Safety and Strict Evaluation](https://hl7.org/fhirpath/2025Jan/#type-safety-and-strict-evaluation)
     
 *   [Type Safety / Strict Evaluation](https://hl7.org/fhirpath/2025Jan/#type-safety-and-strict-evaluation): ✅ (Configurable strict mode with proper error handling)
+
+### [FHIR-Specific Functions](https://build.fhir.org/fhirpath.html#functions)
+
+These functions extend the base FHIRPath specification with FHIR-specific capabilities.
+
+*   [Additional Functions](https://build.fhir.org/fhirpath.html#functions)
+    *   [extension()](https://build.fhir.org/fhirpath.html#functions): ✅ (Full support with variable URL resolution)
+    *   [hasValue()](https://build.fhir.org/fhirpath.html#functions): ✅ (Tests if primitive has actual value beyond extensions)
+    *   [getValue()](https://build.fhir.org/fhirpath.html#functions): ❌ Not Implemented
+    *   [resolve()](https://build.fhir.org/fhirpath.html#functions): ❌ Not Implemented (Requires resource resolver integration)
+    *   [ofType()](https://build.fhir.org/fhirpath.html#functions): ✅ (Full FHIR type support)
+    *   [elementDefinition()](https://build.fhir.org/fhirpath.html#functions): ❌ Not Implemented
+    *   [slice()](https://build.fhir.org/fhirpath.html#functions): ❌ Not Implemented
+    *   [checkModifiers()](https://build.fhir.org/fhirpath.html#functions): ❌ Not Implemented
+    *   [conformsTo()](https://build.fhir.org/fhirpath.html#functions): ❌ Not Implemented (Requires profile validation)
+    *   [memberOf()](https://build.fhir.org/fhirpath.html#functions): ✅ (Via %terminologies integration)
+    *   [subsumes()](https://build.fhir.org/fhirpath.html#functions): ❌ Not Implemented (Function form; %terminologies.subsumes available)
+    *   [subsumedBy()](https://build.fhir.org/fhirpath.html#functions): ❌ Not Implemented
+    *   [htmlChecks()](https://build.fhir.org/fhirpath.html#functions): ❌ Not Implemented (XHTML narrative validation)
+    *   [comparable()](https://build.fhir.org/fhirpath.html#functions): ✅ (UCUM unit comparison)
+    *   [weight()](https://build.fhir.org/fhirpath.html#functions): ❌ Not Implemented
+
+*   [Type Factory (%factory)](https://build.fhir.org/fhirpath.html#factory)
+    *   %factory.{primitive}(): ❌ Not Implemented
+    *   %factory.Extension(): ❌ Not Implemented
+    *   %factory.Identifier(): ❌ Not Implemented
+    *   %factory.HumanName(): ❌ Not Implemented
+    *   %factory.ContactPoint(): ❌ Not Implemented
+    *   %factory.Address(): ❌ Not Implemented
+    *   %factory.Quantity(): ❌ Not Implemented
+    *   %factory.Coding(): ❌ Not Implemented
+    *   %factory.CodeableConcept(): ❌ Not Implemented
+    *   %factory.create(): ❌ Not Implemented
+    *   %factory.withExtension(): ❌ Not Implemented
+    *   %factory.withProperty(): ❌ Not Implemented
+
+*   [Server API (%server)](https://build.fhir.org/fhirpath.html#srvr-api)
+    *   %server.at(): ❌ Not Implemented
+    *   %server.read(): ❌ Not Implemented
+    *   %server.create(): ❌ Not Implemented
+    *   %server.update(): ❌ Not Implemented
+    *   %server.delete(): ❌ Not Implemented
+    *   %server.patch(): ❌ Not Implemented
+    *   %server.search(): ❌ Not Implemented
+    *   %server.capabilities(): ❌ Not Implemented
+    *   %server.validate(): ❌ Not Implemented
+    *   %server.transform(): ❌ Not Implemented
+    *   %server.everything(): ❌ Not Implemented
+    *   %server.apply(): ❌ Not Implemented
 
 ## Architecture
 
