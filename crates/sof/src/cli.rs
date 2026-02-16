@@ -536,16 +536,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let result =
             run_view_definition_with_options(view_definition, bundle, content_type, options)?;
 
-    // Standard processing for all other cases
-    let result = run_view_definition_with_options(view_definition, bundle, content_type, options)?;
-
-    // Output result
-    match args.output {
-        Some(path) => fs::write(path, result)?,
-        None => {
-            let stdout = io::stdout();
-            let mut handle = stdout.lock();
-            io::Write::write_all(&mut handle, &result)?;
+        // Output result
+        match args.output {
+            Some(path) => fs::write(path, result)?,
+            None => {
+                let stdout = io::stdout();
+                let mut handle = stdout.lock();
+                io::Write::write_all(&mut handle, &result)?;
+            }
         }
     }
 
