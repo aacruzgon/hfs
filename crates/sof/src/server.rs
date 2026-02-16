@@ -302,7 +302,7 @@ fn create_app_with_config(config: &ServerConfig) -> Router {
         .layer(
             ServiceBuilder::new()
                 .layer(TimeoutLayer::with_status_code(
-                    StatusCode::REQUEST_TIMEOUT,
+                    http::StatusCode::REQUEST_TIMEOUT,
                     Duration::from_secs(config.request_timeout),
                 ))
                 .into_inner(),
