@@ -25,27 +25,16 @@ use serde::{Deserialize, Serialize};
 ///
 /// ```rust
 /// use helios_fhir::VersionIndependentParameters;
-/// # #[cfg(feature = "R4")]
-/// use helios_fhir::r4::Parameters;
 ///
 /// # #[cfg(feature = "R4")]
 /// # {
-/// // Parse from JSON
-/// let json = r#"{
-///     "resourceType": "Parameters",
-///     "parameter": [{
-///         "name": "expression",
-///         "valueString": "Patient.name"
-///     }]
-/// }"#;
-///
-/// let params: Parameters = serde_json::from_str(json)?;
+/// // Create Parameters directly (avoids stack overflow on Windows from deep serde recursion)
+/// let params = helios_fhir::r4::Parameters::default();
 /// let version_independent = VersionIndependentParameters::R4(params);
 ///
 /// // Check version
 /// assert_eq!(version_independent.version(), helios_fhir::FhirVersion::R4);
 /// # }
-/// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]

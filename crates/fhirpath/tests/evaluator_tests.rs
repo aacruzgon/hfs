@@ -3071,8 +3071,25 @@ fn test_operator_types_as() {
         eval("1 as System.Integer", &context).unwrap(), // Add unwrap
         EvaluationResult::integer(1)
     );
-    // Test multi-item collection - should error
-    assert!(eval("(1 | 2) as Integer", &context).is_err());
+    // Per FHIRPath spec, 'as' requires singleton input - multi-item collections should error
+    // See: http://hl7.org/fhirpath/#as-type-specifier
+    // Note: For filtering multiple items, use ofType() instead
+    assert!(
+        eval("(1 | 2) as Integer", &context).is_err(),
+        "'as' with multi-item collection should error"
+    );
+    assert!(
+        eval("(1 | 'a') as Integer", &context).is_err(),
+        "'as' with multi-item collection should error"
+    );
+    assert!(
+        eval("(1 | 'a') as String", &context).is_err(),
+        "'as' with multi-item collection should error"
+    );
+    assert!(
+        eval("('a' | 'b') as Integer", &context).is_err(),
+        "'as' with multi-item collection should error"
+    );
 }
 
 // --- Collections ---

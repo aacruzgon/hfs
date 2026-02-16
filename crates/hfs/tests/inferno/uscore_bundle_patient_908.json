@@ -1,0 +1,132 @@
+{
+  "type": "transaction",
+  "entry": [
+    {
+      "fullUrl": "urn:uuid:ffe659c3-5f25-4d75-bd20-fa0956583710",
+      "resource": {
+        "id": "908",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-patient"
+          ]
+        },
+        "text": {
+          "status": "generated",
+          "div": "<div xmlns=\"http://www.w3.org/1999/xhtml\">Sample patient derived from US Core v8.0.0 examples</div>"
+        },
+        "extension": [
+          {
+            "url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-sex",
+            "valueCode": "248153007"
+          }
+        ],
+        "identifier": [
+          {
+            "system": "https://github.com/inferno-framework/us-core-test-kit",
+            "value": "ffe659c3-5f25-4d75-bd20-fa0956583710"
+          }
+        ],
+        "name": [
+          {
+            "family": "Example",
+            "given": [
+              "Child"
+            ]
+          }
+        ],
+        "birthDate": "2016-01-15",
+        "gender": "male",
+        "resourceType": "Patient"
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Patient/908"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:68a188da-cd54-4421-8c17-4701b9824519",
+      "resource": {
+        "resourceType": "Encounter",
+        "id": "68a188da-cd54-4421-8c17-4701b9824519",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-encounter"
+          ]
+        },
+        "identifier": [
+          {
+            "system": "https://github.com/inferno-framework/us-core-test-kit",
+            "value": "68a188da-cd54-4421-8c17-4701b9824519"
+          }
+        ],
+        "status": "in-progress",
+        "class": {
+          "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+          "code": "IMP",
+          "display": "inpatient encounter"
+        },
+        "type": [
+          {
+            "coding": [
+              {
+                "system": "http://snomed.info/sct",
+                "version": "http://snomed.info/sct/731000124108",
+                "code": "261665006",
+                "display": "Unknown (qualifier value)"
+              }
+            ],
+            "text": "Unknown (qualifier value)"
+          }
+        ],
+        "subject": {
+          "reference": "urn:uuid:ffe659c3-5f25-4d75-bd20-fa0956583710"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "Encounter"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:145b5b1b-1985-4d36-8375-a020c5cb44ab",
+      "resource": {
+        "id": "145b5b1b-1985-4d36-8375-a020c5cb44ab",
+        "meta": {
+          "profile": [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-provenance"
+          ]
+        },
+        "target": [
+          {
+            "reference": "urn:uuid:ffe659c3-5f25-4d75-bd20-fa0956583710"
+          }
+        ],
+        "recorded": "2019-07-09T18:49:01+00:00",
+        "agent": [
+          {
+            "type": {
+              "coding": [
+                {
+                  "system": "http://terminology.hl7.org/CodeSystem/provenance-participant-type",
+                  "code": "informant",
+                  "display": "Informant"
+                }
+              ],
+              "text": "Informant"
+            },
+            "who": {
+              "reference": "urn:uuid:ffe659c3-5f25-4d75-bd20-fa0956583710",
+              "display": "Child Example"
+            }
+          }
+        ],
+        "resourceType": "Provenance"
+      },
+      "request": {
+        "method": "POST",
+        "url": "Provenance"
+      }
+    }
+  ],
+  "resourceType": "Bundle"
+}

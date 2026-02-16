@@ -2,11 +2,11 @@
   "resourceType": "ValueSet",
   "id": "age-units",
   "meta": {
-    "lastUpdated": "2025-11-17T19:23:40.261+00:00"
+    "lastUpdated": "2025-12-17T09:50:17.012+00:00"
   },
   "text": {
     "status": "generated",
-    "div": "\u003cdiv xmlns\u003d\"http://www.w3.org/1999/xhtml\"\u003e\u003cp class\u003d\"res-header-id\"\u003e\u003cb\u003eGenerated Narrative: ValueSet age-units\u003c/b\u003e\u003c/p\u003e\u003ca name\u003d\"age-units\"\u003e \u003c/a\u003e\u003ca name\u003d\"hcage-units\"\u003e \u003c/a\u003e\u003cul\u003e\u003cli\u003eInclude these codes as defined in \u003ca href\u003d\"http://unitsofmeasure.org\"\u003e\u003ccode\u003ehttp://unitsofmeasure.org\u003c/code\u003e\u003c/a\u003e\u003cspan title\u003d\"Version is not explicity stated. No matching Code System found\"\u003e version Not Stated (use latest from terminology server)\u003c/span\u003e\u003ctable class\u003d\"none\"\u003e\u003ctr\u003e\u003ctd style\u003d\"white-space:nowrap\"\u003e\u003cb\u003eCode\u003c/b\u003e\u003c/td\u003e\u003ctd\u003e\u003cb\u003eDisplay\u003c/b\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003emin\u003c/td\u003e\u003ctd\u003emin\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003eh\u003c/td\u003e\u003ctd\u003ehour\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003ed\u003c/td\u003e\u003ctd\u003eday\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003ewk\u003c/td\u003e\u003ctd\u003eweek\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003emo\u003c/td\u003e\u003ctd\u003emonth\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003ea\u003c/td\u003e\u003ctd\u003eyear\u003c/td\u003e\u003c/tr\u003e\u003c/table\u003e\u003c/li\u003e\u003c/ul\u003e\u003c/div\u003e"
+    "div": "\u003cdiv xmlns\u003d\"http://www.w3.org/1999/xhtml\"\u003e\u003cp class\u003d\"res-header-id\"\u003e\u003cb\u003eGenerated Narrative: ValueSet age-units\u003c/b\u003e\u003c/p\u003e\u003ca name\u003d\"age-units\"\u003e \u003c/a\u003e\u003ca name\u003d\"hcage-units\"\u003e \u003c/a\u003e\u003cul\u003e\u003cli\u003eInclude these codes as defined in \u003ca href\u003d\"http://unitsofmeasure.org\"\u003e\u003ccode\u003ehttp://unitsofmeasure.org\u003c/code\u003e\u003c/a\u003e\u003cspan title\u003d\"Version is not explicitly stated. No matching Code System found\"\u003e version Not Stated (use latest from terminology server)\u003c/span\u003e\u003ctable class\u003d\"none\"\u003e\u003ctr\u003e\u003ctd style\u003d\"white-space:nowrap\"\u003e\u003cb\u003eCode\u003c/b\u003e\u003c/td\u003e\u003ctd\u003e\u003cb\u003eDisplay\u003c/b\u003e\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003emin\u003c/td\u003e\u003ctd\u003emin\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003eh\u003c/td\u003e\u003ctd\u003ehour\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003ed\u003c/td\u003e\u003ctd\u003eday\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003ewk\u003c/td\u003e\u003ctd\u003eweek\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003emo\u003c/td\u003e\u003ctd\u003emonth\u003c/td\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003ea\u003c/td\u003e\u003ctd\u003eyear\u003c/td\u003e\u003c/tr\u003e\u003c/table\u003e\u003c/li\u003e\u003c/ul\u003e\u003c/div\u003e"
   },
   "extension": [
     {
@@ -30,7 +30,7 @@
   "title": "Common UCUM Codes for Age",
   "status": "active",
   "experimental": false,
-  "date": "2025-11-17T19:23:40+00:00",
+  "date": "2025-12-17T09:50:17+00:00",
   "publisher": "HL7 International / FHIR Infrastructure",
   "contact": [
     {

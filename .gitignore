@@ -11,3 +11,8 @@ CLAUDE.md
 .prettierrc
 off
 AGENTS.md
+
+# SQLite database files
+*.db
+*.db-shm
+*.db-wal

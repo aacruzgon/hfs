@@ -1,0 +1,102 @@
+{
+  "name": "Patient Update Tests",
+  "description": "Tests for the update interaction (PUT /[type]/[id])",
+  "tags": ["crud", "update"],
+  "backends": {
+    "include": ["sqlite", "postgres"],
+    "exclude": []
+  },
+  "fhir_versions": ["R4"],
+  "setup": {
+    "resources": [
+      {
+        "resourceType": "Patient",
+        "id": "update-test-1",
+        "name": [{ "family": "Original", "given": ["Name"] }]
+      }
+    ]
+  },
+  "tests": [
+    {
+      "name": "update_existing_patient",
+      "description": "Should update an existing patient",
+      "tags": ["smoke"],
+      "request": {
+        "method": "PUT",
+        "path": "/Patient/update-test-1",
+        "headers": {
+          "Content-Type": "application/fhir+json"
+        },
+        "body": {
+          "resourceType": "Patient",
+          "id": "update-test-1",
+          "name": [{ "family": "Updated", "given": ["Name"] }]
+        }
+      },
+      "expect": {
+        "status": 200,
+        "body": {
+          "resourceType": "Patient",
+          "id": "update-test-1",
+          "name": [{ "family": "Updated" }]
+        }
+      }
+    },
+    {
+      "name": "create_via_put",
+      "description": "Should create a patient via PUT (upsert)",
+      "request": {
+        "method": "PUT",
+        "path": "/Patient/new-via-put",
+        "headers": {
+          "Content-Type": "application/fhir+json"
+        },
+        "body": {
+          "resourceType": "Patient",
+          "id": "new-via-put",
+          "name": [{ "family": "NewViaPut" }]
+        }
+      },
+      "expect": {
+        "status": 201
+      }
+    },
+    {
+      "name": "update_id_mismatch",
+      "description": "Should reject when ID in body doesn't match URL",
+      "request": {
+        "method": "PUT",
+        "path": "/Patient/update-test-1",
+        "headers": {
+          "Content-Type": "application/fhir+json"
+        },
+        "body": {
+          "resourceType": "Patient",
+          "id": "different-id",
+          "name": [{ "family": "Mismatch" }]
+        }
+      },
+      "expect": {
+        "status": 400
+      }
+    },
+    {
+      "name": "update_type_mismatch",
+      "description": "Should reject when resourceType doesn't match URL",
+      "request": {
+        "method": "PUT",
+        "path": "/Patient/update-test-1",
+        "headers": {
+          "Content-Type": "application/fhir+json"
+        },
+        "body": {
+          "resourceType": "Observation",
+          "id": "update-test-1"
+        }
+      },
+      "expect": {
+        "status": 400
+      }
+    }
+  ]
+}

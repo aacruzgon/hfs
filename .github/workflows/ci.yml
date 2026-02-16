@@ -12,6 +12,9 @@ env:
   CARGO_TERM_COLOR: always
   CARGO_BUILD_JOBS: 1
   CARGO_PROFILE_DEV_DEBUG: 0
+  # Remote Docker host (set via GitHub repository secrets or variables; leave unset for local Docker)
+  DOCKER_HOST: ${{ secrets.DOCKER_HOST || '' }}
+  TESTCONTAINERS_HOST_OVERRIDE: ${{ secrets.DOCKER_HOST_IP || 'localhost' }}
 
 jobs:
   test-rust:
@@ -64,9 +67,20 @@ jobs:
         run: |
           cargo test --workspace --all-features
 
+  cleanup-test-containers:
+    name: Cleanup Test Containers
+    runs-on: [self-hosted]
+    needs: [test-rust]
+    if: always()
+    steps:
+      - name: Remove testcontainers from this run
+        run: |
+          docker ps -aq --filter "label=github.run_id=${{ github.run_id }}" | xargs -r docker rm -f || true
+
   test-python:
     name: Test Python
     runs-on: [self-hosted]
+    needs: [test-rust]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -181,6 +195,7 @@ jobs:
   security:
     name: Security Audit
     runs-on: [self-hosted]
+    needs: [lint]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -229,7 +244,7 @@ jobs:
   coverage:
     name: Code Coverage
     runs-on: [self-hosted, Unix] # llvm-tools-preview has problems on Windows, so restrict to Unix
-    needs: [lint, security]
+    needs: [lint]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -292,9 +307,10 @@ jobs:
           files: lcov.info
           fail_ci_if_error: true
 
-  fhirpath-validation:
-    name: FhirPath Validation
+  test-fhirpath:
+    name: Test FHIRPath 
     runs-on: [self-hosted, Windows]
+    needs: [test-rust]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -521,7 +537,7 @@ jobs:
   build:
     name: Build Release
     runs-on: ${{ matrix.os }}
-    needs: [test-rust, test-python, lint, security, fhirpath-validation]
+    needs: [coverage, security, test-python, test-fhirpath]
     if: startsWith(github.ref, 'refs/tags/v')
     strategy:
       fail-fast: false
@@ -595,6 +611,7 @@ jobs:
           name: hfs-${{ matrix.target }}
           path: |
             target/release/
+            data/
             !target/release/build/
             !target/release/deps/
             !target/release/incremental/

@@ -1174,9 +1174,11 @@ fn test_helios_fhir_serde_serialize() {
     let json8 = serde_json::to_string(&s8).unwrap();
 
     // Expected: given (array of primitives/nulls), _given (array of objects/nulls for extensions/ids)
-    // Note: Keys in the _given objects are sorted alphabetically by serde_json ("extension" before "id").
-    let expected8 = r#"{"name1":"Test8","birthDate1":"1970-03-30","isActive1":true,"decimal1":123.45,"money1":{"value":123.45},"given":["Peter","James",null,"Smith"],"_given":[null,{"id":"given-id-2"},{"extension":[{"url":"http://example.com/ext","valueString":"ext-val"}]},{"extension":[{"url":"http://example.com/ext","valueString":"ext-val"}],"id":"given-id-4"}]}"#;
-    assert_eq!(json8, expected8);
+    // Note: JSON object key order may vary by environment, so compare parsed values instead of strings.
+    let expected8 = r#"{"name1":"Test8","birthDate1":"1970-03-30","isActive1":true,"decimal1":123.45,"money1":{"value":123.45},"given":["Peter","James",null,"Smith"],"_given":[null,{"id":"given-id-2"},{"extension":[{"url":"http://example.com/ext","valueString":"ext-val"}]},{"id":"given-id-4","extension":[{"url":"http://example.com/ext","valueString":"ext-val"}]}]}"#;
+    let actual: serde_json::Value = serde_json::from_str(&json8).unwrap();
+    let expected: serde_json::Value = serde_json::from_str(expected8).unwrap();
+    assert_eq!(actual, expected);
 
     // Case 9: Test Vec<String> with only primitives
     let s9 = FhirSerdeTestStruct {

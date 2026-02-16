@@ -7578,12 +7578,20 @@ fn apply_type_operation(
     type_spec: &TypeSpecifier,
     context: &EvaluationContext, // Added context
 ) -> Result<EvaluationResult, EvaluationError> {
-    // Handle singleton evaluation for 'is' and 'as' before attempting polymorphic or resource_type logic
-    if (op == "is" || op == "as") && value.count() > 1 {
-        return Err(EvaluationError::SingletonEvaluationError(format!(
-            "'{}' operator requires a singleton input",
-            op
-        )));
+    // Handle singleton evaluation for 'is' - it returns a boolean so needs singleton
+    if op == "is" && value.count() > 1 {
+        return Err(EvaluationError::SingletonEvaluationError(
+            "'is' operator requires a singleton input".to_string(),
+        ));
+    }
+
+    // Per FHIRPath spec, 'as' requires a singleton input - throw error for multiple items.
+    // Note: This differs from 'ofType' which filters collections.
+    // See: http://hl7.org/fhirpath/#as-type-specifier
+    if op == "as" && value.count() > 1 {
+        return Err(EvaluationError::SingletonEvaluationError(
+            "'as' function requires a singleton input, but received a collection with multiple items".to_string(),
+        ));
     }
 
     // For singleton collections, extract the item for type checking

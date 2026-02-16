@@ -1,0 +1,109 @@
+[package]
+name = "helios-persistence"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Polyglot persistence layer for Helios FHIR Server"
+keywords = ["fhir", "persistence", "database", "healthcare"]
+categories = ["database", "web-programming"]
+
+[features]
+default = ["sqlite"]
+
+# Database backends
+sqlite = ["dep:rusqlite", "dep:r2d2", "dep:r2d2_sqlite"]
+postgres = ["dep:tokio-postgres", "dep:deadpool-postgres", "dep:postgres-types"]
+cassandra = ["dep:cdrs-tokio", "dep:cdrs-tokio-helpers-derive"]
+mongodb = ["dep:mongodb"]
+neo4j = ["dep:neo4rs"]
+elasticsearch = ["dep:elasticsearch"]
+s3 = ["dep:object_store", "dep:aws-config", "dep:aws-credential-types"]
+
+# Configuration advisor binary
+advisor = ["dep:axum", "dep:tower-http", "dep:tracing-subscriber"]
+
+# FHIR version features (pass through to helios-fhir)
+R4 = ["helios-fhir/R4"]
+R4B = ["helios-fhir/R4B"]
+R5 = ["helios-fhir/R5"]
+R6 = ["helios-fhir/R6"]
+
+[dependencies]
+# Core dependencies (always included)
+helios-fhir = { path = "../fhir" }
+helios-fhirpath = { path = "../fhirpath" }
+helios-fhirpath-support = { path = "../fhirpath-support" }
+rust_decimal = "1"
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+thiserror = "2"
+async-trait = "0.1"
+tokio = { version = "1", features = ["sync", "rt-multi-thread"] }
+tracing = "0.1"
+uuid = { version = "1", features = ["v4", "serde"] }
+base64 = "0.22"
+regex = "1"
+parking_lot = "0.12"
+json-patch = "3"
+humantime = "2"
+
+# SQLite backend
+rusqlite = { version = "0.33", features = ["bundled", "serde_json"], optional = true }
+r2d2 = { version = "0.8", optional = true }
+r2d2_sqlite = { version = "0.26", optional = true }
+
+# PostgreSQL backend
+tokio-postgres = { version = "0.7", features = ["with-serde_json-1", "with-chrono-0_4", "with-uuid-1"], optional = true }
+deadpool-postgres = { version = "0.14", optional = true }
+postgres-types = { version = "0.2", features = ["derive", "with-serde_json-1"], optional = true }
+
+# Cassandra backend (using cdrs-tokio - pure Rust driver)
+cdrs-tokio = { version = "8", optional = true }
+cdrs-tokio-helpers-derive = { version = "5", optional = true }
+
+# MongoDB backend
+mongodb = { version = "3", optional = true }
+
+# Neo4j backend
+neo4rs = { version = "0.8", optional = true }
+
+# Elasticsearch backend
+elasticsearch = { version = "8.15.0-alpha.1", optional = true }
+
+# S3/Object storage backend
+object_store = { version = "0.11", features = ["aws"], optional = true }
+aws-config = { version = "1", optional = true }
+aws-credential-types = { version = "1", optional = true }
+
+# Configuration advisor HTTP server
+axum = { version = "0.8", optional = true }
+tower-http = { version = "0.6", features = ["cors"], optional = true }
+tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full", "test-util"] }
+tokio-test = "0.4"
+tempfile = "3"
+criterion = { version = "0.5", features = ["async_tokio"] }
+testcontainers = "0.26"
+testcontainers-modules = { version = "0.14", features = ["postgres", "elastic_search"] }
+paste = "1.0"
+
+# Configuration advisor binary
+[[bin]]
+name = "config-advisor"
+path = "src/advisor/main.rs"
+required-features = ["advisor"]
+
+# Benchmarks will be added later
+# [[bench]]
+# name = "crud_benchmark"
+# harness = false
+
+# [[bench]]
+# name = "search_benchmark"
+# harness = false
