@@ -190,10 +190,13 @@ jobs:
 
       - name: Start HFS server
         run: |
+          HFS_LOG="/tmp/hfs-${{ matrix.suite_id }}-${{ matrix.backend }}.log"
+          echo "HFS_LOG=$HFS_LOG" >> $GITHUB_ENV
+
           if [ "${{ matrix.backend }}" = "sqlite-elasticsearch" ]; then
             HFS_STORAGE_BACKEND=sqlite-elasticsearch \
             HFS_ELASTICSEARCH_NODES=http://$DOCKER_HOST_IP:$ES_PORT \
-            ./target/debug/hfs --database-url :memory: --log-level info --port $HFS_PORT --host 0.0.0.0 &
+            ./target/debug/hfs --database-url :memory: --log-level info --port $HFS_PORT --host 0.0.0.0 > "$HFS_LOG" 2>&1 &
           elif [ "${{ matrix.backend }}" = "postgres" ]; then
             HFS_STORAGE_BACKEND=postgres \
             HFS_PG_HOST=$DOCKER_HOST_IP \
@@ -201,9 +204,9 @@ jobs:
             HFS_PG_DBNAME=helios \
             HFS_PG_USER=helios \
             HFS_PG_PASSWORD=helios \
-            ./target/debug/hfs --log-level info --port $HFS_PORT --host 0.0.0.0 &
+            ./target/debug/hfs --log-level info --port $HFS_PORT --host 0.0.0.0 > "$HFS_LOG" 2>&1 &
           else
-            ./target/debug/hfs --database-url :memory: --log-level info --port $HFS_PORT --host 0.0.0.0 &
+            ./target/debug/hfs --database-url :memory: --log-level info --port $HFS_PORT --host 0.0.0.0 > "$HFS_LOG" 2>&1 &
           fi
           echo $! > /tmp/hfs.pid
           echo "HFS_PID=$(cat /tmp/hfs.pid)" >> $GITHUB_ENV
@@ -212,6 +215,14 @@ jobs:
         run: |
           echo "Waiting for HFS to start..."
           for i in {1..30}; do
+            # Check if the HFS process is still alive
+            if ! kill -0 $HFS_PID 2>/dev/null; then
+              echo "HFS process ($HFS_PID) has exited!"
+              echo "=== HFS log output ==="
+              cat "$HFS_LOG"
+              echo "=== end of log ==="
+              exit 1
+            fi
             if curl -sf http://localhost:$HFS_PORT/health > /dev/null 2>&1; then
               echo "HFS is ready"
               exit 0
@@ -219,7 +230,10 @@ jobs:
             echo "Attempt $i/30: HFS not ready yet..."
             sleep 2
           done
-          echo "HFS failed to start"
+          echo "HFS failed to start (process still running but not responding)"
+          echo "=== Last 50 lines of HFS log ==="
+          tail -50 "$HFS_LOG"
+          echo "=== end of log ==="
           exit 1
 
       - name: Load Inferno test data into HFS
@@ -290,19 +304,37 @@ jobs:
           echo "Polling for results..."
           MAX_POLLS=120
           POLL_INTERVAL=10
+          API_ERRORS=0
 
           for i in $(seq 1 $MAX_POLLS); do
             # Check test run status directly (more reliable than counting results)
-            RUN_STATUS=$(curl -s "http://$DOCKER_HOST_IP:$INFERNO_PORT/api/test_runs/$RUN_ID" | jq -r '.status')
+            STATUS_RESPONSE=$(curl -s "http://$DOCKER_HOST_IP:$INFERNO_PORT/api/test_runs/$RUN_ID")
+            RUN_STATUS=$(echo "$STATUS_RESPONSE" | jq -r '.status' 2>/dev/null) || true
+
+            if [ -z "$RUN_STATUS" ] || [ "$RUN_STATUS" = "null" ]; then
+              API_ERRORS=$((API_ERRORS + 1))
+              echo "Poll $i/$MAX_POLLS: WARNING - Inferno API returned non-JSON (error $API_ERRORS)"
+              echo "  Response (first 200 chars): ${STATUS_RESPONSE:0:200}"
+              if [ $API_ERRORS -ge 5 ]; then
+                echo "ERROR: Inferno API failed $API_ERRORS consecutive times, aborting"
+                echo "=== Last 50 lines of HFS log ==="
+                tail -50 "$HFS_LOG"
+                echo "=== end of log ==="
+                exit 1
+              fi
+              sleep $POLL_INTERVAL
+              continue
+            fi
+            API_ERRORS=0
 
             # Get results for progress display (filter to individual tests only, not group aggregations)
             RESULTS=$(curl -s "http://$DOCKER_HOST_IP:$INFERNO_PORT/api/test_runs/$RUN_ID/results")
-            TOTAL=$(echo "$RESULTS" | jq '[.[] | select(.test_id)] | length')
-            PASS=$(echo "$RESULTS" | jq '[.[] | select(.test_id and .result == "pass")] | length')
-            FAIL=$(echo "$RESULTS" | jq '[.[] | select(.test_id and .result == "fail")] | length')
-            SKIP=$(echo "$RESULTS" | jq '[.[] | select(.test_id and .result == "skip")] | length')
-            ERROR=$(echo "$RESULTS" | jq '[.[] | select(.test_id and .result == "error")] | length')
-            OMIT=$(echo "$RESULTS" | jq '[.[] | select(.test_id and .result == "omit")] | length')
+            TOTAL=$(echo "$RESULTS" | jq '[.[] | select(.test_id)] | length' 2>/dev/null) || TOTAL="?"
+            PASS=$(echo "$RESULTS" | jq '[.[] | select(.test_id and .result == "pass")] | length' 2>/dev/null) || PASS="?"
+            FAIL=$(echo "$RESULTS" | jq '[.[] | select(.test_id and .result == "fail")] | length' 2>/dev/null) || FAIL="?"
+            SKIP=$(echo "$RESULTS" | jq '[.[] | select(.test_id and .result == "skip")] | length' 2>/dev/null) || SKIP="?"
+            ERROR=$(echo "$RESULTS" | jq '[.[] | select(.test_id and .result == "error")] | length' 2>/dev/null) || ERROR="?"
+            OMIT=$(echo "$RESULTS" | jq '[.[] | select(.test_id and .result == "omit")] | length' 2>/dev/null) || OMIT="?"
 
             echo "Poll $i/$MAX_POLLS: Status=$RUN_STATUS Total=$TOTAL Pass=$PASS Fail=$FAIL Skip=$SKIP Error=$ERROR Omit=$OMIT"
 
