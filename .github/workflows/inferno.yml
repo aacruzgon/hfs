@@ -11,8 +11,8 @@ env:
   HFS_PORT: 8088
   INFERNO_PORT: ${{ secrets.INFERNO_PORT || vars.INFERNO_PORT || '4568' }}
   # Remote Docker host (set via GitHub repository secrets or variables; leave unset for local Docker)
-  DOCKER_HOST: ${{ secrets.DOCKER_HOST || vars.DOCKER_HOST || '' }}
-  DOCKER_HOST_IP: ${{ secrets.DOCKER_HOST_IP || vars.DOCKER_HOST_IP || 'localhost' }}
+  DOCKER_HOST: ${{ secrets.DOCKER_HOST }}
+  DOCKER_HOST_IP: ${{ secrets.DOCKER_HOST_IP }}
 
 jobs:
   build:
