@@ -526,13 +526,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // For Parquet with max_file_size, we need special handling
-    if content_type == ContentType::Parquet {
-        if let (Some(_), Some(output_path)) = (args.max_file_size, &args.output) {
-            // Process and write Parquet files with splitting
-            write_parquet_with_splitting(view_definition, bundle, output_path, options)?;
-            return Ok(());
-        }
-    }
+    if let (ContentType::Parquet, Some(_), Some(output)) =
+        (&content_type, &args.max_file_size, &args.output)
+    {
+        // Process and write Parquet files with splitting
+        write_parquet_with_splitting(view_definition, bundle, output, options)?;
+    } else {
+        // Standard processing for all other cases
+        let result =
+            run_view_definition_with_options(view_definition, bundle, content_type, options)?;
 
     // Standard processing for all other cases
     let result = run_view_definition_with_options(view_definition, bundle, content_type, options)?;
