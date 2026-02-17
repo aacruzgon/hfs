@@ -34,6 +34,10 @@
 //! ```
 //! Requires: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION
 //!
+//! For S3-compatible services (MinIO, Ceph, etc.), also set:
+//! - AWS_ENDPOINT_URL: Custom endpoint URL (e.g., `http://localhost:9000`)
+//! - AWS_ALLOW_HTTP: Set to `true` if the endpoint uses HTTP instead of HTTPS
+//!
 //! ### Google Cloud Storage
 //! ```text
 //! gs://my-bucket/path/to/data.ndjson
@@ -241,15 +245,26 @@ async fn load_from_s3(url: &Url) -> Result<SofBundle, SofError> {
     }
 
     // Create S3 client using environment variables or default credentials
-    let store = AmazonS3Builder::new()
-        .with_bucket_name(bucket)
-        .build()
-        .map_err(|e| {
-            SofError::SourceFetchError(format!(
-                "Failed to create S3 client for '{}': {}. Ensure AWS credentials are configured (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION)",
-                url, e
-            ))
-        })?;
+    let mut builder = AmazonS3Builder::new().with_bucket_name(bucket);
+
+    // Support custom S3-compatible endpoints (e.g., MinIO, Ceph, LocalStack)
+    if let Ok(endpoint) = std::env::var("AWS_ENDPOINT_URL") {
+        builder = builder.with_endpoint(&endpoint);
+
+        // Allow HTTP connections for local development endpoints
+        if let Ok(allow_http) = std::env::var("AWS_ALLOW_HTTP") {
+            if allow_http.eq_ignore_ascii_case("true") || allow_http == "1" {
+                builder = builder.with_allow_http(true);
+            }
+        }
+    }
+
+    let store = builder.build().map_err(|e| {
+        SofError::SourceFetchError(format!(
+            "Failed to create S3 client for '{}': {}. Ensure AWS credentials are configured (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION). For S3-compatible services, set AWS_ENDPOINT_URL.",
+            url, e
+        ))
+    })?;
 
     load_from_object_store(Arc::new(store), path, url.as_str()).await
 }
