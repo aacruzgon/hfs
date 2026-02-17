@@ -304,7 +304,7 @@ The main Helios FHIR Server application (coming soon).
 - HTTP API with `$viewdefinition-run` operation
 - Cloud storage support: S3, GCS, Azure Blob Storage
 
-## FHIR REST API (Coming Soon)
+## FHIR REST API
 - Full CRUD operations
 - Search with chained parameters
 - History and versioning
