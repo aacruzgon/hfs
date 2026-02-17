@@ -5,8 +5,8 @@
 //! FHIR JSON patterns on-the-fly.
 
 use crate::error::{Result, SerdeError};
-use quick_xml::events::{BytesText, Event};
 use quick_xml::Reader;
+use quick_xml::events::{BytesText, Event};
 use serde::de::{self, Deserialize, DeserializeSeed, IntoDeserializer, SeqAccess, Visitor};
 use serde_json::Value as JsonValue;
 use std::collections::VecDeque;
@@ -949,7 +949,6 @@ impl<R: BufRead> XmlDeserializer<R> {
     }
 }
 
-
 /// MapAccess implementation for deserializing XML elements as struct fields
 struct ElementMapAccess<'a, R: BufRead> {
     de: &'a mut XmlDeserializer<R>,
@@ -1000,7 +999,6 @@ impl<'a, R: BufRead> ElementMapAccess<'a, R> {
         }
     }
 
-
     fn consume_insignificant_events(&mut self) -> Result<()> {
         loop {
             let should_consume = match self.de.peek_event()? {
@@ -1015,7 +1013,6 @@ impl<'a, R: BufRead> ElementMapAccess<'a, R> {
         }
         Ok(())
     }
-
 }
 
 impl<'a, R: BufRead> Drop for ElementMapAccess<'a, R> {
@@ -1129,9 +1126,8 @@ impl<'de, 'a, R: BufRead + 'a> de::MapAccess<'de> for ElementMapAccess<'a, R> {
         // PhantomData<Content> when deserializing untagged enums (which FHIR resources use).
         // This adds overhead but ensures correct deserialization of repeating elements.
         let field_deser = FieldValueDeserializer::new(self.de, field_name.clone())?;
-        seed.deserialize(field_deser).map_err(|err| {
-            SerdeError::Custom(format!("field {}: {}", field_name, err))
-        })
+        seed.deserialize(field_deser)
+            .map_err(|err| SerdeError::Custom(format!("field {}: {}", field_name, err)))
     }
 }
 
@@ -1184,7 +1180,8 @@ impl<'a, R: BufRead> FieldValueDeserializer<'a, R> {
                 match &event {
                     Event::Eof => {
                         return Err(SerdeError::Custom(format!(
-                            "Unexpected EOF while reading field {}", field_name
+                            "Unexpected EOF while reading field {}",
+                            field_name
                         )));
                     }
                     Event::Start(_) => {

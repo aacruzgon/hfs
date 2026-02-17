@@ -1623,8 +1623,10 @@ mod tests {
 fn generate_deserialize_impl(data: &Data, name: &Ident) -> proc_macro2::TokenStream {
     let struct_name = format_ident!("Temp{}", name);
 
-    let mut temp_struct_attributes = Vec::new();
-    let mut constructor_attributes = Vec::new();
+    let mut temp_struct_xml_attrs = Vec::new();
+    let mut temp_struct_json_attrs = Vec::new();
+    let mut constructor_xml_attrs = Vec::new();
+    let mut constructor_json_attrs = Vec::new();
     let single_or_vec_ident: proc_macro2::TokenStream =
         quote! { ::helios_serde_support::SingleOrVec };
     let primitive_or_element_ident: proc_macro2::TokenStream =
@@ -2369,8 +2371,211 @@ fn generate_deserialize_impl(data: &Data, name: &Ident) -> proc_macro2::TokenStr
                             }
                         }; // Semicolon ends the let constructor_attribute binding
 
-                        temp_struct_attributes.push(temp_struct_attribute);
-                        constructor_attributes.push(constructor_attribute); // Push the result
+                        // --- JSON-only temp struct attribute (no SingleOrVec/PrimitiveOrElement wrappers) ---
+                        let temp_primitive_type_json = if is_fhir_element {
+                            let primitive_type_ident = if is_decimal_element {
+                                quote! { serde_json::Value }
+                            } else {
+                                let prim_type = primitive_value_type
+                                    .as_ref()
+                                    .expect("non-decimal element missing primitive type");
+                                quote! { #prim_type }
+                            };
+                            if is_vec {
+                                quote! { Option<Vec<Option<#primitive_type_ident>>> }
+                            } else {
+                                quote! { Option<#primitive_type_ident> }
+                            }
+                        } else {
+                            quote! { #field_ty }
+                        };
+
+                        let temp_extension_type_json = if is_fhir_element {
+                            if is_vec {
+                                quote! { Option<Vec<Option<IdAndExtensionHelper>>> }
+                            } else {
+                                quote! { Option<IdAndExtensionHelper> }
+                            }
+                        } else {
+                            quote! { () }
+                        };
+
+                        let base_attribute_json = quote! {
+                            #[serde(default, rename = #effective_field_name_str)]
+                            #field_name_ident: #temp_primitive_type_json,
+                        };
+
+                        let underscore_attribute_json = if is_fhir_element {
+                            quote! {
+                                #[serde(default, rename = #underscore_field_name_literal)]
+                                #field_name_ident_ext: #temp_extension_type_json,
+                            }
+                        } else {
+                            quote! {}
+                        };
+
+                        let temp_struct_json_attr = quote! {
+                            #flatten_attr
+                            #base_attribute_json
+                            #underscore_attribute_json
+                        };
+
+                        // --- JSON-only constructor attribute (direct struct construction, no PrimitiveOrElement) ---
+                        let constructor_json_attr = if is_fhir_element {
+                            if is_vec {
+                                let element_type_json = {
+                                    let vec_inner_type = if is_option {
+                                        get_option_inner_type(field_ty)
+                                    } else {
+                                        Some(field_ty)
+                                    }
+                                    .and_then(get_vec_inner_type)
+                                    .expect("Vec inner type not found for Element");
+                                    quote! { #vec_inner_type }
+                                };
+
+                                let construction_logic_json = if is_decimal_element {
+                                    quote! { {
+                                        let primitives = temp_struct.#field_name_ident.unwrap_or_default();
+                                        let extensions = temp_struct.#field_name_ident_ext.unwrap_or_default();
+                                        let len = primitives.len().max(extensions.len());
+                                        let mut result_vec = Vec::with_capacity(len);
+                                        for i in 0..len {
+                                            let prim_val_opt = primitives.get(i).cloned().flatten();
+                                            let ext_helper_opt = extensions.get(i).cloned().flatten();
+                                            if prim_val_opt.is_some() || ext_helper_opt.is_some() {
+                                                let precise_decimal_value = match prim_val_opt {
+                                                    Some(json_val) if !json_val.is_null() => {
+                                                        crate::PreciseDecimal::deserialize(json_val)
+                                                            .map(Some)
+                                                            .map_err(serde::de::Error::custom)?
+                                                    },
+                                                    _ => None,
+                                                };
+                                                result_vec.push(#element_type_json {
+                                                    value: precise_decimal_value,
+                                                    id: ext_helper_opt.as_ref().and_then(|h| h.id.clone()),
+                                                    extension: ext_helper_opt.as_ref().and_then(|h| h.extension.clone()),
+                                                });
+                                            }
+                                        }
+                                        result_vec
+                                    } }
+                                } else {
+                                    quote! { {
+                                        let primitives = temp_struct.#field_name_ident.unwrap_or_default();
+                                        let extensions = temp_struct.#field_name_ident_ext.unwrap_or_default();
+                                        let len = primitives.len().max(extensions.len());
+                                        let mut result_vec = Vec::with_capacity(len);
+                                        for i in 0..len {
+                                            let prim_val_opt = primitives.get(i).cloned().flatten();
+                                            let ext_helper_opt = extensions.get(i).cloned().flatten();
+                                            if prim_val_opt.is_some() || ext_helper_opt.is_some() {
+                                                result_vec.push(#element_type_json {
+                                                    value: prim_val_opt,
+                                                    id: ext_helper_opt.as_ref().and_then(|h| h.id.clone()),
+                                                    extension: ext_helper_opt.as_ref().and_then(|h| h.extension.clone()),
+                                                });
+                                            }
+                                        }
+                                        result_vec
+                                    } }
+                                };
+
+                                if is_option {
+                                    quote! {
+                                        #field_name_ident: if temp_struct.#field_name_ident.is_some() || temp_struct.#field_name_ident_ext.is_some() {
+                                            Some(#construction_logic_json)
+                                        } else {
+                                            None
+                                        },
+                                    }
+                                } else {
+                                    quote! {
+                                        #field_name_ident: #construction_logic_json,
+                                    }
+                                }
+                            } else if is_decimal_element {
+                                if is_option {
+                                    let construction_logic_json = quote! { {
+                                        let precise_decimal_value = match temp_struct.#field_name_ident {
+                                            Some(json_val) if !json_val.is_null() => {
+                                                crate::PreciseDecimal::deserialize(json_val)
+                                                    .map(Some)
+                                                    .map_err(serde::de::Error::custom)?
+                                            },
+                                            _ => None,
+                                        };
+                                        crate::DecimalElement {
+                                            value: precise_decimal_value,
+                                            id: temp_struct.#field_name_ident_ext.as_ref().and_then(|h| h.id.clone()),
+                                            extension: temp_struct.#field_name_ident_ext.as_ref().and_then(|h| h.extension.clone()),
+                                        }
+                                    } };
+                                    quote! {
+                                        #field_name_ident: if temp_struct.#field_name_ident.is_some() || temp_struct.#field_name_ident_ext.is_some() {
+                                            Some(#construction_logic_json)
+                                        } else {
+                                            None
+                                        },
+                                    }
+                                } else {
+                                    quote! {
+                                        #field_name_ident: {
+                                            let precise_decimal_value = match temp_struct.#field_name_ident {
+                                                Some(json_val) if !json_val.is_null() => {
+                                                    crate::PreciseDecimal::deserialize(json_val)
+                                                        .map(Some)
+                                                        .map_err(serde::de::Error::custom)?
+                                                },
+                                                _ => None,
+                                            };
+                                            crate::DecimalElement {
+                                                value: precise_decimal_value,
+                                                id: temp_struct.#field_name_ident_ext.as_ref().and_then(|h| h.id.clone()),
+                                                extension: temp_struct.#field_name_ident_ext.as_ref().and_then(|h| h.extension.clone()),
+                                            }
+                                        },
+                                    }
+                                }
+                            } else if is_option {
+                                let inner_element_type = get_option_inner_type(field_ty)
+                                    .expect("Option inner type not found");
+                                quote! {
+                                    #field_name_ident: if temp_struct.#field_name_ident.is_some() || temp_struct.#field_name_ident_ext.is_some() {
+                                        Some(#inner_element_type {
+                                            value: temp_struct.#field_name_ident,
+                                            id: temp_struct.#field_name_ident_ext.as_ref().and_then(|h| h.id.clone()),
+                                            extension: temp_struct.#field_name_ident_ext.as_ref().and_then(|h| h.extension.clone()),
+                                        })
+                                    } else {
+                                        None
+                                    },
+                                }
+                            } else {
+                                quote! {
+                                    #field_name_ident: {
+                                        let mut element = #field_ty::default();
+                                        element.value = temp_struct.#field_name_ident;
+                                        if let Some(helper) = temp_struct.#field_name_ident_ext {
+                                            element.id = helper.id;
+                                            element.extension = helper.extension;
+                                        }
+                                        element
+                                    },
+                                }
+                            }
+                        } else {
+                            // Not an FHIR element type
+                            quote! {
+                                #field_name_ident: temp_struct.#field_name_ident,
+                            }
+                        };
+
+                        temp_struct_xml_attrs.push(temp_struct_attribute);
+                        temp_struct_json_attrs.push(temp_struct_json_attr);
+                        constructor_xml_attrs.push(constructor_attribute);
+                        constructor_json_attrs.push(constructor_json_attr);
                     }
                 }
                 Fields::Unnamed(_) => panic!("Tuple structs not supported by FhirSerde"),
@@ -2385,26 +2590,28 @@ fn generate_deserialize_impl(data: &Data, name: &Ident) -> proc_macro2::TokenStr
         type IdAndExtensionHelper = helios_serde_support::IdAndExtensionOwned<Extension>;
     };
 
-    let temp_struct = quote! {
-        #[derive(Deserialize)]
-        struct #struct_name {
-            #(#temp_struct_attributes)*
-        }
-    };
-
     quote! {
-        // Define the helper struct at the top level of the deserialize function
         #id_extension_helper_def
 
-        // Define the temporary struct for deserialization
-        #temp_struct
+        #[cfg(feature = "xml")]
+        #[derive(Deserialize)]
+        struct #struct_name {
+            #(#temp_struct_xml_attrs)*
+        }
 
-         // Perform the actual deserialization into the temporary struct
+        #[cfg(not(feature = "xml"))]
+        #[derive(Deserialize)]
+        struct #struct_name {
+            #(#temp_struct_json_attrs)*
+        }
+
         let temp_struct = #struct_name::deserialize(deserializer)?;
 
+        #[cfg(feature = "xml")]
+        return Ok(#name { #(#constructor_xml_attrs)* });
 
-        Ok(#name{#(#constructor_attributes)*})
-
+        #[cfg(not(feature = "xml"))]
+        return Ok(#name { #(#constructor_json_attrs)* });
     }
 }
 

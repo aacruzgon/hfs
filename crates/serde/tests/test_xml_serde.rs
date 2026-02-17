@@ -1,3 +1,5 @@
+#![cfg(feature = "xml")]
+
 use helios_serde::Result;
 use helios_serde::xml::{from_xml_str, to_xml_string};
 use serde::{Deserialize, Serialize};
@@ -157,7 +159,8 @@ struct ResourceWithExtension {
     #[serde(rename = "resourceType")]
     resource_type: String,
     #[serde(rename = "birthDate")]
-    birth_date: Option<helios_serde_support::PrimitiveOrElement<serde_json::Value, BirthDateElement>>,
+    birth_date:
+        Option<helios_serde_support::PrimitiveOrElement<serde_json::Value, BirthDateElement>>,
 }
 
 #[test]
@@ -698,7 +701,10 @@ fn test_xml_deserialize_primitive_extension() -> Result<()> {
     assert_eq!(resource.resource_type, "Patient");
 
     // Check that birthDate was deserialized as an Element with both value and id
-    let birth_date = resource.birth_date.as_ref().expect("birthDate should be present");
+    let birth_date = resource
+        .birth_date
+        .as_ref()
+        .expect("birthDate should be present");
     match birth_date {
         helios_serde_support::PrimitiveOrElement::Element(elem) => {
             assert_eq!(elem.value, Some("1974-12-25".to_string()));
@@ -726,7 +732,10 @@ fn test_xml_deserialize_primitive_extension_non_self_closing() -> Result<()> {
     assert_eq!(resource.resource_type, "Patient");
 
     // Check that birthDate was deserialized as an Element with both value and id
-    let birth_date = resource.birth_date.as_ref().expect("birthDate should be present");
+    let birth_date = resource
+        .birth_date
+        .as_ref()
+        .expect("birthDate should be present");
     match birth_date {
         helios_serde_support::PrimitiveOrElement::Element(elem) => {
             assert_eq!(elem.value, Some("1974-12-25".to_string()));

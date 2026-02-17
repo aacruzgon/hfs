@@ -33,6 +33,23 @@ impl<T> Default for SingleOrVec<T> {
     }
 }
 
+// JSON-only: delegate directly to Vec<T> — no deserialize_any overhead
+#[cfg(not(feature = "xml"))]
+impl<'de, T> serde::Deserialize<'de> for SingleOrVec<T>
+where
+    T: serde::Deserialize<'de>,
+{
+    #[inline]
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Vec::<T>::deserialize(deserializer).map(SingleOrVec)
+    }
+}
+
+// XML+JSON: uses deserialize_any to handle both single values and arrays
+#[cfg(feature = "xml")]
 impl<'de, T> serde::Deserialize<'de> for SingleOrVec<T>
 where
     T: serde::Deserialize<'de>,
@@ -155,6 +172,23 @@ pub enum PrimitiveOrElement<P, E> {
     Primitive(P),
 }
 
+// JSON-only: always produces Primitive — no deserialize_any overhead
+#[cfg(not(feature = "xml"))]
+impl<'de, P, E> serde::Deserialize<'de> for PrimitiveOrElement<P, E>
+where
+    P: serde::Deserialize<'de>,
+{
+    #[inline]
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        P::deserialize(deserializer).map(PrimitiveOrElement::Primitive)
+    }
+}
+
+// XML+JSON: uses deserialize_any to distinguish primitives from element objects
+#[cfg(feature = "xml")]
 impl<'de, P, E> serde::Deserialize<'de> for PrimitiveOrElement<P, E>
 where
     P: serde::Deserialize<'de>,
@@ -315,6 +349,7 @@ where
     }
 }
 
+#[cfg(feature = "xml")]
 #[inline]
 fn deserialize_single_value<'de, D, T>(deserializer: D) -> Result<T, D::Error>
 where
@@ -368,6 +403,7 @@ where
     T::deserialize(OptionFriendlyDeserializer(deserializer))
 }
 
+#[cfg(feature = "xml")]
 /// Deserializer that wraps a string value and tries to parse it as the requested type.
 ///
 /// XML sends all primitive values as strings. This deserializer enables transparent
@@ -376,6 +412,7 @@ where
 /// type requests a specific numeric or boolean type, it parses the string accordingly.
 struct StringParsingDeserializer<'a>(&'a str);
 
+#[cfg(feature = "xml")]
 impl<'de, 'a> serde::Deserializer<'de> for StringParsingDeserializer<'a> {
     type Error = serde::de::value::Error;
 
@@ -585,6 +622,7 @@ impl<'de, 'a> serde::Deserializer<'de> for StringParsingDeserializer<'a> {
     }
 }
 
+#[cfg(feature = "xml")]
 /// Deserializes a value from a string, trying type-specific parsing.
 ///
 /// Used by `PrimitiveOrElement` and `SingleOrVec` when receiving string values

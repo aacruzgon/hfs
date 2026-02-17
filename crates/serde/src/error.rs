@@ -5,6 +5,7 @@ pub enum SerdeError {
     Json(serde_json::Error),
 
     /// XML serialization or deserialization error
+    #[cfg(feature = "xml")]
     Xml(quick_xml::Error),
 
     /// IO error during serialization/deserialization
@@ -18,6 +19,7 @@ impl std::fmt::Display for SerdeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             SerdeError::Json(e) => write!(f, "JSON error: {}", e),
+            #[cfg(feature = "xml")]
             SerdeError::Xml(e) => write!(f, "XML error: {}", e),
             SerdeError::Io(e) => write!(f, "IO error: {}", e),
             SerdeError::Custom(msg) => write!(f, "{}", msg),
@@ -29,6 +31,7 @@ impl std::error::Error for SerdeError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             SerdeError::Json(e) => Some(e),
+            #[cfg(feature = "xml")]
             SerdeError::Xml(e) => Some(e),
             SerdeError::Io(e) => Some(e),
             SerdeError::Custom(_) => None,
@@ -42,6 +45,7 @@ impl From<serde_json::Error> for SerdeError {
     }
 }
 
+#[cfg(feature = "xml")]
 impl From<quick_xml::Error> for SerdeError {
     fn from(err: quick_xml::Error) -> Self {
         SerdeError::Xml(err)

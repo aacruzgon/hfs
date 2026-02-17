@@ -1,5 +1,8 @@
+#[cfg(feature = "xml")]
 use helios_serde::xml::{from_xml_str, to_xml_string};
+#[cfg(feature = "xml")]
 use quick_xml::Reader;
+#[cfg(feature = "xml")]
 use quick_xml::events::Event;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -35,28 +38,28 @@ fn test_r6_json_examples() {
     test_json_examples_in_dir::<helios_fhir::r6::Resource>(&examples_dir, "R6");
 }
 
-#[cfg(feature = "R4")]
+#[cfg(all(feature = "R4", feature = "xml"))]
 #[test]
 fn test_r4_xml_examples() {
     let examples_dir = xml_examples_dir("R4");
     test_xml_examples_in_dir::<helios_fhir::r4::Resource>(&examples_dir, "R4");
 }
 
-#[cfg(feature = "R4B")]
+#[cfg(all(feature = "R4B", feature = "xml"))]
 #[test]
 fn test_r4b_xml_examples() {
     let examples_dir = xml_examples_dir("R4B");
     test_xml_examples_in_dir::<helios_fhir::r4b::Resource>(&examples_dir, "R4B");
 }
 
-#[cfg(feature = "R5")]
+#[cfg(all(feature = "R5", feature = "xml"))]
 #[test]
 fn test_r5_xml_examples() {
     let examples_dir = xml_examples_dir("R5");
     test_xml_examples_in_dir::<helios_fhir::r5::Resource>(&examples_dir, "R5");
 }
 
-#[cfg(feature = "R6")]
+#[cfg(all(feature = "R6", feature = "xml"))]
 #[test]
 fn test_r6_xml_examples() {
     let examples_dir = xml_examples_dir("R6");
@@ -207,6 +210,7 @@ fn json_examples_dir(version: &str) -> PathBuf {
     tests_data_root().join("json").join(version)
 }
 
+#[cfg(feature = "xml")]
 fn xml_examples_dir(version: &str) -> PathBuf {
     tests_data_root().join("xml").join(version)
 }
@@ -483,6 +487,7 @@ fn test_json_examples_in_dir<R: DeserializeOwned + Serialize>(dir: &Path, fhir_v
 }
 
 /// Normalizes XML by parsing it and removing insignificant whitespace
+#[cfg(feature = "xml")]
 fn normalize_xml(xml: &str) -> Result<Vec<u8>, String> {
     let mut reader = Reader::from_str(xml);
     reader.config_mut().trim_text(true);
@@ -503,6 +508,7 @@ fn normalize_xml(xml: &str) -> Result<Vec<u8>, String> {
     Ok(writer.into_inner())
 }
 
+#[cfg(feature = "xml")]
 fn test_xml_examples_in_dir<R: DeserializeOwned + Serialize>(dir: &Path, _fhir_version: &str) {
     if !dir.exists() {
         println!("Directory does not exist: {:?}", dir);

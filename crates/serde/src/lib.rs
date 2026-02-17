@@ -5,9 +5,10 @@
 ///! ## Features
 ///!
 ///! - **JSON Support**: Thin wrappers around `serde_json` that leverage the existing
-///!   `FhirSerde` derive macro for correct FHIR JSON representation.
+///!   `FhirSerde` derive macro for correct FHIR JSON representation. Always available.
 ///! - **XML Support**: Custom `serde::Serializer` and `serde::Deserializer` implementations
 ///!   that stream directly to/from FHIR XML format without materializing JSON intermediates.
+///!   Requires the `xml` feature flag: `helios-serde = { features = ["xml"] }`.
 ///! - **Version Agnostic**: Works with all FHIR versions (R4, R4B, R5, R6) through the
 ///!   `Element<V, E>` infrastructure.
 ///!
@@ -63,6 +64,7 @@
 ///! ```
 pub mod error;
 pub mod json;
+#[cfg(feature = "xml")]
 pub mod xml;
 
 // Re-export common types and functions
@@ -75,6 +77,7 @@ pub use json::{
 };
 
 // Re-export XML functions at top level for convenience
+#[cfg(feature = "xml")]
 pub use xml::{
     from_xml_reader, from_xml_slice, from_xml_str, to_xml_string, to_xml_vec, to_xml_writer,
 };
