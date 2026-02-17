@@ -28,7 +28,7 @@ where
 {
     let mut buffer = Vec::new();
     to_xml_writer(value, &mut buffer)?;
-    Ok(String::from_utf8(buffer).map_err(|e| SerdeError::Custom(e.to_string()))?)
+    String::from_utf8(buffer).map_err(|e| SerdeError::Custom(e.to_string()))
 }
 
 /// Serialize a FHIR resource to an XML byte vector.
@@ -1367,7 +1367,7 @@ struct PrimitiveValueExtractor {
     value: Option<String>,
 }
 
-impl<'a> ser::Serializer for &'a mut PrimitiveValueExtractor {
+impl ser::Serializer for &mut PrimitiveValueExtractor {
     type Ok = ();
     type Error = SerdeError;
     type SerializeSeq = ser::Impossible<(), SerdeError>;
@@ -1513,7 +1513,7 @@ struct StringExtractor {
     value: Option<String>,
 }
 
-impl<'a> ser::Serializer for &'a mut StringExtractor {
+impl ser::Serializer for &mut StringExtractor {
     type Ok = ();
     type Error = SerdeError;
     type SerializeSeq = ser::Impossible<(), SerdeError>;
@@ -2188,7 +2188,7 @@ fn extract_array_extension_data<T: ?Sized + Serialize>(
 fn is_none_value<T: ?Sized + Serialize>(value: &T) -> Result<bool> {
     struct NoneDetector(bool, bool);
 
-    impl<'a> ser::Serializer for &'a mut NoneDetector {
+    impl ser::Serializer for &mut NoneDetector {
         type Ok = ();
         type Error = SerdeError;
         type SerializeSeq = ser::Impossible<(), SerdeError>;
@@ -2360,7 +2360,7 @@ fn is_none_value<T: ?Sized + Serialize>(value: &T) -> Result<bool> {
     let mut detector = NoneDetector(false, false);
     match value.serialize(&mut detector) {
         Ok(()) => Ok(detector.0),
-        Err(e) if detector.1 => Ok(detector.0),
+        Err(_) if detector.1 => Ok(detector.0),
         Err(e) => Err(e),
     }
 }
@@ -2369,7 +2369,7 @@ fn is_none_value<T: ?Sized + Serialize>(value: &T) -> Result<bool> {
 fn is_array_value<T: ?Sized + Serialize>(value: &T) -> Result<bool> {
     struct ArrayDetector(bool, bool);
 
-    impl<'a> ser::Serializer for &'a mut ArrayDetector {
+    impl ser::Serializer for &mut ArrayDetector {
         type Ok = ();
         type Error = SerdeError;
         type SerializeSeq = ser::Impossible<(), SerdeError>;
@@ -2539,7 +2539,7 @@ fn is_array_value<T: ?Sized + Serialize>(value: &T) -> Result<bool> {
     let mut detector = ArrayDetector(false, false);
     match value.serialize(&mut detector) {
         Ok(()) => Ok(detector.0),
-        Err(e) if detector.1 => Ok(detector.0),
+        Err(_) if detector.1 => Ok(detector.0),
         Err(e) => Err(e),
     }
 }
@@ -2838,7 +2838,7 @@ impl<'a, W: Write> ser::SerializeMap for MapSerializer<'a, W> {
         // We use a simple serializer to capture the key string
         struct KeyCapture(Option<String>);
 
-        impl<'a> ser::Serializer for &'a mut KeyCapture {
+        impl ser::Serializer for &mut KeyCapture {
             type Ok = ();
             type Error = SerdeError;
             type SerializeSeq = ser::Impossible<(), SerdeError>;
@@ -3236,7 +3236,7 @@ impl<'a, W: Write> ser::SerializeStruct for MapSerializer<'a, W> {
 }
 
 // Stub implementations for unsupported types
-impl<'a, W: Write> ser::SerializeTuple for &'a mut XmlSerializer<W> {
+impl<W: Write> ser::SerializeTuple for &mut XmlSerializer<W> {
     type Ok = ();
     type Error = SerdeError;
 
@@ -3252,7 +3252,7 @@ impl<'a, W: Write> ser::SerializeTuple for &'a mut XmlSerializer<W> {
     }
 }
 
-impl<'a, W: Write> ser::SerializeTupleStruct for &'a mut XmlSerializer<W> {
+impl<W: Write> ser::SerializeTupleStruct for &mut XmlSerializer<W> {
     type Ok = ();
     type Error = SerdeError;
 
@@ -3270,7 +3270,7 @@ impl<'a, W: Write> ser::SerializeTupleStruct for &'a mut XmlSerializer<W> {
     }
 }
 
-impl<'a, W: Write> ser::SerializeTupleVariant for &'a mut XmlSerializer<W> {
+impl<W: Write> ser::SerializeTupleVariant for &mut XmlSerializer<W> {
     type Ok = ();
     type Error = SerdeError;
 
@@ -3288,7 +3288,7 @@ impl<'a, W: Write> ser::SerializeTupleVariant for &'a mut XmlSerializer<W> {
     }
 }
 
-impl<'a, W: Write> ser::SerializeStructVariant for &'a mut XmlSerializer<W> {
+impl<W: Write> ser::SerializeStructVariant for &mut XmlSerializer<W> {
     type Ok = ();
     type Error = SerdeError;
 

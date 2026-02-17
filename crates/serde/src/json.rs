@@ -1,8 +1,8 @@
-///! JSON serialization wrapper functions for FHIR resources.
-///!
-///! This module provides thin wrappers around `serde_json` functions,
-///! allowing FHIR resources to be serialized and deserialized using
-///! the existing `FhirSerde` derive macro implementations.
+//! JSON serialization wrapper functions for FHIR resources.
+//!
+//! This module provides thin wrappers around `serde_json` functions,
+//! allowing FHIR resources to be serialized and deserialized using
+//! the existing `FhirSerde` derive macro implementations.
 use crate::error::Result;
 use serde::{Deserialize, Serialize};
 

@@ -1437,7 +1437,6 @@ pub use parameters::{ParameterValueAccessor, VersionIndependentParameters};
 
 // Internal helpers used by the derive macro; not part of the public API
 #[doc(hidden)]
-
 /// Multi-version FHIR resource container supporting version-agnostic operations.
 ///
 /// This enum provides a unified interface for working with FHIR resources across
@@ -2095,7 +2094,7 @@ impl<V, E> Element<V, E> {
     pub fn is_empty(&self) -> bool {
         self.value.is_none()
             && self.id.is_none()
-            && self.extension.as_ref().map_or(true, |ext| ext.is_empty())
+            && self.extension.as_ref().is_none_or(|ext| ext.is_empty())
     }
 }
 

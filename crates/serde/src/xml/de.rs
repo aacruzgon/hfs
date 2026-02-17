@@ -192,7 +192,7 @@ impl<R: BufRead> XmlDeserializer<R> {
                     }
                 }
                 Some(Event::Text(text)) => {
-                    if is_whitespace_text(&text)? {
+                    if is_whitespace_text(text)? {
                         self.next_event()?;
                         continue;
                     } else {
@@ -257,7 +257,7 @@ impl<R: BufRead> XmlDeserializer<R> {
                     }
                 }
                 Some(Event::Text(text)) => {
-                    if is_whitespace_text(&text)? {
+                    if is_whitespace_text(text)? {
                         self.next_event()?;
                         continue;
                     } else {
@@ -335,11 +335,9 @@ impl<R: BufRead> XmlDeserializer<R> {
 }
 
 fn event_has_value_attribute(e: &quick_xml::events::BytesStart) -> bool {
-    for attr in e.attributes() {
-        if let Ok(attr) = attr {
-            if attr.key.as_ref() == b"value" {
-                return true;
-            }
+    for attr in e.attributes().flatten() {
+        if attr.key.as_ref() == b"value" {
+            return true;
         }
     }
     false
@@ -348,19 +346,17 @@ fn event_has_value_attribute(e: &quick_xml::events::BytesStart) -> bool {
 /// Check if an element has attributes other than "value" and xmlns namespaces.
 /// If it does, it should be deserialized as a struct to preserve all attributes.
 fn event_has_non_value_attributes(e: &quick_xml::events::BytesStart) -> bool {
-    for attr in e.attributes() {
-        if let Ok(attr) = attr {
-            let key = attr.key.as_ref();
-            // Ignore "value" and xmlns namespace declarations
-            if key != b"value" && !key.starts_with(b"xmlns") {
-                return true;
-            }
+    for attr in e.attributes().flatten() {
+        let key = attr.key.as_ref();
+        // Ignore "value" and xmlns namespace declarations
+        if key != b"value" && !key.starts_with(b"xmlns") {
+            return true;
         }
     }
     false
 }
 
-impl<'de, 'a, R: BufRead> de::Deserializer<'de> for &'a mut XmlDeserializer<R> {
+impl<'de, R: BufRead> de::Deserializer<'de> for &mut XmlDeserializer<R> {
     type Error = SerdeError;
 
     fn deserialize_any<V>(self, visitor: V) -> Result<V::Value>
@@ -1152,7 +1148,7 @@ impl<'a, R: BufRead> FieldValueDeserializer<'a, R> {
         loop {
             match de.peek_event()? {
                 Some(Event::Text(text)) => {
-                    if !is_whitespace_text(&text)? {
+                    if !is_whitespace_text(text)? {
                         break;
                     }
                     let event = de.next_event()?;
@@ -1206,7 +1202,7 @@ impl<'a, R: BufRead> FieldValueDeserializer<'a, R> {
         loop {
             match de.peek_event()? {
                 Some(Event::Text(text)) => {
-                    if !is_whitespace_text(&text)? {
+                    if !is_whitespace_text(text)? {
                         break;
                     }
                     de.next_event()?; // consume whitespace but don't buffer
@@ -1329,7 +1325,7 @@ impl<'de, 'a, R: BufRead> SeqAccess<'de> for BufferedFieldSeqAccess<'a, R> {
         loop {
             match self.de.peek_event()? {
                 Some(Event::Text(text)) => {
-                    if !is_whitespace_text(&text)? {
+                    if !is_whitespace_text(text)? {
                         break;
                     }
                     self.de.next_event()?;

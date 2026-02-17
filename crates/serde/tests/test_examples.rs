@@ -220,8 +220,7 @@ fn should_skip_file(
     skip_entries: &[(&'static str, &'static str)],
 ) -> Option<&'static str> {
     for (pattern, reason) in skip_entries {
-        if pattern.ends_with('*') {
-            let prefix = &pattern[..pattern.len() - 1];
+        if let Some(prefix) = pattern.strip_suffix('*') {
             if filename.starts_with(prefix) {
                 return Some(*reason);
             }

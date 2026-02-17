@@ -4,8 +4,7 @@ use helios_fhir::PreciseDecimal;
 use helios_fhir::PrecisionDate;
 use helios_fhir::r4::*;
 use helios_fhir_macro::FhirSerde;
-#[allow(unused_imports)]
-use rust_decimal;
+use rust_decimal as _;
 use rust_decimal_macros::dec;
 use serde::Deserialize;
 
