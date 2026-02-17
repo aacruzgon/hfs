@@ -175,6 +175,20 @@ export AWS_REGION=us-east-1
 sof-cli -v view.json -s s3://my-bucket/fhir-data/bundle.json -f csv
 ```
 
+##### S3-Compatible Services (MinIO, Ceph, LocalStack)
+```bash
+# Standard AWS credentials
+export AWS_ACCESS_KEY_ID=your_access_key
+export AWS_SECRET_ACCESS_KEY=your_secret_key
+export AWS_REGION=us-east-1
+
+# Custom endpoint for S3-compatible service
+export AWS_ENDPOINT_URL=http://localhost:9000
+export AWS_ALLOW_HTTP=true  # Required for HTTP (non-HTTPS) endpoints
+
+sof-cli -v view.json -s s3://my-bucket/fhir-data/bundle.json -f csv
+```
+
 ##### Google Cloud Storage
 ```bash
 # Option 1: Service account credentials
@@ -388,6 +402,16 @@ When using the `source` parameter with cloud storage URLs, ensure the appropriat
 export AWS_ACCESS_KEY_ID=your_access_key
 export AWS_SECRET_ACCESS_KEY=your_secret_key
 export AWS_REGION=us-east-1
+sof-server
+```
+
+**S3-Compatible Services** (MinIO, Ceph, LocalStack):
+```bash
+export AWS_ACCESS_KEY_ID=your_access_key
+export AWS_SECRET_ACCESS_KEY=your_secret_key
+export AWS_REGION=us-east-1
+export AWS_ENDPOINT_URL=http://localhost:9000
+export AWS_ALLOW_HTTP=true  # Required for HTTP (non-HTTPS) endpoints
 sof-server
 ```
 
