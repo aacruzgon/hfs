@@ -19,6 +19,9 @@ R4B = ["helios-fhir/R4B", "helios-persistence/R4B"]
 R5 = ["helios-fhir/R5", "helios-persistence/R5"]
 R6 = ["helios-fhir/R6", "helios-persistence/R6"]
 
+# Serialization format features
+xml = ["helios-fhir/xml"]
+
 # Database backends (pass through to helios-persistence)
 sqlite = ["helios-persistence/sqlite"]
 postgres = ["helios-persistence/postgres"]

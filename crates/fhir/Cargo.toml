@@ -17,6 +17,7 @@ R4B = []
 R5 = []
 R6 = []
 skip-r6-download = []
+xml = []
 
 [dependencies]
 serde = { workspace = true }
