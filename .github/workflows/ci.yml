@@ -23,6 +23,13 @@ jobs:
       matrix:
         rust: [stable]
     steps:
+      - name: Verify DOCKER_HOST is set
+        run: |
+          if [ -z "$DOCKER_HOST" ]; then
+            echo "::error::DOCKER_HOST secret is not set. Testcontainers require DOCKER_HOST to connect to Docker."
+            exit 1
+          fi
+
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -30,7 +37,7 @@ jobs:
         if: runner.os != 'Windows'
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: ${{ matrix.rust }}  
+          toolchain: ${{ matrix.rust }}
 
       - name: Configure Rust to use LLD (Windows)
         if: runner.os == 'Windows'
