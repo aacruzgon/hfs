@@ -18,14 +18,28 @@ fn main() {
         return;
     }
 
-    println!("cargo:warning=Downloading R6 test data from HL7 build server");
-
     let json_resources_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/data/json/R6");
     let xml_resources_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/data/xml/R6");
 
     // Create the resources directories if they don't exist
     fs::create_dir_all(&json_resources_dir).expect("Failed to create JSON resources directory");
     fs::create_dir_all(&xml_resources_dir).expect("Failed to create XML resources directory");
+
+    // Check if test data is recent (skip download if less than 24 hours old)
+    // Use a marker file to track when we last downloaded
+    let marker_path = json_resources_dir.join(".download_marker");
+    if let Ok(metadata) = fs::metadata(&marker_path) {
+        if let Ok(modified) = metadata.modified() {
+            if let Ok(duration) = modified.elapsed() {
+                if duration.as_secs() < 86400 {
+                    println!("cargo:warning=R6 test data is recent, skipping download");
+                    return;
+                }
+            }
+        }
+    }
+
+    println!("cargo:warning=Downloading R6 test data from HL7 build server");
 
     let json_url = "https://build.fhir.org/examples-json.zip";
     let xml_url = "https://build.fhir.org/examples.zip";
@@ -116,6 +130,9 @@ fn main() {
 
     // Extract XML examples
     extract_and_clean(&xml_output_path, &xml_resources_dir, "examples.xml.zip");
+
+    // Write marker file to track download time
+    fs::write(&marker_path, "").expect("Failed to write download marker");
 
     println!("FHIR test data downloaded successfully");
 }

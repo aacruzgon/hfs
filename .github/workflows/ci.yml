@@ -310,6 +310,11 @@ jobs:
           path: lcov.info
           retention-days: 7
 
+      # Kill stale GPG agents that can cause lock contention on self-hosted runners
+      - name: Clean up GPG state
+        if: runner.os == 'macOS'
+        run: gpgconf --kill all || true
+
       # Upload to Codecov
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
@@ -476,7 +481,7 @@ jobs:
 
       - name: Create FhirPath Results Directory
         shell: cmd
-        run: mkdir fhirpath-results
+        run: if not exist fhirpath-results mkdir fhirpath-results
 
       - name: Run FhirPath Validation with FHIR Test Cases
         uses: actions/github-script@v7

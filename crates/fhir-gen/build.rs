@@ -19,12 +19,25 @@ fn main() {
         return;
     }
 
-    println!("cargo:warning=Downloading R6 definitions from HL7 build server");
-
     let resources_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/R6");
 
     // Create the resources directory if it doesn't exist
     fs::create_dir_all(&resources_dir).expect("Failed to create resources directory");
+
+    // Check if download metadata exists and is recent (skip download if less than 24 hours old)
+    let metadata_path = resources_dir.join("download_metadata.json");
+    if let Ok(metadata) = fs::metadata(&metadata_path) {
+        if let Ok(modified) = metadata.modified() {
+            if let Ok(duration) = modified.elapsed() {
+                if duration.as_secs() < 86400 {
+                    println!("cargo:warning=R6 definitions are recent, skipping download");
+                    return;
+                }
+            }
+        }
+    }
+
+    println!("cargo:warning=Downloading R6 definitions from HL7 build server");
 
     let url = "https://build.fhir.org/definitions.json.zip";
 

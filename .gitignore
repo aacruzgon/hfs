@@ -12,6 +12,9 @@ CLAUDE.md
 off
 AGENTS.md
 
+# Build script download markers
+.download_marker
+
 # SQLite database files
 *.db
 *.db-shm
