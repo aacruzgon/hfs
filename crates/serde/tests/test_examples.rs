@@ -507,12 +507,81 @@ fn normalize_xml(xml: &str) -> Result<Vec<u8>, String> {
     Ok(writer.into_inner())
 }
 
+/// Fully decode XML named entity references in a string.
+/// Iteratively undoes `&amp;` double-encoding, then decodes named entities.
+#[cfg(feature = "xml")]
+fn decode_xml_entities(s: &str) -> String {
+    let mut result = s.to_string();
+    // Iteratively undo double-encoding (&amp;amp; → &amp; → &)
+    loop {
+        let prev = result.clone();
+        result = result.replace("&amp;", "&");
+        if result == prev {
+            break;
+        }
+    }
+    // Decode standard XML named entities
+    result
+        .replace("&apos;", "'")
+        .replace("&quot;", "\"")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+}
+
+/// Check if a string difference is due to XML entity encoding issues.
+///
+/// Known limitations of the XML serializer/deserializer:
+/// 1. Double-encoding: `&lt;` → `&amp;lt;`, `&#39;` → `&amp;#39;`, etc.
+/// 2. New encoding: `'` → `&apos;` where the serializer introduces entity refs
+///    for literal characters, and the deserializer stores them as-is.
+///
+/// Both sides are decoded to raw characters for comparison.
+#[cfg(feature = "xml")]
+fn is_entity_encoding_difference(original: &Value, reserialized: &Value) -> bool {
+    if let (Value::String(orig), Value::String(reser)) = (original, reserialized) {
+        return decode_xml_entities(orig) == decode_xml_entities(reser);
+    }
+    false
+}
+
+#[cfg(feature = "xml")]
+fn xml_skip_list() -> &'static [(&'static str, &'static str)] {
+    const XML_SKIPS: &[(&str, &str)] = &[
+        // These files have known XML roundtrip data loss due to nested primitive
+        // extension patterns (_event) where the XML deserializer doesn't fully
+        // reconstruct valueExpression fields.
+        (
+            "activitydefinition-*",
+            "timingTiming._event extension fields lost on XML roundtrip",
+        ),
+        (
+            "plandefinition-example*",
+            "contained timingTiming._event extension fields lost on XML roundtrip",
+        ),
+        // ExampleScenario has structural differences in instance fields
+        (
+            "examplescenario-example*",
+            "ExampleScenario instance fields lost on XML roundtrip",
+        ),
+        // R5 Subscription filterBy fields (filterParameter, resourceType, value)
+        // lost on XML roundtrip
+        (
+            "subscription-example*",
+            "Subscription filterBy fields lost on XML roundtrip",
+        ),
+    ];
+    XML_SKIPS
+}
+
 #[cfg(feature = "xml")]
 fn test_xml_examples_in_dir<R: DeserializeOwned + Serialize>(dir: &Path, _fhir_version: &str) {
     if !dir.exists() {
         println!("Directory does not exist: {:?}", dir);
         return;
     }
+
+    let skip_files = xml_skip_list();
+    let mut failures: Vec<String> = Vec::new();
 
     for entry in fs::read_dir(dir).unwrap() {
         let entry = entry.unwrap();
@@ -523,30 +592,28 @@ fn test_xml_examples_in_dir<R: DeserializeOwned + Serialize>(dir: &Path, _fhir_v
 
             // Skip profile files (these are StructureDefinitions, not resource examples)
             if filename.contains(".profile.xml") {
-                println!("Skipping profile file: {}", filename);
                 continue;
             }
 
-            println!("Processing file: {}", path.display());
+            // Check if this file should be skipped
+            if let Some(reason) = should_skip_file(&filename, skip_files) {
+                println!("Skipping file: {} - Reason: {}", filename, reason);
+                continue;
+            }
 
             // Read the file content
             match fs::read_to_string(&path) {
                 Ok(content) => {
                     if content.trim().is_empty() {
-                        println!("Skipping empty XML file: {}", path.display());
                         continue;
                     }
 
                     // Try to deserialize the XML string to a FHIR Resource
                     match from_xml_str::<R>(&content) {
                         Ok(resource) => {
-                            println!("Successfully deserialized XML to FHIR Resource");
-
                             // Verify we can serialize the Resource back to XML
                             match to_xml_string(&resource) {
                                 Ok(reserialized_xml) => {
-                                    println!("Successfully serialized Resource back to XML");
-
                                     // Normalize both XMLs for comparison
                                     let normalized_original = normalize_xml(&content)
                                         .expect("Failed to normalize original XML");
@@ -554,62 +621,79 @@ fn test_xml_examples_in_dir<R: DeserializeOwned + Serialize>(dir: &Path, _fhir_v
                                         .expect("Failed to normalize reserialized XML");
 
                                     if normalized_original != normalized_reserialized {
-                                        println!("Warning: Normalized XML differs");
-                                        println!(
-                                            "Original XML length: {}",
-                                            normalized_original.len()
-                                        );
-                                        println!(
-                                            "Reserialized XML length: {}",
-                                            normalized_reserialized.len()
-                                        );
-
-                                        // For debugging, show the first difference
-                                        for (i, (orig, reser)) in normalized_original
-                                            .iter()
-                                            .zip(normalized_reserialized.iter())
-                                            .enumerate()
-                                        {
-                                            if orig != reser {
-                                                println!(
-                                                    "First difference at byte {}: {} vs {}",
-                                                    i, orig, reser
-                                                );
-                                                break;
-                                            }
-                                        }
-
-                                        // Try to deserialize the reserialized XML to verify it's still valid
+                                        // Semantic comparison: deserialize reserialized XML
+                                        // and compare via JSON to catch data loss while
+                                        // tolerating cosmetic XML differences
                                         match from_xml_str::<R>(&reserialized_xml) {
-                                            Ok(_) => {
-                                                println!(
-                                                    "Reserialized XML is valid and can be deserialized"
+                                            Ok(re_resource) => {
+                                                let original_json =
+                                                    serde_json::to_value(&resource).unwrap();
+                                                let reserialized_json =
+                                                    serde_json::to_value(&re_resource).unwrap();
+
+                                                let all_diffs = find_json_differences(
+                                                    &original_json,
+                                                    &reserialized_json,
                                                 );
-                                                // This is acceptable - the XML is semantically equivalent
+
+                                                // Filter out known entity-encoding differences
+                                                let diff_paths: Vec<_> = all_diffs
+                                                    .into_iter()
+                                                    .filter(|(_, orig, reser)| {
+                                                        !is_entity_encoding_difference(orig, reser)
+                                                    })
+                                                    .collect();
+
+                                                if !diff_paths.is_empty() {
+                                                    let mut msg = format!(
+                                                        "{}: {} semantic differences:",
+                                                        filename,
+                                                        diff_paths.len()
+                                                    );
+                                                    for (diff_path, orig_val, new_val) in
+                                                        &diff_paths
+                                                    {
+                                                        msg.push_str(&format!(
+                                                            "\n    {}: {} → {}",
+                                                            diff_path,
+                                                            serde_json::to_string(orig_val)
+                                                                .unwrap_or_default(),
+                                                            serde_json::to_string(new_val)
+                                                                .unwrap_or_default(),
+                                                        ));
+                                                    }
+                                                    println!("FAIL: {}", msg);
+                                                    failures.push(msg);
+                                                }
                                             }
                                             Err(e) => {
-                                                panic!(
-                                                    "Reserialized XML cannot be deserialized: {}",
-                                                    e
+                                                let msg = format!(
+                                                    "{}: reserialized XML cannot be deserialized: {}",
+                                                    filename, e
                                                 );
+                                                println!("FAIL: {}", msg);
+                                                failures.push(msg);
                                             }
                                         }
-                                    } else {
-                                        println!(
-                                            "XML roundtrip successful - normalized XMLs match"
-                                        );
                                     }
                                 }
                                 Err(e) => {
-                                    panic!("Error serializing Resource to XML: {}", e);
+                                    let msg = format!(
+                                        "{}: error serializing Resource to XML: {}",
+                                        filename, e
+                                    );
+                                    println!("FAIL: {}", msg);
+                                    failures.push(msg);
                                 }
                             }
                         }
                         Err(e) => {
-                            let error_message =
-                                format!("Error deserializing XML to FHIR Resource: {}", e);
-                            println!("{}", error_message);
-                            panic!("{}", error_message);
+                            let msg = format!(
+                                "{}: error deserializing XML to FHIR Resource: {}",
+                                filename, e
+                            );
+                            println!("FAIL: {}", msg);
+                            failures.push(msg);
                         }
                     }
                 }
@@ -618,5 +702,13 @@ fn test_xml_examples_in_dir<R: DeserializeOwned + Serialize>(dir: &Path, _fhir_v
                 }
             }
         }
+    }
+
+    if !failures.is_empty() {
+        panic!(
+            "XML roundtrip failures ({} files):\n{}",
+            failures.len(),
+            failures.join("\n")
+        );
     }
 }

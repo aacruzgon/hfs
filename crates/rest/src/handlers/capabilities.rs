@@ -15,19 +15,19 @@
 //! - URL-based: `http://fhir.example.com/acme/`
 
 use axum::{
-    Json,
     extract::State,
-    http::{StatusCode, header},
-    response::{IntoResponse, Response},
+    http::{HeaderMap, StatusCode, header},
+    response::Response,
 };
 use helios_fhir::FhirVersion;
 use helios_persistence::core::ResourceStorage;
 use tracing::debug;
 
-use crate::error::RestResult;
+use crate::error::{RestError, RestResult};
 use crate::extractors::{FhirVersionExtractor, TenantExtractor};
 use crate::fhir_types::get_resource_type_names_for_version;
-use crate::middleware::content_type::{FhirContentType, FhirFormat};
+use crate::middleware::content_type::{FhirContentType, negotiate_format};
+use crate::responses::format_resource_response;
 use crate::state::AppState;
 
 /// Handler for the capabilities interaction.
@@ -62,6 +62,7 @@ pub async fn capabilities_handler<S>(
     State(state): State<AppState<S>>,
     tenant: TenantExtractor,
     version: FhirVersionExtractor,
+    req_headers: HeaderMap,
 ) -> RestResult<Response>
 where
     S: ResourceStorage + Send + Sync,
@@ -89,15 +90,26 @@ where
 
     let capability_statement = build_capability_statement(&state, fhir_version, &base_url);
 
+    // Negotiate response format
+    let negotiated = negotiate_format(&req_headers, None);
+
     // Build response with fhirVersion in Content-Type
-    let content_type = FhirContentType::with_version(FhirFormat::Json, fhir_version);
+    let content_type = FhirContentType::with_version(negotiated.format, fhir_version);
     let mut headers = axum::http::HeaderMap::new();
     headers.insert(
         header::CONTENT_TYPE,
         content_type.to_header_value().parse().unwrap(),
     );
 
-    Ok((StatusCode::OK, headers, Json(capability_statement)).into_response())
+    format_resource_response(
+        StatusCode::OK,
+        headers,
+        &capability_statement,
+        negotiated.format,
+    )
+    .map_err(|_| RestError::InternalError {
+        message: "Failed to serialize response".to_string(),
+    })
 }
 
 /// Builds a CapabilityStatement describing server capabilities for a specific FHIR version.

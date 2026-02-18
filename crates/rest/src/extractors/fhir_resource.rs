@@ -92,28 +92,42 @@ where
     type Rejection = FhirResourceRejection;
 
     async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
-        // Check content type
+        // Check content type (must own the string before moving req)
         let content_type = req
             .headers()
             .get(header::CONTENT_TYPE)
             .and_then(|v| v.to_str().ok())
-            .unwrap_or("application/json");
-
-        // Only accept JSON for now (XML support could be added)
-        if !content_type.contains("json") {
-            return Err(FhirResourceRejection::UnsupportedMediaType(
-                content_type.to_string(),
-            ));
-        }
+            .unwrap_or("application/json")
+            .to_string();
 
         // Extract body bytes
         let bytes = Bytes::from_request(req, state)
             .await
             .map_err(|e| FhirResourceRejection::InvalidJson(e.to_string()))?;
 
-        // Parse JSON
-        let value: Value = serde_json::from_slice(&bytes)
-            .map_err(|e| FhirResourceRejection::InvalidJson(e.to_string()))?;
+        // Parse body based on content type
+        let value: Value = if content_type.contains("xml") {
+            #[cfg(feature = "xml")]
+            {
+                let xml_str = std::str::from_utf8(&bytes)
+                    .map_err(|e| FhirResourceRejection::InvalidJson(e.to_string()))?;
+                crate::responses::format::xml_to_value(xml_str)
+                    .map_err(FhirResourceRejection::InvalidJson)?
+            }
+            #[cfg(not(feature = "xml"))]
+            {
+                return Err(FhirResourceRejection::UnsupportedMediaType(
+                    content_type.to_string(),
+                ));
+            }
+        } else if content_type.contains("json") || content_type == "application/json" {
+            serde_json::from_slice(&bytes)
+                .map_err(|e| FhirResourceRejection::InvalidJson(e.to_string()))?
+        } else {
+            return Err(FhirResourceRejection::UnsupportedMediaType(
+                content_type.to_string(),
+            ));
+        };
 
         // Validate resourceType is present
         let resource_type = value

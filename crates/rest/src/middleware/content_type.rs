@@ -116,6 +116,32 @@ impl FhirFormat {
     }
 }
 
+/// Determines the response format from `_format` query parameter and Accept header.
+///
+/// Follows FHIR spec precedence: `_format` > Accept header > default JSON.
+///
+/// Supported `_format` values:
+/// - `json`, `application/json`, `application/fhir+json`
+/// - `xml`, `application/xml`, `application/fhir+xml`
+/// - `ndjson`, `application/ndjson`, `application/fhir+ndjson`
+pub fn negotiate_format(headers: &HeaderMap, format_param: Option<&str>) -> FhirContentType {
+    // _format takes precedence per FHIR spec
+    if let Some(format) = format_param {
+        let resolved = match format.to_lowercase().as_str() {
+            "json" | "application/json" | "application/fhir+json" => Some(FhirFormat::Json),
+            "xml" | "application/xml" | "application/fhir+xml" => Some(FhirFormat::Xml),
+            "ndjson" | "application/ndjson" | "application/fhir+ndjson" => Some(FhirFormat::NdJson),
+            _ => FhirFormat::parse(format),
+        };
+        if let Some(fmt) = resolved {
+            return FhirContentType::new(fmt);
+        }
+    }
+
+    // Fall back to Accept header
+    negotiate_content_type(headers)
+}
+
 /// Determines the response content type from the Accept header.
 ///
 /// Returns JSON if no Accept header is present or if the client accepts

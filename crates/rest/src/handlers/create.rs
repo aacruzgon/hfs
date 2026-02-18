@@ -4,19 +4,19 @@
 //! `POST [base]/[type]`
 
 use axum::{
-    Json,
     extract::{Path, State},
-    http::{StatusCode, header},
+    http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
 };
 use helios_persistence::core::{ConditionalStorage, ResourceStorage};
-use serde_json::Value;
 use tracing::debug;
 
 use crate::error::{RestError, RestResult};
-use crate::extractors::{FhirVersionExtractor, TenantExtractor};
+use crate::extractors::{FhirResource, FhirVersionExtractor, TenantExtractor};
 use crate::middleware::conditional::ConditionalHeaders;
+use crate::middleware::content_type::{FhirFormat, negotiate_format};
 use crate::middleware::prefer::PreferHeader;
+use crate::responses::format_resource_response;
 use crate::responses::headers::ResourceHeaders;
 use crate::state::AppState;
 
@@ -51,6 +51,7 @@ use crate::state::AppState;
 ///
 /// {"resourceType": "Patient", "name": [{"family": "Smith"}]}
 /// ```
+#[allow(clippy::too_many_arguments)]
 pub async fn create_handler<S>(
     State(state): State<AppState<S>>,
     Path(resource_type): Path<String>,
@@ -58,13 +59,17 @@ pub async fn create_handler<S>(
     version: FhirVersionExtractor,
     conditional: ConditionalHeaders,
     prefer: PreferHeader,
-    Json(resource): Json<Value>,
+    req_headers: HeaderMap,
+    FhirResource(resource): FhirResource,
 ) -> RestResult<Response>
 where
     S: ResourceStorage + ConditionalStorage + Send + Sync,
 {
     // Determine FHIR version from header or use server default
     let fhir_version = version.storage_version();
+
+    // Negotiate response format from Accept header
+    let negotiated = negotiate_format(&req_headers, None);
 
     debug!(
         resource_type = %resource_type,
@@ -117,7 +122,14 @@ where
                     "Resource created (conditional)"
                 );
 
-                build_create_response(StatusCode::CREATED, &stored, headers, &location, &prefer)
+                build_create_response(
+                    StatusCode::CREATED,
+                    &stored,
+                    headers,
+                    &location,
+                    &prefer,
+                    negotiated.format,
+                )
             }
             ConditionalCreateResult::Exists(stored) => {
                 let headers = ResourceHeaders::from_stored(&stored, &state);
@@ -129,7 +141,7 @@ where
                 );
 
                 // Return 200 OK with the existing resource
-                build_existing_response(&stored, headers, &prefer)
+                build_existing_response(&stored, headers, &prefer, negotiated.format)
             }
             ConditionalCreateResult::MultipleMatches(count) => Err(RestError::MultipleMatches {
                 operation: "create".to_string(),
@@ -153,7 +165,14 @@ where
         "Resource created"
     );
 
-    build_create_response(StatusCode::CREATED, &stored, headers, &location, &prefer)
+    build_create_response(
+        StatusCode::CREATED,
+        &stored,
+        headers,
+        &location,
+        &prefer,
+        negotiated.format,
+    )
 }
 
 /// Builds the response for a successful create.
@@ -163,6 +182,7 @@ fn build_create_response(
     headers: ResourceHeaders,
     location: &str,
     prefer: &PreferHeader,
+    format: FhirFormat,
 ) -> RestResult<Response> {
     let mut header_map = headers.to_header_map();
     header_map.insert(header::LOCATION, location.parse().unwrap());
@@ -180,11 +200,19 @@ fn build_create_response(
                     }
                 }]
             });
-            Ok((status, header_map, Json(outcome)).into_response())
+            format_resource_response(status, header_map, &outcome, format).map_err(|_| {
+                RestError::InternalError {
+                    message: "Failed to serialize response".to_string(),
+                }
+            })
         }
         _ => {
             // Default: return=representation
-            Ok((status, header_map, Json(stored.content().clone())).into_response())
+            format_resource_response(status, header_map, stored.content(), format).map_err(|_| {
+                RestError::InternalError {
+                    message: "Failed to serialize response".to_string(),
+                }
+            })
         }
     }
 }
@@ -194,11 +222,15 @@ fn build_existing_response(
     stored: &helios_persistence::types::StoredResource,
     headers: ResourceHeaders,
     prefer: &PreferHeader,
+    format: FhirFormat,
 ) -> RestResult<Response> {
     let header_map = headers.to_header_map();
 
     match prefer.return_preference() {
         Some("minimal") => Ok((StatusCode::OK, header_map).into_response()),
-        _ => Ok((StatusCode::OK, header_map, Json(stored.content().clone())).into_response()),
+        _ => format_resource_response(StatusCode::OK, header_map, stored.content(), format)
+            .map_err(|_| RestError::InternalError {
+                message: "Failed to serialize response".to_string(),
+            }),
     }
 }

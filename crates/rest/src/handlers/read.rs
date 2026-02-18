@@ -6,9 +6,8 @@
 use std::collections::HashMap;
 
 use axum::{
-    Json,
     extract::{Path, Query, State},
-    http::{StatusCode, header},
+    http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
 };
 use helios_persistence::core::ResourceStorage;
@@ -17,7 +16,8 @@ use tracing::debug;
 use crate::error::{RestError, RestResult};
 use crate::extractors::{FhirVersionExtractor, TenantExtractor};
 use crate::middleware::conditional::ConditionalHeaders;
-use crate::middleware::content_type::{FhirContentType, FhirFormat};
+use crate::middleware::content_type::{FhirContentType, negotiate_format};
+use crate::responses::format_resource_response;
 use crate::responses::headers::ResourceHeaders;
 use crate::responses::subsetting::{SummaryMode, apply_elements, apply_summary};
 use crate::state::AppState;
@@ -56,6 +56,7 @@ pub async fn read_handler<S>(
     tenant: TenantExtractor,
     version: FhirVersionExtractor,
     conditional: ConditionalHeaders,
+    req_headers: HeaderMap,
     Query(params): Query<HashMap<String, String>>,
 ) -> RestResult<Response>
 where
@@ -107,12 +108,16 @@ where
                 }
             }
 
-            // Build response headers, including fhirVersion in Content-Type
-            let mut headers = ResourceHeaders::from_stored(&stored, &state).to_header_map();
+            // Negotiate response format
+            let format_param = params.get("_format").map(|s| s.as_str());
+            let negotiated = negotiate_format(&req_headers, format_param);
 
-            // Add Content-Type with fhirVersion
+            // Build response headers, including fhirVersion in Content-Type
             let content_type =
-                FhirContentType::with_version(FhirFormat::Json, stored.fhir_version());
+                FhirContentType::with_version(negotiated.format, stored.fhir_version());
+            let mut headers = ResourceHeaders::from_stored(&stored, &state)
+                .with_content_type(content_type.to_header_value())
+                .to_header_map();
             headers.insert(
                 header::CONTENT_TYPE,
                 content_type.to_header_value().parse().unwrap(),
@@ -139,12 +144,17 @@ where
                 id = %id,
                 version = %stored.version_id(),
                 fhir_version = %stored.fhir_version(),
+                format = ?negotiated.format,
                 summary = ?summary_mode,
                 elements = ?elements,
                 "Returning resource"
             );
 
-            Ok((StatusCode::OK, headers, Json(content)).into_response())
+            format_resource_response(StatusCode::OK, headers, &content, negotiated.format).map_err(
+                |_| RestError::InternalError {
+                    message: "Failed to serialize response".to_string(),
+                },
+            )
         }
         None => {
             debug!(
@@ -179,6 +189,7 @@ pub async fn head_read_handler<S>(
     tenant: TenantExtractor,
     version: FhirVersionExtractor,
     conditional: ConditionalHeaders,
+    req_headers: HeaderMap,
 ) -> RestResult<Response>
 where
     S: ResourceStorage + Send + Sync,
@@ -229,12 +240,15 @@ where
                 }
             }
 
-            // Build response headers
-            let mut headers = ResourceHeaders::from_stored(&stored, &state).to_header_map();
+            // Negotiate response format
+            let negotiated = negotiate_format(&req_headers, None);
 
-            // Add Content-Type with fhirVersion
+            // Build response headers
             let content_type =
-                FhirContentType::with_version(FhirFormat::Json, stored.fhir_version());
+                FhirContentType::with_version(negotiated.format, stored.fhir_version());
+            let mut headers = ResourceHeaders::from_stored(&stored, &state)
+                .with_content_type(content_type.to_header_value())
+                .to_header_map();
             headers.insert(
                 header::CONTENT_TYPE,
                 content_type.to_header_value().parse().unwrap(),

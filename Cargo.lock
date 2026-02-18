@@ -2617,6 +2617,7 @@ dependencies = [
  "clap",
  "helios-fhir",
  "helios-persistence",
+ "helios-serde",
  "http 1.4.0",
  "json-patch",
  "jsonpath-rust",
