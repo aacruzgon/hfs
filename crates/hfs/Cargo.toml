@@ -7,6 +7,7 @@ license.workspace = true
 authors.workspace = true
 repository.workspace = true
 readme = "README.md"
+keywords = ["helios-software", "hl7", "fhir", "helios-fhir-server", "healthcare"]
 
 [[bin]]
 name = "hfs"

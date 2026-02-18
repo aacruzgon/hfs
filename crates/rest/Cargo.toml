@@ -7,7 +7,7 @@ authors.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 description = "FHIR RESTful API implementation for Helios FHIR Server"
-keywords = ["fhir", "rest", "api", "healthcare", "hl7"]
+keywords = ["helios-software", "hl7", "fhir", "helios-fhir-server", "rest"]
 categories = ["web-programming", "database"]
 
 [features]

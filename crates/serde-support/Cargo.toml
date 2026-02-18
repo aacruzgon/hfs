@@ -6,6 +6,7 @@ license.workspace = true
 authors.workspace = true
 repository.workspace = true
 description = "Shared serde helpers for FHIR serialization/deserialization"
+keywords = ["helios-software", "hl7", "fhir", "helios-fhir-server", "serde"]
 
 [features]
 xml = []

@@ -8,6 +8,7 @@ authors.workspace = true
 repository.workspace = true
 homepage = "https://github.com/HeliosSoftware/hfs/tree/main/crates/fhirpath-support"
 readme = "README.md"
+keywords = ["helios-software", "hl7", "fhir", "helios-fhir-server", "fhirpath"]
 
 
 [dependencies]

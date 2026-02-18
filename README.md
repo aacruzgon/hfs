@@ -24,7 +24,51 @@ The Helios FHIR Server is an implementation of the [HL7® FHIR®](https://hl7.or
 
 # Quick Start
 
-## Prerequisites
+The Helios FHIR Server includes several components:
+
+- **`hfs`** — the main FHIR server
+- **`fhirpath-cli`** and **`fhirpath-server`** — FHIRPath evaluation
+- **`sof-cli`** and **`sof-server`** — SQL-on-FHIR transformation
+- **[`pysof`](https://pypi.org/project/pysof/)** — Python bindings for SQL-on-FHIR
+
+See [Core Components](#core-components) for details on each.
+
+The server supports SQLite, PostgreSQL, and Elasticsearch in various configurations — see [Storage Backends](#storage-backends) for setup options.
+
+## Using Release Binaries
+
+Pre-built binaries are available on the [GitHub Releases](https://github.com/HeliosSoftware/hfs/releases) page. Download the appropriate archive for your platform and extract it.
+
+```bash
+# Start the FHIR server
+./hfs
+# Then access http://localhost:8080/metadata
+
+# Run FHIRPath expressions
+echo '{"resourceType": "Patient", "id": "123"}' | ./fhirpath-cli 'Patient.id'
+
+# Transform FHIR to CSV using SQL-on-FHIR
+./sof-cli --view examples/patient-view.json --bundle examples/patients.json
+
+# Transform NDJSON file to CSV
+./sof-cli --view examples/patient-view.json --bundle examples/patients.ndjson
+
+# Start the SQL-on-FHIR server
+./sof-server
+# Then POST to http://localhost:8080/ViewDefinition/$viewdefinition-run
+
+# Start the FHIRPath server
+./fhirpath-server
+# Then POST expressions to http://localhost:3000/fhirpath
+```
+
+## Using Docker Image
+
+*Coming soon.*
+
+## Building From Source
+
+### Prerequisites
 
 1. **Install [Rust](https://www.rust-lang.org/tools/install)**
     ```bash
@@ -75,7 +119,7 @@ The Helios FHIR Server is an implementation of the [HL7® FHIR®](https://hl7.or
     export CARGO_BUILD_JOBS=4
     ```
 
-## Installation
+### Build and Install
 
 ```bash
 # Clone the repository
@@ -93,27 +137,6 @@ cargo build --workspace --release
 
 ```
 
-## Try It Out
-
-```bash
-# Run FHIRPath expressions
-echo '{"resourceType": "Patient", "id": "123"}' | cargo run --bin fhirpath-cli -- 'Patient.id'
-
-# Transform FHIR to CSV using SQL-on-FHIR
-cargo run --bin sof-cli -- --view examples/patient-view.json --bundle examples/patients.json
-
-# Transform NDJSON file to CSV
-cargo run --bin sof-cli -- --view examples/patient-view.json --bundle examples/patients.ndjson
-
-# Start the SQL-on-FHIR server
-cargo run --bin sof-server
-# Then POST to http://localhost:8080/ViewDefinition/$viewdefinition-run
-
-# Start the FHIRPath server
-cargo run --bin fhirpath-server
-# Then POST expressions to http://localhost:3000/fhirpath
-```
-
 ## Storage Backends
 
 The Helios FHIR Server supports multiple storage backend configurations. Choose a configuration based on your search requirements and deployment scale.
@@ -127,118 +150,30 @@ The Helios FHIR Server supports multiple storage backend configurations. Choose 
 | **PostgreSQL** | Built-in full-text search (tsvector/tsquery) | Production OLTP deployments |
 | **PostgreSQL + Elasticsearch** | Elasticsearch-powered search with PostgreSQL CRUD | Production deployments needing RDBMS + robust search |
 
-### SQLite (Default)
-
-Zero-configuration setup. Just run:
+### Running the Server
 
 ```bash
-cargo run --bin hfs
-```
+# SQLite (default) — no external dependencies
+./hfs
 
-SQLite handles all CRUD operations, versioning, history, and search using its built-in FTS5 full-text search engine. Data is stored in `fhir.db` by default.
-
-### SQLite + Elasticsearch
-
-SQLite handles CRUD, versioning, history, and transactions. Elasticsearch handles all search operations with:
-
-- Full-text search with relevance scoring (`_text`, `_content`)
-- All FHIR search parameter types (string, token, date, number, quantity, reference, URI, composite)
-- Advanced text search with stemming, boolean operators, and proximity matching (`:text-advanced`)
-- Cursor-based pagination via `search_after`
-
-**Prerequisites:** A running Elasticsearch 8.x instance.
-
-**Quick start:**
-
-```bash
-# Build with Elasticsearch support
-cargo build --bin hfs --features sqlite,elasticsearch --release
-
-# Start Elasticsearch (example using Docker)
-docker run -d --name es -p 9200:9200 \
-  -e "discovery.type=single-node" \
-  -e "xpack.security.enabled=false" \
-  elasticsearch:8.15.0
-
-# Start the server
+# SQLite + Elasticsearch
 HFS_STORAGE_BACKEND=sqlite-elasticsearch \
 HFS_ELASTICSEARCH_NODES=http://localhost:9200 \
-  ./target/release/hfs
-```
+  ./hfs
 
-### PostgreSQL
-
-Full-featured relational backend for production deployments with JSONB storage, full-text search, and advanced multi-tenant isolation strategies.
-
-- Full CRUD operations with ACID transactions
-- Full-text search via PostgreSQL's tsvector/tsquery
-- All FHIR search parameter types (string, token, date, number, quantity, reference, URI, composite)
-- Chained parameters and reverse chaining (`_has`)
-- `_include` and `_revinclude` resolution
-- Multi-tenant support (shared schema, schema-per-tenant, database-per-tenant)
-
-**Prerequisites:** A running PostgreSQL instance (14+).
-
-**Quick start:**
-
-```bash
-# Build with PostgreSQL support
-cargo build --bin hfs --features postgres --release
-
-# Start PostgreSQL (example using Docker)
-docker run -d --name pg -p 5432:5432 \
-  -e POSTGRES_USER=hfs \
-  -e POSTGRES_PASSWORD=hfs \
-  -e POSTGRES_DB=fhir \
-  postgres:16
-
-# Start the server
+# PostgreSQL
 HFS_STORAGE_BACKEND=postgres \
-HFS_DATABASE_URL="postgresql://hfs:hfs@localhost:5432/fhir" \
-  ./target/release/hfs
-```
+HFS_DATABASE_URL="postgresql://user:pass@localhost:5432/fhir" \
+  ./hfs
 
-### PostgreSQL + Elasticsearch
-
-PostgreSQL handles CRUD, versioning, history, and transactions with ACID guarantees. Elasticsearch handles all search operations. Combines PostgreSQL's production-grade storage with Elasticsearch's search capabilities.
-
-- Full CRUD operations with ACID transactions via PostgreSQL
-- Full-text search with relevance scoring (`_text`, `_content`) via Elasticsearch
-- All FHIR search parameter types (string, token, date, number, quantity, reference, URI, composite)
-- Advanced text search with stemming, boolean operators, and proximity matching (`:text-advanced`)
-- Multi-tenant support (shared schema, schema-per-tenant, database-per-tenant)
-
-**Prerequisites:** Running PostgreSQL (14+) and Elasticsearch 8.x instances.
-
-**Quick start:**
-
-```bash
-# Build with PostgreSQL and Elasticsearch support
-cargo build --bin hfs --features postgres,elasticsearch --release
-
-# Start PostgreSQL (example using Docker)
-docker run -d --name pg -p 5432:5432 \
-  -e POSTGRES_USER=hfs \
-  -e POSTGRES_PASSWORD=hfs \
-  -e POSTGRES_DB=fhir \
-  postgres:16
-
-# Start Elasticsearch (example using Docker)
-docker run -d --name es -p 9200:9200 \
-  -e "discovery.type=single-node" \
-  -e "xpack.security.enabled=false" \
-  elasticsearch:8.15.0
-
-# Start the server
+# PostgreSQL + Elasticsearch
 HFS_STORAGE_BACKEND=postgres-elasticsearch \
-HFS_DATABASE_URL="postgresql://hfs:hfs@localhost:5432/fhir" \
+HFS_DATABASE_URL="postgresql://user:pass@localhost:5432/fhir" \
 HFS_ELASTICSEARCH_NODES=http://localhost:9200 \
-  ./target/release/hfs
+  ./hfs
 ```
 
 ### Environment Variables
-
-All server configuration is done via environment variables:
 
 | Variable | Default | Description |
 |---|---|---|
@@ -253,18 +188,7 @@ All server configuration is done via environment variables:
 | `HFS_ELASTICSEARCH_USERNAME` | *(none)* | ES basic auth username |
 | `HFS_ELASTICSEARCH_PASSWORD` | *(none)* | ES basic auth password |
 
-### How Search Offloading Works
-
-When `HFS_STORAGE_BACKEND` is set to `sqlite-elasticsearch` or `postgres-elasticsearch`, the server:
-
-1. Creates the primary backend (SQLite or PostgreSQL) with search indexing **disabled**
-2. Creates an Elasticsearch backend sharing the primary backend's search parameter registry
-3. Wraps both in a `CompositeStorage` that routes:
-   - All **writes** (create, update, delete, conditional ops, transactions) → primary backend, then syncs to ES
-   - All **reads** (read, vread, history) → primary backend
-   - All **search** operations → Elasticsearch
-
-This avoids data duplication in the primary backend's search tables while providing Elasticsearch's superior search capabilities.
+For detailed backend setup instructions (building from source, Docker commands, and search offloading architecture), see the [persistence crate documentation](crates/persistence/README.md#building--running-storage-backends).
 
 # Architecture Overview
 
@@ -272,20 +196,24 @@ The Helios FHIR Server is organized as a Rust workspace with modular components 
 
 ## Core Components
 
-### 1. [`helios-fhir`](crates/fhir) - FHIR Data Models
+### 1. [`helios-hfs`](crates/hfs) - Main Server Application
+- **Executable:**
+  - `hfs` - The main Helios FHIR Server application.
+
+### 2. [`helios-fhir`](crates/fhir) - FHIR Data Models
 Generated from FHIR StructureDefinitions, type-safe Rust representations of all FHIR resources and data types.
 - Supports FHIR R4, R4B, R5, and R6 via feature flags
 - JSON serialization/deserialization with full FHIR compliance
 - Precision decimal handling for clinical accuracy
 - Default: R4 (use `--all-features` for all versions)
 
-### 2. [`helios-fhir-gen`](crates/fhir-gen) - Code Generator
+### 3. [`helios-fhir-gen`](crates/fhir-gen) - Code Generator
 Generates the FHIR data models from official HL7 specifications.
 - Transforms FHIR StructureDefinitions into Rust types
 - Automatically downloads the latest R6 specs from the HL7 build server
 - See [Code Generation](#code-generation) section and [helios-fhir-gen README](crates/fhir-gen/README.md) for usage details
 
-### 3. [`helios-fhirpath`](crates/fhirpath) - FHIRPath Expression Engine
+### 4. [`helios-fhirpath`](crates/fhirpath) - FHIRPath Expression Engine
 Complete implementation of the [FHIRPath 3.0.0-ballot specification](https://hl7.org/fhirpath/2025Jan/).
 - **Executables:**
   - `fhirpath-cli` - Evaluate FHIRPath expressions from the command line
@@ -294,7 +222,7 @@ Complete implementation of the [FHIRPath 3.0.0-ballot specification](https://hl7
 - Comprehensive function library with version-aware type checking
 - Auto-detects FHIR version from input data
 
-### 4. [`helios-sof`](crates/sof) - SQL-on-FHIR Implementation
+### 5. [`helios-sof`](crates/sof) - SQL-on-FHIR Implementation
 Transform FHIR resources into tabular data using [ViewDefinitions](https://sql-on-fhir.org/ig/latest/index.html).
 - **Executables:**
   - `sof-cli` - Command-line tool for batch transformations
@@ -302,7 +230,7 @@ Transform FHIR resources into tabular data using [ViewDefinitions](https://sql-o
 - Supports multiple input formats: JSON, NDJSON, and FHIR Bundles from local/cloud storage
 - Supports multiple output formats: CSV, JSON, NDJSON, and Parquet
 
-### 5. [`pysof`](crates/pysof) - Python Bindings
+### 6. [`pysof`](crates/pysof) - Python Bindings
 Python bindings for SQL-on-FHIR using PyO3, bringing high-performance FHIR data transformation to Python.
 
 **Key Capabilities:**
@@ -335,17 +263,14 @@ result = pysof.run_view_definition(
 **Distribution:**
 - Cross-platform wheel distribution for Linux, Windows, and macOS available on [PyPi](https://pypi.org/project/pysof/)
 
-### 6. [`helios-fhir-macro`](crates/fhir-macro) - Procedural Macros
+### 7. [`helios-fhir-macro`](crates/fhir-macro) - Procedural Macros
 Helper macros for code generation used by other components.
 
-### 7. [`helios-fhirpath-support`](crates/fhirpath-support) - Shared Utilities
+### 8. [`helios-fhirpath-support`](crates/fhirpath-support) - Shared Utilities
 Common types and traits for FHIRPath evaluation.
 
-### 8. [`helios-persistence`](crates/persistence) - Polyglot Persistence Layer
+### 9. [`helios-persistence`](crates/persistence) - Polyglot Persistence Layer
 Storage backend abstraction supporting multiple database technologies optimized for different FHIR workloads.
-
-### 9. [`helios-hfs`](crates/hfs) - Main Server Application
-The main Helios FHIR Server application (coming soon).
 
 ## Design Principles
 
@@ -381,12 +306,6 @@ The main Helios FHIR Server application (coming soon).
 - Search with chained parameters
 - History and versioning
 - Batch/transaction support
-# Documentation
-
-```bash
-# Generate and view API documentation
-cargo doc --no-deps --open
-```
 
 # Development
 
@@ -448,7 +367,15 @@ cargo build -p helios-fhir-gen --features R4,R4B,R5,R6
 # This will generate all FHIR code models (r4.rs, r4b.rs, r5, and r6) 
 ./target/debug/helios-fhir-gen --all
 # Format the generated files accordingly
-cargo fmt --all 
+cargo fmt --all
+```
+
+## Code Documentation
+
+Published crate documentation is available on [crates.io](https://crates.io/keywords/helios-fhir-server). To generate and view documentation locally:
+
+```bash
+cargo doc --no-deps --open
 ```
 
 # Contributing
