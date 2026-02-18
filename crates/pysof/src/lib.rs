@@ -187,7 +187,7 @@ fn py_run_view_definition(
 
     // Execute transformation - release GIL for parallel/long work
     let result = py
-        .allow_threads(|| run_view_definition(sof_view_def, sof_bundle, content_type))
+        .detach(|| run_view_definition(sof_view_def, sof_bundle, content_type))
         .map_err(rust_sof_error_to_py_err)?;
 
     Ok(PyBytes::new(py, &result).into())
@@ -289,7 +289,7 @@ fn py_run_view_definition_with_options(
 
     // Execute transformation - release GIL for parallel/long work
     let result = py
-        .allow_threads(|| {
+        .detach(|| {
             run_view_definition_with_options(sof_view_def, sof_bundle, content_type, options)
         })
         .map_err(rust_sof_error_to_py_err)?;
@@ -577,14 +577,14 @@ impl ChunkedProcessor {
         slf
     }
 
-    fn __next__(&mut self, py: Python<'_>) -> PyResult<Option<PyObject>> {
+    fn __next__(&mut self, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
         let inner = match &mut self.inner {
             Some(inner) => inner,
             None => return Ok(None),
         };
 
         // Release GIL during chunk processing
-        let result = py.allow_threads(|| inner.next_chunk());
+        let result = py.detach(|| inner.next_chunk());
 
         match result {
             Some(Ok(chunk)) => {
@@ -595,11 +595,11 @@ impl ChunkedProcessor {
                 dict.set_item("columns", &chunk.columns)?;
 
                 // Convert rows - each row is a list of values
-                let rows: Vec<PyObject> = chunk
+                let rows: Vec<Py<PyAny>> = chunk
                     .rows
                     .iter()
                     .map(|row| {
-                        let values: Vec<PyObject> = row
+                        let values: Vec<Py<PyAny>> = row
                             .values
                             .iter()
                             .map(|v| match v {
@@ -639,7 +639,7 @@ impl ChunkedProcessor {
 }
 
 /// Convert ProcessingStats to a Python dictionary
-fn stats_to_pydict(py: Python<'_>, stats: &ProcessingStats) -> PyResult<PyObject> {
+fn stats_to_pydict(py: Python<'_>, stats: &ProcessingStats) -> PyResult<Py<PyAny>> {
     let dict = pyo3::types::PyDict::new(py);
     dict.set_item("total_lines_read", stats.total_lines_read)?;
     dict.set_item("resources_processed", stats.resources_processed)?;
@@ -688,7 +688,7 @@ fn py_process_ndjson_to_file(
     chunk_size: usize,
     skip_invalid: bool,
     fhir_version: &str,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     // Parse content type
     let content_type = ContentType::from_string(format).map_err(rust_sof_error_to_py_err)?;
 
@@ -743,7 +743,7 @@ fn py_process_ndjson_to_file(
 
     // Process - release GIL during processing
     let stats = py
-        .allow_threads(|| {
+        .detach(|| {
             process_ndjson_chunked(
                 sof_view_def,
                 input_reader,
