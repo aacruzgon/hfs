@@ -17,7 +17,7 @@ env:
 jobs:
   test-rust:
     name: Test Rust
-    runs-on: [self-hosted, Linux]
+    runs-on: [self-hosted]
     steps:
       - name: Verify DOCKER_HOST is set
         run: |
@@ -70,7 +70,7 @@ jobs:
 
   cleanup-test-containers:
     name: Cleanup Test Containers
-    runs-on: [self-hosted, Linux]
+    runs-on: [self-hosted]
     needs: [test-rust]
     if: always()
     steps:
@@ -80,7 +80,7 @@ jobs:
 
   test-python:
     name: Test Python
-    runs-on: [self-hosted, Linux]
+    runs-on: [self-hosted]
     needs: [test-rust]
     steps:
       - name: Checkout code
@@ -131,7 +131,7 @@ jobs:
 
   lint:
     name: Linting
-    runs-on: [self-hosted, Linux]
+    runs-on: [self-hosted]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -195,7 +195,7 @@ jobs:
 
   security:
     name: Security Audit
-    runs-on: [self-hosted, Linux]
+    runs-on: [self-hosted]
     needs: [lint]
     steps:
       - name: Checkout code
