@@ -563,6 +563,12 @@ fn xml_skip_list() -> &'static [(&'static str, &'static str)] {
             "examplescenario-example*",
             "ExampleScenario instance fields lost on XML roundtrip",
         ),
+        // R5 Subscription filterBy fields (filterParameter, resourceType, value)
+        // lost on XML roundtrip
+        (
+            "subscription-example*",
+            "Subscription filterBy fields lost on XML roundtrip",
+        ),
     ];
     XML_SKIPS
 }
