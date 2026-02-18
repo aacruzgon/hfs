@@ -30,8 +30,8 @@ elasticsearch = ["helios-persistence/elasticsearch"]
 
 [dependencies]
 # Core dependencies
-helios-fhir = { path = "../fhir" }
-helios-persistence = { path = "../persistence", default-features = false }
+helios-fhir = { path = "../fhir", version = "0.1.34" }
+helios-persistence = { path = "../persistence", version = "0.1.34", default-features = false }
 
 # Async runtime
 tokio = { version = "1", features = ["full"] }

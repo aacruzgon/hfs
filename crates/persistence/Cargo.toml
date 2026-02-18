@@ -33,9 +33,9 @@ R6 = ["helios-fhir/R6"]
 
 [dependencies]
 # Core dependencies (always included)
-helios-fhir = { path = "../fhir" }
-helios-fhirpath = { path = "../fhirpath" }
-helios-fhirpath-support = { path = "../fhirpath-support" }
+helios-fhir = { path = "../fhir", version = "0.1.34" }
+helios-fhirpath = { path = "../fhirpath", version = "0.1.34" }
+helios-fhirpath-support = { path = "../fhirpath-support", version = "0.1.34" }
 rust_decimal = "1"
 serde.workspace = true
 serde_json.workspace = true
