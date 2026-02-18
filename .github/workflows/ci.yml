@@ -18,10 +18,6 @@ jobs:
   test-rust:
     name: Test Rust
     runs-on: [self-hosted]
-    strategy:
-      fail-fast: false
-      matrix:
-        rust: [stable]
     steps:
       - name: Verify DOCKER_HOST is set
         run: |
@@ -37,7 +33,7 @@ jobs:
         if: runner.os != 'Windows'
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: ${{ matrix.rust }}
+          toolchain: stable
 
       - name: Configure Rust to use LLD (Windows)
         if: runner.os == 'Windows'
