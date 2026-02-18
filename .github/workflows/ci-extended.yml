@@ -15,7 +15,7 @@ env:
 jobs:
   test-rust:
     name: Test Rust (${{ matrix.rust }})
-    runs-on: [self-hosted]
+    runs-on: [self-hosted, Linux]
     strategy:
       fail-fast: false
       matrix:
