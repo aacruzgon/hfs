@@ -1,9 +1,6 @@
 name: Docker Images
 
 on:
-  workflow_run:
-    workflows: ["HFS Continuous Integration"]
-    types: [completed]
   workflow_dispatch:
     inputs:
       run_id:
