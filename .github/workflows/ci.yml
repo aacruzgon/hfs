@@ -537,7 +537,7 @@ jobs:
 
   build:
     name: Build Release
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.runner }}
     needs: [coverage, security, test-python, test-fhirpath]
     if: startsWith(github.ref, 'refs/tags/v')
     strategy:
@@ -547,6 +547,10 @@ jobs:
           - os: Linux
             runner: [self-hosted, Linux]
             target: x86_64-unknown-linux-gnu
+            archive_ext: tar.gz
+          - os: Linux-ARM64
+            runner: [self-hosted, macOS]
+            target: aarch64-unknown-linux-gnu
             archive_ext: tar.gz
           - os: Windows
             runner: [self-hosted, Windows]
@@ -565,6 +569,10 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
+
+      - name: Add cross-compile target (Linux ARM64)
+        if: matrix.os == 'Linux-ARM64'
+        run: rustup target add aarch64-unknown-linux-gnu
 
       - name: Configure Rust to use LLD (Windows)
         if: matrix.os == 'Windows'
@@ -586,6 +594,14 @@ jobs:
           echo 'linker = "clang"' >> ~/.cargo/config.toml
           echo 'rustflags = ["-C", "link-arg=-fuse-ld=lld", "-C", "link-arg=-Wl,-zstack-size=8388608"]' >> ~/.cargo/config.toml
 
+      - name: Configure cross-compile linker (Linux ARM64)
+        if: matrix.os == 'Linux-ARM64'
+        run: |
+          mkdir -p ~/.cargo
+          rm -f ~/.cargo/config.toml
+          echo '[target.aarch64-unknown-linux-gnu]' >> ~/.cargo/config.toml
+          echo 'linker = "aarch64-unknown-linux-gnu-gcc"' >> ~/.cargo/config.toml
+
       - name: Configure Rust to use LLD (MacOS)
         if: matrix.os == 'macOS'
         run: |
@@ -600,11 +616,16 @@ jobs:
         shell: cmd
         run: cargo build --workspace --all-features --release
 
+      - name: Build Release (Cross-compile)
+        if: matrix.os == 'Linux-ARM64'
+        run: cargo build --workspace --all-features --release --target ${{ matrix.target }}
+
       - name: Build Release (Unix)
-        if: matrix.os != 'Windows'
+        if: matrix.os != 'Windows' && matrix.os != 'Linux-ARM64'
         run: cargo build --workspace --all-features --release
 
       - name: Upload Rust build artifacts to GitHub
+        if: matrix.os != 'Linux-ARM64'
         uses: actions/upload-artifact@v4
         with:
           name: hfs-${{ matrix.target }}
@@ -618,28 +639,44 @@ jobs:
             !target/release/*.rlib
             !target/release/*.so
 
+      - name: Upload Rust build artifacts to GitHub (Cross-compile)
+        if: matrix.os == 'Linux-ARM64'
+        uses: actions/upload-artifact@v4
+        with:
+          name: hfs-${{ matrix.target }}
+          path: |
+            target/${{ matrix.target }}/release/
+            data/
+            !target/${{ matrix.target }}/release/build/
+            !target/${{ matrix.target }}/release/deps/
+            !target/${{ matrix.target }}/release/incremental/
+            !target/${{ matrix.target }}/release/*.d
+            !target/${{ matrix.target }}/release/*.rlib
+            !target/${{ matrix.target }}/release/*.so
+
       - name: Generate test_report.json file
-        if: runner.os == 'Linux'
+        if: matrix.os == 'Linux'
         run: cargo test -p helios-sof run_comprehensive_test_suite
 
       - name: Upload test_report.json to GitHub
-        if: runner.os == 'Linux'
+        if: matrix.os == 'Linux'
         uses: actions/upload-artifact@v4
         with:
-          name: test_report 
-          path: crates/sof/test_report.json 
+          name: test_report
+          path: crates/sof/test_report.json
 
       - name: Build pysof wheel (Linux with sdist)
-        if: runner.os == 'Linux'
+        if: matrix.os == 'Linux'
         working-directory: crates/pysof
         run: uv run maturin build --release --sdist -o dist -i python3.10 -i python3.11 -i python3.12 -i python3.13
 
       - name: Build pysof wheel (Windows/macOS)
-        if: runner.os != 'Linux'
+        if: runner.os != 'Linux' && matrix.os != 'Linux-ARM64'
         working-directory: crates/pysof
         run: uv run maturin build --release -o dist -i python3.10 -i python3.11 -i python3.12 -i python3.13
 
       - name: Upload pysof artifacts
+        if: matrix.os != 'Linux-ARM64'
         uses: actions/upload-artifact@v4
         with:
           name: pysof-${{ matrix.target }}
