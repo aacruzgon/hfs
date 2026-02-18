@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       run_id:
-        description: "CI workflow run ID to pull artifacts from"
+        description: 'Release tag to deploy (e.g., v0.1.8)'
         required: true
         type: string
 
