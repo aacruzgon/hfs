@@ -32,9 +32,9 @@ elasticsearch = ["helios-rest/elasticsearch"]
 reqwest = { version = "0.12", features = ["blocking"] }
 
 [dependencies]
-helios-fhir = { path = "../fhir", version = "0.1.35" }
-helios-rest = { path = "../rest", version = "0.1.35", default-features = false }
-helios-persistence = { path = "../persistence", version = "0.1.35", default-features = false }
+helios-fhir = { path = "../fhir", version = "0.1.36" }
+helios-rest = { path = "../rest", version = "0.1.36", default-features = false }
+helios-persistence = { path = "../persistence", version = "0.1.36", default-features = false }
 
 # Web framework
 axum = "0.8"
