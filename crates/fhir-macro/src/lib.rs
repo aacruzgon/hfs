@@ -77,6 +77,7 @@ extern crate proc_macro;
 
 use heck::ToLowerCamelCase;
 use proc_macro::TokenStream;
+use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 use syn::{
     Data, DeriveInput, Fields, GenericArgument, Ident, Lit, Meta, Path, PathArguments, Type,
@@ -308,6 +309,7 @@ pub fn fhir_serde_derive(input: TokenStream) -> TokenStream {
             }
         }
 
+        // --- is_empty() Implementation ---
         #is_empty_impl
     };
 
@@ -632,6 +634,34 @@ fn extract_inner_element_type(type_name: &str) -> &str {
     }
 }
 
+fn element_primitive_type_tokens(field_ty: &Type) -> TokenStream2 {
+    let base_type = get_base_type(field_ty);
+    if let Type::Path(type_path) = base_type {
+        if let Some(last_segment) = type_path.path.segments.last() {
+            if last_segment.ident == "Element" {
+                if let PathArguments::AngleBracketed(generics) = &last_segment.arguments {
+                    if let Some(GenericArgument::Type(inner_v_type)) = generics.args.first() {
+                        return quote! { #inner_v_type };
+                    }
+                }
+                panic!("Element missing generic argument V");
+            } else {
+                let alias_name = last_segment.ident.to_string();
+                let primitive_type_str = extract_inner_element_type(&alias_name);
+                let primitive_type_parsed: Type = syn::parse_str(primitive_type_str)
+                    .unwrap_or_else(|_| {
+                        panic!(
+                            "Failed to parse primitive type string: {}",
+                            primitive_type_str
+                        )
+                    });
+                return quote! { #primitive_type_parsed };
+            }
+        }
+    }
+    panic!("Element type is not a Type::Path");
+}
+
 //=============================================================================
 // FhirSerde Implementation Generator Functions
 //=============================================================================
@@ -740,14 +770,7 @@ fn generate_serialize_impl(data: &Data, name: &Ident) -> proc_macro2::TokenStrea
                                     }
                                     // Serialize the extension part if present
                                     if has_extension {
-                                        #[derive(serde::Serialize)]
-                                        struct IdAndExtensionHelper<'a> {
-                                            #[serde(skip_serializing_if = "Option::is_none")]
-                                            id: &'a Option<std::string::String>,
-                                            #[serde(skip_serializing_if = "Option::is_none")]
-                                            extension: &'a Option<Vec<Extension>>,
-                                        }
-                                        let extension_part = IdAndExtensionHelper {
+                                        let extension_part = helios_serde_support::IdAndExtensionHelper {
                                             id: &value.id,
                                             extension: &value.extension,
                                         };
@@ -974,14 +997,7 @@ fn generate_serialize_impl(data: &Data, name: &Ident) -> proc_macro2::TokenStrea
                                             if element.id.is_some() || element.extension.is_some() {
                                                 has_extensions = true;
                                                 // Use helper struct for consistent serialization of id/extension
-                                                #[derive(serde::Serialize)]
-                                                struct IdAndExtensionHelper<'a> {
-                                                    #[serde(skip_serializing_if = "Option::is_none")]
-                                                    id: &'a Option<std::string::String>,
-                                                    #[serde(skip_serializing_if = "Option::is_none")]
-                                                    extension: &'a Option<Vec<Extension>>,
-                                                }
-                                                let extension_part = IdAndExtensionHelper {
+                                                let extension_part = helios_serde_support::IdAndExtensionHelper {
                                                     id: &element.id,
                                                     extension: &element.extension,
                                                 };
@@ -1024,14 +1040,7 @@ fn generate_serialize_impl(data: &Data, name: &Ident) -> proc_macro2::TokenStrea
                                             state.serialize_entry(&#effective_field_name_str, value)?;
                                         }
                                         if #extension_field_ident {
-                                            #[derive(serde::Serialize)]
-                                            struct IdAndExtensionHelper<'a> {
-                                                #[serde(skip_serializing_if = "Option::is_none")]
-                                                id: &'a Option<std::string::String>,
-                                                #[serde(skip_serializing_if = "Option::is_none")]
-                                                extension: &'a Option<Vec<Extension>>,
-                                            }
-                                            let extension_part = IdAndExtensionHelper {
+                                            let extension_part = helios_serde_support::IdAndExtensionHelper {
                                                 id: &field.id,
                                                 extension: &field.extension,
                                             };
@@ -1050,14 +1059,7 @@ fn generate_serialize_impl(data: &Data, name: &Ident) -> proc_macro2::TokenStrea
                                             state.serialize_field(&#effective_field_name_str, value)?;
                                         }
                                         if #extension_field_ident {
-                                            #[derive(serde::Serialize)]
-                                            struct IdAndExtensionHelper<'a> {
-                                                #[serde(skip_serializing_if = "Option::is_none")]
-                                                id: &'a Option<std::string::String>,
-                                                #[serde(skip_serializing_if = "Option::is_none")]
-                                                extension: &'a Option<Vec<Extension>>,
-                                            }
-                                            let extension_part = IdAndExtensionHelper {
+                                            let extension_part = helios_serde_support::IdAndExtensionHelper {
                                                 id: &field.id,
                                                 extension: &field.extension,
                                             };
@@ -1077,14 +1079,7 @@ fn generate_serialize_impl(data: &Data, name: &Ident) -> proc_macro2::TokenStrea
                                         state.serialize_entry(&#effective_field_name_str, value)?;
                                     }
                                     if #extension_field_ident {
-                                        #[derive(serde::Serialize)]
-                                        struct IdAndExtensionHelper<'a> {
-                                            #[serde(skip_serializing_if = "Option::is_none")]
-                                            id: &'a Option<std::string::String>,
-                                            #[serde(skip_serializing_if = "Option::is_none")]
-                                            extension: &'a Option<Vec<Extension>>,
-                                        }
-                                        let extension_part = IdAndExtensionHelper {
+                                        let extension_part = helios_serde_support::IdAndExtensionHelper {
                                             id: &#field_access.id,
                                             extension: &#field_access.extension,
                                         };
@@ -1100,14 +1095,7 @@ fn generate_serialize_impl(data: &Data, name: &Ident) -> proc_macro2::TokenStrea
                                         state.serialize_field(&#effective_field_name_str, value)?;
                                     }
                                     if #extension_field_ident {
-                                        #[derive(serde::Serialize)]
-                                        struct IdAndExtensionHelper<'a> {
-                                            #[serde(skip_serializing_if = "Option::is_none")]
-                                            id: &'a Option<std::string::String>,
-                                            #[serde(skip_serializing_if = "Option::is_none")]
-                                            extension: &'a Option<Vec<Extension>>,
-                                        }
-                                        let extension_part = IdAndExtensionHelper {
+                                        let extension_part = helios_serde_support::IdAndExtensionHelper {
                                             id: &#field_access.id,
                                             extension: &#field_access.extension,
                                         };
@@ -1179,6 +1167,7 @@ fn generate_serialize_impl(data: &Data, name: &Ident) -> proc_macro2::TokenStrea
                         field_counts.push(field_counting_code);
                         field_serializers.push(field_serializing_code);
                     }
+
                     // Use the has_flattened_fields variable defined at the top of the function
                     if has_flattened_fields {
                         // If we have flattened fields, use serialize_map instead of serialize_struct
@@ -1634,9 +1623,14 @@ mod tests {
 fn generate_deserialize_impl(data: &Data, name: &Ident) -> proc_macro2::TokenStream {
     let struct_name = format_ident!("Temp{}", name);
 
-    let mut temp_struct_attributes = Vec::new();
-    let mut constructor_attributes = Vec::new();
-
+    let mut temp_struct_xml_attrs = Vec::new();
+    let mut temp_struct_json_attrs = Vec::new();
+    let mut constructor_xml_attrs = Vec::new();
+    let mut constructor_json_attrs = Vec::new();
+    let single_or_vec_ident: proc_macro2::TokenStream =
+        quote! { ::helios_serde_support::SingleOrVec };
+    let primitive_or_element_ident: proc_macro2::TokenStream =
+        quote! { ::helios_serde_support::PrimitiveOrElement };
     match *data {
         Data::Enum(ref data) => {
             // For enums, we need to deserialize from a map with a single key-value pair
@@ -1825,16 +1819,10 @@ fn generate_deserialize_impl(data: &Data, name: &Ident) -> proc_macro2::TokenStr
                 });
             } // End loop over variants
 
-            // Define the helper struct needed for enum deserialization
+            // Define the helper type alias needed for enum deserialization
             let id_extension_helper_def = quote! {
-                // Helper struct for deserializing the id/extension part from _fieldName
-                #[derive(Clone, Deserialize, Default)] // Add Default derive
-                struct IdAndExtensionHelper {
-                    #[serde(skip_serializing_if = "Option::is_none")] // Change from default
-                    id: Option<std::string::String>,
-                    #[serde(skip_serializing_if = "Option::is_none")] // Change from default
-                    extension: Option<Vec<Extension>>,
-                }
+                // Type alias for deserializing the id/extension part from _fieldName
+                type IdAndExtensionHelper = helios_serde_support::IdAndExtensionOwned<Extension>;
             };
 
             // Generate the enum deserialization implementation
@@ -1965,84 +1953,83 @@ fn generate_deserialize_impl(data: &Data, name: &Ident) -> proc_macro2::TokenStr
                             get_element_info(field_ty);
 
                         let is_fhir_element = is_element || is_decimal_element;
+                        let primitive_value_type = if is_fhir_element && !is_decimal_element {
+                            Some(element_primitive_type_tokens(field_ty))
+                        } else {
+                            None
+                        };
 
                         // Determine the type for the primitive value field in the temp struct
-                        let temp_primitive_type_quote = if is_fhir_element {
-                            // Need to re-determine the base type here
-                            let base_type = get_base_type(field_ty);
+                        let temp_primitive_type_quote = {
+                            let single_or_vec_path = quote! { #single_or_vec_ident };
 
-                            // Determine the base primitive type (e.g., bool, String, rust_decimal::Decimal)
-                            let primitive_type_ident = if is_decimal_element {
-                                // For DecimalElement, use serde_json::Value in temp struct to preserve original string
-                                quote! { serde_json::Value }
-                            } else {
-                                // is_element is true here
-                                if let Type::Path(type_path) = base_type {
-                                    if let Some(last_segment) = type_path.path.segments.last() {
-                                        if last_segment.ident == "Element" {
-                                            // Direct Element<V, E>
-                                            if let PathArguments::AngleBracketed(generics) =
-                                                &last_segment.arguments
-                                            {
-                                                if let Some(GenericArgument::Type(inner_v_type)) =
-                                                    generics.args.first()
-                                                {
-                                                    quote! { #inner_v_type } // Use the inner type V directly
-                                                } else {
-                                                    panic!("Element missing generic argument V");
-                                                }
-                                            } else {
-                                                panic!("Element missing angle bracketed arguments");
-                                            }
-                                        } else {
-                                            // It's an alias like 'Code'. Get the primitive type it wraps.
-                                            let alias_name = last_segment.ident.to_string();
-                                            let primitive_type_str =
-                                                extract_inner_element_type(&alias_name);
-                                            // Parse the primitive type string back into a Type for quoting
-                                            let primitive_type_parsed: Type = syn::parse_str(
-                                                primitive_type_str,
-                                            )
-                                            .unwrap_or_else(|_| {
-                                                panic!(
-                                                    "Failed to parse primitive type string: {}",
-                                                    primitive_type_str
-                                                )
-                                            });
-                                            quote! { #primitive_type_parsed } // Use the parsed primitive type
-                                        }
+                            if is_vec {
+                                if is_fhir_element {
+                                    let vec_type = if is_option {
+                                        get_option_inner_type(field_ty)
+                                            .expect("Option inner type not found for Vec field")
                                     } else {
-                                        panic!("Could not get last segment of Element type path");
+                                        field_ty
+                                    };
+                                    let vec_inner_type = get_vec_inner_type(vec_type)
+                                        .expect("Vec inner type not found");
+                                    let entry_type = if is_decimal_element {
+                                        quote! { Option<#primitive_or_element_ident<serde_json::Value, #vec_inner_type>> }
+                                    } else {
+                                        let prim_type = primitive_value_type
+                                            .as_ref()
+                                            .expect("non-decimal element missing primitive type");
+                                        quote! { Option<#primitive_or_element_ident<#prim_type, #vec_inner_type>> }
+                                    };
+                                    let holder = quote! { #single_or_vec_path<#entry_type> };
+                                    if is_option {
+                                        quote! { Option<#holder> }
+                                    } else {
+                                        holder
                                     }
                                 } else {
-                                    panic!("Element type is not a Type::Path");
+                                    let vec_type = if is_option {
+                                        get_option_inner_type(field_ty)
+                                            .expect("Option inner type not found for Vec field")
+                                    } else {
+                                        field_ty
+                                    };
+                                    let vec_inner_type = get_vec_inner_type(vec_type)
+                                        .expect("Vec inner type not found");
+                                    let entry_type = quote! { #vec_inner_type };
+                                    let holder = quote! { #single_or_vec_path<#entry_type> };
+                                    if is_option {
+                                        quote! { Option<#holder> }
+                                    } else {
+                                        holder
+                                    }
                                 }
-                            }; // End of let primitive_type_ident assignment
-
-                            // Adjust the quote based on whether it's a vector
-                            if is_vec {
-                                // Temp type should be Option<Vec<Option<Primitive>>> to handle nulls inside the array
-                                quote! { Option<Vec<Option<#primitive_type_ident>>> } // Add Option inside Vec
-                            } else {
-                                // If original field was Option<T>, temp type is Option<Primitive>
-                                // If original field was T, temp type is Primitive
-                                if is_option {
-                                    quote! { Option<#primitive_type_ident> }
+                            } else if is_fhir_element {
+                                let element_type = if is_option {
+                                    get_option_inner_type(field_ty)
+                                        .expect("Option inner type not found for Element field")
                                 } else {
-                                    // Always use Option<Primitive> in temp struct for single elements
-                                    quote! { Option<#primitive_type_ident> }
+                                    field_ty
+                                };
+                                if is_decimal_element {
+                                    quote! { Option<#primitive_or_element_ident<serde_json::Value, #element_type>> }
+                                } else {
+                                    let prim_type = primitive_value_type
+                                        .as_ref()
+                                        .expect("non-decimal element missing primitive type");
+                                    quote! { Option<#primitive_or_element_ident<#prim_type, #element_type>> }
                                 }
+                            } else {
+                                // Not an element, use the original type
+                                quote! { #field_ty }
                             }
-                        } else {
-                            // Not an element, use the original type
-                            quote! { #field_ty }
                         };
 
                         // Determine the type for the extension helper field in the temp struct
                         let temp_extension_type = if is_fhir_element {
                             if is_vec {
-                                // For Vec<Element> or Option<Vec<Element>>, temp type is Option<Vec<Option<IdAndExtensionHelper>>>
-                                quote! { Option<Vec<Option<IdAndExtensionHelper>>> }
+                                // For Vec<Element> or Option<Vec<Element>>, temp type is Option<SingleOrVec<Option<IdAndExtensionHelper>>>
+                                quote! { Option<#single_or_vec_ident<Option<IdAndExtensionHelper>>> }
                             } else {
                                 // For Element or Option<Element>, temp type is Option<IdAndExtensionHelper>
                                 quote! { Option<IdAndExtensionHelper> }
@@ -2088,190 +2075,493 @@ fn generate_deserialize_impl(data: &Data, name: &Ident) -> proc_macro2::TokenStr
 
                         let constructor_attribute = if is_fhir_element {
                             if is_vec {
-                                // Handle Vec<Element> or Option<Vec<Element>> first
-                                // Generate different construction logic based on whether it's decimal
-                                let construction_logic = if is_decimal_element {
-                                    // Logic specifically for Vec<DecimalElement> or Option<Vec<DecimalElement>>
-                                    let element_type = {
-                                        // Determine DecimalElement<E> type
-                                        let vec_inner_type = if is_option {
-                                            get_option_inner_type(field_ty)
-                                        } else {
-                                            Some(field_ty)
+                                let element_type = {
+                                    let vec_inner_type = if is_option {
+                                        get_option_inner_type(field_ty)
+                                    } else {
+                                        Some(field_ty)
+                                    }
+                                    .and_then(get_vec_inner_type)
+                                    .expect("Vec inner type not found for Element");
+                                    quote! { #vec_inner_type }
+                                };
+
+                                let merge_element = if is_decimal_element {
+                                    quote! {
+                                        match helper_opt {
+                                            Some(#primitive_or_element_ident::Element(mut element)) => {
+                                                if let Some(ext_helper) = ext_helper_opt {
+                                                    if element.id.is_none() {
+                                                        element.id = ext_helper.id;
+                                                    }
+                                                    if element.extension.is_none() {
+                                                        element.extension = ext_helper.extension;
+                                                    } else if let Some(mut extra) = ext_helper.extension {
+                                                        element
+                                                            .extension
+                                                            .get_or_insert_with(Vec::new)
+                                                            .extend(extra);
+                                                    }
+                                                }
+                                                Some(element)
+                                            }
+                                            Some(#primitive_or_element_ident::Primitive(json_val)) => {
+                                                if json_val.is_null() && ext_helper_opt.is_none() {
+                                                    None
+                                                } else {
+                                                    let precise_decimal_value = if json_val.is_null() {
+                                                        None
+                                                    } else {
+                                                        Some(crate::PreciseDecimal::deserialize(json_val)
+                                                            .map_err(serde::de::Error::custom)?)
+                                                    };
+                                                    if precise_decimal_value.is_none() && ext_helper_opt.is_none() {
+                                                        None
+                                                    } else {
+                                                        let mut element = #element_type::default();
+                                                        element.value = precise_decimal_value;
+                                                        if let Some(ext_helper) = ext_helper_opt {
+                                                            element.id = ext_helper.id;
+                                                            element.extension = ext_helper.extension;
+                                                        }
+                                                        Some(element)
+                                                    }
+                                                }
+                                            }
+                                            None => {
+                                                ext_helper_opt.map(|ext_helper| {
+                                                    let mut element = #element_type::default();
+                                                    element.id = ext_helper.id;
+                                                    element.extension = ext_helper.extension;
+                                                    element
+                                                })
+                                            }
                                         }
-                                        .and_then(get_vec_inner_type)
-                                        .expect("Vec inner type not found for DecimalElement");
-                                        quote! { #vec_inner_type }
-                                    };
-                                    quote! { { // Block expression starts
-                                        // Handle Option for primitives and extensions
-                                        let primitives = temp_struct.#field_name_ident.unwrap_or_default(); // Vec<Option<Primitive>>
-                                        let extensions = temp_struct.#field_name_ident_ext.unwrap_or_default(); // Vec<Option<IdAndExtensionHelper>>
+                                    }
+                                } else {
+                                    quote! {
+                                        match helper_opt {
+                                            Some(#primitive_or_element_ident::Element(mut element)) => {
+                                                if let Some(ext_helper) = ext_helper_opt {
+                                                    if element.id.is_none() {
+                                                        element.id = ext_helper.id;
+                                                    }
+                                                    if element.extension.is_none() {
+                                                        element.extension = ext_helper.extension;
+                                                    } else if let Some(mut extra) = ext_helper.extension {
+                                                        element
+                                                            .extension
+                                                            .get_or_insert_with(Vec::new)
+                                                            .extend(extra);
+                                                    }
+                                                }
+                                                Some(element)
+                                            }
+                                            Some(#primitive_or_element_ident::Primitive(primitive_value)) => {
+                                                let mut element = #element_type::default();
+                                                element.value = Some(primitive_value);
+                                                if let Some(ext_helper) = ext_helper_opt {
+                                                    element.id = ext_helper.id;
+                                                    element.extension = ext_helper.extension;
+                                                }
+                                                Some(element)
+                                            }
+                                            None => {
+                                                ext_helper_opt.map(|ext_helper| {
+                                                    let mut element = #element_type::default();
+                                                    element.id = ext_helper.id;
+                                                    element.extension = ext_helper.extension;
+                                                    element
+                                                })
+                                            }
+                                        }
+                                    }
+                                };
+
+                                if is_option {
+                                    quote! {
+                                        #field_name_ident: {
+                                            let (primitives, has_primitives) = match temp_struct.#field_name_ident {
+                                                Some(holder) => (holder.into(), true),
+                                                None => (Vec::new(), false),
+                                            };
+                                            let (extensions, has_extensions) = match temp_struct.#field_name_ident_ext {
+                                                Some(holder) => (holder.into(), true),
+                                                None => (Vec::new(), false),
+                                            };
+                                            if has_primitives || has_extensions {
+                                                let len = primitives.len().max(extensions.len());
+                                                let mut result_vec = Vec::with_capacity(len);
+                                                for i in 0..len {
+                                                    let helper_opt = primitives.get(i).cloned().flatten();
+                                                    let ext_helper_opt = extensions.get(i).cloned().flatten();
+                                                    if let Some(element) = { #merge_element } {
+                                                        result_vec.push(element);
+                                                    }
+                                                }
+                                                if result_vec.is_empty() {
+                                                    None
+                                                } else {
+                                                    Some(result_vec)
+                                                }
+                                            } else {
+                                                None
+                                            }
+                                        },
+                                    }
+                                } else {
+                                    quote! {
+                                        #field_name_ident: {
+                                            let primitives = temp_struct.#field_name_ident.into();
+                                            let extensions = temp_struct.#field_name_ident_ext
+                                                .map(|holder| holder.into())
+                                                .unwrap_or_default();
+                                            let len = primitives.len().max(extensions.len());
+                                            let mut result_vec = Vec::with_capacity(len);
+                                            for i in 0..len {
+                                                let helper_opt = primitives.get(i).cloned().flatten();
+                                                let ext_helper_opt = extensions.get(i).cloned().flatten();
+                                                if let Some(element) = { #merge_element } {
+                                                    result_vec.push(element);
+                                                }
+                                            }
+                                            result_vec
+                                        },
+                                    }
+                                }
+                            } else {
+                                let element_type = if is_option {
+                                    get_option_inner_type(field_ty)
+                                        .expect("Option inner type not found for Element field")
+                                } else {
+                                    field_ty
+                                };
+
+                                let merge_element = if is_decimal_element {
+                                    quote! {
+                                        match helper_opt {
+                                            Some(#primitive_or_element_ident::Element(mut element)) => {
+                                                if let Some(ext_helper) = ext_helper_opt {
+                                                    if element.id.is_none() {
+                                                        element.id = ext_helper.id;
+                                                    }
+                                                    if element.extension.is_none() {
+                                                        element.extension = ext_helper.extension;
+                                                    } else if let Some(mut extra) = ext_helper.extension {
+                                                        element
+                                                            .extension
+                                                            .get_or_insert_with(Vec::new)
+                                                            .extend(extra);
+                                                    }
+                                                }
+                                                Some(element)
+                                            }
+                                            Some(#primitive_or_element_ident::Primitive(json_val)) => {
+                                                if json_val.is_null() && ext_helper_opt.is_none() {
+                                                    None
+                                                } else {
+                                                    let precise_decimal_value = if json_val.is_null() {
+                                                        None
+                                                    } else {
+                                                        Some(crate::PreciseDecimal::deserialize(json_val)
+                                                            .map_err(serde::de::Error::custom)?)
+                                                    };
+                                                    if precise_decimal_value.is_none() && ext_helper_opt.is_none() {
+                                                        None
+                                                    } else {
+                                                        let mut element = #element_type::default();
+                                                        element.value = precise_decimal_value;
+                                                        if let Some(ext_helper) = ext_helper_opt {
+                                                            element.id = ext_helper.id;
+                                                            element.extension = ext_helper.extension;
+                                                        }
+                                                        Some(element)
+                                                    }
+                                                }
+                                            }
+                                            None => {
+                                                ext_helper_opt.map(|ext_helper| {
+                                                    let mut element = #element_type::default();
+                                                    element.id = ext_helper.id;
+                                                    element.extension = ext_helper.extension;
+                                                    element
+                                                })
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    quote! {
+                                        match helper_opt {
+                                            Some(#primitive_or_element_ident::Element(mut element)) => {
+                                                if let Some(ext_helper) = ext_helper_opt {
+                                                    if element.id.is_none() {
+                                                        element.id = ext_helper.id;
+                                                    }
+                                                    if element.extension.is_none() {
+                                                        element.extension = ext_helper.extension;
+                                                    } else if let Some(mut extra) = ext_helper.extension {
+                                                        element
+                                                            .extension
+                                                            .get_or_insert_with(Vec::new)
+                                                            .extend(extra);
+                                                    }
+                                                }
+                                                Some(element)
+                                            }
+                                            Some(#primitive_or_element_ident::Primitive(primitive_value)) => {
+                                                let mut element = #element_type::default();
+                                                element.value = Some(primitive_value);
+                                                if let Some(ext_helper) = ext_helper_opt {
+                                                    element.id = ext_helper.id;
+                                                    element.extension = ext_helper.extension;
+                                                }
+                                                Some(element)
+                                            }
+                                            None => {
+                                                ext_helper_opt.map(|ext_helper| {
+                                                    let mut element = #element_type::default();
+                                                    element.id = ext_helper.id;
+                                                    element.extension = ext_helper.extension;
+                                                    element
+                                                })
+                                            }
+                                        }
+                                    }
+                                };
+
+                                if is_option {
+                                    quote! {
+                                        #field_name_ident: {
+                                            let helper_opt = temp_struct.#field_name_ident;
+                                            let ext_helper_opt = temp_struct.#field_name_ident_ext;
+                                            if helper_opt.is_none() && ext_helper_opt.is_none() {
+                                                None
+                                            } else {
+                                                { #merge_element }
+                                            }
+                                        },
+                                    }
+                                } else {
+                                    quote! {
+                                        #field_name_ident: {
+                                            let helper_opt = temp_struct.#field_name_ident;
+                                            let ext_helper_opt = temp_struct.#field_name_ident_ext;
+                                            { #merge_element }.unwrap_or_else(#field_ty::default)
+                                        },
+                                    }
+                                }
+                            }
+                        } else {
+                            // Not an FHIR element type
+                            if is_vec {
+                                if is_option {
+                                    quote! {
+                                        #field_name_ident: temp_struct.#field_name_ident
+                                            .map(|holder| holder.into()),
+                                    }
+                                } else {
+                                    quote! {
+                                        #field_name_ident: temp_struct.#field_name_ident.into(),
+                                    }
+                                }
+                            } else {
+                                quote! {
+                                    #field_name_ident: temp_struct.#field_name_ident,
+                                }
+                            }
+                        }; // Semicolon ends the let constructor_attribute binding
+
+                        // --- JSON-only temp struct attribute (no SingleOrVec/PrimitiveOrElement wrappers) ---
+                        let temp_primitive_type_json = if is_fhir_element {
+                            let primitive_type_ident = if is_decimal_element {
+                                quote! { serde_json::Value }
+                            } else {
+                                let prim_type = primitive_value_type
+                                    .as_ref()
+                                    .expect("non-decimal element missing primitive type");
+                                quote! { #prim_type }
+                            };
+                            if is_vec {
+                                quote! { Option<Vec<Option<#primitive_type_ident>>> }
+                            } else {
+                                quote! { Option<#primitive_type_ident> }
+                            }
+                        } else {
+                            quote! { #field_ty }
+                        };
+
+                        let temp_extension_type_json = if is_fhir_element {
+                            if is_vec {
+                                quote! { Option<Vec<Option<IdAndExtensionHelper>>> }
+                            } else {
+                                quote! { Option<IdAndExtensionHelper> }
+                            }
+                        } else {
+                            quote! { () }
+                        };
+
+                        let base_attribute_json = quote! {
+                            #[serde(default, rename = #effective_field_name_str)]
+                            #field_name_ident: #temp_primitive_type_json,
+                        };
+
+                        let underscore_attribute_json = if is_fhir_element {
+                            quote! {
+                                #[serde(default, rename = #underscore_field_name_literal)]
+                                #field_name_ident_ext: #temp_extension_type_json,
+                            }
+                        } else {
+                            quote! {}
+                        };
+
+                        let temp_struct_json_attr = quote! {
+                            #flatten_attr
+                            #base_attribute_json
+                            #underscore_attribute_json
+                        };
+
+                        // --- JSON-only constructor attribute (direct struct construction, no PrimitiveOrElement) ---
+                        let constructor_json_attr = if is_fhir_element {
+                            if is_vec {
+                                let element_type_json = {
+                                    let vec_inner_type = if is_option {
+                                        get_option_inner_type(field_ty)
+                                    } else {
+                                        Some(field_ty)
+                                    }
+                                    .and_then(get_vec_inner_type)
+                                    .expect("Vec inner type not found for Element");
+                                    quote! { #vec_inner_type }
+                                };
+
+                                let construction_logic_json = if is_decimal_element {
+                                    quote! { {
+                                        let primitives = temp_struct.#field_name_ident.unwrap_or_default();
+                                        let extensions = temp_struct.#field_name_ident_ext.unwrap_or_default();
                                         let len = primitives.len().max(extensions.len());
                                         let mut result_vec = Vec::with_capacity(len);
                                         for i in 0..len {
-                                            // Get Option<Primitive> by flattening the Option<Option<Primitive>> from the vec
                                             let prim_val_opt = primitives.get(i).cloned().flatten();
-                                            let ext_helper_opt = extensions.get(i).cloned().flatten(); // Keep flatten here
+                                            let ext_helper_opt = extensions.get(i).cloned().flatten();
                                             if prim_val_opt.is_some() || ext_helper_opt.is_some() {
-                                                // Deserialize the Option<serde_json::Value> into Option<PreciseDecimal>
                                                 let precise_decimal_value = match prim_val_opt {
                                                     Some(json_val) if !json_val.is_null() => {
-                                                        // Map error explicitly
                                                         crate::PreciseDecimal::deserialize(json_val)
                                                             .map(Some)
-                                                            .map_err(serde::de::Error::custom)? // Map error here
+                                                            .map_err(serde::de::Error::custom)?
                                                     },
-                                                    _ => None, // Treat None or JSON null as None
+                                                    _ => None,
                                                 };
-                                                result_vec.push(#element_type {
+                                                result_vec.push(#element_type_json {
                                                     value: precise_decimal_value,
                                                     id: ext_helper_opt.as_ref().and_then(|h| h.id.clone()),
                                                     extension: ext_helper_opt.as_ref().and_then(|h| h.extension.clone()),
                                                 });
                                             }
-                                            // Note: Skipping adding element if both parts are null/None
                                         }
-                                        result_vec // Return the vec directly
-                                    } } // Block expression ends
+                                        result_vec
+                                    } }
                                 } else {
-                                    // Logic specifically for Vec<Element<V, E>> or Option<Vec<Element<V, E>>> (non-decimal)
-                                    let element_type = {
-                                        // Determine Element<V, E> type
-                                        let vec_inner_type = if is_option {
-                                            get_option_inner_type(field_ty)
-                                        } else {
-                                            Some(field_ty)
-                                        }
-                                        .and_then(get_vec_inner_type)
-                                        .expect("Vec inner type not found for Element");
-                                        quote! { #vec_inner_type }
-                                    };
-                                    quote! { { // Block expression starts
-                                        // Handle Option for primitives and extensions
-                                        let primitives = temp_struct.#field_name_ident.unwrap_or_default(); // Vec<Option<Primitive>>
-                                        let extensions = temp_struct.#field_name_ident_ext.unwrap_or_default(); // Vec<Option<IdAndExtensionHelper>>
+                                    quote! { {
+                                        let primitives = temp_struct.#field_name_ident.unwrap_or_default();
+                                        let extensions = temp_struct.#field_name_ident_ext.unwrap_or_default();
                                         let len = primitives.len().max(extensions.len());
                                         let mut result_vec = Vec::with_capacity(len);
                                         for i in 0..len {
-                                            // Get Option<Primitive> by flattening the Option<Option<Primitive>> from the vec
                                             let prim_val_opt = primitives.get(i).cloned().flatten();
-                                            let ext_helper_opt = extensions.get(i).cloned().flatten(); // Keep flatten here
+                                            let ext_helper_opt = extensions.get(i).cloned().flatten();
                                             if prim_val_opt.is_some() || ext_helper_opt.is_some() {
-                                                result_vec.push(#element_type {
-                                                    value: prim_val_opt, // Assign Option<V> directly
+                                                result_vec.push(#element_type_json {
+                                                    value: prim_val_opt,
                                                     id: ext_helper_opt.as_ref().and_then(|h| h.id.clone()),
                                                     extension: ext_helper_opt.as_ref().and_then(|h| h.extension.clone()),
                                                 });
                                             }
-                                            // Note: Skipping adding element if both parts are null/None
                                         }
                                         result_vec
-                                    } } // Block expression ends
-                                }; // End of outer if/else determining construction_logic
+                                    } }
+                                };
 
-                                // Assign the correct construction_logic based on is_option
                                 if is_option {
-                                    // For Option<Vec<Element>>, construct Some if either primitive or extension array was present
                                     quote! {
                                         #field_name_ident: if temp_struct.#field_name_ident.is_some() || temp_struct.#field_name_ident_ext.is_some() {
-                                            // No '?' needed here as the block returns Vec<Element> directly
-                                            Some(#construction_logic)
+                                            Some(#construction_logic_json)
                                         } else {
                                             None
                                         },
                                     }
                                 } else {
-                                    // Direct Vec<Element> field assignment (always construct the Vec)
                                     quote! {
-                                        // No '?' needed here as the block returns Vec<Element> directly
-                                        #field_name_ident: #construction_logic,
+                                        #field_name_ident: #construction_logic_json,
                                     }
                                 }
                             } else if is_decimal_element {
-                                // Handle single DecimalElement or Option<DecimalElement>
                                 if is_option {
-                                    // Logic for Option<DecimalElement>
-                                    let construction_logic = quote! { { // Block expression starts
-                                        // Deserialize PreciseDecimal from Option<serde_json::Value>
+                                    let construction_logic_json = quote! { {
                                         let precise_decimal_value = match temp_struct.#field_name_ident {
                                             Some(json_val) if !json_val.is_null() => {
-                                                // Attempt deserialization, map error explicitly
                                                 crate::PreciseDecimal::deserialize(json_val)
                                                     .map(Some)
-                                                    .map_err(serde::de::Error::custom)? // Map error here
+                                                    .map_err(serde::de::Error::custom)?
                                             },
-                                            _ => None, // Treat None or JSON null as None
+                                            _ => None,
                                         };
-                                        // Construct the DecimalElement (no Ok() needed)
                                         crate::DecimalElement {
                                             value: precise_decimal_value,
                                             id: temp_struct.#field_name_ident_ext.as_ref().and_then(|h| h.id.clone()),
                                             extension: temp_struct.#field_name_ident_ext.as_ref().and_then(|h| h.extension.clone()),
                                         }
-                                    } }; // Block expression ends
-                                    // Wrap in Some() only if value or extension exists
+                                    } };
                                     quote! {
-                                         #field_name_ident: if temp_struct.#field_name_ident.is_some() || temp_struct.#field_name_ident_ext.is_some() {
-                                             // No '?' needed here as the block returns DecimalElement directly
-                                             Some(#construction_logic)
-                                         } else {
-                                             None // If neither field present, result is None
-                                         },
+                                        #field_name_ident: if temp_struct.#field_name_ident.is_some() || temp_struct.#field_name_ident_ext.is_some() {
+                                            Some(#construction_logic_json)
+                                        } else {
+                                            None
+                                        },
                                     }
                                 } else {
-                                    // Logic for non-optional DecimalElement
                                     quote! {
-                                        #field_name_ident: { // Block expression starts
-                                            // Deserialize PreciseDecimal from Option<serde_json::Value>
+                                        #field_name_ident: {
                                             let precise_decimal_value = match temp_struct.#field_name_ident {
                                                 Some(json_val) if !json_val.is_null() => {
-                                                    // Attempt deserialization, map error explicitly
                                                     crate::PreciseDecimal::deserialize(json_val)
                                                         .map(Some)
-                                                        .map_err(serde::de::Error::custom)? // Map error here
+                                                        .map_err(serde::de::Error::custom)?
                                                 },
-                                                _ => None, // Treat None or JSON null as None
+                                                _ => None,
                                             };
-                                            // Construct the DecimalElement (no Ok() needed)
                                             crate::DecimalElement {
                                                 value: precise_decimal_value,
                                                 id: temp_struct.#field_name_ident_ext.as_ref().and_then(|h| h.id.clone()),
                                                 extension: temp_struct.#field_name_ident_ext.as_ref().and_then(|h| h.extension.clone()),
                                             }
-                                        }, // No '?' needed after block
+                                        },
                                     }
                                 }
                             } else if is_option {
-                                // Handle single Option<Element> (already checked !is_vec)
-                                // Revert to simpler logic without explicit type annotation for value
-                                // Get the inner type T from Option<T> to construct Element<V, E>
                                 let inner_element_type = get_option_inner_type(field_ty)
                                     .expect("Option inner type not found");
                                 quote! {
                                     #field_name_ident: if temp_struct.#field_name_ident.is_some() || temp_struct.#field_name_ident_ext.is_some() {
-                                        Some(#inner_element_type { // Use the unwrapped Element type
-                                            value: temp_struct.#field_name_ident, // Assign directly
+                                        Some(#inner_element_type {
+                                            value: temp_struct.#field_name_ident,
                                             id: temp_struct.#field_name_ident_ext.as_ref().and_then(|h| h.id.clone()),
                                             extension: temp_struct.#field_name_ident_ext.as_ref().and_then(|h| h.extension.clone()),
                                         })
                                     } else {
-                                        None // Assign None if neither value nor extension part exists
+                                        None
                                     },
                                 }
                             } else {
-                                // Handles Element<V, E> (non-option, non-vec)
-                                // Construct element explicitly
                                 quote! {
                                     #field_name_ident: {
-                                        let mut element = #field_ty::default(); // Create default element (e.g., Code::default())
-                                        element.value = temp_struct.#field_name_ident; // Assign Option<Primitive>
-                                        // Assign id/extension from helper if present
+                                        let mut element = #field_ty::default();
+                                        element.value = temp_struct.#field_name_ident;
                                         if let Some(helper) = temp_struct.#field_name_ident_ext {
                                             element.id = helper.id;
                                             element.extension = helper.extension;
                                         }
-                                        element // Return the constructed element
+                                        element
                                     },
                                 }
                             }
@@ -2280,10 +2570,12 @@ fn generate_deserialize_impl(data: &Data, name: &Ident) -> proc_macro2::TokenStr
                             quote! {
                                 #field_name_ident: temp_struct.#field_name_ident,
                             }
-                        }; // Semicolon ends the let constructor_attribute binding
+                        };
 
-                        temp_struct_attributes.push(temp_struct_attribute);
-                        constructor_attributes.push(constructor_attribute); // Push the result
+                        temp_struct_xml_attrs.push(temp_struct_attribute);
+                        temp_struct_json_attrs.push(temp_struct_json_attr);
+                        constructor_xml_attrs.push(constructor_attribute);
+                        constructor_json_attrs.push(constructor_json_attr);
                     }
                 }
                 Fields::Unnamed(_) => panic!("Tuple structs not supported by FhirSerde"),
@@ -2294,36 +2586,32 @@ fn generate_deserialize_impl(data: &Data, name: &Ident) -> proc_macro2::TokenStr
     }
 
     let id_extension_helper_def = quote! {
-        // Helper struct for deserializing the id/extension part from _fieldName
-        #[derive(Clone, Deserialize, Default)] // Add Default derive
-        struct IdAndExtensionHelper {
-            #[serde(skip_serializing_if = "Option::is_none")] // Change from default
-            id: Option<std::string::String>,
-            #[serde(skip_serializing_if = "Option::is_none")] // Change from default
-            extension: Option<Vec<Extension>>,
-        }
-    };
-
-    let temp_struct = quote! {
-        #[derive(Deserialize)]
-        struct #struct_name {
-            #(#temp_struct_attributes)*
-        }
+        // Type alias for deserializing the id/extension part from _fieldName
+        type IdAndExtensionHelper = helios_serde_support::IdAndExtensionOwned<Extension>;
     };
 
     quote! {
-        // Define the helper struct at the top level of the deserialize function
         #id_extension_helper_def
 
-        // Define the temporary struct for deserialization
-        #temp_struct
+        #[cfg(feature = "xml")]
+        #[derive(Deserialize)]
+        struct #struct_name {
+            #(#temp_struct_xml_attrs)*
+        }
 
-         // Perform the actual deserialization into the temporary struct
+        #[cfg(not(feature = "xml"))]
+        #[derive(Deserialize)]
+        struct #struct_name {
+            #(#temp_struct_json_attrs)*
+        }
+
         let temp_struct = #struct_name::deserialize(deserializer)?;
 
+        #[cfg(feature = "xml")]
+        return Ok(#name { #(#constructor_xml_attrs)* });
 
-        Ok(#name{#(#constructor_attributes)*})
-
+        #[cfg(not(feature = "xml"))]
+        return Ok(#name { #(#constructor_json_attrs)* });
     }
 }
 

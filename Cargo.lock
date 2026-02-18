@@ -2464,6 +2464,7 @@ dependencies = [
  "clap",
  "helios-fhir-macro",
  "helios-fhirpath-support",
+ "helios-serde-support",
  "reqwest",
  "rust_decimal",
  "rust_decimal_macros",
@@ -2633,6 +2634,30 @@ dependencies = [
  "tracing-subscriber",
  "url",
  "uuid",
+]
+
+[[package]]
+name = "helios-serde"
+version = "0.1.33"
+dependencies = [
+ "helios-fhir",
+ "helios-fhir-macro",
+ "helios-serde-support",
+ "quick-xml 0.38.4",
+ "reqwest",
+ "rust_decimal",
+ "rust_decimal_macros",
+ "serde",
+ "serde_json",
+ "zip 0.6.6",
+]
+
+[[package]]
+name = "helios-serde-support"
+version = "0.1.32"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -4572,6 +4597,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b66c2058c55a409d601666cffe35f04333cf1013010882cec174a7467cd4e21c"
 dependencies = [
  "memchr",
+ "serde",
 ]
 
 [[package]]

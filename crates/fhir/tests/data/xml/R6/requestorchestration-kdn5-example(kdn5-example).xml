@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?><RequestOrchestration xmlns="http://hl7.org/fhir">
+  <id value="kdn5-example"/>
+  <meta>
+    <security>
+      <system value="http://terminology.hl7.org/CodeSystem/v3-ActReason"/>
+      <code value="HTEST"/>
+      <display value="test health data"/>
+    </security>
+  </meta>
+  <text>
+    <status value="generated"/><div xmlns="http://www.w3.org/1999/xhtml">Administer gemcitabine and carboplatin.</div>
+  </text>
+  <contained>
+    <MedicationRequest>
+      <id value="1111"/>
+      <status value="unknown"/>
+      <intent value="proposal"/>
+      <medication>
+        <concept>
+          <coding>
+            <system value="http://www.nlm.nih.gov/research/umls/rxnorm"/>
+            <code value="12574"/>
+            <display value="gemcitabine"/>
+          </coding>
+          <text value="gemcitabine"/>
+        </concept>
+      </medication>
+      <subject>
+        <reference value="Patient/example"/>
+      </subject>
+    </MedicationRequest>
+  </contained>
+  <contained>
+    <MedicationRequest>
+      <id value="2222"/>
+      <status value="unknown"/>
+      <intent value="proposal"/>
+      <medication>
+        <concept>
+          <coding>
+            <system value="http://www.nlm.nih.gov/research/umls/rxnorm"/>
+            <code value="40048"/>
+            <display value="Carboplatin"/>
+          </coding>
+          <text value="CARBOplatin"/>
+        </concept>
+      </medication>
+      <subject>
+        <reference value="Patient/example"/>
+      </subject>
+    </MedicationRequest>
+  </contained>
+  <identifier>
+    <value value="requestorchestration-kdn5"/>
+  </identifier>
+  <instantiatesCanonical value="http://example.org/fhir/PlanDefinition/KDN5"/>
+  <status value="draft"/>
+  <intent value="plan"/>
+  <priority value="routine"/>
+  <subject>
+    <reference value="Patient/example"/>
+  </subject>
+  <encounter>
+    <reference value="Encounter/example"/>
+  </encounter>
+  <authoredOn value="2017-03-06T17:31:00Z"/>
+  <author>
+    <reference value="Practitioner/1"/>
+  </author>
+  <!--  end of regimen options  -->
+  <action>
+    <!--  list of regimen options. in this case only one  -->
+    <selectionBehavior value="exactly-one"/>
+    <!--  end of regimen parts  -->
+    <action>
+      <!--  list of regimen parts. in this case only one  -->
+      <selectionBehavior value="all"/>
+      <!--  end of cycle definitions  -->
+      <action>
+        <!--  list of cycle definitions. in this case only one  -->
+        <groupingBehavior value="sentence-group"/>
+        <selectionBehavior value="exactly-one"/>
+        <!--  end of regimen entries  -->
+        <action id="cycle-definition-1">
+          <textEquivalent value="21-day cycle for 6 cycles"/>
+          <timingTiming>
+            <repeat>
+              <count value="6"/>
+              <duration value="21"/>
+              <durationUnit value="d"/>
+            </repeat>
+          </timingTiming>
+          <!--  list of regimen entry references for this regimen part  -->
+          <!--  references would duplicated in each cycle definition option
+          (see codesystem-action-grouping-behavior.html#sentence-group) -->
+          <action id="action-1">
+            <extension url="http://hl7.org/fhir/StructureDefinition/timing-daysOfCycle">
+              <extension url="day">
+                <valueInteger value="1"/>
+              </extension>
+              <extension url="day">
+                <valueInteger value="8"/>
+              </extension>
+            </extension>
+            <textEquivalent value="Gemcitabine 1250 mg/m² IV over 30 minutes on days 1 and 8"/>
+            <resource>
+              <reference value="#1111"/>
+            </resource>
+          </action>
+          <action id="action-2">
+            <extension url="http://hl7.org/fhir/StructureDefinition/timing-daysOfCycle">
+              <extension url="day">
+                <valueInteger value="1"/>
+              </extension>
+            </extension>
+            <textEquivalent value="CARBOplatin AUC 5 IV over 30 minutes on Day 1"/>
+            <relatedAction>
+              <targetId value="action-1"/>
+              <relationship value="concurrent-with-start"/>
+            </relatedAction>
+            <resource>
+              <reference value="#2222"/>
+            </resource>
+          </action>
+        </action>
+      </action>
+    </action>
+  </action>
+</RequestOrchestration>

@@ -119,13 +119,21 @@ where
         .map(|rt| build_resource_capability(rt))
         .collect();
 
+    #[allow(unused_mut)]
+    let mut formats = vec!["json", "application/fhir+json"];
+    #[cfg(feature = "xml")]
+    {
+        formats.push("xml");
+        formats.push("application/fhir+xml");
+    }
+
     serde_json::json!({
         "resourceType": "CapabilityStatement",
         "status": "active",
         "date": chrono::Utc::now().to_rfc3339(),
         "kind": "instance",
         "fhirVersion": version.full_version(),
-        "format": ["json", "application/fhir+json"],
+        "format": formats,
         "implementation": {
             "description": format!("Helios FHIR Server ({})", backend_name),
             "url": base_url

@@ -11,6 +11,8 @@ default-members = [
 	"crates/fhir-macro",
 	"crates/fhirpath",
 	"crates/fhirpath-support",
+	"crates/serde",
+	"crates/serde-support",
 	"crates/hfs",
 	"crates/persistence",
 	"crates/rest",

@@ -20,14 +20,18 @@ fn main() {
 
     println!("cargo:warning=Downloading R6 test data from HL7 build server");
 
-    let resources_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/data/R6");
+    let json_resources_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/data/json/R6");
+    let xml_resources_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/data/xml/R6");
 
-    // Create the resources directory if it doesn't exist
-    fs::create_dir_all(&resources_dir).expect("Failed to create resources directory");
+    // Create the resources directories if they don't exist
+    fs::create_dir_all(&json_resources_dir).expect("Failed to create JSON resources directory");
+    fs::create_dir_all(&xml_resources_dir).expect("Failed to create XML resources directory");
 
-    let url = "https://build.fhir.org/examples-json.zip";
+    let json_url = "https://build.fhir.org/examples-json.zip";
+    let xml_url = "https://build.fhir.org/examples.zip";
 
-    let output_path = resources_dir.join("examples.json.zip");
+    let json_output_path = json_resources_dir.join("examples.json.zip");
+    let xml_output_path = xml_resources_dir.join("examples.xml.zip");
 
     println!("Downloading test data ...");
 
@@ -40,12 +44,15 @@ fn main() {
 
     // Try downloading with retries
     const MAX_RETRIES: u32 = 3;
+
+    // Download JSON examples
+    println!("Downloading JSON examples...");
     let mut last_error = None;
 
     for attempt in 1..=MAX_RETRIES {
-        println!("Download attempt {} of {}", attempt, MAX_RETRIES);
+        println!("JSON download attempt {} of {}", attempt, MAX_RETRIES);
 
-        match download_with_retry(&client, url, &output_path) {
+        match download_with_retry(&client, json_url, &json_output_path) {
             Ok(bytes) => {
                 println!("Downloaded {} bytes", bytes);
                 last_error = None;
@@ -66,13 +73,56 @@ fn main() {
 
     if let Some(error) = last_error {
         panic!(
-            "Failed to download file after {} attempts: {}",
+            "Failed to download JSON file after {} attempts: {}",
             MAX_RETRIES, error
         );
     }
 
+    // Extract JSON examples
+    extract_and_clean(&json_output_path, &json_resources_dir, "examples.json.zip");
+
+    // Download XML examples
+    println!("Downloading XML examples...");
+    last_error = None;
+
+    for attempt in 1..=MAX_RETRIES {
+        println!("XML download attempt {} of {}", attempt, MAX_RETRIES);
+
+        match download_with_retry(&client, xml_url, &xml_output_path) {
+            Ok(bytes) => {
+                println!("Downloaded {} bytes", bytes);
+                last_error = None;
+                break;
+            }
+            Err(e) => {
+                println!("Attempt {} failed: {}", attempt, e);
+                last_error = Some(e);
+
+                if attempt < MAX_RETRIES {
+                    let wait_time = Duration::from_secs(5 * attempt as u64);
+                    println!("Waiting {:?} before retry...", wait_time);
+                    thread::sleep(wait_time);
+                }
+            }
+        }
+    }
+
+    if let Some(error) = last_error {
+        panic!(
+            "Failed to download XML file after {} attempts: {}",
+            MAX_RETRIES, error
+        );
+    }
+
+    // Extract XML examples
+    extract_and_clean(&xml_output_path, &xml_resources_dir, "examples.xml.zip");
+
+    println!("FHIR test data downloaded successfully");
+}
+
+fn extract_and_clean(zip_path: &PathBuf, resources_dir: &PathBuf, zip_filename: &str) {
     // Verify and extract the downloaded file
-    let file = fs::File::open(&output_path).expect("Failed to open downloaded file");
+    let file = fs::File::open(zip_path).expect("Failed to open downloaded file");
     let metadata = file.metadata().expect("Failed to get file metadata");
     println!("File size on disk: {} bytes", metadata.len());
 
@@ -84,12 +134,12 @@ fn main() {
 
     // Clean out the resources directory before extracting (removes old files that may no longer exist in the zip)
     println!("cargo:warning=Cleaning resources directory before extraction...");
-    for entry in fs::read_dir(&resources_dir).unwrap() {
+    for entry in fs::read_dir(resources_dir).unwrap() {
         let entry = entry.unwrap();
         let path = entry.path();
 
         // Skip the zip file itself
-        if path.file_name() == Some(std::ffi::OsStr::new("examples.json.zip")) {
+        if path.file_name() == Some(std::ffi::OsStr::new(zip_filename)) {
             continue;
         }
 
@@ -122,9 +172,7 @@ fn main() {
     }
 
     // Delete the zip file after extraction
-    fs::remove_file(output_path).expect("Failed to delete zip file");
-
-    println!("FHIR test data downloaded successfully");
+    fs::remove_file(zip_path).expect("Failed to delete zip file");
 }
 
 fn download_with_retry(

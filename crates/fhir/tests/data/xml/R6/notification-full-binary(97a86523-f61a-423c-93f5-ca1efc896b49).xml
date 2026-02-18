@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?><Bundle xmlns="http://hl7.org/fhir">
+  <id value="97a86523-f61a-423c-93f5-ca1efc896b49"/>
+  <meta>
+    <security>
+      <system value="http://terminology.hl7.org/CodeSystem/v3-ActReason"/>
+      <code value="HTEST"/>
+      <display value="test health data"/>
+    </security>
+  </meta>
+  <type value="subscription-notification"/>
+  <timestamp value="2020-04-17T10:24:13.1882432-05:00"/>
+  <entry>
+    <fullUrl value="urn:uuid:7472c5f7-bdff-4229-a977-a0a60d5e7cfc"/>
+    <resource>
+      <SubscriptionStatus>
+        <id value="7472c5f7-bdff-4229-a977-a0a60d5e7cfc"/>
+        <text>
+          <status value="generated"/><div xmlns="http://www.w3.org/1999/xhtml"><p class="res-header-id"><b>Generated Narrative: SubscriptionStatus 7472c5f7-bdff-4229-a977-a0a60d5e7cfc</b></p><a name="7472c5f7-bdff-4229-a977-a0a60d5e7cfc"> </a><a name="hc7472c5f7-bdff-4229-a977-a0a60d5e7cfc"> </a><p><b>status</b>: Active</p><p><b>type</b>: Event Notification</p><p><b>eventsSinceSubscriptionStart</b>: 20</p><h3>NotificationEvents</h3><table class="grid"><tr><td style="display: none">-</td><td><b>EventNumber</b></td><td><b>Focus</b></td></tr><tr><td style="display: none">*</td><td>20</td><td><a href="broken-link.html">http://example.org/FHIR/Binary/AD-337</a></td></tr></table><p><b>subscription</b>: <a href="broken-link.html">http://example.org/FHIR/Subscription/BINARY-123</a></p><p><b>topic</b>: <a href="subscriptiontopic-example-admission-binary.html">SubscriptionTopic admission-binary</a></p></div>
+        </text>
+        <status value="active"/>
+        <type value="event-notification"/>
+        <eventsSinceSubscriptionStart value="20"/>
+        <notificationEvent>
+          <eventNumber value="20"/>
+          <focus>
+            <reference value="http://example.org/FHIR/Binary/AD-337"/>
+          </focus>
+        </notificationEvent>
+        <subscription>
+          <reference value="http://example.org/FHIR/Subscription/BINARY-123"/>
+        </subscription>
+        <topic value="http://example.org/FHIR/SubscriptionTopic/admission-binary"/>
+      </SubscriptionStatus>
+    </resource>
+  </entry>
+  <entry>
+    <fullUrl value="http://example.org/FHIR/Binary/AD-337"/>
+    <resource>
+      <Binary>
+        <id value="AD-337"/>
+        <meta>
+          <versionId value="1"/>
+          <lastUpdated value="2019-08-07T10:49:22Z"/>
+        </meta>
+        <contentType value="application/pdf"/>
+      </Binary>
+    </resource>
+  </entry>
+</Bundle>

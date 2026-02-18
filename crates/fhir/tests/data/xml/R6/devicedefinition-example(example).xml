@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?><DeviceDefinition xmlns="http://hl7.org/fhir">
+  <id value="example"/>
+  <meta>
+    <security>
+      <system value="http://terminology.hl7.org/CodeSystem/v3-ActReason"/>
+      <code value="HTEST"/>
+      <display value="test health data"/>
+    </security>
+  </meta>
+  <extension url="http://hl7.org/fhir/StructureDefinition/structuredefinition-wg">
+    <valueCode value="oo"/>
+  </extension>
+  <identifier>
+    <value value="0"/>
+  </identifier>
+  <status value="active"/>
+  <experimental value="true"/>
+  <contact>
+    <telecom>
+      <system value="url"/>
+      <value value="http://www.hl7.org/Special/committees/orders"/>
+    </telecom>
+  </contact>
+  <deviceName>
+    <name value="Example Device Name"/>
+    <type>
+      <coding>
+        <system value="http://hl7.org/fhir/device-nametype"/>
+        <code value="registered-name"/>
+      </coding>
+    </type>
+  </deviceName>
+  <version/>
+  <deviceVersion>
+    <type>
+      <coding>
+        <system value="http://hl7.org/fhir/device-version-type"/>
+        <code value="hardware"/>
+      </coding>
+    </type>
+    <value value="v1.2.3"/>
+  </deviceVersion>
+  <url value="http://hl7.org/fhir/DeviceDefinition/example"/>
+  <hasPart>
+    <definitionCanonical value="http://hl7.org/fhir/DeviceDefinition/example-prodspec"/>
+  </hasPart>
+  <manufacturer>
+    <reference value="Organization/example"/>
+  </manufacturer>
+  <modelNumber value="Model123"/>
+  <partNumber value="Part456"/>
+  <publisher value="HL7 International / Orders and Observations"/>
+  <conformsTo>
+    <specification>
+      <coding>
+        <system value="urn:iso:std:iso:11073:10101"/>
+        <code value="528388"/>
+        <display value="MDC_DEV_SPEC_PROFILE_PULS_OXIM"/>
+      </coding>
+    </specification>
+    <version value="3.0"/>
+    <category>
+      <coding>
+        <system value="http://hl7.org/fhir/device-specification-category"/>
+        <code value="exchange"/>
+      </coding>
+    </category>
+  </conformsTo>
+</DeviceDefinition>

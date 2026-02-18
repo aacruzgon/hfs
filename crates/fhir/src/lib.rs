@@ -43,6 +43,9 @@
 
 use chrono::{DateTime as ChronoDateTime, NaiveDate, NaiveTime, Utc};
 use helios_fhirpath_support::{EvaluationResult, IntoEvaluationResult, TypeInfoResult};
+#[cfg(feature = "xml")]
+use helios_serde_support::SingleOrVec;
+
 use rust_decimal::Decimal;
 use serde::{
     Deserialize, Serialize,
@@ -1432,6 +1435,8 @@ pub mod parameters;
 // Re-export commonly used types from parameters module
 pub use parameters::{ParameterValueAccessor, VersionIndependentParameters};
 
+// Internal helpers used by the derive macro; not part of the public API
+#[doc(hidden)]
 /// Multi-version FHIR resource container supporting version-agnostic operations.
 ///
 /// This enum provides a unified interface for working with FHIR resources across
@@ -1992,7 +1997,15 @@ where
                     if extension.is_some() {
                         return Err(de::Error::duplicate_field("extension"));
                     }
-                    extension = Some(map.next_value()?);
+                    #[cfg(feature = "xml")]
+                    {
+                        let single_or_vec: SingleOrVec<E> = map.next_value()?;
+                        extension = Some(single_or_vec.into());
+                    }
+                    #[cfg(not(feature = "xml"))]
+                    {
+                        extension = Some(map.next_value()?);
+                    }
                 }
                 "value" => {
                     if value.is_some() {
@@ -2077,10 +2090,11 @@ pub struct Element<V, E> {
 }
 
 impl<V, E> Element<V, E> {
-    /// Returns `true` if no value, id, or extensions are present.
-    #[inline]
+    /// Returns true when no value, id, or extensions are present.
     pub fn is_empty(&self) -> bool {
-        self.value.is_none() && self.id.is_none() && self.extension.is_none()
+        self.value.is_none()
+            && self.id.is_none()
+            && self.extension.as_ref().is_none_or(|ext| ext.is_empty())
     }
 }
 
@@ -2571,12 +2585,6 @@ impl<E> DecimalElement<E> {
             value: Some(precise_value),
         }
     }
-
-    /// Returns `true` if the element has no value, id, or extensions.
-    #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.value.is_none() && self.id.is_none() && self.extension.is_none()
-    }
 }
 
 // Custom Deserialize for DecimalElement<E> using intermediate Value
@@ -2650,8 +2658,17 @@ where
                             if extension.is_some() {
                                 return Err(de::Error::duplicate_field("extension"));
                             }
-                            // Deserialize extension directly from its Value
-                            extension = Deserialize::deserialize(v).map_err(de::Error::custom)?;
+                            #[cfg(feature = "xml")]
+                            {
+                                let single_or_vec: SingleOrVec<E> =
+                                    Deserialize::deserialize(v).map_err(de::Error::custom)?;
+                                extension = Some(single_or_vec.into());
+                            }
+                            #[cfg(not(feature = "xml"))]
+                            {
+                                extension =
+                                    Deserialize::deserialize(v).map_err(de::Error::custom)?;
+                            }
                         }
                         "value" => {
                             if value.is_some() {

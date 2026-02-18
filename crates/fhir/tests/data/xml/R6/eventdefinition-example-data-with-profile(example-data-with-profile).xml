@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?><EventDefinition xmlns="http://hl7.org/fhir">
+  <id value="example-data-with-profile"/>
+  <meta>
+    <security>
+      <system value="http://terminology.hl7.org/CodeSystem/v3-ActReason"/>
+      <code value="HTEST"/>
+      <display value="test health data"/>
+    </security>
+  </meta>
+  <extension url="http://hl7.org/fhir/StructureDefinition/structuredefinition-standards-status">
+    <valueCode value="informative"/>
+  </extension>
+  <extension url="http://hl7.org/fhir/StructureDefinition/structuredefinition-fmm">
+    <valueInteger value="6"/>
+  </extension>
+  <extension url="http://hl7.org/fhir/StructureDefinition/structuredefinition-wg">
+    <valueCode value="cds"/>
+  </extension>
+  <extension url="http://hl7.org/fhir/StructureDefinition/cqf-library">
+    <valueCanonical value="http://hl7.org/fhir/EventDefinition/ExampleEventDefinitionLogic"/>
+  </extension>
+  <url value="http://hl7.org/fhir/EventDefinition/example-data-with-profile"/>
+  <name value="DataWithProfileEventDefinitionExample"/>
+  <title value="Data With Profile EventDefinition Example"/>
+  <status value="draft"/>
+  <experimental value="true"/>
+  <publisher value="HL7 International / Clinical Decision Support"/>
+  <contact>
+    <telecom>
+      <system value="url"/>
+      <value value="http://www.hl7.org/Special/committees/dss"/>
+    </telecom>
+  </contact>
+  <description value="Example of an EventDefinition using the data event approach with a profile in the data requirement."/>
+  <purpose value="Monitor when 3 consecutive negative stick tests have occurred using a data change event and a profile."/>
+  <trigger>
+    <type value="data-changed"/>
+    <data>
+      <type value="Observation"/>
+      <profile value="http://example.org/StructureDefinition/stick-test"/>
+    </data>
+    <condition>
+      <language value="text/cql-expression"/>
+      <expression value="[StickTestProfile].consecutivelyAfter(%context).take(3).negative().count() = 3"/>
+    </condition>
+  </trigger>
+</EventDefinition>

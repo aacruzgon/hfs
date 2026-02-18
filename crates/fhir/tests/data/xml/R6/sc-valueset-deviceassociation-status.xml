@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ConceptMap xmlns="http://hl7.org/fhir">
+  <id value="sc-deviceassociation-status"/>
+  <text>
+    <status value="generated"/>
+    <div xmlns="http://www.w3.org/1999/xhtml">
+      <p class="res-header-id">
+        <b>Generated Narrative: ConceptMap sc-deviceassociation-status</b>
+      </p>
+      <a name="sc-deviceassociation-status"> </a>
+      <a name="hcsc-deviceassociation-status"> </a>
+      <p>Mapping from 
+        <a href="valueset-deviceassociation-status.html">DeviceAssociation Status Codes</a> to 
+        <a href="valueset-resource-status.html">Canonical Status Codes for FHIR Resources</a>
+      </p>
+      <br/>
+      <p>
+        <b>Group 1 </b>Mapping from 
+        <a href="codesystem-deviceassociation-status.html">DeviceAssociation Status Codes</a> to 
+        <a href="codesystem-resource-status.html">Canonical Status Codes for FHIR Resources</a>
+      </p>
+      <table class="grid">
+        <tr>
+          <td>
+            <b>Source Code</b>
+          </td>
+          <td>
+            <b>Relationship</b>
+          </td>
+          <td>
+            <b>Target Code</b>
+          </td>
+        </tr>
+        <tr>
+          <td>entered-in-error</td>
+          <td>
+            <a href="codesystem-concept-map-relationship.html#equivalent" title="equivalent">is equivalent to</a>
+          </td>
+          <td>error</td>
+        </tr>
+        <tr>
+          <td>active</td>
+          <td>
+            <a href="codesystem-concept-map-relationship.html#equivalent" title="equivalent">is equivalent to</a>
+          </td>
+          <td>active</td>
+        </tr>
+        <tr>
+          <td>inactive</td>
+          <td>
+            <a href="codesystem-concept-map-relationship.html#equivalent" title="equivalent">is equivalent to</a>
+          </td>
+          <td>inactive</td>
+        </tr>
+        <tr>
+          <td>unknown</td>
+          <td>
+            <a href="codesystem-concept-map-relationship.html#equivalent" title="equivalent">is equivalent to</a>
+          </td>
+          <td>unknown</td>
+        </tr>
+      </table>
+    </div>
+  </text>
+  <url value="http://hl7.org/fhir/ConceptMap/sc-deviceassociation-status"/>
+  <version value="6.0.0-ballot3"/>
+  <name value="DeviceAssociationCodesCanonicalMap"/>
+  <title value="Canonical Mapping for &quot;DeviceAssociation Status Codes&quot;"/>
+  <status value="draft"/>
+  <experimental value="false"/>
+  <publisher value="FHIR Project team"/>
+  <contact>
+    <telecom>
+      <system value="url"/>
+      <value value="http://hl7.org/fhir"/>
+    </telecom>
+  </contact>
+  <description value="Canonical Mapping for &quot;DeviceAssociation Status Codes&quot;"/>
+  <jurisdiction>
+    <coding>
+      <system value="http://unstats.un.org/unsd/methods/m49/m49.htm"/>
+      <code value="001"/>
+      <display value="World"/>
+    </coding>
+  </jurisdiction>
+  <sourceScopeCanonical value="http://hl7.org/fhir/ValueSet/deviceassociation-status"/>
+  <targetScopeCanonical value="http://hl7.org/fhir/ValueSet/resource-status"/>
+  <group>
+    <source value="http://hl7.org/fhir/deviceassociation-status"/>
+    <target value="http://hl7.org/fhir/resource-status"/>
+    <element>
+      <code value="entered-in-error"/>
+      <target>
+        <code value="error"/>
+        <relationship value="equivalent"/>
+      </target>
+    </element>
+    <element>
+      <code value="active"/>
+      <target>
+        <code value="active"/>
+        <relationship value="equivalent"/>
+      </target>
+    </element>
+    <element>
+      <code value="inactive"/>
+      <target>
+        <code value="inactive"/>
+        <relationship value="equivalent"/>
+      </target>
+    </element>
+    <element>
+      <code value="unknown"/>
+      <target>
+        <code value="unknown"/>
+        <relationship value="equivalent"/>
+      </target>
+    </element>
+  </group>
+</ConceptMap>
