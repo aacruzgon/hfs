@@ -2654,7 +2654,7 @@ dependencies = [
 
 [[package]]
 name = "helios-serde-support"
-version = "0.1.32"
+version = "0.1.33"
 dependencies = [
  "serde",
  "serde_json",
