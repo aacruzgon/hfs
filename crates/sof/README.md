@@ -169,9 +169,25 @@ sof-cli -v view.json -s https://example.com/fhir/bundle.json
 # Set AWS credentials
 export AWS_ACCESS_KEY_ID=your_access_key
 export AWS_SECRET_ACCESS_KEY=your_secret_key
-export AWS_REGION=us-east-1
+export AWS_DEFAULT_REGION=us-east-1
 
 # Load from S3 bucket
+sof-cli -v view.json -s s3://my-bucket/fhir-data/bundle.json -f csv
+```
+
+##### S3-Compatible Services (MinIO, Ceph, LocalStack, etc.)
+```bash
+# Standard AWS credentials
+export AWS_ACCESS_KEY_ID=your_access_key
+export AWS_SECRET_ACCESS_KEY=your_secret_key
+export AWS_DEFAULT_REGION=us-east-1
+
+# Custom endpoint (required for S3-compatible services)
+export AWS_ENDPOINT=http://localhost:9000
+
+# Allow HTTP endpoints (set to true if not using HTTPS)
+export AWS_ALLOW_HTTP=true
+
 sof-cli -v view.json -s s3://my-bucket/fhir-data/bundle.json -f csv
 ```
 
@@ -401,7 +417,17 @@ When using the `source` parameter with cloud storage URLs, ensure the appropriat
 ```bash
 export AWS_ACCESS_KEY_ID=your_access_key
 export AWS_SECRET_ACCESS_KEY=your_secret_key
-export AWS_REGION=us-east-1
+export AWS_DEFAULT_REGION=us-east-1
+sof-server
+```
+
+**S3-Compatible Services** (`s3://` URLs with custom endpoint):
+```bash
+export AWS_ACCESS_KEY_ID=your_access_key
+export AWS_SECRET_ACCESS_KEY=your_secret_key
+export AWS_DEFAULT_REGION=us-east-1
+export AWS_ENDPOINT=http://localhost:9000  # e.g. MinIO, Ceph, LocalStack
+export AWS_ALLOW_HTTP=true                # omit if the endpoint uses HTTPS
 sof-server
 ```
 
