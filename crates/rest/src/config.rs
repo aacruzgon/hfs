@@ -60,6 +60,9 @@ pub enum StorageBackendMode {
     SqliteElasticsearch,
     /// PostgreSQL only. Requires a running PostgreSQL instance.
     Postgres,
+    /// PostgreSQL for CRUD + Elasticsearch for search.
+    /// Requires running PostgreSQL and Elasticsearch instances.
+    PostgresElasticsearch,
 }
 
 impl fmt::Display for StorageBackendMode {
@@ -68,6 +71,9 @@ impl fmt::Display for StorageBackendMode {
             StorageBackendMode::Sqlite => write!(f, "sqlite"),
             StorageBackendMode::SqliteElasticsearch => write!(f, "sqlite-elasticsearch"),
             StorageBackendMode::Postgres => write!(f, "postgres"),
+            StorageBackendMode::PostgresElasticsearch => {
+                write!(f, "postgres-elasticsearch")
+            }
         }
     }
 }
@@ -80,8 +86,11 @@ impl FromStr for StorageBackendMode {
             "sqlite" => Ok(StorageBackendMode::Sqlite),
             "sqlite-elasticsearch" | "sqlite-es" => Ok(StorageBackendMode::SqliteElasticsearch),
             "postgres" | "pg" | "postgresql" => Ok(StorageBackendMode::Postgres),
+            "postgres-elasticsearch" | "postgres-es" | "pg-elasticsearch" | "pg-es" => {
+                Ok(StorageBackendMode::PostgresElasticsearch)
+            }
             _ => Err(format!(
-                "Invalid storage backend '{}'. Valid values: sqlite, sqlite-elasticsearch, postgres",
+                "Invalid storage backend '{}'. Valid values: sqlite, sqlite-elasticsearch, postgres, postgres-elasticsearch",
                 s
             )),
         }
@@ -290,12 +299,12 @@ pub struct ServerConfig {
     #[arg(long, env = "HFS_MAX_PAGE_SIZE", default_value = "1000")]
     pub max_page_size: usize,
 
-    /// Storage backend mode: sqlite (default), sqlite-elasticsearch, or postgres.
+    /// Storage backend mode: sqlite (default), sqlite-elasticsearch, postgres, or postgres-elasticsearch.
     #[arg(long, env = "HFS_STORAGE_BACKEND", default_value = "sqlite")]
     pub storage_backend: String,
 
     /// Elasticsearch node URLs (comma-separated).
-    /// Only used when storage_backend is sqlite-elasticsearch.
+    /// Used when storage_backend is sqlite-elasticsearch or postgres-elasticsearch.
     #[arg(
         long,
         env = "HFS_ELASTICSEARCH_NODES",
@@ -591,6 +600,30 @@ mod tests {
             "POSTGRES".parse::<StorageBackendMode>().unwrap(),
             StorageBackendMode::Postgres
         );
+        assert_eq!(
+            "postgres-elasticsearch"
+                .parse::<StorageBackendMode>()
+                .unwrap(),
+            StorageBackendMode::PostgresElasticsearch
+        );
+        assert_eq!(
+            "postgres-es".parse::<StorageBackendMode>().unwrap(),
+            StorageBackendMode::PostgresElasticsearch
+        );
+        assert_eq!(
+            "pg-elasticsearch".parse::<StorageBackendMode>().unwrap(),
+            StorageBackendMode::PostgresElasticsearch
+        );
+        assert_eq!(
+            "pg-es".parse::<StorageBackendMode>().unwrap(),
+            StorageBackendMode::PostgresElasticsearch
+        );
+        assert_eq!(
+            "postgres_elasticsearch"
+                .parse::<StorageBackendMode>()
+                .unwrap(),
+            StorageBackendMode::PostgresElasticsearch
+        );
         assert!("invalid".parse::<StorageBackendMode>().is_err());
     }
 
@@ -602,6 +635,10 @@ mod tests {
             "sqlite-elasticsearch"
         );
         assert_eq!(StorageBackendMode::Postgres.to_string(), "postgres");
+        assert_eq!(
+            StorageBackendMode::PostgresElasticsearch.to_string(),
+            "postgres-elasticsearch"
+        );
     }
 
     #[test]

@@ -124,6 +124,8 @@ The Helios FHIR Server supports multiple storage backend configurations. Choose 
 |---|---|---|
 | **SQLite** (default) | Built-in FTS5 full-text search | Development, testing, small deployments |
 | **SQLite + Elasticsearch** | Elasticsearch-powered search with relevance scoring | Production deployments needing robust search |
+| **PostgreSQL** | Built-in full-text search (tsvector/tsquery) | Production OLTP deployments |
+| **PostgreSQL + Elasticsearch** | Elasticsearch-powered search with PostgreSQL CRUD | Production deployments needing RDBMS + robust search |
 
 ### SQLite (Default)
 
@@ -164,16 +166,86 @@ HFS_ELASTICSEARCH_NODES=http://localhost:9200 \
   ./target/release/hfs
 ```
 
+### PostgreSQL
+
+Full-featured relational backend for production deployments with JSONB storage, full-text search, and advanced multi-tenant isolation strategies.
+
+- Full CRUD operations with ACID transactions
+- Full-text search via PostgreSQL's tsvector/tsquery
+- All FHIR search parameter types (string, token, date, number, quantity, reference, URI, composite)
+- Chained parameters and reverse chaining (`_has`)
+- `_include` and `_revinclude` resolution
+- Multi-tenant support (shared schema, schema-per-tenant, database-per-tenant)
+
+**Prerequisites:** A running PostgreSQL instance (14+).
+
+**Quick start:**
+
+```bash
+# Build with PostgreSQL support
+cargo build --bin hfs --features postgres --release
+
+# Start PostgreSQL (example using Docker)
+docker run -d --name pg -p 5432:5432 \
+  -e POSTGRES_USER=hfs \
+  -e POSTGRES_PASSWORD=hfs \
+  -e POSTGRES_DB=fhir \
+  postgres:16
+
+# Start the server
+HFS_STORAGE_BACKEND=postgres \
+HFS_DATABASE_URL="postgresql://hfs:hfs@localhost:5432/fhir" \
+  ./target/release/hfs
+```
+
+### PostgreSQL + Elasticsearch
+
+PostgreSQL handles CRUD, versioning, history, and transactions with ACID guarantees. Elasticsearch handles all search operations. Combines PostgreSQL's production-grade storage with Elasticsearch's search capabilities.
+
+- Full CRUD operations with ACID transactions via PostgreSQL
+- Full-text search with relevance scoring (`_text`, `_content`) via Elasticsearch
+- All FHIR search parameter types (string, token, date, number, quantity, reference, URI, composite)
+- Advanced text search with stemming, boolean operators, and proximity matching (`:text-advanced`)
+- Multi-tenant support (shared schema, schema-per-tenant, database-per-tenant)
+
+**Prerequisites:** Running PostgreSQL (14+) and Elasticsearch 8.x instances.
+
+**Quick start:**
+
+```bash
+# Build with PostgreSQL and Elasticsearch support
+cargo build --bin hfs --features postgres,elasticsearch --release
+
+# Start PostgreSQL (example using Docker)
+docker run -d --name pg -p 5432:5432 \
+  -e POSTGRES_USER=hfs \
+  -e POSTGRES_PASSWORD=hfs \
+  -e POSTGRES_DB=fhir \
+  postgres:16
+
+# Start Elasticsearch (example using Docker)
+docker run -d --name es -p 9200:9200 \
+  -e "discovery.type=single-node" \
+  -e "xpack.security.enabled=false" \
+  elasticsearch:8.15.0
+
+# Start the server
+HFS_STORAGE_BACKEND=postgres-elasticsearch \
+HFS_DATABASE_URL="postgresql://hfs:hfs@localhost:5432/fhir" \
+HFS_ELASTICSEARCH_NODES=http://localhost:9200 \
+  ./target/release/hfs
+```
+
 ### Environment Variables
 
 All server configuration is done via environment variables:
 
 | Variable | Default | Description |
 |---|---|---|
-| `HFS_STORAGE_BACKEND` | `sqlite` | Backend mode: `sqlite` or `sqlite-elasticsearch` |
+| `HFS_STORAGE_BACKEND` | `sqlite` | Backend mode: `sqlite`, `sqlite-elasticsearch`, `postgres`, or `postgres-elasticsearch` |
 | `HFS_SERVER_PORT` | `8080` | Server port |
 | `HFS_SERVER_HOST` | `127.0.0.1` | Host to bind |
-| `HFS_DATABASE_URL` | `fhir.db` | SQLite database path (`:memory:` for in-memory) |
+| `HFS_DATABASE_URL` | `fhir.db` | Database URL (SQLite path or PostgreSQL connection string) |
 | `HFS_DEFAULT_FHIR_VERSION` | `R4` | FHIR version (R4, R4B, R5, R6) |
 | `HFS_LOG_LEVEL` | `info` | Log level (error, warn, info, debug, trace) |
 | `HFS_ELASTICSEARCH_NODES` | `http://localhost:9200` | Comma-separated ES node URLs |
@@ -183,16 +255,16 @@ All server configuration is done via environment variables:
 
 ### How Search Offloading Works
 
-When `HFS_STORAGE_BACKEND=sqlite-elasticsearch`, the server:
+When `HFS_STORAGE_BACKEND` is set to `sqlite-elasticsearch` or `postgres-elasticsearch`, the server:
 
-1. Creates a SQLite backend with search indexing **disabled** (no `search_index` or `resource_fts` table population)
-2. Creates an Elasticsearch backend sharing SQLite's search parameter registry
+1. Creates the primary backend (SQLite or PostgreSQL) with search indexing **disabled**
+2. Creates an Elasticsearch backend sharing the primary backend's search parameter registry
 3. Wraps both in a `CompositeStorage` that routes:
-   - All **writes** (create, update, delete, conditional ops, transactions) → SQLite, then syncs to ES
-   - All **reads** (read, vread, history) → SQLite
+   - All **writes** (create, update, delete, conditional ops, transactions) → primary backend, then syncs to ES
+   - All **reads** (read, vread, history) → primary backend
    - All **search** operations → Elasticsearch
 
-This avoids data duplication in SQLite's search tables while providing Elasticsearch's superior search capabilities.
+This avoids data duplication in the primary backend's search tables while providing Elasticsearch's superior search capabilities.
 
 # Architecture Overview
 

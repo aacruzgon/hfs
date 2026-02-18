@@ -1,6 +1,17 @@
 //! Helios FHIR Server (HFS)
 //!
-//! A high-performance FHIR R4/R4B/R5/R6 server.
+//! A high-performance FHIR R4/R4B/R5/R6 server with pluggable storage backends.
+//!
+//! # Storage Backends
+//!
+//! | Backend | Feature Flag | Description |
+//! |---------|--------------|-------------|
+//! | SQLite (default) | `sqlite` | Zero-config embedded database with FTS5 search |
+//! | SQLite + Elasticsearch | `sqlite,elasticsearch` | SQLite for CRUD, Elasticsearch for search |
+//! | PostgreSQL | `postgres` | Full-featured RDBMS with JSONB storage and tsvector search |
+//! | PostgreSQL + Elasticsearch | `postgres,elasticsearch` | PostgreSQL for CRUD, Elasticsearch for search |
+//!
+//! Set `HFS_STORAGE_BACKEND` to `sqlite`, `sqlite-elasticsearch`, `postgres`, or `postgres-elasticsearch`.
 
 use clap::Parser;
 use helios_rest::{ServerConfig, StorageBackendMode, create_app_with_config, init_logging};
@@ -73,6 +84,9 @@ async fn main() -> anyhow::Result<()> {
         }
         StorageBackendMode::Postgres => {
             start_postgres(config).await?;
+        }
+        StorageBackendMode::PostgresElasticsearch => {
+            start_postgres_elasticsearch(config).await?;
         }
     }
 
@@ -231,6 +245,128 @@ async fn start_postgres(_config: ServerConfig) -> anyhow::Result<()> {
     anyhow::bail!(
         "The postgres backend requires the 'postgres' feature. \
          Build with: cargo build -p helios-hfs --features postgres"
+    )
+}
+
+/// Starts the server with PostgreSQL + Elasticsearch composite backend.
+#[cfg(all(feature = "postgres", feature = "elasticsearch"))]
+async fn start_postgres_elasticsearch(config: ServerConfig) -> anyhow::Result<()> {
+    use std::collections::HashMap;
+    use std::sync::Arc;
+
+    use helios_persistence::backends::elasticsearch::{
+        ElasticsearchAuth, ElasticsearchBackend, ElasticsearchConfig,
+    };
+    use helios_persistence::backends::postgres::PostgresBackend;
+    use helios_persistence::composite::{CompositeConfig, CompositeStorage};
+    use helios_persistence::core::BackendKind;
+
+    // Create PostgreSQL backend
+    let backend = if let Some(ref url) = config.database_url {
+        if url.starts_with("postgres://") || url.starts_with("postgresql://") {
+            info!(url = %url, "Initializing PostgreSQL backend from connection string");
+            PostgresBackend::from_connection_string(url).await?
+        } else {
+            info!("Initializing PostgreSQL backend from environment variables");
+            PostgresBackend::from_env().await?
+        }
+    } else {
+        info!("Initializing PostgreSQL backend from environment variables");
+        PostgresBackend::from_env().await?
+    };
+
+    backend.init_schema().await?;
+
+    // Offload search to Elasticsearch
+    let mut backend = backend;
+    backend.set_search_offloaded(true);
+    let pg = Arc::new(backend);
+    info!("PostgreSQL search indexing disabled (offloaded to Elasticsearch)");
+
+    // Build Elasticsearch configuration from server config
+    let es_nodes: Vec<String> = config
+        .elasticsearch_nodes
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    let es_auth = match (
+        &config.elasticsearch_username,
+        &config.elasticsearch_password,
+    ) {
+        (Some(username), Some(password)) => Some(ElasticsearchAuth::Basic {
+            username: username.clone(),
+            password: password.clone(),
+        }),
+        _ => None,
+    };
+
+    let es_config = ElasticsearchConfig {
+        nodes: es_nodes.clone(),
+        index_prefix: config.elasticsearch_index_prefix.clone(),
+        auth: es_auth,
+        fhir_version: config.default_fhir_version,
+        ..Default::default()
+    };
+
+    info!(
+        nodes = ?es_nodes,
+        index_prefix = %config.elasticsearch_index_prefix,
+        "Initializing Elasticsearch backend"
+    );
+
+    // Create ES backend sharing PostgreSQL's search parameter registry
+    let es = Arc::new(ElasticsearchBackend::with_shared_registry(
+        es_config,
+        pg.search_registry().clone(),
+    )?);
+
+    // Build composite configuration
+    let composite_config = CompositeConfig::builder()
+        .primary("postgres", BackendKind::Postgres)
+        .search_backend("es", BackendKind::Elasticsearch)
+        .build()?;
+
+    // Build backends map for CompositeStorage
+    let mut backends = HashMap::new();
+    backends.insert(
+        "postgres".to_string(),
+        pg.clone() as helios_persistence::composite::DynStorage,
+    );
+    backends.insert(
+        "es".to_string(),
+        es.clone() as helios_persistence::composite::DynStorage,
+    );
+
+    // Build search providers map
+    let mut search_providers = HashMap::new();
+    search_providers.insert(
+        "postgres".to_string(),
+        pg.clone() as helios_persistence::composite::DynSearchProvider,
+    );
+    search_providers.insert(
+        "es".to_string(),
+        es.clone() as helios_persistence::composite::DynSearchProvider,
+    );
+
+    // Create composite storage with full primary capabilities
+    let composite = CompositeStorage::new(composite_config, backends)?
+        .with_search_providers(search_providers)
+        .with_full_primary(pg);
+
+    info!("Composite storage initialized: PostgreSQL (primary) + Elasticsearch (search)");
+
+    let app = create_app_with_config(composite, config.clone());
+    serve(app, &config).await
+}
+
+/// Fallback when postgres+elasticsearch features are not both enabled.
+#[cfg(not(all(feature = "postgres", feature = "elasticsearch")))]
+async fn start_postgres_elasticsearch(_config: ServerConfig) -> anyhow::Result<()> {
+    anyhow::bail!(
+        "The postgres-elasticsearch backend requires both 'postgres' and 'elasticsearch' features. \
+         Build with: cargo build -p helios-hfs --features postgres,elasticsearch"
     )
 }
 
