@@ -4,19 +4,19 @@
 //! `PUT [base]/[type]/[id]`
 
 use axum::{
-    Json,
     extract::{Path, State},
-    http::{StatusCode, header},
+    http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
 };
 use helios_persistence::core::{ConditionalStorage, ResourceStorage};
-use serde_json::Value;
 use tracing::debug;
 
 use crate::error::{RestError, RestResult};
-use crate::extractors::{FhirVersionExtractor, TenantExtractor};
+use crate::extractors::{FhirResource, FhirVersionExtractor, TenantExtractor};
 use crate::middleware::conditional::ConditionalHeaders;
+use crate::middleware::content_type::{FhirFormat, negotiate_format};
 use crate::middleware::prefer::PreferHeader;
+use crate::responses::format_resource_response;
 use crate::responses::headers::ResourceHeaders;
 use crate::state::AppState;
 
@@ -52,6 +52,7 @@ use crate::state::AppState;
 ///
 /// {"resourceType": "Patient", "id": "123", "name": [{"family": "Smith"}]}
 /// ```
+#[allow(clippy::too_many_arguments)]
 pub async fn update_handler<S>(
     State(state): State<AppState<S>>,
     Path((resource_type, id)): Path<(String, String)>,
@@ -59,13 +60,17 @@ pub async fn update_handler<S>(
     version: FhirVersionExtractor,
     conditional: ConditionalHeaders,
     prefer: PreferHeader,
-    Json(resource): Json<Value>,
+    req_headers: HeaderMap,
+    FhirResource(resource): FhirResource,
 ) -> RestResult<Response>
 where
     S: ResourceStorage + ConditionalStorage + Send + Sync,
 {
     // Determine FHIR version from header or use server default
     let fhir_version = version.storage_version();
+
+    // Negotiate response format from Accept header
+    let negotiated = negotiate_format(&req_headers, None);
 
     debug!(
         resource_type = %resource_type,
@@ -170,7 +175,15 @@ where
         "Resource updated"
     );
 
-    build_update_response(status, &stored, headers, &state, created, &prefer)
+    build_update_response(
+        status,
+        &stored,
+        headers,
+        &state,
+        created,
+        &prefer,
+        negotiated.format,
+    )
 }
 
 /// Conditional update handler.
@@ -180,6 +193,7 @@ where
 /// # HTTP Request
 ///
 /// `PUT [base]/[type]?[search-params]`
+#[allow(clippy::too_many_arguments)]
 pub async fn conditional_update_handler<S>(
     State(state): State<AppState<S>>,
     Path(resource_type): Path<String>,
@@ -187,13 +201,17 @@ pub async fn conditional_update_handler<S>(
     version: FhirVersionExtractor,
     query: axum::extract::Query<std::collections::HashMap<String, String>>,
     prefer: PreferHeader,
-    Json(resource): Json<Value>,
+    req_headers: HeaderMap,
+    FhirResource(resource): FhirResource,
 ) -> RestResult<Response>
 where
     S: ResourceStorage + ConditionalStorage + Send + Sync,
 {
     // Determine FHIR version from header or use server default
     let fhir_version = version.storage_version();
+
+    // Negotiate response format from Accept header
+    let negotiated = negotiate_format(&req_headers, None);
 
     // Build search params string
     let search_params: String = query
@@ -238,11 +256,27 @@ where
     match result {
         ConditionalUpdateResult::Updated(stored) => {
             let headers = ResourceHeaders::from_stored(&stored, &state);
-            build_update_response(StatusCode::OK, &stored, headers, &state, false, &prefer)
+            build_update_response(
+                StatusCode::OK,
+                &stored,
+                headers,
+                &state,
+                false,
+                &prefer,
+                negotiated.format,
+            )
         }
         ConditionalUpdateResult::Created(stored) => {
             let headers = ResourceHeaders::from_stored(&stored, &state);
-            build_update_response(StatusCode::CREATED, &stored, headers, &state, true, &prefer)
+            build_update_response(
+                StatusCode::CREATED,
+                &stored,
+                headers,
+                &state,
+                true,
+                &prefer,
+                negotiated.format,
+            )
         }
         ConditionalUpdateResult::NoMatch => {
             // With upsert=true, this shouldn't happen, but handle it
@@ -266,6 +300,7 @@ fn build_update_response(
     state: &AppState<impl ResourceStorage>,
     created: bool,
     prefer: &PreferHeader,
+    format: FhirFormat,
 ) -> RestResult<Response> {
     let mut header_map = headers.to_header_map();
 
@@ -293,8 +328,16 @@ fn build_update_response(
                     }
                 }]
             });
-            Ok((status, header_map, Json(outcome)).into_response())
+            format_resource_response(status, header_map, &outcome, format).map_err(|_| {
+                RestError::InternalError {
+                    message: "Failed to serialize response".to_string(),
+                }
+            })
         }
-        _ => Ok((status, header_map, Json(stored.content().clone())).into_response()),
+        _ => format_resource_response(status, header_map, stored.content(), format).map_err(|_| {
+            RestError::InternalError {
+                message: "Failed to serialize response".to_string(),
+            }
+        }),
     }
 }

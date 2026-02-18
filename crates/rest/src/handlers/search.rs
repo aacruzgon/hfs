@@ -9,10 +9,10 @@
 //! to execute searches against the storage backend.
 
 use axum::{
-    Form, Json,
+    Form,
     extract::{Path, Query, State},
-    http::StatusCode,
-    response::{IntoResponse, Response},
+    http::{HeaderMap, StatusCode},
+    response::Response,
 };
 use helios_persistence::core::{MultiTypeSearchProvider, ResourceStorage, SearchProvider};
 use helios_persistence::types::SearchBundle;
@@ -24,6 +24,8 @@ use helios_fhir::FhirVersion;
 
 use crate::error::{RestError, RestResult};
 use crate::extractors::{TenantExtractor, build_search_query_from_map};
+use crate::middleware::content_type::{FhirFormat, negotiate_format};
+use crate::responses::format_resource_response;
 use crate::responses::subsetting::{SummaryMode, apply_elements, apply_summary};
 use crate::state::AppState;
 
@@ -79,6 +81,7 @@ pub async fn search_get_handler<S>(
     State(state): State<AppState<S>>,
     Path(resource_type): Path<String>,
     tenant: TenantExtractor,
+    req_headers: HeaderMap,
     Query(params): Query<HashMap<String, String>>,
 ) -> RestResult<Response>
 where
@@ -91,7 +94,10 @@ where
         "Processing search GET request"
     );
 
-    execute_search(&state, tenant, &resource_type, params).await
+    let format_param = params.get("_format").map(|s| s.as_str());
+    let negotiated = negotiate_format(&req_headers, format_param);
+
+    execute_search(&state, tenant, &resource_type, params, negotiated.format).await
 }
 
 /// Handler for POST search.
@@ -107,6 +113,7 @@ pub async fn search_post_handler<S>(
     State(state): State<AppState<S>>,
     Path(resource_type): Path<String>,
     tenant: TenantExtractor,
+    req_headers: HeaderMap,
     Form(params): Form<HashMap<String, String>>,
 ) -> RestResult<Response>
 where
@@ -119,7 +126,9 @@ where
         "Processing search POST request"
     );
 
-    execute_search(&state, tenant, &resource_type, params).await
+    let negotiated = negotiate_format(&req_headers, None);
+
+    execute_search(&state, tenant, &resource_type, params, negotiated.format).await
 }
 
 /// Handler for system-level search.
@@ -132,6 +141,7 @@ where
 pub async fn search_system_handler<S>(
     State(state): State<AppState<S>>,
     tenant: TenantExtractor,
+    req_headers: HeaderMap,
     Query(params): Query<HashMap<String, String>>,
 ) -> RestResult<Response>
 where
@@ -143,7 +153,10 @@ where
         "Processing system-level search request"
     );
 
-    execute_system_search(&state, tenant, params).await
+    let format_param = params.get("_format").map(|s| s.as_str());
+    let negotiated = negotiate_format(&req_headers, format_param);
+
+    execute_system_search(&state, tenant, params, negotiated.format).await
 }
 
 /// Executes a type-level search and returns a Bundle response.
@@ -152,6 +165,7 @@ async fn execute_search<S>(
     tenant: TenantExtractor,
     resource_type: &str,
     params: HashMap<String, String>,
+    format: FhirFormat,
 ) -> RestResult<Response>
 where
     S: ResourceStorage + SearchProvider + Send + Sync,
@@ -203,16 +217,14 @@ where
     // Get FHIR version from config for subsetting
     let fhir_version = state.config().default_fhir_version;
 
-    Ok((
-        StatusCode::OK,
-        Json(bundle_to_json_with_subsetting(
-            bundle,
-            summary_mode,
-            elements.as_deref(),
-            fhir_version,
-        )),
-    )
-        .into_response())
+    let bundle_json =
+        bundle_to_json_with_subsetting(bundle, summary_mode, elements.as_deref(), fhir_version);
+
+    format_resource_response(StatusCode::OK, HeaderMap::new(), &bundle_json, format).map_err(|_| {
+        RestError::InternalError {
+            message: "Failed to serialize response".to_string(),
+        }
+    })
 }
 
 /// Executes a system-level search across all resource types.
@@ -221,6 +233,7 @@ async fn execute_system_search<S>(
     state: &AppState<S>,
     tenant: TenantExtractor,
     params: HashMap<String, String>,
+    format: FhirFormat,
 ) -> RestResult<Response>
 where
     S: ResourceStorage + MultiTypeSearchProvider + Send + Sync,
@@ -274,16 +287,14 @@ where
     // Get FHIR version from config for subsetting
     let fhir_version = state.config().default_fhir_version;
 
-    Ok((
-        StatusCode::OK,
-        Json(bundle_to_json_with_subsetting(
-            bundle,
-            summary_mode,
-            elements.as_deref(),
-            fhir_version,
-        )),
-    )
-        .into_response())
+    let bundle_json =
+        bundle_to_json_with_subsetting(bundle, summary_mode, elements.as_deref(), fhir_version);
+
+    format_resource_response(StatusCode::OK, HeaderMap::new(), &bundle_json, format).map_err(|_| {
+        RestError::InternalError {
+            message: "Failed to serialize response".to_string(),
+        }
+    })
 }
 
 /// Applies pagination limits from configuration to the params.
