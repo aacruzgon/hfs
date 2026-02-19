@@ -71,7 +71,7 @@ jobs:
 
   cleanup-test-containers:
     name: Cleanup Test Containers
-    runs-on: [self-hosted]
+    runs-on: [self-hosted, Windows]  # TODO: revert to [self-hosted] after verifying Windows cleanup works
     needs: [test-rust]
     if: always()
     steps:
