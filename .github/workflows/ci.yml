@@ -554,7 +554,7 @@ jobs:
   build:
     name: Build Release
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 600
+    timeout-minutes: 1440 
     needs: [coverage, security, test-python, test-fhirpath]
     if: startsWith(github.ref, 'refs/tags/v')
     strategy:
