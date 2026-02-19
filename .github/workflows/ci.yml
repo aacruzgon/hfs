@@ -10,7 +10,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  CARGO_BUILD_JOBS: 1
+  CARGO_BUILD_JOBS: 2
   CARGO_PROFILE_DEV_DEBUG: 0
   DOCKER_HOST: ${{ secrets.DOCKER_HOST }}
 
@@ -561,7 +561,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: Linux
+          - os: Linux-x86
             runner: [self-hosted, Linux]
             target: x86_64-unknown-linux-gnu
             archive_ext: tar.gz
@@ -587,10 +587,6 @@ jobs:
         with:
           toolchain: stable
 
-      - name: Add cross-compile target (Linux ARM64)
-        if: matrix.os == 'Linux-ARM64'
-        run: rustup target add aarch64-unknown-linux-gnu
-
       - name: Configure Rust to use LLD (Windows)
         if: matrix.os == 'Windows'
         shell: cmd
@@ -602,8 +598,8 @@ jobs:
           echo linker = "lld-link.exe" >> "%configPath%"
           echo rustflags = ["-C", "link-arg=/STACK:16777216"] >> "%configPath%"
 
-      - name: Configure Rust to use LLD (Linux)
-        if: matrix.os == 'Linux'
+      - name: Configure Rust to use LLD (Linux x86)
+        if: matrix.os == 'Linux-x86'
         run: |
           mkdir -p ~/.cargo
           rm -f ~/.cargo/config.toml
@@ -672,25 +668,25 @@ jobs:
             !target/${{ matrix.target }}/release/*.so
 
       - name: Generate test_report.json file
-        if: matrix.os == 'Linux'
+        if: matrix.os == 'Linux-x86'
         run: cargo test -p helios-sof run_comprehensive_test_suite
 
       - name: Upload test_report.json to GitHub
-        if: matrix.os == 'Linux'
+        if: matrix.os == 'Linux-x86'
         uses: actions/upload-artifact@v4
         with:
           name: test_report
           path: crates/sof/test_report.json
 
       - name: Build pysof wheel (Linux with sdist)
-        if: matrix.os == 'Linux'
+        if: matrix.os == 'Linux-x86'
         working-directory: crates/pysof
-        run: uv run maturin build --release --sdist -o dist -i python3.10 -i python3.11 -i python3.12 -i python3.13
+        run: uv run maturin build --release --sdist -o dist -i python3.10 -i python3.11 -i python3.12 -i python3.13 -i python3.14
 
       - name: Build pysof wheel (Windows/macOS)
         if: runner.os != 'Linux' && matrix.os != 'Linux-ARM64'
         working-directory: crates/pysof
-        run: uv run maturin build --release -o dist -i python3.10 -i python3.11 -i python3.12 -i python3.13
+        run: uv run maturin build --release -o dist -i python3.10 -i python3.11 -i python3.12 -i python3.13 -i python3.14
 
       - name: Upload pysof artifacts
         if: matrix.os != 'Linux-ARM64'

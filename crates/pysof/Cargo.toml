@@ -6,6 +6,7 @@ description = "Python bindings for helios-sof using PyO3"
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
+homepage = "https://github.com/HeliosSoftware/hfs/tree/main/crates/pysof"
 rust-version.workspace = true
 keywords = ["helios-software", "hl7", "fhir", "helios-fhir-server", "sql-on-fhir"]
 

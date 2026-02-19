@@ -5,6 +5,7 @@ edition.workspace = true
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
+homepage = "https://github.com/HeliosSoftware/hfs/tree/main/crates/rest"
 rust-version.workspace = true
 description = "FHIR RESTful API implementation for Helios FHIR Server"
 keywords = ["helios-software", "hl7", "fhir", "helios-fhir-server", "rest"]

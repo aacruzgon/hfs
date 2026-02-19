@@ -5,6 +5,7 @@ edition.workspace = true
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
+homepage = "https://github.com/HeliosSoftware/hfs/tree/main/crates/serde-support"
 description = "Shared serde helpers for FHIR serialization/deserialization"
 keywords = ["helios-software", "hl7", "fhir", "helios-fhir-server", "serde"]
 

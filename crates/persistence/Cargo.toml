@@ -5,6 +5,7 @@ edition.workspace = true
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
+homepage = "https://github.com/HeliosSoftware/hfs/tree/main/crates/persistence"
 rust-version.workspace = true
 description = "Polyglot persistence layer for Helios FHIR Server"
 keywords = ["helios-software", "hl7", "fhir", "helios-fhir-server", "persistence"]
