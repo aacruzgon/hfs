@@ -75,8 +75,14 @@ jobs:
     needs: [test-rust]
     if: always()
     steps:
-      - name: Remove testcontainers from this run
-        shell: pwsh
+      - name: Remove testcontainers from this run (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          docker ps -aq --filter "label=github.run_id=${{ github.run_id }}" | xargs -r docker rm -f || true
+
+      - name: Remove testcontainers from this run (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
         run: |
           $ids = docker ps -aq --filter "label=github.run_id=${{ github.run_id }}"
           if ($ids) { docker rm -f $ids }
