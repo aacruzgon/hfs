@@ -4,7 +4,10 @@
 //! into the JSON format expected by fhirpath-lab and other tools. The format includes
 //! expression types, names, arguments, and optional return type information.
 
-use crate::parser::{Expression, Invocation, Literal, Term, TypeSpecifier};
+use crate::parser::{
+    Expression, Invocation, Literal, SpannedExprKind, SpannedExpression, SpannedInvocation,
+    SpannedTerm, Term, TypeSpecifier,
+};
 use crate::type_inference::{TypeContext, infer_expression_type};
 use serde_json::{Value, json};
 
@@ -345,6 +348,259 @@ fn type_specifier_to_debug_tree(type_spec: &TypeSpecifier) -> Value {
             json!({
                 "ExpressionType": "TypeSpecifier",
                 "Name": type_name
+            })
+        }
+    }
+}
+
+/// Convert a spanned FHIRPath expression AST to a JSON debug tree with Position and Length
+///
+/// This produces the same structure as `expression_to_debug_tree` but includes
+/// `Position` (0-based char offset) and `Length` (char count) fields on every node,
+/// matching the fhirpath-lab JsonNode interface.
+pub fn spanned_expression_to_debug_tree(expr: &SpannedExpression, context: &TypeContext) -> Value {
+    spanned_expression_to_debug_tree_inner(expr, context)
+}
+
+fn spanned_expression_to_debug_tree_inner(
+    expr: &SpannedExpression,
+    context: &TypeContext,
+) -> Value {
+    // Get the inferred type using the unspanned expression
+    let unspanned = expr.to_expression();
+    let return_type = infer_expression_type(&unspanned, context).map(|t| t.to_display_string());
+
+    let mut node = match &expr.kind {
+        SpannedExprKind::Term(term) => spanned_term_to_debug_tree(term, expr, context),
+
+        SpannedExprKind::Invocation(base_expr, invocation) => {
+            let mut inv_node = spanned_invocation_to_debug_tree(invocation, context);
+
+            let mut args = inv_node
+                .get("Arguments")
+                .and_then(|a| a.as_array())
+                .cloned()
+                .unwrap_or_default();
+
+            let base_node = spanned_expression_to_debug_tree_inner(base_expr, context);
+            args.insert(0, base_node);
+
+            inv_node["Arguments"] = json!(args);
+            inv_node
+        }
+
+        SpannedExprKind::Indexer(expr_inner, index) => {
+            json!({
+                "ExpressionType": "IndexerExpression",
+                "Name": "[]",
+                "Arguments": vec![
+                    spanned_expression_to_debug_tree_inner(expr_inner, context),
+                    spanned_expression_to_debug_tree_inner(index, context)
+                ]
+            })
+        }
+
+        SpannedExprKind::Polarity(op, expr_inner) => {
+            json!({
+                "ExpressionType": "UnaryExpression",
+                "Name": op.to_string(),
+                "Arguments": vec![spanned_expression_to_debug_tree_inner(expr_inner, context)]
+            })
+        }
+
+        SpannedExprKind::Multiplicative(left, op, right)
+        | SpannedExprKind::Additive(left, op, right)
+        | SpannedExprKind::Inequality(left, op, right)
+        | SpannedExprKind::Equality(left, op, right)
+        | SpannedExprKind::Membership(left, op, right) => {
+            json!({
+                "ExpressionType": "BinaryExpression",
+                "Name": op,
+                "Arguments": vec![
+                    spanned_expression_to_debug_tree_inner(left, context),
+                    spanned_expression_to_debug_tree_inner(right, context)
+                ]
+            })
+        }
+
+        SpannedExprKind::Type(expr_inner, op, type_spec) => {
+            json!({
+                "ExpressionType": "TypeExpression",
+                "Name": op,
+                "Arguments": vec![
+                    spanned_expression_to_debug_tree_inner(expr_inner, context),
+                    type_specifier_to_debug_tree(type_spec)
+                ]
+            })
+        }
+
+        SpannedExprKind::Union(left, right) => {
+            json!({
+                "ExpressionType": "BinaryExpression",
+                "Name": "|",
+                "Arguments": vec![
+                    spanned_expression_to_debug_tree_inner(left, context),
+                    spanned_expression_to_debug_tree_inner(right, context)
+                ]
+            })
+        }
+
+        SpannedExprKind::And(left, right) => {
+            json!({
+                "ExpressionType": "BinaryExpression",
+                "Name": "and",
+                "Arguments": vec![
+                    spanned_expression_to_debug_tree_inner(left, context),
+                    spanned_expression_to_debug_tree_inner(right, context)
+                ]
+            })
+        }
+
+        SpannedExprKind::Or(left, op, right) => {
+            json!({
+                "ExpressionType": "BinaryExpression",
+                "Name": op,
+                "Arguments": vec![
+                    spanned_expression_to_debug_tree_inner(left, context),
+                    spanned_expression_to_debug_tree_inner(right, context)
+                ]
+            })
+        }
+
+        SpannedExprKind::Implies(left, right) => {
+            json!({
+                "ExpressionType": "BinaryExpression",
+                "Name": "implies",
+                "Arguments": vec![
+                    spanned_expression_to_debug_tree_inner(left, context),
+                    spanned_expression_to_debug_tree_inner(right, context)
+                ]
+            })
+        }
+
+        SpannedExprKind::Lambda(param, expr_inner) => {
+            let mut node = json!({
+                "ExpressionType": "LambdaExpression",
+                "Name": "=>",
+                "Arguments": vec![spanned_expression_to_debug_tree_inner(expr_inner, context)]
+            });
+            if let Some(param_name) = param {
+                node["Parameter"] = json!(param_name);
+            }
+            node
+        }
+    };
+
+    // Add Position and Length from the span
+    node["Position"] = json!(expr.span.position);
+    node["Length"] = json!(expr.span.length);
+
+    // Add return type if available
+    if let Some(rt) = return_type {
+        node["ReturnType"] = json!(rt);
+    }
+
+    node
+}
+
+fn spanned_term_to_debug_tree(
+    term: &SpannedTerm,
+    parent: &SpannedExpression,
+    context: &TypeContext,
+) -> Value {
+    match term {
+        SpannedTerm::Literal(lit) => literal_to_debug_tree(lit),
+
+        SpannedTerm::Invocation(invocation) => {
+            let mut inv_node = spanned_invocation_to_debug_tree(invocation, context);
+
+            // Add implicit "that" context as first argument for member access
+            if matches!(invocation, SpannedInvocation::Member(_)) {
+                let that_node = json!({
+                    "ExpressionType": "AxisExpression",
+                    "Name": "builtin.that",
+                    "Position": parent.span.position,
+                    "Length": 0,
+                    "ReturnType": context.current_type.as_ref()
+                        .map(|t| t.to_display_string())
+                        .unwrap_or_else(|| "Any".to_string())
+                });
+
+                let mut args = vec![that_node];
+                if let Some(existing_args) = inv_node.get("Arguments").and_then(|a| a.as_array()) {
+                    args.extend(existing_args.clone());
+                }
+                inv_node["Arguments"] = json!(args);
+            }
+
+            inv_node
+        }
+
+        SpannedTerm::ExternalConstant(name) => {
+            let mut node = json!({
+                "ExpressionType": "VariableRefExpression",
+                "Name": name
+            });
+            if let Some(var_type) = context.variables.get(name) {
+                node["ReturnType"] = json!(var_type.to_display_string());
+            }
+            node
+        }
+
+        SpannedTerm::Parenthesized(expr) => spanned_expression_to_debug_tree_inner(expr, context),
+    }
+}
+
+fn spanned_invocation_to_debug_tree(
+    invocation: &SpannedInvocation,
+    context: &TypeContext,
+) -> Value {
+    match invocation {
+        SpannedInvocation::Function(name, args) => {
+            let mut node = json!({
+                "ExpressionType": "FunctionCallExpression",
+                "Name": name
+            });
+
+            if !args.is_empty() {
+                node["Arguments"] = json!(
+                    args.iter()
+                        .map(|arg| spanned_expression_to_debug_tree_inner(arg, context))
+                        .collect::<Vec<_>>()
+                );
+            } else {
+                node["Arguments"] = json!([]);
+            }
+
+            node
+        }
+
+        SpannedInvocation::Member(name) => {
+            json!({
+                "ExpressionType": "ChildExpression",
+                "Name": name,
+                "Arguments": []
+            })
+        }
+
+        SpannedInvocation::This => {
+            json!({
+                "ExpressionType": "AxisExpression",
+                "Name": "builtin.this"
+            })
+        }
+
+        SpannedInvocation::Index => {
+            json!({
+                "ExpressionType": "AxisExpression",
+                "Name": "builtin.index"
+            })
+        }
+
+        SpannedInvocation::Total => {
+            json!({
+                "ExpressionType": "AxisExpression",
+                "Name": "builtin.total"
             })
         }
     }

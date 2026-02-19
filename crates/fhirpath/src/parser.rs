@@ -302,6 +302,146 @@ pub enum Invocation {
 
 // Removed Unit, DateTimePrecision, PluralDateTimePrecision enums
 
+/// Span information: (start_position, length) in the source text
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExprSpan {
+    pub position: usize,
+    pub length: usize,
+}
+
+/// An Expression node with span information attached
+#[derive(Debug, Clone)]
+pub struct SpannedExpression {
+    pub kind: SpannedExprKind,
+    pub span: ExprSpan,
+}
+
+/// Mirrors Expression variants but children are Box<SpannedExpression>
+#[derive(Debug, Clone)]
+pub enum SpannedExprKind {
+    Term(SpannedTerm),
+    Invocation(Box<SpannedExpression>, SpannedInvocation),
+    Indexer(Box<SpannedExpression>, Box<SpannedExpression>),
+    Polarity(char, Box<SpannedExpression>),
+    Multiplicative(Box<SpannedExpression>, String, Box<SpannedExpression>),
+    Additive(Box<SpannedExpression>, String, Box<SpannedExpression>),
+    Type(Box<SpannedExpression>, String, TypeSpecifier),
+    Union(Box<SpannedExpression>, Box<SpannedExpression>),
+    Inequality(Box<SpannedExpression>, String, Box<SpannedExpression>),
+    Equality(Box<SpannedExpression>, String, Box<SpannedExpression>),
+    Membership(Box<SpannedExpression>, String, Box<SpannedExpression>),
+    And(Box<SpannedExpression>, Box<SpannedExpression>),
+    Or(Box<SpannedExpression>, String, Box<SpannedExpression>),
+    Implies(Box<SpannedExpression>, Box<SpannedExpression>),
+    Lambda(Option<String>, Box<SpannedExpression>),
+}
+
+#[derive(Debug, Clone)]
+pub enum SpannedTerm {
+    Literal(Literal),
+    Invocation(SpannedInvocation),
+    ExternalConstant(String),
+    Parenthesized(Box<SpannedExpression>),
+}
+
+#[derive(Debug, Clone)]
+pub enum SpannedInvocation {
+    Member(String),
+    Function(String, Vec<SpannedExpression>),
+    This,
+    Index,
+    Total,
+}
+
+impl SpannedExpression {
+    pub fn to_expression(&self) -> Expression {
+        match &self.kind {
+            SpannedExprKind::Term(t) => Expression::Term(t.to_term()),
+            SpannedExprKind::Invocation(base, inv) => {
+                Expression::Invocation(Box::new(base.to_expression()), inv.to_invocation())
+            }
+            SpannedExprKind::Indexer(expr, idx) => Expression::Indexer(
+                Box::new(expr.to_expression()),
+                Box::new(idx.to_expression()),
+            ),
+            SpannedExprKind::Polarity(op, expr) => {
+                Expression::Polarity(*op, Box::new(expr.to_expression()))
+            }
+            SpannedExprKind::Multiplicative(l, op, r) => Expression::Multiplicative(
+                Box::new(l.to_expression()),
+                op.clone(),
+                Box::new(r.to_expression()),
+            ),
+            SpannedExprKind::Additive(l, op, r) => Expression::Additive(
+                Box::new(l.to_expression()),
+                op.clone(),
+                Box::new(r.to_expression()),
+            ),
+            SpannedExprKind::Type(expr, op, ts) => {
+                Expression::Type(Box::new(expr.to_expression()), op.clone(), ts.clone())
+            }
+            SpannedExprKind::Union(l, r) => {
+                Expression::Union(Box::new(l.to_expression()), Box::new(r.to_expression()))
+            }
+            SpannedExprKind::Inequality(l, op, r) => Expression::Inequality(
+                Box::new(l.to_expression()),
+                op.clone(),
+                Box::new(r.to_expression()),
+            ),
+            SpannedExprKind::Equality(l, op, r) => Expression::Equality(
+                Box::new(l.to_expression()),
+                op.clone(),
+                Box::new(r.to_expression()),
+            ),
+            SpannedExprKind::Membership(l, op, r) => Expression::Membership(
+                Box::new(l.to_expression()),
+                op.clone(),
+                Box::new(r.to_expression()),
+            ),
+            SpannedExprKind::And(l, r) => {
+                Expression::And(Box::new(l.to_expression()), Box::new(r.to_expression()))
+            }
+            SpannedExprKind::Or(l, op, r) => Expression::Or(
+                Box::new(l.to_expression()),
+                op.clone(),
+                Box::new(r.to_expression()),
+            ),
+            SpannedExprKind::Implies(l, r) => {
+                Expression::Implies(Box::new(l.to_expression()), Box::new(r.to_expression()))
+            }
+            SpannedExprKind::Lambda(param, expr) => {
+                Expression::Lambda(param.clone(), Box::new(expr.to_expression()))
+            }
+        }
+    }
+}
+
+impl SpannedTerm {
+    pub fn to_term(&self) -> Term {
+        match self {
+            SpannedTerm::Literal(l) => Term::Literal(l.clone()),
+            SpannedTerm::Invocation(i) => Term::Invocation(i.to_invocation()),
+            SpannedTerm::ExternalConstant(s) => Term::ExternalConstant(s.clone()),
+            SpannedTerm::Parenthesized(e) => Term::Parenthesized(Box::new(e.to_expression())),
+        }
+    }
+}
+
+impl SpannedInvocation {
+    pub fn to_invocation(&self) -> Invocation {
+        match self {
+            SpannedInvocation::Member(s) => Invocation::Member(s.clone()),
+            SpannedInvocation::Function(name, args) => Invocation::Function(
+                name.clone(),
+                args.iter().map(|a| a.to_expression()).collect(),
+            ),
+            SpannedInvocation::This => Invocation::This,
+            SpannedInvocation::Index => Invocation::Index,
+            SpannedInvocation::Total => Invocation::Total,
+        }
+    }
+}
+
 impl fmt::Display for Literal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -315,6 +455,15 @@ impl fmt::Display for Literal {
             Literal::Time(t) => write!(f, "@T{}", t.original_string()),
             Literal::Quantity(d, u) => write!(f, "{} '{}'", d, u), // Use Decimal's Display and unit string
         }
+    }
+}
+
+/// Helper function to remove backticks from identifiers if present
+fn clean_backtick_identifier(id: &str) -> String {
+    if id.starts_with('`') && id.ends_with('`') && id.len() >= 3 {
+        id[1..id.len() - 1].to_string()
+    } else {
+        id.to_string()
     }
 }
 
@@ -924,15 +1073,6 @@ pub fn parser<'src>()
     };
     let qualified_identifier = padded!(qualified_identifier);
 
-    // Helper function to remove backticks from identifiers if present
-    fn clean_backtick_identifier(id: &str) -> String {
-        if id.starts_with('`') && id.ends_with('`') && id.len() >= 3 {
-            id[1..id.len() - 1].to_string()
-        } else {
-            id.to_string()
-        }
-    }
-
     // Create a separate string parser for external constants
     let string_for_external = just('\'')
         .ignore_then(none_of("\'\\").or(esc).repeated().collect::<String>())
@@ -1219,4 +1359,865 @@ pub fn parser<'src>()
             })
     }) // Close the recursive closure here
     .then_ignore(end()) // Ensure the entire input is consumed after the expression
+}
+
+/// Creates a parser for FHIRPath expressions that includes span (position + length) information.
+///
+/// This parser produces `SpannedExpression` nodes, each annotated with their position and length
+/// in the source text. It is used for the `parseDebugTree` validation output and debug-trace features.
+///
+/// The parser structure mirrors `parser()` exactly but wraps each node with span information
+/// using chumsky's `map_with` combinator.
+pub fn spanned_parser<'src>()
+-> impl Parser<'src, &'src str, SpannedExpression, extra::Err<Rich<'src, char>>> + Clone + 'src {
+    // Parser for escape sequences (same as parser())
+    let esc = just('\\').ignore_then(choice((
+        just('`').to('`'),
+        just('\'').to('\''),
+        just('\\').to('\\'),
+        just('/').to('/'),
+        just('f').to('\u{000C}'),
+        just('n').to('\n'),
+        just('r').to('\r'),
+        just('t').to('\t'),
+        just('"').to('"'),
+        just('u').ignore_then(
+            any()
+                .filter(|c: &char| c.is_ascii_hexdigit())
+                .repeated()
+                .exactly(4)
+                .collect::<String>()
+                .try_map(
+                    |digits: String, span| match u32::from_str_radix(&digits, 16) {
+                        Ok(code) => match char::from_u32(code) {
+                            Some(c) => Ok(c),
+                            None => Err(Rich::custom(span, "Invalid Unicode code point")),
+                        },
+                        Err(_) => Err(Rich::custom(span, "Invalid hex digits")),
+                    },
+                ),
+        ),
+    )));
+
+    // LITERAL PARSERS
+
+    let null = just('{').then(just('}')).to(Literal::Null);
+
+    let boolean = choice((
+        text::keyword("true").to(Literal::Boolean(true)),
+        text::keyword("false").to(Literal::Boolean(false)),
+    ))
+    .boxed();
+
+    let string = just('\'')
+        .ignore_then(none_of("\\\'").or(esc).repeated().collect::<String>())
+        .then_ignore(just('\''))
+        .map(Literal::String)
+        .boxed();
+
+    let integer = any()
+        .filter(|c: &char| c.is_ascii_digit())
+        .repeated()
+        .at_least(1)
+        .collect::<String>()
+        .try_map(|digits: String, span| match i64::from_str(&digits) {
+            Ok(n) => Ok(Literal::Integer(n)),
+            Err(_) => Err(Rich::custom(span, format!("Invalid integer: {}", digits))),
+        });
+    let integer = custom_padded(integer);
+
+    let number = any()
+        .filter(|c: &char| c.is_ascii_digit())
+        .repeated()
+        .at_least(1)
+        .collect::<String>()
+        .then(just('.'))
+        .then(
+            any()
+                .filter(|c: &char| c.is_ascii_digit())
+                .repeated()
+                .at_least(1)
+                .collect::<String>(),
+        )
+        .try_map(|((i, _), d), span| {
+            let num_str = format!("{}.{}", i, d);
+            match Decimal::from_str(&num_str) {
+                Ok(decimal) => Ok(Literal::Number(decimal)),
+                Err(_) => Err(Rich::custom(span, format!("Invalid number: {}", num_str))),
+            }
+        })
+        .padded();
+
+    let time_format = any()
+        .filter(|c: &char| c.is_ascii_digit())
+        .repeated()
+        .at_least(2)
+        .at_most(2)
+        .collect::<String>()
+        .then(
+            just(':')
+                .ignore_then(
+                    any()
+                        .filter(|c: &char| c.is_ascii_digit())
+                        .repeated()
+                        .at_least(2)
+                        .at_most(2)
+                        .collect::<String>(),
+                )
+                .then(
+                    just(':')
+                        .ignore_then(
+                            any()
+                                .filter(|c: &char| c.is_ascii_digit())
+                                .repeated()
+                                .at_least(2)
+                                .at_most(2)
+                                .collect::<String>(),
+                        )
+                        .then(
+                            just('.')
+                                .ignore_then(
+                                    any()
+                                        .filter(|c: &char| c.is_ascii_digit())
+                                        .repeated()
+                                        .at_least(1)
+                                        .at_most(3)
+                                        .collect::<String>(),
+                                )
+                                .or_not(),
+                        )
+                        .or_not(),
+                )
+                .or_not(),
+        )
+        .map(|(hours, rest_opt)| {
+            let mut result = hours;
+            if let Some((minutes, seconds_part)) = rest_opt {
+                result.push(':');
+                result.push_str(&minutes);
+                if let Some((seconds, milliseconds)) = seconds_part {
+                    result.push(':');
+                    result.push_str(&seconds);
+                    if let Some(ms) = milliseconds {
+                        result.push('.');
+                        result.push_str(&ms);
+                    }
+                }
+            }
+            result
+        });
+
+    let timezone_format = just('Z').to("Z".to_string()).or(one_of("+-")
+        .map(|c: char| c.to_string())
+        .then(
+            any()
+                .filter(|c: &char| c.is_ascii_digit())
+                .repeated()
+                .at_most(2)
+                .at_least(2)
+                .collect::<String>(),
+        )
+        .then(just(':'))
+        .then(
+            any()
+                .filter(|c: &char| c.is_ascii_digit())
+                .repeated()
+                .at_most(2)
+                .at_least(2)
+                .collect::<String>(),
+        )
+        .map(|(((sign, hour), _), min)| format!("{}{}:{}", sign, hour, min)));
+
+    let date_format_str = any()
+        .filter(|c: &char| c.is_ascii_digit())
+        .repeated()
+        .exactly(4)
+        .collect::<String>()
+        .then(
+            just('-')
+                .ignore_then(
+                    any()
+                        .filter(|c: &char| c.is_ascii_digit())
+                        .repeated()
+                        .exactly(2)
+                        .collect::<String>()
+                        .then(
+                            just('-')
+                                .ignore_then(
+                                    any()
+                                        .filter(|c: &char| c.is_ascii_digit())
+                                        .repeated()
+                                        .exactly(2)
+                                        .collect::<String>(),
+                                )
+                                .or_not(),
+                        ),
+                )
+                .or_not(),
+        )
+        .map(|(year, month_part)| {
+            let mut date_str = year;
+            if let Some((month_str, day_part)) = month_part {
+                date_str.push('-');
+                date_str.push_str(&month_str);
+                if let Some(day_str) = day_part {
+                    date_str.push('-');
+                    date_str.push_str(&day_str);
+                }
+            }
+            date_str
+        })
+        .boxed();
+
+    let unit_keyword = choice((
+        text::keyword("year").to("year".to_string()),
+        text::keyword("month").to("month".to_string()),
+        text::keyword("week").to("week".to_string()),
+        text::keyword("day").to("day".to_string()),
+        text::keyword("hour").to("hour".to_string()),
+        text::keyword("minute").to("minute".to_string()),
+        text::keyword("second").to("second".to_string()),
+        text::keyword("millisecond").to("millisecond".to_string()),
+        text::keyword("years").to("years".to_string()),
+        text::keyword("months").to("months".to_string()),
+        text::keyword("weeks").to("weeks".to_string()),
+        text::keyword("days").to("days".to_string()),
+        text::keyword("hours").to("hours".to_string()),
+        text::keyword("minutes").to("minutes".to_string()),
+        text::keyword("seconds").to("seconds".to_string()),
+        text::keyword("milliseconds").to("milliseconds".to_string()),
+    ));
+
+    let unit_string_literal = just('\'')
+        .ignore_then(none_of("\\\'").or(esc).repeated().collect::<String>())
+        .then_ignore(just('\''));
+
+    let unit = choice((unit_keyword, unit_string_literal)).boxed().padded();
+
+    let integer_for_quantity = any()
+        .filter(|c: &char| c.is_ascii_digit())
+        .repeated()
+        .at_least(1)
+        .collect::<String>()
+        .try_map(|digits: String, span| match i64::from_str(&digits) {
+            Ok(n) => Ok(n),
+            Err(_) => Err(Rich::custom(span, format!("Invalid integer: {}", digits))),
+        });
+
+    let number_for_quantity = any()
+        .filter(|c: &char| c.is_ascii_digit())
+        .repeated()
+        .at_least(1)
+        .collect::<String>()
+        .then(just('.'))
+        .then(
+            any()
+                .filter(|c: &char| c.is_ascii_digit())
+                .repeated()
+                .at_least(1)
+                .collect::<String>(),
+        )
+        .try_map(|((i, _), d), span| {
+            let num_str = format!("{}.{}", i, d);
+            match Decimal::from_str(&num_str) {
+                Ok(decimal) => Ok(decimal),
+                Err(_) => Err(Rich::custom(span, format!("Invalid number: {}", num_str))),
+            }
+        });
+
+    let quantity = choice((
+        integer_for_quantity
+            .then_ignore(text::whitespace().at_least(1))
+            .then(unit.clone())
+            .map(|(i, u_str)| Literal::Quantity(Decimal::from(i), u_str)),
+        number_for_quantity
+            .then_ignore(text::whitespace().at_least(1))
+            .then(unit.clone())
+            .map(|(d, u_str)| Literal::Quantity(d, u_str)),
+    ));
+
+    let datetime_literal = just('@')
+        .ignore_then(date_format_str.clone())
+        .then_ignore(just('T'))
+        .then(time_format)
+        .then(timezone_format.clone().or_not())
+        .try_map(|((date_str, time_str), tz_opt), span| {
+            let full_str = if let Some(tz) = tz_opt {
+                format!("{}T{}{}", date_str, time_str, tz)
+            } else {
+                format!("{}T{}", date_str, time_str)
+            };
+            helios_fhir::PrecisionDateTime::parse(&full_str)
+                .ok_or_else(|| Rich::custom(span, format!("Invalid datetime format: {}", full_str)))
+                .map(Literal::DateTime)
+        });
+
+    let partial_datetime_literal = just('@')
+        .ignore_then(date_format_str.clone())
+        .then_ignore(just('T'))
+        .try_map(|date_str, span| {
+            let full_str = format!("{}T", date_str);
+            helios_fhir::PrecisionDateTime::parse(&full_str)
+                .ok_or_else(|| {
+                    Rich::custom(
+                        span,
+                        format!("Invalid partial datetime format: {}", full_str),
+                    )
+                })
+                .map(Literal::DateTime)
+        });
+
+    let time_literal = just('@')
+        .ignore_then(
+            just('T')
+                .ignore_then(time_format)
+                .then(timezone_format.or_not()),
+        )
+        .try_map(|(time_str, tz_opt), span| {
+            if tz_opt.is_some() {
+                Err(Rich::custom(
+                    span,
+                    "Time literal cannot have a timezone offset",
+                ))
+            } else {
+                helios_fhir::PrecisionTime::parse(&time_str)
+                    .ok_or_else(|| Rich::custom(span, format!("Invalid time format: {}", time_str)))
+                    .map(Literal::Time)
+            }
+        });
+
+    let date_literal = just('@')
+        .ignore_then(date_format_str.clone())
+        .try_map(|date_str, span| {
+            helios_fhir::PrecisionDate::parse(&date_str)
+                .ok_or_else(|| Rich::custom(span, format!("Invalid date format: {}", date_str)))
+                .map(Literal::Date)
+        });
+
+    let literal = choice((
+        null,
+        boolean,
+        string,
+        quantity,
+        number,
+        integer,
+        custom_padded(datetime_literal),
+        custom_padded(partial_datetime_literal),
+        custom_padded(time_literal),
+        custom_padded(date_literal),
+    ))
+    .map(Term::Literal);
+
+    // IDENTIFIER PARSERS
+
+    let standard_identifier = any()
+        .filter(|c: &char| c.is_ascii_alphabetic() || *c == '_')
+        .then(
+            any()
+                .filter(|c: &char| c.is_ascii_alphanumeric() || *c == '_')
+                .repeated()
+                .collect::<Vec<_>>(),
+        )
+        .map(|(first, rest): (char, Vec<char>)| {
+            let mut s = first.to_string();
+            s.extend(rest);
+            s
+        })
+        .padded();
+
+    let delimited_identifier = just('`')
+        .ignore_then(none_of("`").or(esc).repeated().collect::<String>())
+        .then_ignore(just('`'))
+        .padded();
+
+    let identifier = choice((
+        standard_identifier,
+        delimited_identifier,
+        text::keyword("as").to(String::from("as")),
+        text::keyword("contains").to(String::from("contains")),
+        text::keyword("in").to(String::from("in")),
+        text::keyword("is").to(String::from("is")),
+        text::keyword("true").to(String::from("true")),
+        text::keyword("false").to(String::from("false")),
+    ));
+
+    let qualified_identifier = {
+        let explicit_namespace_type = identifier
+            .clone()
+            .then(just('.').ignore_then(identifier.clone()))
+            .map(|(namespace, type_name)| {
+                let clean_ns = clean_backtick_identifier(&namespace);
+                let clean_type = clean_backtick_identifier(&type_name);
+                TypeSpecifier::QualifiedIdentifier(clean_ns, Some(clean_type))
+            });
+
+        let standalone_type = identifier.clone().map(|id| {
+            let clean_id = clean_backtick_identifier(&id);
+            if clean_id.contains('.') {
+                if let Some(last_dot_pos) = clean_id.rfind('.') {
+                    let namespace = clean_id[..last_dot_pos].to_string();
+                    let type_name = clean_id[last_dot_pos + 1..].to_string();
+                    TypeSpecifier::QualifiedIdentifier(namespace, Some(type_name))
+                } else {
+                    TypeSpecifier::QualifiedIdentifier(clean_id, None)
+                }
+            } else {
+                TypeSpecifier::QualifiedIdentifier(clean_id, None)
+            }
+        });
+
+        choice((explicit_namespace_type.boxed(), standalone_type.boxed())).boxed()
+    };
+    let qualified_identifier = custom_padded(qualified_identifier);
+
+    let string_for_external = just('\'')
+        .ignore_then(none_of("\'\\").or(esc).repeated().collect::<String>())
+        .then_ignore(just('\''))
+        .padded();
+
+    let external_constant = just('%')
+        .ignore_then(choice((identifier.clone(), string_for_external)))
+        .map(Term::ExternalConstant)
+        .padded();
+
+    // RECURSIVE EXPRESSION PARSER (produces SpannedExpression)
+
+    recursive(
+        |spanned_expr: Recursive<
+            dyn Parser<'src, &'src str, SpannedExpression, extra::Err<Rich<'src, char>>> + 'src,
+        >| {
+            // Helper to create a SpannedExpression from kind and chumsky span
+            #[inline]
+            fn make_spanned(kind: SpannedExprKind, start: usize, end: usize) -> SpannedExpression {
+                SpannedExpression {
+                    kind,
+                    span: ExprSpan {
+                        position: start,
+                        length: end - start,
+                    },
+                }
+            }
+
+            // Atom: basic elements with span tracking
+            let atom = choice((
+                // Literal atom
+                literal
+                    .clone()
+                    .map_with(|term, extra| {
+                        let s = extra.span();
+                        let spanned_term = match term {
+                            Term::Literal(l) => SpannedTerm::Literal(l),
+                            _ => unreachable!(),
+                        };
+                        make_spanned(SpannedExprKind::Term(spanned_term), s.start, s.end)
+                    })
+                    .boxed(),
+                // External constant
+                external_constant
+                    .clone()
+                    .map_with(|term, extra| {
+                        let s = extra.span();
+                        let spanned_term = match term {
+                            Term::ExternalConstant(name) => SpannedTerm::ExternalConstant(name),
+                            _ => unreachable!(),
+                        };
+                        make_spanned(SpannedExprKind::Term(spanned_term), s.start, s.end)
+                    })
+                    .boxed(),
+                // Function call: identifier(...)
+                identifier
+                    .clone()
+                    .then(
+                        spanned_expr
+                            .clone()
+                            .separated_by(just(',').padded())
+                            .allow_trailing()
+                            .collect::<Vec<_>>()
+                            .delimited_by(just('(').padded(), just(')').padded()),
+                    )
+                    .map_with(|(name, params), extra| {
+                        let s = extra.span();
+                        make_spanned(
+                            SpannedExprKind::Term(SpannedTerm::Invocation(
+                                SpannedInvocation::Function(name, params),
+                            )),
+                            s.start,
+                            s.end,
+                        )
+                    })
+                    .boxed(),
+                // Simple invocation ($this, $index, $total, identifiers)
+                choice((
+                    identifier.clone().map(SpannedInvocation::Member),
+                    just("$this").to(SpannedInvocation::This),
+                    just("$index").to(SpannedInvocation::Index),
+                    just("$total").to(SpannedInvocation::Total),
+                ))
+                .map_with(|inv, extra| {
+                    let s = extra.span();
+                    make_spanned(
+                        SpannedExprKind::Term(SpannedTerm::Invocation(inv)),
+                        s.start,
+                        s.end,
+                    )
+                })
+                .boxed(),
+                // Parenthesized expression
+                spanned_expr
+                    .clone()
+                    .boxed()
+                    .delimited_by(just('(').padded(), just(')').padded())
+                    .map_with(|inner, extra| {
+                        let s = extra.span();
+                        make_spanned(
+                            SpannedExprKind::Term(SpannedTerm::Parenthesized(Box::new(inner))),
+                            s.start,
+                            s.end,
+                        )
+                    })
+                    .boxed(),
+            ))
+            .padded();
+
+            // Postfix operators: . (invocation) and [] (indexer)
+            let postfix_op = choice((
+                // Member/Function Invocation
+                just('.')
+                    .ignore_then(
+                        identifier.clone().then(
+                            spanned_expr
+                                .clone()
+                                .boxed()
+                                .separated_by(just(',').padded())
+                                .allow_trailing()
+                                .collect::<Vec<_>>()
+                                .delimited_by(just('(').padded(), just(')').padded())
+                                .or_not(),
+                        ),
+                    )
+                    .map_with(|(name, params_opt), extra| {
+                        let op_end = extra.span().end;
+                        let invocation = match params_opt {
+                            Some(params) => SpannedInvocation::Function(name, params),
+                            None => SpannedInvocation::Member(name),
+                        };
+                        Box::new(move |left: SpannedExpression| {
+                            let start = left.span.position;
+                            make_spanned(
+                                SpannedExprKind::Invocation(Box::new(left), invocation.clone()),
+                                start,
+                                op_end,
+                            )
+                        })
+                            as Box<dyn Fn(SpannedExpression) -> SpannedExpression>
+                    }),
+                // Indexer
+                spanned_expr
+                    .clone()
+                    .delimited_by(just('[').padded(), just(']').padded())
+                    .map_with(|idx, extra| {
+                        let op_end = extra.span().end;
+                        Box::new(move |left: SpannedExpression| {
+                            let start = left.span.position;
+                            make_spanned(
+                                SpannedExprKind::Indexer(Box::new(left), Box::new(idx.clone())),
+                                start,
+                                op_end,
+                            )
+                        })
+                            as Box<dyn Fn(SpannedExpression) -> SpannedExpression>
+                    }),
+            ))
+            .boxed();
+
+            let atom_with_postfix = atom
+                .clone()
+                .then(postfix_op.repeated().collect::<Vec<_>>())
+                .map(|(left, ops)| ops.into_iter().fold(left, |acc, op| op(acc)));
+
+            // Prefix operators (Polarity)
+            let prefix_op = choice((just('+').to('+'), just('-').to('-'))).padded();
+
+            let term_with_polarity = prefix_op
+                .repeated()
+                .collect::<Vec<_>>()
+                .then(atom_with_postfix)
+                .map_with(|(ops, right), extra| {
+                    if ops.is_empty() {
+                        right
+                    } else {
+                        let full_start = extra.span().start;
+                        ops.into_iter().rev().fold(right, |acc, op| {
+                            let end = acc.span.position + acc.span.length;
+                            make_spanned(
+                                SpannedExprKind::Polarity(op, Box::new(acc)),
+                                full_start,
+                                end,
+                            )
+                        })
+                    }
+                });
+
+            // Infix operators with precedence levels
+
+            // Level 1: Multiplicative
+            let op_mul = choice((
+                just('*').to("*"),
+                just('/').to("/"),
+                text::keyword("div").to("div"),
+                text::keyword("mod").to("mod"),
+            ))
+            .padded();
+            let multiplicative = term_with_polarity
+                .clone()
+                .then(
+                    op_mul
+                        .then(term_with_polarity)
+                        .repeated()
+                        .collect::<Vec<_>>(),
+                )
+                .map(|(left, ops)| {
+                    ops.into_iter().fold(left, |acc, (op_str, right)| {
+                        let start = acc.span.position;
+                        let end = right.span.position + right.span.length;
+                        make_spanned(
+                            SpannedExprKind::Multiplicative(
+                                Box::new(acc),
+                                op_str.to_string(),
+                                Box::new(right),
+                            ),
+                            start,
+                            end,
+                        )
+                    })
+                });
+
+            // Level 2: Additive
+            let op_add = choice((just('+').to("+"), just('-').to("-"), just('&').to("&"))).padded();
+            let additive = multiplicative
+                .clone()
+                .then(op_add.then(multiplicative).repeated().collect::<Vec<_>>())
+                .map(|(left, ops)| {
+                    ops.into_iter().fold(left, |acc, (op_str, right)| {
+                        let start = acc.span.position;
+                        let end = right.span.position + right.span.length;
+                        make_spanned(
+                            SpannedExprKind::Additive(
+                                Box::new(acc),
+                                op_str.to_string(),
+                                Box::new(right),
+                            ),
+                            start,
+                            end,
+                        )
+                    })
+                });
+
+            // Level 3: Type (is, as)
+            let op_type =
+                choice((text::keyword("is").to("is"), text::keyword("as").to("as"))).padded();
+            let type_expr = additive
+                .clone()
+                .then(
+                    op_type
+                        .then(qualified_identifier.clone())
+                        .repeated()
+                        .collect::<Vec<_>>(),
+                )
+                .map_with(|(left, ops), extra| {
+                    if ops.is_empty() {
+                        left
+                    } else {
+                        let full_end = extra.span().end;
+                        ops.into_iter().fold(left, |acc, (op_str, type_spec)| {
+                            let start = acc.span.position;
+                            make_spanned(
+                                SpannedExprKind::Type(Box::new(acc), op_str.to_string(), type_spec),
+                                start,
+                                full_end,
+                            )
+                        })
+                    }
+                });
+
+            // Level 4: Union (|)
+            let op_union = just('|').padded();
+            let union = type_expr
+                .clone()
+                .then(op_union.then(type_expr).repeated().collect::<Vec<_>>())
+                .map(|(left, ops)| {
+                    ops.into_iter().fold(left, |acc, (_, right)| {
+                        let start = acc.span.position;
+                        let end = right.span.position + right.span.length;
+                        make_spanned(
+                            SpannedExprKind::Union(Box::new(acc), Box::new(right)),
+                            start,
+                            end,
+                        )
+                    })
+                });
+
+            // Level 5: Inequality (<, <=, >, >=)
+            let op_ineq = choice((
+                just("<=").to("<="),
+                just("<").to("<"),
+                just(">=").to(">="),
+                just(">").to(">"),
+            ))
+            .padded();
+            let inequality = union
+                .clone()
+                .then(op_ineq.then(union).repeated().collect::<Vec<_>>())
+                .map(|(left, ops)| {
+                    ops.into_iter().fold(left, |acc, (op_str, right)| {
+                        let start = acc.span.position;
+                        let end = right.span.position + right.span.length;
+                        make_spanned(
+                            SpannedExprKind::Inequality(
+                                Box::new(acc),
+                                op_str.to_string(),
+                                Box::new(right),
+                            ),
+                            start,
+                            end,
+                        )
+                    })
+                });
+
+            // Level 6: Equality (=, ~, !=, !~)
+            let op_eq = choice((
+                just("=").to("="),
+                just("~").to("~"),
+                just("!=").to("!="),
+                just("!~").to("!~"),
+            ))
+            .padded();
+            let equality = inequality
+                .clone()
+                .boxed()
+                .then(
+                    op_eq
+                        .then(inequality.clone().boxed())
+                        .repeated()
+                        .collect::<Vec<_>>(),
+                )
+                .map(|(left, ops)| {
+                    ops.into_iter().fold(left, |acc, (op_str, right)| {
+                        let start = acc.span.position;
+                        let end = right.span.position + right.span.length;
+                        make_spanned(
+                            SpannedExprKind::Equality(
+                                Box::new(acc),
+                                op_str.to_string(),
+                                Box::new(right),
+                            ),
+                            start,
+                            end,
+                        )
+                    })
+                });
+
+            // Level 7: Membership (in, contains)
+            let op_mem = choice((
+                text::keyword("in").to("in"),
+                text::keyword("contains").to("contains"),
+            ))
+            .padded();
+            let membership = equality
+                .clone()
+                .boxed()
+                .then(
+                    op_mem
+                        .then(equality.clone().boxed())
+                        .repeated()
+                        .collect::<Vec<_>>(),
+                )
+                .map(|(left, ops)| {
+                    ops.into_iter().fold(left, |acc, (op_str, right)| {
+                        let start = acc.span.position;
+                        let end = right.span.position + right.span.length;
+                        make_spanned(
+                            SpannedExprKind::Membership(
+                                Box::new(acc),
+                                op_str.to_string(),
+                                Box::new(right),
+                            ),
+                            start,
+                            end,
+                        )
+                    })
+                });
+
+            // Level 8: Logical AND
+            let op_and = text::keyword("and").padded();
+            let logical_and = membership
+                .clone()
+                .boxed()
+                .then(
+                    op_and
+                        .then(membership.clone().boxed())
+                        .repeated()
+                        .collect::<Vec<_>>(),
+                )
+                .map(|(left, ops)| {
+                    ops.into_iter().fold(left, |acc, (_, right)| {
+                        let start = acc.span.position;
+                        let end = right.span.position + right.span.length;
+                        make_spanned(
+                            SpannedExprKind::And(Box::new(acc), Box::new(right)),
+                            start,
+                            end,
+                        )
+                    })
+                });
+
+            // Level 9: Logical OR/XOR
+            let op_or =
+                choice((text::keyword("or").to("or"), text::keyword("xor").to("xor"))).padded();
+            let logical_or = logical_and
+                .clone()
+                .boxed()
+                .then(
+                    op_or
+                        .then(logical_and.clone().boxed())
+                        .repeated()
+                        .collect::<Vec<_>>(),
+                )
+                .map(|(left, ops)| {
+                    ops.into_iter().fold(left, |acc, (op_str, right)| {
+                        let start = acc.span.position;
+                        let end = right.span.position + right.span.length;
+                        make_spanned(
+                            SpannedExprKind::Or(Box::new(acc), op_str.to_string(), Box::new(right)),
+                            start,
+                            end,
+                        )
+                    })
+                });
+
+            // Level 10: Implies
+            let op_implies = text::keyword("implies").padded();
+            logical_or
+                .clone()
+                .boxed()
+                .then(
+                    op_implies
+                        .then(logical_or.clone().boxed())
+                        .repeated()
+                        .collect::<Vec<_>>(),
+                )
+                .map(|(left, ops)| {
+                    ops.into_iter().fold(left, |acc, (_, right)| {
+                        let start = acc.span.position;
+                        let end = right.span.position + right.span.length;
+                        make_spanned(
+                            SpannedExprKind::Implies(Box::new(acc), Box::new(right)),
+                            start,
+                            end,
+                        )
+                    })
+                })
+        },
+    )
+    .then_ignore(end())
 }

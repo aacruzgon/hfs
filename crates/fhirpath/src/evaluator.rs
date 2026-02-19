@@ -158,6 +158,10 @@ pub struct EvaluationContext {
     /// Terminology server URL for terminology operations
     /// If not set, uses default servers based on FHIR version
     pub terminology_server_url: Option<String>,
+
+    /// Debug tracer for step-by-step evaluation tracing.
+    /// When set (gated by FHIRPATH_DEBUG_TRACE env var), records every evaluate() step.
+    pub debug_tracer: Option<Arc<Mutex<crate::debug_trace::DebugTracer>>>,
 }
 
 impl Clone for EvaluationContext {
@@ -176,6 +180,7 @@ impl Clone for EvaluationContext {
             trace_outputs: Arc::new(Mutex::new(Vec::new())), // New trace outputs for clone
             parent_context: self.parent_context.clone(),
             terminology_server_url: self.terminology_server_url.clone(),
+            debug_tracer: self.debug_tracer.clone(), // Share the same tracer across clones
         }
     }
 }
@@ -239,6 +244,7 @@ impl EvaluationContext {
             trace_outputs: Arc::new(Mutex::new(Vec::new())), // Initialize trace outputs
             parent_context: None,           // No parent context by default
             terminology_server_url: None,   // No terminology server by default
+            debug_tracer: None,
         }
     }
 
@@ -271,6 +277,7 @@ impl EvaluationContext {
             trace_outputs: Arc::new(Mutex::new(Vec::new())), // Initialize trace outputs
             parent_context: None,           // No parent context by default
             terminology_server_url: None,   // No terminology server by default
+            debug_tracer: None,
         }
     }
 
@@ -300,6 +307,7 @@ impl EvaluationContext {
             trace_outputs: Arc::new(Mutex::new(Vec::new())), // Initialize trace outputs
             parent_context: None,           // No parent context by default
             terminology_server_url: None,   // No terminology server by default
+            debug_tracer: None,
         }
     }
 
@@ -516,6 +524,7 @@ impl EvaluationContext {
             trace_outputs: Arc::new(Mutex::new(Vec::new())), // New trace outputs for child
             parent_context: Some(Box::new(self.clone())), // Clone entire parent context
             terminology_server_url: self.terminology_server_url.clone(), // Inherit terminology server from parent
+            debug_tracer: self.debug_tracer.clone(),                     // Share tracer with child
         }
     }
 
@@ -775,7 +784,7 @@ pub fn evaluate(
         }
     }
 
-    match expr {
+    let result = match expr {
         Expression::Term(term) => evaluate_term(term, context, current_item),
         Expression::Invocation(left_expr, invocation) => {
             // Check if this expression chain involves defineVariable or other context-modifying functions
@@ -1277,7 +1286,16 @@ pub fn evaluate(
             // Return Ok(Empty) as it's not an error, just not evaluated yet.
             Ok(EvaluationResult::Empty)
         }
+    };
+
+    // Record debug trace step if tracer is active
+    if let Some(tracer) = &context.debug_tracer {
+        if let Ok(ref res) = result {
+            tracer.lock().record(expr, res);
+        }
     }
+
+    result
 }
 
 /// Internal evaluation function that returns both result and potentially modified context.

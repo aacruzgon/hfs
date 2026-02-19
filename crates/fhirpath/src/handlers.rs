@@ -14,7 +14,7 @@ use tracing::{debug, info, warn};
 use crate::error::{FhirPathError, FhirPathResult};
 use crate::evaluator::EvaluationContext;
 use crate::models::{ExtractedParameters, FhirPathParameters, extract_parameters};
-use crate::parse_debug::{expression_to_debug_tree, generate_parse_debug};
+use crate::parse_debug::{generate_parse_debug, spanned_expression_to_debug_tree};
 use crate::type_inference::{InferredType, TypeContext};
 use crate::{EvaluationResult, evaluate_expression};
 use helios_fhir::{FhirResource, FhirVersion};
@@ -64,11 +64,11 @@ pub async fn evaluate_fhirpath(
     let (parse_debug_tree, parse_debug, expected_return_type) = if extracted.validate {
         use chumsky::Parser as ChumskyParser;
 
-        match crate::parser::parser()
+        match crate::parser::spanned_parser()
             .parse(expression.as_str())
             .into_result()
         {
-            Ok(parsed) => {
+            Ok(spanned) => {
                 // Create a type context with the resource type
                 let mut type_context = TypeContext::new();
 
@@ -97,7 +97,8 @@ pub async fn evaluate_fhirpath(
                     type_context.variables.insert(var.name.clone(), var_type);
                 }
 
-                let debug_tree = expression_to_debug_tree(&parsed, &type_context);
+                let debug_tree = spanned_expression_to_debug_tree(&spanned, &type_context);
+                let parsed = spanned.to_expression();
                 let debug_text = generate_parse_debug(&parsed);
                 let return_type =
                     crate::type_inference::infer_expression_type(&parsed, &type_context)
@@ -112,6 +113,25 @@ pub async fn evaluate_fhirpath(
     } else {
         (None, None, None)
     };
+
+    // Check if debug-trace is enabled via environment variable
+    let debug_trace_enabled = std::env::var("FHIRPATH_DEBUG_TRACE")
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+
+    // Set up debug tracer if enabled
+    if debug_trace_enabled {
+        use chumsky::Parser as ChumskyParser;
+        if let Ok(spanned) = crate::parser::spanned_parser()
+            .parse(expression.as_str())
+            .into_result()
+        {
+            let parsed = spanned.to_expression();
+            let span_map = crate::debug_trace::build_span_map(&spanned, &parsed);
+            let tracer = crate::debug_trace::DebugTracer::new(span_map);
+            context.debug_tracer = Some(std::sync::Arc::new(parking_lot::Mutex::new(tracer)));
+        }
+    }
 
     // Prepare results collection
     let mut results = Vec::new();
@@ -186,6 +206,18 @@ pub async fn evaluate_fhirpath(
         }
     }
 
+    // Collect debug trace steps if tracer was active
+    let debug_trace_steps = if let Some(tracer) = &context.debug_tracer {
+        let tracer = tracer.lock();
+        if tracer.steps.is_empty() {
+            None
+        } else {
+            Some(tracer.steps.clone())
+        }
+    } else {
+        None
+    };
+
     // Build response
     let response = build_evaluation_response(
         &expression,
@@ -196,6 +228,7 @@ pub async fn evaluate_fhirpath(
         expected_return_type,
         resource_json,
         fhir_version,
+        debug_trace_steps,
     );
 
     Ok((StatusCode::OK, Json(response)).into_response())
@@ -248,11 +281,11 @@ async fn evaluate_fhirpath_with_version(
     let (parse_debug_tree, parse_debug, expected_return_type) = if extracted.validate {
         use chumsky::Parser as ChumskyParser;
 
-        match crate::parser::parser()
+        match crate::parser::spanned_parser()
             .parse(expression.as_str())
             .into_result()
         {
-            Ok(parsed) => {
+            Ok(spanned) => {
                 // Create a type context with the resource type
                 let mut type_context = TypeContext::new();
 
@@ -281,7 +314,8 @@ async fn evaluate_fhirpath_with_version(
                     type_context.variables.insert(var.name.clone(), var_type);
                 }
 
-                let debug_tree = expression_to_debug_tree(&parsed, &type_context);
+                let debug_tree = spanned_expression_to_debug_tree(&spanned, &type_context);
+                let parsed = spanned.to_expression();
                 let debug_text = generate_parse_debug(&parsed);
                 let return_type =
                     crate::type_inference::infer_expression_type(&parsed, &type_context)
@@ -296,6 +330,25 @@ async fn evaluate_fhirpath_with_version(
     } else {
         (None, None, None)
     };
+
+    // Check if debug-trace is enabled via environment variable
+    let debug_trace_enabled = std::env::var("FHIRPATH_DEBUG_TRACE")
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+
+    // Set up debug tracer if enabled
+    if debug_trace_enabled {
+        use chumsky::Parser as ChumskyParser;
+        if let Ok(spanned) = crate::parser::spanned_parser()
+            .parse(expression.as_str())
+            .into_result()
+        {
+            let parsed = spanned.to_expression();
+            let span_map = crate::debug_trace::build_span_map(&spanned, &parsed);
+            let tracer = crate::debug_trace::DebugTracer::new(span_map);
+            context.debug_tracer = Some(std::sync::Arc::new(parking_lot::Mutex::new(tracer)));
+        }
+    }
 
     // Prepare results collection
     let mut results = Vec::new();
@@ -370,6 +423,18 @@ async fn evaluate_fhirpath_with_version(
         }
     }
 
+    // Collect debug trace steps if tracer was active
+    let debug_trace_steps = if let Some(tracer) = &context.debug_tracer {
+        let tracer = tracer.lock();
+        if tracer.steps.is_empty() {
+            None
+        } else {
+            Some(tracer.steps.clone())
+        }
+    } else {
+        None
+    };
+
     // Build response
     let response = build_evaluation_response(
         &expression,
@@ -380,6 +445,7 @@ async fn evaluate_fhirpath_with_version(
         expected_return_type,
         resource_json,
         version,
+        debug_trace_steps,
     );
 
     Ok((StatusCode::OK, Json(response)).into_response())
@@ -955,6 +1021,7 @@ fn build_evaluation_response(
     expected_return_type: Option<String>,
     resource: Value,
     fhir_version: FhirVersion,
+    debug_trace_steps: Option<Vec<crate::debug_trace::DebugTraceStep>>,
 ) -> Value {
     let mut parameters = Vec::new();
 
@@ -1028,11 +1095,49 @@ fn build_evaluation_response(
     // Add results
     parameters.extend(results);
 
+    // Add debug-trace if steps were recorded
+    if let Some(steps) = debug_trace_steps {
+        let trace_parts: Vec<Value> = steps
+            .into_iter()
+            .map(|step| {
+                let step_name = format!("{},{},{}", step.position, step.length, step.function_name);
+                let result_parts = evaluation_result_to_trace_parts(step.result);
+                json!({
+                    "name": step_name,
+                    "part": result_parts
+                })
+            })
+            .collect();
+
+        parameters.push(json!({
+            "name": "debug-trace",
+            "valueString": "Context[0]",
+            "part": trace_parts
+        }));
+    }
+
     json!({
         "resourceType": "Parameters",
         "id": "fhirpath",
         "parameter": parameters
     })
+}
+
+/// Convert an EvaluationResult into debug-trace part entries.
+///
+/// Each item in the result collection becomes a part entry using
+/// `evaluation_result_to_result_value`. If the result is a collection,
+/// each element gets its own part entry.
+fn evaluation_result_to_trace_parts(result: EvaluationResult) -> Vec<Value> {
+    match result {
+        EvaluationResult::Collection { items, .. } => items
+            .into_iter()
+            .filter_map(|item| evaluation_result_to_result_value(item).ok())
+            .collect(),
+        other => evaluation_result_to_result_value(other)
+            .map(|v| vec![v])
+            .unwrap_or_default(),
+    }
 }
 
 #[cfg(test)]
@@ -1200,6 +1305,7 @@ mod tests {
             None,
             json!({"resourceType": "Patient"}),
             FhirVersion::R4,
+            None,
         );
 
         // Extract the evaluator value
@@ -1242,6 +1348,7 @@ mod tests {
             None,
             json!({"resourceType": "Patient"}),
             FhirVersion::R5,
+            None,
         );
 
         // Extract the evaluator value
