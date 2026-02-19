@@ -61,7 +61,7 @@ pub async fn evaluate_fhirpath(
     }
 
     // Generate parse debug information if needed
-    let (parse_debug_tree, parse_debug) = if extracted.validate {
+    let (parse_debug_tree, parse_debug, expected_return_type) = if extracted.validate {
         use chumsky::Parser as ChumskyParser;
 
         match crate::parser::parser()
@@ -99,15 +99,18 @@ pub async fn evaluate_fhirpath(
 
                 let debug_tree = expression_to_debug_tree(&parsed, &type_context);
                 let debug_text = generate_parse_debug(&parsed);
-                (Some(debug_tree), Some(debug_text))
+                let return_type =
+                    crate::type_inference::infer_expression_type(&parsed, &type_context)
+                        .map(|t| t.to_display_string());
+                (Some(debug_tree), Some(debug_text), return_type)
             }
             Err(e) => {
                 warn!("Parse error during validation: {:?}", e);
-                (None, Some(format!("Parse error: {:?}", e)))
+                (None, Some(format!("Parse error: {:?}", e)), None)
             }
         }
     } else {
-        (None, None)
+        (None, None, None)
     };
 
     // Prepare results collection
@@ -159,7 +162,7 @@ pub async fn evaluate_fhirpath(
                     // Get trace outputs collected during this evaluation
                     let trace_outputs = context.get_trace_outputs();
                     results.push(create_result_parameter(
-                        context_path,
+                        Some(context_path),
                         result,
                         trace_outputs,
                     )?);
@@ -175,11 +178,7 @@ pub async fn evaluate_fhirpath(
             Ok(result) => {
                 // Get trace outputs collected during evaluation
                 let trace_outputs = context.get_trace_outputs();
-                results.push(create_result_parameter(
-                    "Resource".to_string(),
-                    result,
-                    trace_outputs,
-                )?);
+                results.push(create_result_parameter(None, result, trace_outputs)?);
             }
             Err(e) => {
                 return create_error_response(&expression, &extracted, e);
@@ -194,6 +193,7 @@ pub async fn evaluate_fhirpath(
         results,
         parse_debug_tree,
         parse_debug,
+        expected_return_type,
         resource_json,
         fhir_version,
     );
@@ -245,7 +245,7 @@ async fn evaluate_fhirpath_with_version(
     }
 
     // Generate parse debug information if needed
-    let (parse_debug_tree, parse_debug) = if extracted.validate {
+    let (parse_debug_tree, parse_debug, expected_return_type) = if extracted.validate {
         use chumsky::Parser as ChumskyParser;
 
         match crate::parser::parser()
@@ -283,15 +283,18 @@ async fn evaluate_fhirpath_with_version(
 
                 let debug_tree = expression_to_debug_tree(&parsed, &type_context);
                 let debug_text = generate_parse_debug(&parsed);
-                (Some(debug_tree), Some(debug_text))
+                let return_type =
+                    crate::type_inference::infer_expression_type(&parsed, &type_context)
+                        .map(|t| t.to_display_string());
+                (Some(debug_tree), Some(debug_text), return_type)
             }
             Err(e) => {
                 warn!("Parse error during validation: {:?}", e);
-                (None, Some(format!("Parse error: {:?}", e)))
+                (None, Some(format!("Parse error: {:?}", e)), None)
             }
         }
     } else {
-        (None, None)
+        (None, None, None)
     };
 
     // Prepare results collection
@@ -343,7 +346,7 @@ async fn evaluate_fhirpath_with_version(
                     // Get trace outputs collected during this evaluation
                     let trace_outputs = context.get_trace_outputs();
                     results.push(create_result_parameter(
-                        context_path,
+                        Some(context_path),
                         result,
                         trace_outputs,
                     )?);
@@ -359,11 +362,7 @@ async fn evaluate_fhirpath_with_version(
             Ok(result) => {
                 // Get trace outputs collected during evaluation
                 let trace_outputs = context.get_trace_outputs();
-                results.push(create_result_parameter(
-                    "Resource".to_string(),
-                    result,
-                    trace_outputs,
-                )?);
+                results.push(create_result_parameter(None, result, trace_outputs)?);
             }
             Err(e) => {
                 return create_error_response(&expression, &extracted, e);
@@ -378,6 +377,7 @@ async fn evaluate_fhirpath_with_version(
         results,
         parse_debug_tree,
         parse_debug,
+        expected_return_type,
         resource_json,
         version,
     );
@@ -604,7 +604,7 @@ fn json_value_to_evaluation_result(value: &Value) -> FhirPathResult<EvaluationRe
 
 /// Create a result parameter
 fn create_result_parameter(
-    context_path: String,
+    context_path: Option<String>,
     result: EvaluationResult,
     trace_outputs: Vec<(String, EvaluationResult)>,
 ) -> FhirPathResult<Value> {
@@ -642,11 +642,17 @@ fn create_result_parameter(
         }));
     }
 
-    Ok(json!({
+    let mut result_param = json!({
         "name": "result",
-        "valueString": context_path,
         "part": parts
-    }))
+    });
+
+    // Only include valueString when a context expression is provided
+    if let Some(path) = context_path {
+        result_param["valueString"] = json!(path);
+    }
+
+    Ok(result_param)
 }
 
 /// Convert object map to JSON
@@ -732,10 +738,18 @@ fn evaluation_result_to_result_value(result: EvaluationResult) -> FhirPathResult
                 _ => "valueString", // Default for string and other string-based types
             };
 
-            Ok(json!({
-                "name": type_name,
-                value_property: s
-            }))
+            if s.is_empty() {
+                Ok(json!({
+                    "name": type_name,
+                    value_property: s,
+                    "part": [{ "name": "empty-string" }]
+                }))
+            } else {
+                Ok(json!({
+                    "name": type_name,
+                    value_property: s
+                }))
+            }
         }
         EvaluationResult::Integer(i, type_info) => {
             let type_name = if let Some(info) = type_info {
@@ -931,12 +945,14 @@ fn create_error_response(
 }
 
 /// Build the evaluation response
+#[allow(clippy::too_many_arguments)]
 fn build_evaluation_response(
     expression: &str,
     params: &ExtractedParameters,
     results: Vec<Value>,
     parse_debug_tree: Option<Value>,
     parse_debug: Option<String>,
+    expected_return_type: Option<String>,
     resource: Value,
     fhir_version: FhirVersion,
 ) -> Value {
@@ -976,6 +992,13 @@ fn build_evaluation_response(
         param_parts.push(json!({
             "name": "parseDebug",
             "valueString": debug
+        }));
+    }
+
+    if let Some(return_type) = expected_return_type {
+        param_parts.push(json!({
+            "name": "expectedReturnType",
+            "valueString": return_type
         }));
     }
 
@@ -1174,6 +1197,7 @@ mod tests {
             vec![],
             None,
             None,
+            None,
             json!({"resourceType": "Patient"}),
             FhirVersion::R4,
         );
@@ -1213,6 +1237,7 @@ mod tests {
             "Patient.name",
             &params,
             vec![],
+            None,
             None,
             None,
             json!({"resourceType": "Patient"}),

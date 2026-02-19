@@ -310,8 +310,6 @@ fn extract_parameters_from_r4b(
     parameters: helios_fhir::r4b::Parameters,
     extracted: &mut ExtractedParameters,
 ) -> Result<(), String> {
-    // Similar implementation for R4B
-    // For brevity, this follows the same pattern as R4
     for param in parameters.parameter.unwrap_or_default() {
         let name = param.name.value.as_deref().unwrap_or("");
 
@@ -337,6 +335,24 @@ fn extract_parameters_from_r4b(
                     .and_then(|v| v.as_boolean())
                     .unwrap_or(false);
             }
+            "variables" => {
+                if let Some(parts) = &param.part {
+                    for part in parts {
+                        if let Some(name) = &part.name.value {
+                            let value = if let Some(val) = &part.value {
+                                parameter_value_to_json_r4b(val)
+                            } else {
+                                Value::Null
+                            };
+
+                            extracted.variables.push(Variable {
+                                name: name.to_string(),
+                                value,
+                            });
+                        }
+                    }
+                }
+            }
             "resource" => {
                 extracted.resource = param
                     .resource
@@ -350,11 +366,32 @@ fn extract_parameters_from_r4b(
                     .and_then(|v| v.as_string())
                     .map(|s| s.to_string());
             }
-            // Handle variables similarly
             _ => {}
         }
     }
     Ok(())
+}
+
+#[cfg(feature = "R4B")]
+fn parameter_value_to_json_r4b(value: &helios_fhir::r4b::ParametersParameterValue) -> Value {
+    match value {
+        helios_fhir::r4b::ParametersParameterValue::String(s) => s
+            .value
+            .as_ref()
+            .map(|v| Value::String(v.clone()))
+            .unwrap_or(Value::Null),
+        helios_fhir::r4b::ParametersParameterValue::Boolean(b) => {
+            b.value.map(Value::Bool).unwrap_or(Value::Null)
+        }
+        helios_fhir::r4b::ParametersParameterValue::Integer(i) => i
+            .value
+            .map(|v| Value::Number(serde_json::Number::from(v)))
+            .unwrap_or(Value::Null),
+        helios_fhir::r4b::ParametersParameterValue::Decimal(d) => {
+            serde_json::to_value(d).unwrap_or(Value::Null)
+        }
+        _ => serde_json::to_value(value).unwrap_or(Value::Null),
+    }
 }
 
 #[cfg(feature = "R5")]
@@ -362,7 +399,6 @@ fn extract_parameters_from_r5(
     parameters: helios_fhir::r5::Parameters,
     extracted: &mut ExtractedParameters,
 ) -> Result<(), String> {
-    // Similar implementation for R5
     for param in parameters.parameter.unwrap_or_default() {
         let name = param.name.value.as_deref().unwrap_or("");
 
@@ -388,6 +424,24 @@ fn extract_parameters_from_r5(
                     .and_then(|v| v.as_boolean())
                     .unwrap_or(false);
             }
+            "variables" => {
+                if let Some(parts) = &param.part {
+                    for part in parts {
+                        if let Some(name) = &part.name.value {
+                            let value = if let Some(val) = &part.value {
+                                parameter_value_to_json_r5(val)
+                            } else {
+                                Value::Null
+                            };
+
+                            extracted.variables.push(Variable {
+                                name: name.to_string(),
+                                value,
+                            });
+                        }
+                    }
+                }
+            }
             "resource" => {
                 extracted.resource = param
                     .resource
@@ -401,11 +455,32 @@ fn extract_parameters_from_r5(
                     .and_then(|v| v.as_string())
                     .map(|s| s.to_string());
             }
-            // Handle variables similarly
             _ => {}
         }
     }
     Ok(())
+}
+
+#[cfg(feature = "R5")]
+fn parameter_value_to_json_r5(value: &helios_fhir::r5::ParametersParameterValue) -> Value {
+    match value {
+        helios_fhir::r5::ParametersParameterValue::String(s) => s
+            .value
+            .as_ref()
+            .map(|v| Value::String(v.clone()))
+            .unwrap_or(Value::Null),
+        helios_fhir::r5::ParametersParameterValue::Boolean(b) => {
+            b.value.map(Value::Bool).unwrap_or(Value::Null)
+        }
+        helios_fhir::r5::ParametersParameterValue::Integer(i) => i
+            .value
+            .map(|v| Value::Number(serde_json::Number::from(v)))
+            .unwrap_or(Value::Null),
+        helios_fhir::r5::ParametersParameterValue::Decimal(d) => {
+            serde_json::to_value(d).unwrap_or(Value::Null)
+        }
+        _ => serde_json::to_value(value).unwrap_or(Value::Null),
+    }
 }
 
 #[cfg(feature = "R6")]
@@ -413,7 +488,6 @@ fn extract_parameters_from_r6(
     parameters: helios_fhir::r6::Parameters,
     extracted: &mut ExtractedParameters,
 ) -> Result<(), String> {
-    // Similar implementation for R6
     for param in parameters.parameter.unwrap_or_default() {
         let name = param.name.value.as_deref().unwrap_or("");
 
@@ -439,6 +513,24 @@ fn extract_parameters_from_r6(
                     .and_then(|v| v.as_boolean())
                     .unwrap_or(false);
             }
+            "variables" => {
+                if let Some(parts) = &param.part {
+                    for part in parts {
+                        if let Some(name) = &part.name.value {
+                            let value = if let Some(val) = &part.value {
+                                parameter_value_to_json_r6(val)
+                            } else {
+                                Value::Null
+                            };
+
+                            extracted.variables.push(Variable {
+                                name: name.to_string(),
+                                value,
+                            });
+                        }
+                    }
+                }
+            }
             "resource" => {
                 extracted.resource = param
                     .resource
@@ -452,9 +544,30 @@ fn extract_parameters_from_r6(
                     .and_then(|v| v.as_string())
                     .map(|s| s.to_string());
             }
-            // Handle variables similarly
             _ => {}
         }
     }
     Ok(())
+}
+
+#[cfg(feature = "R6")]
+fn parameter_value_to_json_r6(value: &helios_fhir::r6::ParametersParameterValue) -> Value {
+    match value {
+        helios_fhir::r6::ParametersParameterValue::String(s) => s
+            .value
+            .as_ref()
+            .map(|v| Value::String(v.clone()))
+            .unwrap_or(Value::Null),
+        helios_fhir::r6::ParametersParameterValue::Boolean(b) => {
+            b.value.map(Value::Bool).unwrap_or(Value::Null)
+        }
+        helios_fhir::r6::ParametersParameterValue::Integer(i) => i
+            .value
+            .map(|v| Value::Number(serde_json::Number::from(v)))
+            .unwrap_or(Value::Null),
+        helios_fhir::r6::ParametersParameterValue::Decimal(d) => {
+            serde_json::to_value(d).unwrap_or(Value::Null)
+        }
+        _ => serde_json::to_value(value).unwrap_or(Value::Null),
+    }
 }
