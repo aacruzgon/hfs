@@ -71,25 +71,13 @@ jobs:
 
   cleanup-test-containers:
     name: Cleanup Test Containers
-    runs-on: [self-hosted, Windows]  # TODO: revert to [self-hosted] after verifying Windows cleanup works
+    runs-on: [self-hosted, Linux]
     needs: [test-rust]
     if: always()
     steps:
-      - name: Remove testcontainers from this run (Unix)
-        if: runner.os != 'Windows'
+      - name: Remove testcontainers from this run
         run: |
           docker ps -aq --filter "label=github.run_id=${{ github.run_id }}" | xargs -r docker rm -f || true
-
-      - name: Remove testcontainers from this run (Windows)
-        if: runner.os == 'Windows'
-        shell: powershell
-        run: |
-          if (Get-Command docker -ErrorAction SilentlyContinue) {
-            $ids = docker ps -aq --filter "label=github.run_id=${{ github.run_id }}"
-            if ($ids) { docker rm -f $ids }
-          } else {
-            Write-Host "Docker not available on this runner, skipping cleanup"
-          }
 
   test-python:
     name: Test Python
