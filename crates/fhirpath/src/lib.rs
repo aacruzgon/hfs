@@ -274,6 +274,7 @@ mod ucum;
 #[doc(hidden)]
 pub mod date_operation;
 mod datetime_impl;
+pub mod debug_trace;
 mod distinct_functions;
 mod extension_function;
 mod fhir_type_hierarchy;

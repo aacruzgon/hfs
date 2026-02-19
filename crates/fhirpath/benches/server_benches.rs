@@ -119,7 +119,6 @@ fn bench_response_serialization(c: &mut Criterion) {
                 },
                 {
                     "name": "result",
-                    "valueString": "Resource",
                     "part": [
                         {
                             "name": "string",
@@ -172,7 +171,6 @@ fn bench_response_serialization(c: &mut Criterion) {
                 },
                 {
                     "name": "result",
-                    "valueString": "Collection",
                     "part": result_parts
                 }
             ]

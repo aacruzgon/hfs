@@ -749,6 +749,7 @@ The server can be configured via command-line arguments or environment variables
 | `FHIRPATH_CORS_ORIGINS` | `--cors-origins` | Allowed origins (comma-separated) | `*` |
 | `FHIRPATH_CORS_METHODS` | `--cors-methods` | Allowed methods | `GET,POST,OPTIONS` |
 | `FHIRPATH_CORS_HEADERS` | `--cors-headers` | Allowed headers | Common headers |
+| `FHIRPATH_DEBUG_TRACE` | — | Enable step-by-step debug trace output | `false` |
 
 #### Starting the Server
 
@@ -849,9 +850,12 @@ Forces evaluation with a specific FHIR version (if compiled with the correspondi
 - `terminologyServer` (optional): Terminology server URL
 
 **Additional Output Parameters** (when `validate` is true):
-- `parseDebugTree`: JSON representation of the expression AST
+- `parseDebugTree`: JSON representation of the expression AST (includes `Position` and `Length` for each node)
 - `parseDebug`: Text representation of the parse tree
 - `expectedReturnType`: Expected return type of the expression
+
+**Additional Output Parameters** (when `FHIRPATH_DEBUG_TRACE=1`):
+- `debug-trace`: Step-by-step execution trace showing every intermediate evaluation result. Each step includes the source position, length, function name, and the evaluated result. This is useful for debugging complex expressions in [fhirpath-lab](https://fhirpath-lab.com/). Disabled by default for zero performance overhead.
 
 ##### GET /health - Health Check
 
