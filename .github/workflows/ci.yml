@@ -631,6 +631,8 @@ jobs:
 
       - name: Build Release (Cross-compile)
         if: matrix.os == 'Linux-ARM64'
+        env:
+          CC_aarch64_unknown_linux_gnu: aarch64-unknown-linux-gnu-gcc
         run: cargo build --workspace --all-features --release --target ${{ matrix.target }}
 
       - name: Build Release (Unix)
