@@ -84,8 +84,12 @@ jobs:
         if: runner.os == 'Windows'
         shell: powershell
         run: |
-          $ids = docker ps -aq --filter "label=github.run_id=${{ github.run_id }}"
-          if ($ids) { docker rm -f $ids }
+          if (Get-Command docker -ErrorAction SilentlyContinue) {
+            $ids = docker ps -aq --filter "label=github.run_id=${{ github.run_id }}"
+            if ($ids) { docker rm -f $ids }
+          } else {
+            Write-Host "Docker not available on this runner, skipping cleanup"
+          }
 
   test-python:
     name: Test Python
