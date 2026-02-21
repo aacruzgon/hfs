@@ -36,45 +36,6 @@ jobs:
           aarch64-unknown-linux-gnu-gcc -nostdlib -fuse-ld=lld -o /tmp/test_lld /tmp/test_lld.c && echo "SUCCESS: GCC + LLD cross-link works" || echo "FAIL: GCC + LLD cross-link failed"
           rm -f /tmp/test_lld /tmp/test_lld.c
 
-      - name: Build cross-compiled OpenSSL for AArch64 Linux
-        run: |
-          OPENSSL_VERSION="3.4.1"
-          INSTALL_PREFIX="/opt/cross/aarch64-linux-gnu/openssl"
-
-          # Skip if already installed
-          if [ -f "$INSTALL_PREFIX/lib/libssl.a" ]; then
-            echo "OpenSSL already installed at $INSTALL_PREFIX"
-            ls -la "$INSTALL_PREFIX/lib/"
-            ls -la "$INSTALL_PREFIX/include/openssl/" | head -5
-            exit 0
-          fi
-
-          echo "=== Building OpenSSL $OPENSSL_VERSION for aarch64-linux-gnu ==="
-          cd /tmp
-          curl -LO "https://github.com/openssl/openssl/releases/download/openssl-${OPENSSL_VERSION}/openssl-${OPENSSL_VERSION}.tar.gz"
-          tar xzf "openssl-${OPENSSL_VERSION}.tar.gz"
-          cd "openssl-${OPENSSL_VERSION}"
-
-          ./Configure linux-aarch64 \
-            --cross-compile-prefix=aarch64-unknown-linux-gnu- \
-            --prefix="$INSTALL_PREFIX" \
-            --openssldir="$INSTALL_PREFIX/ssl" \
-            no-shared \
-            no-async
-
-          make -j$(sysctl -n hw.ncpu)
-          sudo mkdir -p "$INSTALL_PREFIX"
-          sudo make install_sw
-
-          echo ""
-          echo "=== Verify installation ==="
-          ls -la "$INSTALL_PREFIX/lib/"
-          ls -la "$INSTALL_PREFIX/include/openssl/" | head -5
-
-          # Cleanup
-          cd /tmp
-          rm -rf "openssl-${OPENSSL_VERSION}" "openssl-${OPENSSL_VERSION}.tar.gz"
-
       - name: Print runner environment
         run: |
           echo "=== Runner environment ==="
