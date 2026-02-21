@@ -634,6 +634,8 @@ jobs:
         env:
           CC_aarch64_unknown_linux_gnu: aarch64-unknown-linux-gnu-gcc
           PYO3_CROSS_PYTHON_VERSION: "3.14"
+          OPENSSL_DIR: /opt/cross/aarch64-linux-gnu/openssl
+          OPENSSL_STATIC: "1"
         run: cargo build --workspace --all-features --release --target ${{ matrix.target }}
 
       - name: Build Release (Unix)
@@ -696,6 +698,8 @@ jobs:
         working-directory: crates/pysof
         env:
           PYO3_CROSS_PYTHON_VERSION: "3.14"
+          OPENSSL_DIR: /opt/cross/aarch64-linux-gnu/openssl
+          OPENSSL_STATIC: "1"
         run: uv run maturin build --release -o dist --target aarch64-unknown-linux-gnu -i python3.10 -i python3.11 -i python3.12 -i python3.13 -i python3.14
 
       - name: Upload pysof artifacts
