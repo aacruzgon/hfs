@@ -4564,6 +4564,7 @@ dependencies = [
  "csv",
  "helios-fhir",
  "helios-sof",
+ "openssl",
  "pyo3",
  "pyo3-build-config",
  "pythonize",
