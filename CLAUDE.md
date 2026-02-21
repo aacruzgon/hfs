@@ -551,3 +551,4 @@ See `RELEASING.md` for full details.
 - `pysof` is excluded from default workspace members — `cargo build` from root skips it
 - Server returns appropriate HTTP status codes and FHIR OperationOutcomes for errors
 - Minimum supported Rust version: 1.90 (edition 2024)
+- When committing changes that only touch documentation (README.md, CLAUDE.md, etc.) or other non-compiled files, include `[skip ci]` in the commit message to avoid unnecessary CI builds
