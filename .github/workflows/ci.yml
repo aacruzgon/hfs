@@ -56,7 +56,7 @@ jobs:
           echo 'linker = "clang"' >> ~/.cargo/config.toml
           echo 'rustflags = ["-C", "link-arg=-fuse-ld=lld", "-C", "link-arg=-Wl,-zstack-size=8388608"]' >> ~/.cargo/config.toml
 
-      - name: Configure Rust to use LLD (MacOS)
+      - name: Configure Rust linker (macOS)
         if: runner.os == 'macOS'
         run: |
           mkdir -p ~/.cargo
@@ -115,7 +115,7 @@ jobs:
           echo 'linker = "clang"' >> ~/.cargo/config.toml
           echo 'rustflags = ["-C", "link-arg=-fuse-ld=lld", "-C", "link-arg=-Wl,-zstack-size=8388608"]' >> ~/.cargo/config.toml
 
-      - name: Configure Rust to use LLD (MacOS)
+      - name: Configure Rust linker (macOS)
         if: runner.os == 'macOS'
         run: |
           mkdir -p ~/.cargo
@@ -167,7 +167,7 @@ jobs:
           echo 'linker = "clang"' >> ~/.cargo/config.toml
           echo 'rustflags = ["-C", "link-arg=-fuse-ld=lld", "-C", "link-arg=-Wl,-zstack-size=8388608"]' >> ~/.cargo/config.toml
 
-      - name: Configure Rust to use LLD (MacOS)
+      - name: Configure Rust linker (macOS)
         if: runner.os == 'macOS'
         run: |
           mkdir -p ~/.cargo
@@ -234,7 +234,7 @@ jobs:
           echo 'linker = "clang"' >> ~/.cargo/config.toml
           echo 'rustflags = ["-C", "link-arg=-fuse-ld=lld", "-C", "link-arg=-Wl,-zstack-size=8388608"]' >> ~/.cargo/config.toml
 
-      - name: Configure Rust to use LLD (MacOS)
+      - name: Configure Rust linker (macOS)
         if: runner.os == 'macOS'
         run: |
           mkdir -p ~/.cargo
@@ -285,7 +285,7 @@ jobs:
           echo 'linker = "clang"' >> ~/.cargo/config.toml
           echo 'rustflags = ["-C", "link-arg=-fuse-ld=lld", "-C", "link-arg=-Wl,-zstack-size=8388608"]' >> ~/.cargo/config.toml
 
-      - name: Configure Rust to use LLD (MacOS)
+      - name: Configure Rust linker (macOS)
         if: runner.os == 'macOS'
         run: |
           mkdir -p ~/.cargo
@@ -613,8 +613,9 @@ jobs:
           rm -f ~/.cargo/config.toml
           echo '[target.aarch64-unknown-linux-gnu]' >> ~/.cargo/config.toml
           echo 'linker = "aarch64-unknown-linux-gnu-gcc"' >> ~/.cargo/config.toml
+          echo 'rustflags = ["-C", "link-arg=-fuse-ld=lld"]' >> ~/.cargo/config.toml
 
-      - name: Configure Rust to use LLD (MacOS)
+      - name: Configure Rust linker (macOS)
         if: matrix.os == 'macOS'
         run: |
           mkdir -p ~/.cargo
