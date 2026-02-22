@@ -4,13 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       run_id:
-        description: 'Release tag to deploy (e.g., v0.1.8)'
+        description: 'CI workflow run ID that produced the release artifacts (numeric ID from the CI run)'
         required: true
         type: string
 
 permissions:
   contents: read
   packages: write
+  actions: read
 
 env:
   REGISTRY: ghcr.io
