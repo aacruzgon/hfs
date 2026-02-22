@@ -16,6 +16,7 @@ permissions:
 env:
   REGISTRY: ghcr.io
   IMAGE_PREFIX: ghcr.io/heliossoftware
+  DOCKER_HOST: ${{ secrets.DOCKER_HOST }}
 
 jobs:
   build-images:
