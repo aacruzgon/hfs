@@ -777,7 +777,7 @@ jobs:
         run: |
           mkdir -p releases/wheels
           # Copy all pysof wheels and sdist (if any)
-          find artifacts -type f -name 'pysof-*whl' -exec cp {} releases/wheels/ \; || true
+          find artifacts -type f \( -name 'pysof-*.whl' -o -name 'pysof-*.tar.gz' \) -exec cp {} releases/wheels/ \; || true
           ls -l releases/wheels || true
 
       - name: Create release archives
