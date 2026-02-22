@@ -792,13 +792,27 @@ jobs:
             # Extract target from directory name (format: hfs-{target}/)
             if [[ "$dir" =~ hfs-(.+)/ ]]; then
               target="${BASH_REMATCH[1]}"
-              
+
+              # Flatten the artifact structure: move binaries from target/release/ to root
+              staging=$(mktemp -d)
+              if [[ "$target" == *"windows"* ]]; then
+                find "$dir/target" -maxdepth 3 -type f -name '*.exe' -exec cp {} "$staging/" \;
+              else
+                # Copy executable binaries (not .d, .rlib, .so files)
+                find "$dir/target" -maxdepth 3 -type f -executable -exec cp {} "$staging/" \;
+              fi
+              # Copy data directory if present
+              if [ -d "$dir/data" ]; then
+                cp -r "$dir/data" "$staging/"
+              fi
+
               # Create combined archive with version in filename
               if [[ "$target" == *"windows"* ]]; then
-                cd "$dir" && zip -r ../../releases/hfs-${version}-${target}.zip . && cd ..
+                cd "$staging" && zip -r "$OLDPWD/../releases/hfs-${version}-${target}.zip" . && cd "$OLDPWD"
               else
-                tar -czf ../releases/hfs-${version}-${target}.tar.gz -C "$dir" .
+                tar -czf ../releases/hfs-${version}-${target}.tar.gz -C "$staging" .
               fi
+              rm -rf "$staging"
             fi
           done
 
