@@ -106,11 +106,6 @@ jobs:
             cp -r artifact/data docker-context/data
           fi
 
-      - name: Verify Docker connectivity
-        run: |
-          echo "DOCKER_HOST is set: ${DOCKER_HOST:+yes}"
-          docker version
-
       - name: Set up QEMU (for cross-arch builds)
         uses: docker/setup-qemu-action@v3
 
