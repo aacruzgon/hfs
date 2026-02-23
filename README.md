@@ -400,6 +400,10 @@ Published crate documentation is available on [crates.io](https://crates.io/keyw
 cargo doc --no-deps --open
 ```
 
+# Roadmap
+
+See our [Roadmap](ROADMAP.md) for current development priorities and planned features.
+
 # Contributing
 
 Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
