@@ -651,9 +651,13 @@ jobs:
             !target/release/build/
             !target/release/deps/
             !target/release/incremental/
+            !target/release/.fingerprint/
             !target/release/*.d
             !target/release/*.rlib
             !target/release/*.so
+            !target/release/*.pdb
+            !target/release/*.exp
+            !target/release/*.lib
 
       - name: Upload Rust build artifacts to GitHub (Cross-compile)
         if: matrix.os == 'Linux-ARM64'
@@ -666,6 +670,7 @@ jobs:
             !target/${{ matrix.target }}/release/build/
             !target/${{ matrix.target }}/release/deps/
             !target/${{ matrix.target }}/release/incremental/
+            !target/${{ matrix.target }}/release/.fingerprint/
             !target/${{ matrix.target }}/release/*.d
             !target/${{ matrix.target }}/release/*.rlib
             !target/${{ matrix.target }}/release/*.so
@@ -771,6 +776,13 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
+          pattern: 'hfs-*'
+          path: ./artifacts
+
+      - name: Download pysof artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: 'pysof-*'
           path: ./artifacts
 
       - name: Aggregate pysof wheels and test report
