@@ -807,12 +807,18 @@ jobs:
 
               # Flatten the artifact structure: move binaries from target/release/ to root
               staging=$(mktemp -d)
-              if [[ "$target" == *"windows"* ]]; then
-                find "$dir/target" -maxdepth 3 -type f -name '*.exe' -exec cp {} "$staging/" \;
-              else
-                # Copy executable binaries (not .d, .rlib, .so files)
-                find "$dir/target" -maxdepth 3 -type f -executable -exec cp {} "$staging/" \;
-              fi
+              # Copy known binaries by name (artifacts lose executable permission)
+              for bin in hfs fhirpath-server fhirpath-cli sof-server sof-cli config-advisor; do
+                if [[ "$target" == *"windows"* ]]; then
+                  found=$(find "$dir/target" -maxdepth 3 -type f -name "${bin}.exe" 2>/dev/null | head -1)
+                else
+                  found=$(find "$dir/target" -maxdepth 3 -type f -name "$bin" 2>/dev/null | head -1)
+                fi
+                if [ -n "$found" ]; then
+                  cp "$found" "$staging/"
+                  chmod +x "$staging/$(basename "$found")"
+                fi
+              done
               # Copy data directory if present
               if [ -d "$dir/data" ]; then
                 cp -r "$dir/data" "$staging/"
