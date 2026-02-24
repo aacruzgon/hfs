@@ -61,6 +61,7 @@ These items are well-understood and will be picked up once current work complete
 - **FHIR Subscriptions** — Topic-based notification support
 - **Terminology Server** — CodeSystem `$lookup`, ValueSet `$expand`, ConceptMap `$translate`
 - **SMART on FHIR** — Full launch framework and scoped access
+- **SQL on FHIR** — [SQL on FHIR operations](https://sql-on-fhir.org/ig/latest/operations.html) - using read-only database connections 
 
 ### Persistence Backends
 - Cassandra as a primary store
