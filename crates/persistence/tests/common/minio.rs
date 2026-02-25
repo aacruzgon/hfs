@@ -198,7 +198,7 @@ async fn minio_aws_client(endpoint: &str) -> AwsS3Client {
         .timeout_config(
             aws_sdk_s3::config::timeout::TimeoutConfig::builder()
                 .operation_timeout(Duration::from_secs(10))
-                .build()
+                .build(),
         )
         .build();
 

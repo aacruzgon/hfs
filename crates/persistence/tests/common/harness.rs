@@ -209,7 +209,9 @@ impl<B: TestableBackend> TestContextBuilder<B> {
 
     /// Builds the test context.
     pub fn build(self) -> TestContext<B> {
-        let tenant_id = self.tenant_id.unwrap_or_else(|| "test-tenant-1".to_string());
+        let tenant_id = self
+            .tenant_id
+            .unwrap_or_else(|| "test-tenant-1".to_string());
         let secondary_tenant_id = self
             .secondary_tenant_id
             .unwrap_or_else(|| "test-tenant-2".to_string());
@@ -217,10 +219,7 @@ impl<B: TestableBackend> TestContextBuilder<B> {
         TestContext {
             backend: Arc::new(self.backend),
             fixtures: self.fixtures.unwrap_or_default(),
-            tenant: TenantContext::new(
-                TenantId::new(&tenant_id),
-                TenantPermissions::full_access(),
-            ),
+            tenant: TenantContext::new(TenantId::new(&tenant_id), TenantPermissions::full_access()),
             secondary_tenant: TenantContext::new(
                 TenantId::new(&secondary_tenant_id),
                 TenantPermissions::full_access(),
@@ -364,10 +363,7 @@ macro_rules! skip_test {
 macro_rules! require_capability {
     ($ctx:expr, $cap:expr) => {
         if !$ctx.supports($cap) {
-            $crate::skip_test!(format!(
-                "Backend does not support capability: {:?}",
-                $cap
-            ));
+            $crate::skip_test!(format!("Backend does not support capability: {:?}", $cap));
         }
     };
 }

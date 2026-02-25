@@ -100,27 +100,45 @@ impl CapabilityMatrix {
             vec![
                 (BackendCapability::Crud, SupportLevel::Implemented),
                 (BackendCapability::Versioning, SupportLevel::Implemented),
-                (BackendCapability::InstanceHistory, SupportLevel::Implemented),
+                (
+                    BackendCapability::InstanceHistory,
+                    SupportLevel::Implemented,
+                ),
                 (BackendCapability::TypeHistory, SupportLevel::Implemented),
                 (BackendCapability::SystemHistory, SupportLevel::Implemented),
                 (BackendCapability::BasicSearch, SupportLevel::Implemented),
                 (BackendCapability::DateSearch, SupportLevel::Implemented),
-                (BackendCapability::ReferenceSearch, SupportLevel::Implemented),
+                (
+                    BackendCapability::ReferenceSearch,
+                    SupportLevel::Implemented,
+                ),
                 (BackendCapability::ChainedSearch, SupportLevel::Partial),
                 (BackendCapability::ReverseChaining, SupportLevel::Partial),
                 (BackendCapability::Include, SupportLevel::Implemented),
                 (BackendCapability::Revinclude, SupportLevel::Implemented),
                 (BackendCapability::FullTextSearch, SupportLevel::NotPlanned),
-                (BackendCapability::TerminologySearch, SupportLevel::RequiresExternalService),
+                (
+                    BackendCapability::TerminologySearch,
+                    SupportLevel::RequiresExternalService,
+                ),
                 (BackendCapability::Transactions, SupportLevel::Implemented),
-                (BackendCapability::OptimisticLocking, SupportLevel::Implemented),
+                (
+                    BackendCapability::OptimisticLocking,
+                    SupportLevel::Implemented,
+                ),
                 (BackendCapability::CursorPagination, SupportLevel::Planned),
-                (BackendCapability::OffsetPagination, SupportLevel::Implemented),
+                (
+                    BackendCapability::OffsetPagination,
+                    SupportLevel::Implemented,
+                ),
                 (BackendCapability::Sorting, SupportLevel::Implemented),
                 (BackendCapability::BulkExport, SupportLevel::Planned),
                 (BackendCapability::SharedSchema, SupportLevel::Implemented),
                 (BackendCapability::SchemaPerTenant, SupportLevel::NotPlanned),
-                (BackendCapability::DatabasePerTenant, SupportLevel::NotPlanned),
+                (
+                    BackendCapability::DatabasePerTenant,
+                    SupportLevel::NotPlanned,
+                ),
             ],
         );
 
@@ -130,22 +148,37 @@ impl CapabilityMatrix {
             vec![
                 (BackendCapability::Crud, SupportLevel::Implemented),
                 (BackendCapability::Versioning, SupportLevel::Implemented),
-                (BackendCapability::InstanceHistory, SupportLevel::Implemented),
+                (
+                    BackendCapability::InstanceHistory,
+                    SupportLevel::Implemented,
+                ),
                 (BackendCapability::TypeHistory, SupportLevel::Implemented),
                 (BackendCapability::SystemHistory, SupportLevel::Implemented),
                 (BackendCapability::BasicSearch, SupportLevel::Implemented),
                 (BackendCapability::DateSearch, SupportLevel::Implemented),
-                (BackendCapability::ReferenceSearch, SupportLevel::Implemented),
+                (
+                    BackendCapability::ReferenceSearch,
+                    SupportLevel::Implemented,
+                ),
                 (BackendCapability::ChainedSearch, SupportLevel::Partial),
                 (BackendCapability::ReverseChaining, SupportLevel::Partial),
                 (BackendCapability::Include, SupportLevel::Implemented),
                 (BackendCapability::Revinclude, SupportLevel::Implemented),
                 (BackendCapability::FullTextSearch, SupportLevel::Partial),
-                (BackendCapability::TerminologySearch, SupportLevel::RequiresExternalService),
+                (
+                    BackendCapability::TerminologySearch,
+                    SupportLevel::RequiresExternalService,
+                ),
                 (BackendCapability::Transactions, SupportLevel::Implemented),
-                (BackendCapability::OptimisticLocking, SupportLevel::Implemented),
+                (
+                    BackendCapability::OptimisticLocking,
+                    SupportLevel::Implemented,
+                ),
                 (BackendCapability::CursorPagination, SupportLevel::Planned),
-                (BackendCapability::OffsetPagination, SupportLevel::Implemented),
+                (
+                    BackendCapability::OffsetPagination,
+                    SupportLevel::Implemented,
+                ),
                 (BackendCapability::Sorting, SupportLevel::Implemented),
                 (BackendCapability::BulkExport, SupportLevel::Planned),
                 (BackendCapability::SharedSchema, SupportLevel::Implemented),
@@ -171,7 +204,10 @@ impl CapabilityMatrix {
                 (BackendCapability::Include, SupportLevel::Planned),
                 (BackendCapability::Revinclude, SupportLevel::Planned),
                 (BackendCapability::FullTextSearch, SupportLevel::Implemented),
-                (BackendCapability::TerminologySearch, SupportLevel::RequiresExternalService),
+                (
+                    BackendCapability::TerminologySearch,
+                    SupportLevel::RequiresExternalService,
+                ),
                 (BackendCapability::Transactions, SupportLevel::Planned),
                 (BackendCapability::OptimisticLocking, SupportLevel::Planned),
                 (BackendCapability::CursorPagination, SupportLevel::Planned),
@@ -201,11 +237,17 @@ impl CapabilityMatrix {
                 (BackendCapability::Include, SupportLevel::NotPlanned),
                 (BackendCapability::Revinclude, SupportLevel::NotPlanned),
                 (BackendCapability::FullTextSearch, SupportLevel::NotPlanned),
-                (BackendCapability::TerminologySearch, SupportLevel::NotPlanned),
+                (
+                    BackendCapability::TerminologySearch,
+                    SupportLevel::NotPlanned,
+                ),
                 (BackendCapability::Transactions, SupportLevel::NotPlanned),
                 (BackendCapability::OptimisticLocking, SupportLevel::Planned),
                 (BackendCapability::CursorPagination, SupportLevel::Planned),
-                (BackendCapability::OffsetPagination, SupportLevel::NotPlanned),
+                (
+                    BackendCapability::OffsetPagination,
+                    SupportLevel::NotPlanned,
+                ),
                 (BackendCapability::Sorting, SupportLevel::NotPlanned),
                 (BackendCapability::BulkExport, SupportLevel::Planned),
                 (BackendCapability::SharedSchema, SupportLevel::Planned),
@@ -225,13 +267,22 @@ impl CapabilityMatrix {
                 (BackendCapability::SystemHistory, SupportLevel::NotPlanned),
                 (BackendCapability::BasicSearch, SupportLevel::Planned),
                 (BackendCapability::DateSearch, SupportLevel::Planned),
-                (BackendCapability::ReferenceSearch, SupportLevel::Implemented),
+                (
+                    BackendCapability::ReferenceSearch,
+                    SupportLevel::Implemented,
+                ),
                 (BackendCapability::ChainedSearch, SupportLevel::Implemented),
-                (BackendCapability::ReverseChaining, SupportLevel::Implemented),
+                (
+                    BackendCapability::ReverseChaining,
+                    SupportLevel::Implemented,
+                ),
                 (BackendCapability::Include, SupportLevel::Implemented),
                 (BackendCapability::Revinclude, SupportLevel::Implemented),
                 (BackendCapability::FullTextSearch, SupportLevel::Partial),
-                (BackendCapability::TerminologySearch, SupportLevel::Implemented),
+                (
+                    BackendCapability::TerminologySearch,
+                    SupportLevel::Implemented,
+                ),
                 (BackendCapability::Transactions, SupportLevel::Planned),
                 (BackendCapability::OptimisticLocking, SupportLevel::Partial),
                 (BackendCapability::CursorPagination, SupportLevel::Planned),
@@ -255,17 +306,32 @@ impl CapabilityMatrix {
                 (BackendCapability::SystemHistory, SupportLevel::NotPlanned),
                 (BackendCapability::BasicSearch, SupportLevel::Implemented),
                 (BackendCapability::DateSearch, SupportLevel::Implemented),
-                (BackendCapability::ReferenceSearch, SupportLevel::Implemented),
+                (
+                    BackendCapability::ReferenceSearch,
+                    SupportLevel::Implemented,
+                ),
                 (BackendCapability::ChainedSearch, SupportLevel::NotPlanned),
                 (BackendCapability::ReverseChaining, SupportLevel::NotPlanned),
                 (BackendCapability::Include, SupportLevel::Implemented),
                 (BackendCapability::Revinclude, SupportLevel::Implemented),
                 (BackendCapability::FullTextSearch, SupportLevel::Implemented),
-                (BackendCapability::TerminologySearch, SupportLevel::RequiresExternalService),
+                (
+                    BackendCapability::TerminologySearch,
+                    SupportLevel::RequiresExternalService,
+                ),
                 (BackendCapability::Transactions, SupportLevel::NotPlanned),
-                (BackendCapability::OptimisticLocking, SupportLevel::Implemented),
-                (BackendCapability::CursorPagination, SupportLevel::Implemented),
-                (BackendCapability::OffsetPagination, SupportLevel::Implemented),
+                (
+                    BackendCapability::OptimisticLocking,
+                    SupportLevel::Implemented,
+                ),
+                (
+                    BackendCapability::CursorPagination,
+                    SupportLevel::Implemented,
+                ),
+                (
+                    BackendCapability::OffsetPagination,
+                    SupportLevel::Implemented,
+                ),
                 (BackendCapability::Sorting, SupportLevel::Implemented),
                 (BackendCapability::BulkExport, SupportLevel::Implemented),
                 (BackendCapability::SharedSchema, SupportLevel::Implemented),
@@ -280,7 +346,10 @@ impl CapabilityMatrix {
             vec![
                 (BackendCapability::Crud, SupportLevel::Planned),
                 (BackendCapability::Versioning, SupportLevel::Implemented),
-                (BackendCapability::InstanceHistory, SupportLevel::Implemented),
+                (
+                    BackendCapability::InstanceHistory,
+                    SupportLevel::Implemented,
+                ),
                 (BackendCapability::TypeHistory, SupportLevel::NotPlanned),
                 (BackendCapability::SystemHistory, SupportLevel::NotPlanned),
                 (BackendCapability::BasicSearch, SupportLevel::NotPlanned),
@@ -291,11 +360,20 @@ impl CapabilityMatrix {
                 (BackendCapability::Include, SupportLevel::NotPlanned),
                 (BackendCapability::Revinclude, SupportLevel::NotPlanned),
                 (BackendCapability::FullTextSearch, SupportLevel::NotPlanned),
-                (BackendCapability::TerminologySearch, SupportLevel::NotPlanned),
+                (
+                    BackendCapability::TerminologySearch,
+                    SupportLevel::NotPlanned,
+                ),
                 (BackendCapability::Transactions, SupportLevel::NotPlanned),
-                (BackendCapability::OptimisticLocking, SupportLevel::Implemented),
+                (
+                    BackendCapability::OptimisticLocking,
+                    SupportLevel::Implemented,
+                ),
                 (BackendCapability::CursorPagination, SupportLevel::Partial),
-                (BackendCapability::OffsetPagination, SupportLevel::NotPlanned),
+                (
+                    BackendCapability::OffsetPagination,
+                    SupportLevel::NotPlanned,
+                ),
                 (BackendCapability::Sorting, SupportLevel::NotPlanned),
                 (BackendCapability::BulkExport, SupportLevel::Implemented),
                 (BackendCapability::SharedSchema, SupportLevel::Planned),
@@ -322,7 +400,11 @@ impl CapabilityMatrix {
     /// Gets the support level for a capability on a backend.
     ///
     /// Returns `SupportLevel::Planned` if the combination is not explicitly set.
-    pub fn support_level(&self, backend: BackendKind, capability: BackendCapability) -> SupportLevel {
+    pub fn support_level(
+        &self,
+        backend: BackendKind,
+        capability: BackendCapability,
+    ) -> SupportLevel {
         self.matrix
             .get(&backend)
             .and_then(|caps| caps.get(&capability))
@@ -400,7 +482,8 @@ impl CapabilityMatrix {
         ];
 
         println!("\nCapability Matrix:");
-        println!("Legend: {} Implemented, {} Partial, {} Planned, {} NotPlanned, {} RequiresExternalService\n",
+        println!(
+            "Legend: {} Implemented, {} Partial, {} Planned, {} NotPlanned, {} RequiresExternalService\n",
             SupportLevel::Implemented,
             SupportLevel::Partial,
             SupportLevel::Planned,

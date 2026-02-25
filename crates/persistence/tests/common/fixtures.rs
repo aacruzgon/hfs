@@ -3,11 +3,11 @@
 //! This module provides predefined FHIR resources for use in tests,
 //! along with builders for creating custom test data.
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
+use helios_fhir::FhirVersion;
 use helios_persistence::tenant::TenantId;
 use helios_persistence::types::StoredResource;
-use helios_fhir::FhirVersion;
 
 /// A patient fixture for testing.
 #[derive(Debug, Clone)]
@@ -103,12 +103,15 @@ impl PatientFixture {
 
         if !self.identifiers.is_empty() {
             patient["identifier"] = json!(
-                self.identifiers.iter().map(|(system, value)| {
-                    json!({
-                        "system": system,
-                        "value": value,
+                self.identifiers
+                    .iter()
+                    .map(|(system, value)| {
+                        json!({
+                            "system": system,
+                            "value": value,
+                        })
                     })
-                }).collect::<Vec<_>>()
+                    .collect::<Vec<_>>()
             );
         }
 
@@ -123,7 +126,13 @@ impl PatientFixture {
 
     /// Converts to a StoredResource.
     pub fn to_stored_resource(&self, tenant_id: &TenantId) -> StoredResource {
-        StoredResource::new("Patient", &self.id, tenant_id.clone(), self.to_json(), FhirVersion::R4)
+        StoredResource::new(
+            "Patient",
+            &self.id,
+            tenant_id.clone(),
+            self.to_json(),
+            FhirVersion::R4,
+        )
     }
 }
 
@@ -150,7 +159,11 @@ pub struct ObservationFixture {
 
 impl ObservationFixture {
     /// Creates a new observation fixture.
-    pub fn new(id: impl Into<String>, code: impl Into<String>, patient_ref: impl Into<String>) -> Self {
+    pub fn new(
+        id: impl Into<String>,
+        code: impl Into<String>,
+        patient_ref: impl Into<String>,
+    ) -> Self {
         Self {
             id: id.into(),
             status: "final".to_string(),
@@ -223,7 +236,13 @@ impl ObservationFixture {
 
     /// Converts to a StoredResource.
     pub fn to_stored_resource(&self, tenant_id: &TenantId) -> StoredResource {
-        StoredResource::new("Observation", &self.id, tenant_id.clone(), self.to_json(), FhirVersion::R4)
+        StoredResource::new(
+            "Observation",
+            &self.id,
+            tenant_id.clone(),
+            self.to_json(),
+            FhirVersion::R4,
+        )
     }
 }
 
@@ -292,12 +311,15 @@ impl OrganizationFixture {
 
         if !self.identifiers.is_empty() {
             org["identifier"] = json!(
-                self.identifiers.iter().map(|(system, value)| {
-                    json!({
-                        "system": system,
-                        "value": value,
+                self.identifiers
+                    .iter()
+                    .map(|(system, value)| {
+                        json!({
+                            "system": system,
+                            "value": value,
+                        })
                     })
-                }).collect::<Vec<_>>()
+                    .collect::<Vec<_>>()
             );
         }
 
@@ -306,7 +328,13 @@ impl OrganizationFixture {
 
     /// Converts to a StoredResource.
     pub fn to_stored_resource(&self, tenant_id: &TenantId) -> StoredResource {
-        StoredResource::new("Organization", &self.id, tenant_id.clone(), self.to_json(), FhirVersion::R4)
+        StoredResource::new(
+            "Organization",
+            &self.id,
+            tenant_id.clone(),
+            self.to_json(),
+            FhirVersion::R4,
+        )
     }
 }
 
@@ -379,7 +407,13 @@ impl PractitionerFixture {
 
     /// Converts to a StoredResource.
     pub fn to_stored_resource(&self, tenant_id: &TenantId) -> StoredResource {
-        StoredResource::new("Practitioner", &self.id, tenant_id.clone(), self.to_json(), FhirVersion::R4)
+        StoredResource::new(
+            "Practitioner",
+            &self.id,
+            tenant_id.clone(),
+            self.to_json(),
+            FhirVersion::R4,
+        )
     }
 }
 
@@ -433,11 +467,7 @@ impl EncounterFixture {
     }
 
     /// Sets the period.
-    pub fn with_period(
-        mut self,
-        start: impl Into<String>,
-        end: Option<impl Into<String>>,
-    ) -> Self {
+    pub fn with_period(mut self, start: impl Into<String>, end: Option<impl Into<String>>) -> Self {
         self.period_start = Some(start.into());
         self.period_end = end.map(|e| e.into());
         self
@@ -460,13 +490,16 @@ impl EncounterFixture {
 
         if !self.practitioner_refs.is_empty() {
             enc["participant"] = json!(
-                self.practitioner_refs.iter().map(|pract_ref| {
-                    json!({
-                        "individual": {
-                            "reference": pract_ref,
-                        },
+                self.practitioner_refs
+                    .iter()
+                    .map(|pract_ref| {
+                        json!({
+                            "individual": {
+                                "reference": pract_ref,
+                            },
+                        })
                     })
-                }).collect::<Vec<_>>()
+                    .collect::<Vec<_>>()
             );
         }
 
@@ -486,7 +519,13 @@ impl EncounterFixture {
 
     /// Converts to a StoredResource.
     pub fn to_stored_resource(&self, tenant_id: &TenantId) -> StoredResource {
-        StoredResource::new("Encounter", &self.id, tenant_id.clone(), self.to_json(), FhirVersion::R4)
+        StoredResource::new(
+            "Encounter",
+            &self.id,
+            tenant_id.clone(),
+            self.to_json(),
+            FhirVersion::R4,
+        )
     }
 }
 
@@ -644,9 +683,7 @@ impl TestFixtures {
     /// Creates a minimal set of fixtures for fast tests.
     pub fn minimal() -> Self {
         Self {
-            patients: vec![
-                PatientFixture::new("patient-1", "Smith").with_given(vec!["John"]),
-            ],
+            patients: vec![PatientFixture::new("patient-1", "Smith").with_given(vec!["John"])],
             observations: vec![
                 ObservationFixture::new("obs-1", "8867-4", "Patient/patient-1")
                     .with_value(72.0, "bpm"),
@@ -792,8 +829,7 @@ mod tests {
 
     #[test]
     fn test_observation_fixture_to_json() {
-        let obs = ObservationFixture::new("obs-1", "8867-4", "Patient/p1")
-            .with_value(72.0, "bpm");
+        let obs = ObservationFixture::new("obs-1", "8867-4", "Patient/p1").with_value(72.0, "bpm");
 
         let json = obs.to_json();
 

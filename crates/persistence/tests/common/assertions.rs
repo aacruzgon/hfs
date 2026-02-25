@@ -242,7 +242,6 @@ pub fn assert_sorted_desc(resources: &[StoredResource], field_path: &str) {
     }
 }
 
-
 /// Asserts that all resources in the result are of the expected type.
 pub fn assert_all_resource_type(resources: &[StoredResource], expected_type: &str) {
     for resource in resources {
@@ -284,9 +283,6 @@ fn orderable(v: &Value) -> Option<String> {
         Value::Array(_) | Value::Object(_) => Some(v.to_string()),
     }
 }
-
-
-
 
 /// Assertion macro for checking resource matches expected type and id.
 #[macro_export]
@@ -417,10 +413,11 @@ mod tests {
 
     #[test]
     fn test_assert_not_found_error() {
-        let result: Result<(), StorageError> = Err(StorageError::Resource(ResourceError::NotFound {
-            resource_type: "Patient".to_string(),
-            id: "123".to_string(),
-        }));
+        let result: Result<(), StorageError> =
+            Err(StorageError::Resource(ResourceError::NotFound {
+                resource_type: "Patient".to_string(),
+                id: "123".to_string(),
+            }));
         assert_not_found(result);
     }
 
