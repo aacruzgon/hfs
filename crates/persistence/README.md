@@ -128,18 +128,29 @@ helios-persistence/
 │   │   │   └── search/         # Search query building
 │   │   │       ├── query_builder.rs  # SQL with $N params, ILIKE, TIMESTAMPTZ
 │   │   │       └── writer.rs        # Search index writer
-│   │   └── elasticsearch/  # Search-optimized secondary backend
-│   │       ├── backend.rs      # ElasticsearchBackend with config
-│   │       ├── storage.rs      # ResourceStorage for sync support
-│   │       ├── schema.rs       # Index mappings and templates
-│   │       ├── search_impl.rs  # SearchProvider, TextSearchProvider
-│   │       └── search/         # ES Query DSL translation
-│   │           ├── query_builder.rs      # FHIR SearchQuery → ES Query DSL
-│   │           ├── fts.rs                # Full-text search queries
-│   │           ├── modifier_handlers.rs  # :missing and other modifiers
-│   │           └── parameter_handlers/   # Type-specific handlers
-│   │               ├── string.rs, token.rs, date.rs, number.rs
-│   │               ├── quantity.rs, reference.rs, uri.rs, composite.rs
+│   │   ├── elasticsearch/  # Search-optimized secondary backend
+│   │   │   ├── backend.rs      # ElasticsearchBackend with config
+│   │   │   ├── storage.rs      # ResourceStorage for sync support
+│   │   │   ├── schema.rs       # Index mappings and templates
+│   │   │   ├── search_impl.rs  # SearchProvider, TextSearchProvider
+│   │   │   └── search/         # ES Query DSL translation
+│   │   │       ├── query_builder.rs      # FHIR SearchQuery → ES Query DSL
+│   │   │       ├── fts.rs                # Full-text search queries
+│   │   │       ├── modifier_handlers.rs  # :missing and other modifiers
+│   │   │       └── parameter_handlers/   # Type-specific handlers
+│   │   │           ├── string.rs, token.rs, date.rs, number.rs
+│   │   │           ├── quantity.rs, reference.rs, uri.rs, composite.rs
+│   │   └── s3/               # AWS S3 object-storage backend
+│   │       ├── backend.rs        # S3Backend with connection management
+│   │       ├── config.rs         # S3BackendConfig, S3TenancyMode
+│   │       ├── client.rs         # S3Api trait and AwsS3Client implementation
+│   │       ├── keyspace.rs       # S3Keyspace key-path generation
+│   │       ├── models.rs         # HistoryIndexEvent, ExportJobState, SubmissionState
+│   │       ├── storage.rs        # ResourceStorage implementation
+│   │       ├── bundle.rs         # Batch/transaction bundle processing
+│   │       ├── bulk_export.rs    # BulkExportStorage implementation
+│   │       ├── bulk_submit.rs    # BulkSubmitProvider implementation
+│   │       └── tests.rs          # Integration tests
 │   ├── composite/       # Multi-backend coordination
 │   │   ├── config.rs       # CompositeConfig and builder
 │   │   ├── analyzer.rs     # Query feature detection
@@ -618,6 +629,98 @@ let composite = CompositeStorage::new(config, backends)?
     .with_full_primary(sqlite);
 ```
 
+## S3 Backend
+
+The S3 backend is a storage-focused persistence backend using AWS S3 object storage. It handles CRUD, versioning/history, and bulk workflows but is intentionally not a FHIR search engine. For query-heavy deployments, compose S3 with a DB/search backend as the primary query engine.
+
+### Scope
+
+**Primary responsibilities:**
+- CRUD persistence of resources
+- Versioning (`vread`, `list_versions`, optimistic conflict checks)
+- Instance/type/system history via immutable history objects plus history index events
+- Batch bundles and best-effort transaction bundles (non-atomic with compensating rollback)
+- Bulk export (NDJSON objects + manifest/progress state in S3)
+- Bulk submit (ingest + raw artifact persistence + rollback change log)
+- Tenant isolation (`PrefixPerTenant` or `BucketPerTenant`)
+
+**Explicit non-goals:** Advanced FHIR search semantics (date/number/quantity comparisons, chained query planning, `_has`, include/revinclude fanout, cursor keyset queries).
+
+### Configuration
+
+```rust
+use helios_persistence::backends::s3::S3BackendConfig;
+
+let config = S3BackendConfig {
+    tenancy_mode: S3TenancyMode::PrefixPerTenant {
+        bucket: "hfs".to_string(),
+    },
+    prefix: None,
+    region: None,
+    validate_buckets_on_startup: true,
+    bulk_export_part_size: 10_000,
+    bulk_submit_batch_size: 100,
+};
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `tenancy_mode` | `PrefixPerTenant { bucket: "hfs" }` | Tenant-to-bucket mapping strategy |
+| `prefix` | `None` | Optional global key prefix applied before backend keys |
+| `region` | `None` | AWS region override (falls back to provider chain) |
+| `validate_buckets_on_startup` | `true` | Validate configured buckets with `HeadBucket` on startup |
+| `bulk_export_part_size` | `10000` | Max NDJSON lines per export output part |
+| `bulk_submit_batch_size` | `100` | Default ingestion batch size for bulk submit processing |
+
+### Tenancy Modes
+
+| Mode | Description |
+|------|-------------|
+| **PrefixPerTenant** | All tenants share one bucket with tenant-specific key prefixes |
+| **BucketPerTenant** | Each tenant maps to a specific bucket via an explicit tenant→bucket map |
+
+### Object Model
+
+Resource objects:
+
+| Object | Key Pattern |
+|--------|-------------|
+| Current pointer | `.../resources/{type}/{id}/current.json` |
+| Immutable history version | `.../resources/{type}/{id}/_history/{version}.json` |
+| Type history event | `.../history/type/{type}/{ts}_{id}_{version}_{suffix}.json` |
+| System history event | `.../history/system/{ts}_{type}_{id}_{version}_{suffix}.json` |
+
+Bulk export objects:
+
+| Object | Key Pattern |
+|--------|-------------|
+| Job state | `.../bulk/export/jobs/{job_id}/state.json` |
+| Progress | `.../bulk/export/jobs/{job_id}/progress/{type}.json` |
+| Output | `.../bulk/export/jobs/{job_id}/output/{type}/part-{n}.ndjson` |
+| Manifest | `.../bulk/export/jobs/{job_id}/manifest.json` |
+
+Bulk submit objects:
+
+| Object | Key Pattern |
+|--------|-------------|
+| Submission state | `.../bulk/submit/{submitter}/{submission_id}/state.json` |
+| Manifest | `.../bulk/submit/{submitter}/{submission_id}/manifests/{manifest_id}.json` |
+| Raw input | `.../bulk/submit/{submitter}/{submission_id}/raw/{manifest_id}/line-{line}.ndjson` |
+| Results | `.../bulk/submit/{submitter}/{submission_id}/results/{manifest_id}/line-{line}.json` |
+| Change log | `.../bulk/submit/{submitter}/{submission_id}/changes/{change_id}.json` |
+
+### Consistency and Transaction Notes
+
+- The backend never creates buckets — startup/runtime bucket checks use `HeadBucket` only.
+- Optimistic locking relies on version checks plus S3 preconditions (`If-Match`, `If-None-Match`) where applicable.
+- Transaction bundle behavior is best-effort: entries are applied sequentially, rollback is attempted in reverse order on failure, but rollback is not guaranteed under concurrent writes or partial failures.
+
+### AWS Credentials and Region
+
+Uses the AWS SDK for Rust ([`aws_sdk_s3`](https://docs.rs/aws-sdk-s3/latest/aws_sdk_s3/)) with standard provider chain:
+- Region may be provided in config or via `AWS_REGION`
+- Environment credentials (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, optional `AWS_SESSION_TOKEN`) are supported by provider chain behavior
+
 ## Implementation Status
 
 ### Phase 1: Core Types ✓
@@ -774,11 +877,19 @@ The SQLite backend includes a complete FHIR search implementation using pre-comp
 - [x] Search offloading support
 - [x] ReindexableStorage implementation
 
+### Phase 5c: S3 Backend ✓
+- [x] S3BackendConfig with PrefixPerTenant and BucketPerTenant tenancy modes
+- [x] ResourceStorage implementation (CRUD via S3 objects)
+- [x] VersionedStorage implementation (vread, optimistic locking)
+- [x] History providers (instance, type, system via immutable history objects)
+- [x] Batch and best-effort transaction bundles
+- [x] BulkExportStorage implementation (NDJSON parts + manifest in S3)
+- [x] BulkSubmitProvider implementation (ingest, raw artifacts, rollback change log)
+
 ### Phase 5+: Additional Backends (Planned)
 - [ ] Cassandra backend (wide-column, partition keys)
 - [ ] MongoDB backend (document storage, aggregation)
 - [ ] Neo4j backend (graph queries, Cypher)
-- [ ] S3 backend (bulk export, object storage)
 
 ### Phase 6: Composite Storage ✓
 - [x] Query analysis and feature detection
