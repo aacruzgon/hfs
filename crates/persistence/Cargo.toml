@@ -94,6 +94,7 @@ tokio = { version = "1", features = ["full", "test-util"] }
 tokio-test = "0.4"
 tempfile = "3"
 criterion = { version = "0.5", features = ["async_tokio"] }
+aws-sdk-s3 = { version = "1", features = ["behavior-version-latest"] }
 testcontainers = "0.26"
 testcontainers-modules = { version = "0.14", features = ["postgres", "elastic_search"] }
 paste = "1.0"

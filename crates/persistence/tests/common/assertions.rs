@@ -201,14 +201,15 @@ pub fn assert_search_count(resources: &[StoredResource], expected: usize) {
 }
 
 /// Asserts that resources are sorted by a field in ascending order.
+/// Asserts that resources are sorted by a field in ascending order.
 pub fn assert_sorted_asc(resources: &[StoredResource], field_path: &str) {
-    let values: Vec<Option<&Value>> = resources
+    let values: Vec<Option<String>> = resources
         .iter()
-        .map(|r| r.content().pointer(field_path))
+        .map(|r| r.content().pointer(field_path).and_then(orderable))
         .collect();
 
     for i in 1..values.len() {
-        if let (Some(prev), Some(curr)) = (values[i - 1], values[i]) {
+        if let (Some(prev), Some(curr)) = (&values[i - 1], &values[i]) {
             assert!(
                 prev <= curr,
                 "Resources not sorted ascending by '{}': {:?} > {:?}",
@@ -221,14 +222,15 @@ pub fn assert_sorted_asc(resources: &[StoredResource], field_path: &str) {
 }
 
 /// Asserts that resources are sorted by a field in descending order.
+/// Asserts that resources are sorted by a field in descending order.
 pub fn assert_sorted_desc(resources: &[StoredResource], field_path: &str) {
-    let values: Vec<Option<&Value>> = resources
+    let values: Vec<Option<String>> = resources
         .iter()
-        .map(|r| r.content().pointer(field_path))
+        .map(|r| r.content().pointer(field_path).and_then(orderable))
         .collect();
 
     for i in 1..values.len() {
-        if let (Some(prev), Some(curr)) = (values[i - 1], values[i]) {
+        if let (Some(prev), Some(curr)) = (&values[i - 1], &values[i]) {
             assert!(
                 prev >= curr,
                 "Resources not sorted descending by '{}': {:?} < {:?}",
@@ -239,6 +241,7 @@ pub fn assert_sorted_desc(resources: &[StoredResource], field_path: &str) {
         }
     }
 }
+
 
 /// Asserts that all resources in the result are of the expected type.
 pub fn assert_all_resource_type(resources: &[StoredResource], expected_type: &str) {
@@ -268,6 +271,22 @@ pub fn assert_all_tenant(
         );
     }
 }
+
+// Alan
+
+fn orderable(v: &Value) -> Option<String> {
+    match v {
+        Value::Null => None,
+        Value::Bool(b) => Some(b.to_string()),
+        Value::Number(n) => Some(n.to_string()),
+        Value::String(s) => Some(s.clone()),
+        // Arrays/Objects aren't safely orderable for tests; stringify deterministically
+        Value::Array(_) | Value::Object(_) => Some(v.to_string()),
+    }
+}
+
+
+
 
 /// Assertion macro for checking resource matches expected type and id.
 #[macro_export]
@@ -334,6 +353,7 @@ mod tests {
             chrono::Utc::now(),
             chrono::Utc::now(),
             None,
+            helios_fhir::FhirVersion::R4,
         )
     }
 

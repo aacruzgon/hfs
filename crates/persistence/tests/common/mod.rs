@@ -7,9 +7,13 @@ pub mod assertions;
 pub mod capabilities;
 pub mod fixtures;
 pub mod harness;
+#[cfg(feature = "s3")]
+pub mod minio;
 
 // Re-export commonly used items
 pub use assertions::*;
 pub use capabilities::*;
 pub use fixtures::*;
 pub use harness::*;
+#[cfg(feature = "s3")]
+pub use minio::*;
