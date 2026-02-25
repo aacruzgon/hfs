@@ -1,7 +1,7 @@
 name: Inferno US Core Test Suite
 
 on:
-  workflow_dispatch:  # Manual trigger only for initial implementation
+  workflow_dispatch: # Manual trigger only for initial implementation
 
 env:
   CARGO_TERM_COLOR: always
@@ -52,8 +52,16 @@ jobs:
       fail-fast: false
       max-parallel: 3
       matrix:
-        suite_id: [us_core_v311, us_core_v400, us_core_v501, us_core_v610, us_core_v700, us_core_v800]
-        backend: [sqlite, sqlite-elasticsearch, postgres]
+        suite_id:
+          [
+            us_core_v311,
+            us_core_v400,
+            us_core_v501,
+            us_core_v610,
+            us_core_v700,
+            us_core_v800,
+          ]
+        backend: [sqlite, sqlite-elasticsearch, postgres, s3]
         include:
           - { suite_id: us_core_v311, version_label: "v3.1.1" }
           - { suite_id: us_core_v400, version_label: "v4.0.0" }
