@@ -300,37 +300,37 @@ The matrix below shows which FHIR operations each backend supports. This reflect
 | Feature | SQLite | PostgreSQL | MongoDB | Cassandra | Neo4j | Elasticsearch | S3 |
 |---------|--------|------------|---------|-----------|-------|---------------|-----|
 | **Core Operations** |
-| [CRUD](https://build.fhir.org/http.html#crud) | ✓ | ✓ | ○ | ○ | ○ | ✓ | ○ |
-| [Versioning (vread)](https://build.fhir.org/http.html#vread) | ✓ | ✓ | ○ | ○ | ○ | ○ | ○ |
-| [Optimistic Locking](https://build.fhir.org/http.html#concurrency) | ✓ | ✓ | ○ | ○ | ○ | ✗ | ✗ |
-| [Instance History](https://build.fhir.org/http.html#history) | ✓ | ✓ | ○ | ○ | ○ | ✗ | ○ |
-| [Type History](https://build.fhir.org/http.html#history) | ✓ | ✓ | ○ | ✗ | ○ | ✗ | ✗ |
-| [System History](https://build.fhir.org/http.html#history) | ✓ | ✓ | ○ | ✗ | ○ | ✗ | ✗ |
-| [Batch Bundles](https://build.fhir.org/http.html#batch) | ✓ | ✓ | ○ | ○ | ○ | ○ | ○ |
-| [Transaction Bundles](https://build.fhir.org/http.html#transaction) | ✓ | ✓ | ○ | ✗ | ○ | ✗ | ✗ |
+| [CRUD](https://build.fhir.org/http.html#crud) | ✓ | ✓ | ○ | ○ | ○ | ✓ | ✓ |
+| [Versioning (vread)](https://build.fhir.org/http.html#vread) | ✓ | ✓ | ○ | ○ | ○ | ○ | ✓ |
+| [Optimistic Locking](https://build.fhir.org/http.html#concurrency) | ✓ | ✓ | ○ | ○ | ○ | ✗ | ✓ |
+| [Instance History](https://build.fhir.org/http.html#history) | ✓ | ✓ | ○ | ○ | ○ | ✗ | ✓ |
+| [Type History](https://build.fhir.org/http.html#history) | ✓ | ✓ | ○ | ✗ | ○ | ✗ | ✓ |
+| [System History](https://build.fhir.org/http.html#history) | ✓ | ✓ | ○ | ✗ | ○ | ✗ | ✓ |
+| [Batch Bundles](https://build.fhir.org/http.html#batch) | ✓ | ✓ | ○ | ○ | ○ | ○ | ✓ |
+| [Transaction Bundles](https://build.fhir.org/http.html#transaction) | ✓ | ✓ | ○ | ✗ | ○ | ✗ | ◐ |
 | [Conditional Operations](https://build.fhir.org/http.html#cond-update) | ✓ | ✓ | ○ | ✗ | ○ | ○ | ✗ |
 | [Conditional Patch](https://build.fhir.org/http.html#patch) | ✓ | ✓ | ○ | ✗ | ○ | ○ | ✗ |
 | [Delete History](https://build.fhir.org/http.html#delete) | ✓ | ✓ | ○ | ✗ | ○ | ✗ | ✗ |
 | **Multitenancy** |
-| Shared Schema | ✓ | ✓ | ○ | ○ | ○ | ✓ | ○ |
+| Shared Schema | ✓ | ✓ | ○ | ○ | ○ | ✓ | ✓ |
 | Schema-per-Tenant | ✗ | ○ | ○ | ✗ | ✗ | ✗ | ✗ |
-| Database-per-Tenant | ✓ | ○ | ○ | ○ | ○ | ○ | ○ |
+| Database-per-Tenant | ✓ | ○ | ○ | ○ | ○ | ○ | ✓ |
 | Row-Level Security | ✗ | ○ | ✗ | ✗ | ✗ | ✗ | ✗ |
 | **[Search Parameters](https://build.fhir.org/search.html#ptypes)** |
 | [String](https://build.fhir.org/search.html#string) | ✓ | ✓ | ○ | ✗ | ○ | ✓ | ✗ |
 | [Token](https://build.fhir.org/search.html#token) | ✓ | ✓ | ○ | ○ | ○ | ✓ | ✗ |
 | [Reference](https://build.fhir.org/search.html#reference) | ✓ | ✓ | ○ | ✗ | ○ | ✓ | ✗ |
-| [Date](https://build.fhir.org/search.html#date) | ✓ | ✓ | ○ | ○ | ○ | ✓ | ○ |
-| [Number](https://build.fhir.org/search.html#number) | ✓ | ✓ | ○ | ✗ | ○ | ✓ | ○ |
-| [Quantity](https://build.fhir.org/search.html#quantity) | ✓ | ✓ | ○ | ✗ | ✗ | ✓ | ○ |
-| [URI](https://build.fhir.org/search.html#uri) | ✓ | ✓ | ○ | ○ | ○ | ✓ | ○ |
+| [Date](https://build.fhir.org/search.html#date) | ✓ | ✓ | ○ | ○ | ○ | ✓ | ✗ |
+| [Number](https://build.fhir.org/search.html#number) | ✓ | ✓ | ○ | ✗ | ○ | ✓ | ✗ |
+| [Quantity](https://build.fhir.org/search.html#quantity) | ✓ | ✓ | ○ | ✗ | ✗ | ✓ | ✗ |
+| [URI](https://build.fhir.org/search.html#uri) | ✓ | ✓ | ○ | ○ | ○ | ✓ | ✗ |
 | [Composite](https://build.fhir.org/search.html#composite) | ✓ | ○ | ○ | ✗ | ○ | ✓ | ✗ |
 | **[Search Modifiers](https://build.fhir.org/search.html#modifiers)** |
-| [:exact](https://build.fhir.org/search.html#modifiers) | ✓ | ✓ | ○ | ○ | ○ | ✓ | ○ |
+| [:exact](https://build.fhir.org/search.html#modifiers) | ✓ | ✓ | ○ | ○ | ○ | ✓ | ✗ |
 | [:contains](https://build.fhir.org/search.html#modifiers) | ✓ | ✓ | ○ | ✗ | ○ | ✓ | ✗ |
 | [:text](https://build.fhir.org/search.html#modifiers) (full-text) | ✓ | ◐ | ○ | ✗ | ✗ | ✓ | ✗ |
-| [:not](https://build.fhir.org/search.html#modifiers) | ✓ | ○ | ○ | ✗ | ○ | ✓ | ○ |
-| [:missing](https://build.fhir.org/search.html#modifiers) | ✓ | ○ | ○ | ✗ | ○ | ✓ | ○ |
+| [:not](https://build.fhir.org/search.html#modifiers) | ✓ | ○ | ○ | ✗ | ○ | ✓ | ✗ |
+| [:missing](https://build.fhir.org/search.html#modifiers) | ✓ | ○ | ○ | ✗ | ○ | ✓ | ✗ |
 | [:above / :below](https://build.fhir.org/search.html#modifiers) | ✗ | †○ | †○ | ✗ | ○ | ✓ | ✗ |
 | [:in / :not-in](https://build.fhir.org/search.html#modifiers) | ✗ | †○ | †○ | ✗ | ○ | †○ | ✗ |
 | [:of-type](https://build.fhir.org/search.html#modifiers) | ✓ | ○ | ○ | ✗ | ○ | ✓ | ✗ |
@@ -346,13 +346,15 @@ The matrix below shows which FHIR operations each backend supports. This reflect
 | [_revinclude](https://build.fhir.org/search.html#revinclude) | ✓ | ✓ | ○ | ✗ | ○ | ✓ | ✗ |
 | **[Pagination](https://build.fhir.org/http.html#paging)** |
 | Offset | ✓ | ✓ | ○ | ✗ | ○ | ✓ | ✗ |
-| Cursor (keyset) | ✓ | ✓ | ○ | ○ | ○ | ✓ | ○ |
+| Cursor (keyset) | ✓ | ✓ | ○ | ○ | ○ | ✓ | ✗ |
 | **[Sorting](https://build.fhir.org/search.html#sort)** |
 | Single field | ✓ | ✓ | ○ | ✗ | ○ | ✓ | ✗ |
 | Multiple fields | ✓ | ✓ | ○ | ✗ | ○ | ✓ | ✗ |
 | **[Bulk Operations](https://hl7.org/fhir/uv/bulkdata/)** |
-| [Bulk Export](https://hl7.org/fhir/uv/bulkdata/export.html) | ✓ | ✓ | ○ | ○ | ○ | ○ | ○ |
-| [Bulk Submit](https://hackmd.io/@argonaut/rJoqHZrPle) | ✓ | ✓ | ○ | ○ | ○ | ○ | ○ |
+| [Bulk Export](https://hl7.org/fhir/uv/bulkdata/export.html) | ✓ | ✓ | ○ | ○ | ○ | ○ | ✓ |
+| [Bulk Submit](https://hackmd.io/@argonaut/rJoqHZrPle) | ✓ | ✓ | ○ | ○ | ○ | ○ | ✓ |
+
+The S3 backend is intentionally storage-focused (CRUD/version/history/bulk) and does not act as a full FHIR search engine. For query-heavy deployments, use a DB/search backend as primary query engine and compose S3 as archive/bulk/history storage.
 
 ### Primary/Secondary Role Matrix
 
@@ -368,7 +370,7 @@ Backends can serve as primary (CRUD, versioning, transactions) or secondary (opt
 | Cassandra alone | Cassandra | — | Planned | High write throughput |
 | Cassandra + Elasticsearch | Cassandra | Elasticsearch (search) | Planned | Write-heavy + search |
 | MongoDB alone | MongoDB | — | Planned | Document-centric |
-| S3 alone | S3 | — | Planned | Archival/bulk storage |
+| S3 alone | S3 | — | ✓ Implemented (storage-focused) | Archival/bulk/history storage |
 | S3 + Elasticsearch | S3 | Elasticsearch (search) | Planned | Large-scale + search |
 
 ### Backend Selection Guide
@@ -393,7 +395,7 @@ Backends can serve as primary (CRUD, versioning, transactions) or secondary (opt
 | `mongodb` | MongoDB document store | mongodb |
 | `neo4j` | Neo4j graph database | neo4rs |
 | `elasticsearch` | Elasticsearch search | elasticsearch |
-| `s3` | AWS S3 object storage | object_store |
+| `s3` | AWS S3 object storage | aws-sdk-s3 |
 
 ## Building & Running Storage Backends
 
