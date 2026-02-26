@@ -86,10 +86,23 @@ pub struct AwsS3Client {
     client: Client,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct AwsS3ClientOptions {
+    pub endpoint_url: Option<String>,
+    pub force_path_style: bool,
+}
+
 impl AwsS3Client {
-    pub fn from_sdk_config(config: &SdkConfig) -> Self {
+    pub fn from_sdk_config_with_options(config: &SdkConfig, options: AwsS3ClientOptions) -> Self {
+        let mut builder = aws_sdk_s3::config::Builder::from(config);
+        if let Some(endpoint_url) = options.endpoint_url {
+            builder = builder.endpoint_url(endpoint_url);
+        }
+        builder = builder.force_path_style(options.force_path_style);
+        let s3_config = builder.build();
+
         Self {
-            client: Client::new(config),
+            client: Client::from_conf(s3_config),
         }
     }
 

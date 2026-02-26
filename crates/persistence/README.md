@@ -356,6 +356,49 @@ The matrix below shows which FHIR operations each backend supports. This reflect
 
 The S3 backend is intentionally storage-focused (CRUD/version/history/bulk) and does not act as a full FHIR search engine. For query-heavy deployments, use a DB/search backend as primary query engine and compose S3 as archive/bulk/history storage.
 
+S3-compatible endpoints (for example MinIO) are supported through S3 backend configuration (`endpoint_url`, `force_path_style`, `allow_http`) while keeping a single shared S3 backend implementation.
+
+See [S3 backend endpoint mode docs](src/backends/s3/docs/README.md) for full details.
+
+#### S3 Endpoint Quick Start
+
+AWS S3 mode (`endpoint_url=None`):
+
+```bash
+HFS_STORAGE_BACKEND=s3 \
+AWS_REGION=us-east-1 \
+AWS_PROFILE=default \
+./target/release/hfs
+```
+
+```rust
+S3BackendConfig {
+    endpoint_url: None,
+    force_path_style: false,
+    allow_http: false,
+    ..Default::default()
+}
+```
+
+S3-compatible endpoint mode (MinIO):
+
+```bash
+HFS_STORAGE_BACKEND=s3 \
+AWS_REGION=us-east-1 \
+AWS_ACCESS_KEY_ID=minioadmin \
+AWS_SECRET_ACCESS_KEY=minioadmin \
+./target/release/hfs
+```
+
+```rust
+S3BackendConfig {
+    endpoint_url: Some("http://127.0.0.1:9000".to_string()),
+    allow_http: true,
+    force_path_style: true,
+    ..Default::default()
+}
+```
+
 ### Primary/Secondary Role Matrix
 
 Backends can serve as primary (CRUD, versioning, transactions) or secondary (optimized for specific query patterns). When a secondary search backend is configured, the primary backend's search indexing is automatically disabled to avoid data duplication.
@@ -395,7 +438,7 @@ Backends can serve as primary (CRUD, versioning, transactions) or secondary (opt
 | `mongodb` | MongoDB document store | mongodb |
 | `neo4j` | Neo4j graph database | neo4rs |
 | `elasticsearch` | Elasticsearch search | elasticsearch |
-| `s3` | AWS S3 object storage | aws-sdk-s3 |
+| `s3` | AWS S3 and S3-compatible object storage (e.g. MinIO) | aws-sdk-s3 |
 
 ## Building & Running Storage Backends
 
